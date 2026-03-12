@@ -3,471 +3,154 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibe Planner</title>
-<meta name="description" content="Capture sparks. Plan actions. Track flow.">
+<title>Bhaskar's Toolkit</title>
+<meta name="description" content="Personal productivity tools — capture, plan, and flow.">
 <meta name="theme-color" content="#0f0f17">
-<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVmliZSBQbGFubmVyIiwic2hvcnRfbmFtZSI6IlZpYmUiLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzBmMGYxNyIsInRoZW1lX2NvbG9yIjoiIzBmMGYxNyJ9">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #0f0f17; --surface: #16161e; --card: #1e1e2e; --border: #2a2a3e;
-    --text: #e2e8f0; --muted: #64748b; --dim: #475569;
-    --purple: #a78bfa; --blue: #38bdf8; --orange: #fb923c; --green: #4ade80; --slate: #94a3b8;
-    --indigo: #6366f1; --red: #f87171;
+
+  :root, [data-theme="dark"] {
+    --bg: #0f0f17; --card: #1e1e2e; --border: #2a2a3e;
+    --text: #e2e8f0; --muted: #64748b; --dim: #94a3b8;
+    --footer: #334155; --hover-border: #444;
+    --shadow: rgba(0,0,0,0.3);
   }
-  html { font-size: 14px; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
-  input, select, button, textarea { font-family: inherit; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
-  @keyframes slideIn { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:translateY(0) } }
-
-  /* Header */
-  .header { padding: 16px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 40; }
-  .header-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .logo { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--purple), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .subtitle { color: var(--muted); font-size: 11px; margin-top: 2px; }
-
-  /* View Switcher */
-  .view-tabs { display: flex; gap: 2px; background: var(--card); border-radius: 8px; padding: 3px; }
-  .view-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: var(--muted); transition: all 0.15s; }
-  .view-tab.active { background: var(--indigo); color: #fff; }
-
-  /* Stats */
-  .stats { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
-  .stat { display: flex; align-items: center; gap: 6px; }
-  .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .stat-label { color: var(--muted); font-size: 11px; }
-  .stat-value { font-size: 13px; font-weight: 700; }
-
-  /* Input Row */
-  .input-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-  .input-main { flex: 1; min-width: 180px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 14px; font-size: 13px; outline: none; transition: border 0.2s; }
-  .input-main:focus { border-color: var(--indigo); }
-  .input-main::placeholder { color: var(--dim); }
-  .btn-add { background: linear-gradient(135deg, var(--indigo), #8b5cf6); border: none; border-radius: 8px; color: #fff; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
-  .btn-add:hover { opacity: 0.9; }
-  .filter-select { background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--slate); padding: 8px 12px; font-size: 12px; outline: none; cursor: pointer; }
-
-  /* Timer Display */
-  .timer-display { background: #1e3a5f; border-radius: 8px; padding: 6px 14px; font-size: 14px; color: #60a5fa; font-family: 'Courier New', monospace; font-weight: 700; }
-
-  /* Board View */
-  .board { display: flex; gap: 10px; padding: 16px 20px; overflow-x: auto; padding-bottom: 20px; }
-  .column { flex: 1; min-width: 200px; background: var(--surface); border-radius: 12px; padding: 10px; border: 2px dashed transparent; transition: all 0.2s; }
-  .column.drag-over { border-color: var(--indigo); background: #6366f108; }
-  .col-header { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #ffffff08; }
-  .col-icon { font-size: 14px; }
-  .col-title { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; }
-  .col-count { font-size: 11px; color: var(--dim); margin-left: auto; }
-  .col-empty { color: #1e293b; font-size: 11px; text-align: center; padding: 20px 0; font-style: italic; }
-
-  /* Card */
-  .card { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: grab; transition: transform 0.15s, box-shadow 0.15s; border: 1px solid transparent; position: relative; }
-  .card:hover { transform: translateY(-1px); }
-  .card.dragging { opacity: 0.4; }
-  .card-inner { display: flex; align-items: flex-start; gap: 8px; }
-  .card-icon { font-size: 13px; margin-top: 2px; flex-shrink: 0; }
-  .card-body { flex: 1; min-width: 0; }
-  .card-text { font-size: 13px; line-height: 1.4; word-break: break-word; cursor: text; }
-  .card-text.done { color: var(--muted); text-decoration: line-through; }
-  .card-edit { width: 100%; background: var(--border); border: 1px solid #444; border-radius: 6px; color: var(--text); padding: 4px 8px; font-size: 13px; outline: none; }
-  .card-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
-  .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
-
-  /* Menu */
-  .menu-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; flex-shrink: 0; }
-  .menu { position: absolute; right: 8px; top: 32px; background: var(--border); border: 1px solid #333; border-radius: 8px; padding: 4px; z-index: 50; min-width: 150px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: slideIn 0.15s; }
-  .menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; background: none; border: none; font-size: 12px; cursor: pointer; border-radius: 6px; text-align: left; transition: background 0.1s; }
-  .menu-item:hover { background: #ffffff08; }
-  .menu-divider { height: 1px; background: #333; margin: 4px 0; }
-
-  /* Timeline View */
-  .timeline { padding: 16px 20px; }
-  .week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .week-btn { background: var(--card); border: 1px solid var(--border); color: var(--slate); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 12px; transition: background 0.15s; }
-  .week-btn:hover { background: var(--border); }
-  .week-label { color: var(--text); font-size: 14px; font-weight: 600; }
-  .week-grid { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
-  .day-col { flex: 1; min-width: 130px; background: var(--surface); border: 1px solid var(--surface); border-radius: 10px; padding: 8px; min-height: 140px; transition: all 0.2s; }
-  .day-col.today { background: #1a1a3e; border-color: var(--indigo); }
-  .day-col.drag-over { border-color: var(--orange); }
-  .day-header { text-align: center; margin-bottom: 8px; }
-  .day-name { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-  .day-num { font-size: 18px; font-weight: 700; }
-  .day-empty { color: #1e293b; font-size: 11px; text-align: center; padding: 10px; }
-
-  /* List View */
-  .list { padding: 16px 20px; max-width: 720px; }
-  .list-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #1e1e2e; }
-  .list-status-btn { border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid; transition: transform 0.15s; }
-  .list-status-btn:hover { transform: scale(1.1); }
-  .list-text { flex: 1; font-size: 13px; }
-  .list-text.done { color: var(--dim); text-decoration: line-through; }
-  .list-action { background: none; border: none; cursor: pointer; font-size: 13px; padding: 4px; }
-
-  /* Mobile */
-  @media (max-width: 768px) {
-    .board { flex-direction: column; }
-    .column { min-width: unset; }
-    .week-grid { flex-direction: column; }
-    .day-col { min-width: unset; min-height: auto; }
-    .day-header { display: flex; gap: 8px; align-items: center; justify-content: flex-start; margin-bottom: 4px; }
-    .stats { gap: 10px; }
-    .stat-label { font-size: 10px; }
-    .header { padding: 12px 14px; }
-    .board, .timeline, .list { padding: 12px 14px; }
+  [data-theme="light"] {
+    --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0;
+    --text: #1e293b; --muted: #64748b; --dim: #475569;
+    --footer: #94a3b8; --hover-border: #cbd5e1;
+    --shadow: rgba(0,0,0,0.08);
   }
-  @media (max-width: 400px) {
-    .view-tab { padding: 6px 10px; font-size: 11px; }
-    .logo { font-size: 17px; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    transition: background 0.3s, color 0.3s;
+  }
+  .hero {
+    text-align: center; padding: 60px 20px 40px; position: relative; width: 100%;
+  }
+  .hero h1 {
+    font-size: 36px; font-weight: 800;
+    background: linear-gradient(135deg, #a78bfa, #38bdf8, #4ade80);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero p { color: var(--muted); font-size: 15px; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+  .theme-toggle {
+    position: absolute; top: 20px; right: 20px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; font-size: 16px; line-height: 1;
+    color: var(--text); transition: all 0.2s;
+  }
+  .theme-toggle:hover { border-color: var(--hover-border); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px; padding: 20px; max-width: 960px; width: 100%;
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px 24px; transition: all 0.25s; cursor: pointer;
+    text-decoration: none; color: inherit; display: block;
+    position: relative; overflow: hidden;
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--hover-border); box-shadow: 0 12px 40px var(--shadow); }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 16px 16px 0 0;
+  }
+  .card:nth-child(1)::before { background: linear-gradient(90deg, #a78bfa, #818cf8); }
+  .card:nth-child(2)::before { background: linear-gradient(90deg, #38bdf8, #22d3ee); }
+  .card:nth-child(3)::before { background: linear-gradient(90deg, #fb923c, #f97316); }
+  .card:nth-child(4)::before { background: linear-gradient(90deg, #4ade80, #22c55e); }
+
+  .card-icon { font-size: 32px; margin-bottom: 16px; display: block; }
+  .card h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .card p { color: var(--dim); font-size: 13px; line-height: 1.5; }
+  .card .badge {
+    display: inline-block; margin-top: 14px; font-size: 10px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px; letter-spacing: 0.5px;
+  }
+  .live { background: #4ade8020; color: #16a34a; }
+  .soon { background: #fb923c20; color: #ea580c; }
+  [data-theme="dark"] .live { color: #4ade80; }
+  [data-theme="dark"] .soon { color: #fb923c; }
+
+  .footer {
+    margin-top: auto; padding: 40px 20px 24px; text-align: center;
+    color: var(--footer); font-size: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .hero { padding: 40px 16px 24px; }
+    .hero h1 { font-size: 28px; }
+    .grid { padding: 12px; gap: 14px; }
+    .card { padding: 22px 18px; }
+    .theme-toggle { top: 12px; right: 12px; padding: 6px 10px; font-size: 14px; }
   }
 </style>
 </head>
 <body>
 
-<div id="app"></div>
+<div class="hero">
+  <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">☀️</button>
+  <h1>Bhaskar's Toolkit</h1>
+  <p>Personal productivity tools to capture ideas, plan actions, and stay in flow — all free, all private.</p>
+</div>
+
+<div class="grid">
+  <a href="./vibe-planner/" class="card">
+    <span class="card-icon">✦</span>
+    <h2>Vibe Planner</h2>
+    <p>Capture sparks, plan actions, track time. Kanban board, weekly timeline, and list view with drag & drop.</p>
+    <span class="badge live">LIVE</span>
+  </a>
+
+  <div class="card" style="cursor: default; opacity: 0.6;">
+    <span class="card-icon">⏱</span>
+    <h2>Focus Timer</h2>
+    <p>Pomodoro-style focus sessions with break reminders and daily streak tracking.</p>
+    <span class="badge soon">COMING SOON</span>
+  </div>
+
+  <div class="card" style="cursor: default; opacity: 0.6;">
+    <span class="card-icon">📓</span>
+    <h2>Daily Journal</h2>
+    <p>Quick daily reflections with mood tracking and weekly summaries.</p>
+    <span class="badge soon">COMING SOON</span>
+  </div>
+
+  <div class="card" style="cursor: default; opacity: 0.6;">
+    <span class="card-icon">✔</span>
+    <h2>Habit Tracker</h2>
+    <p>Build streaks, track daily habits, and visualize your consistency over time.</p>
+    <span class="badge soon">COMING SOON</span>
+  </div>
+</div>
+
+<div class="footer">
+  Built with ♥ by Bhaskar · Hosted on Cloudflare · 100% free
+</div>
 
 <script>
-// ── Data Layer with localStorage ──
-const STORAGE_KEY = "vibe_planner_data";
-
-function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return null;
-}
-
-function saveData(items) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch(e) {}
-}
-
-function exportData(items) {
-  const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "vibe-planner-backup.json"; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function importData(callback) {
-  const input = document.createElement("input");
-  input.type = "file"; input.accept = ".json";
-  input.onchange = (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try { callback(JSON.parse(ev.target.result)); } catch(e) { alert("Invalid file"); }
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-}
-
-// ── Constants ──
-const STATUSES = {
-  spark:       { label: "Spark",       icon: "✦", color: "#a78bfa" },
-  in_progress: { label: "In Progress", icon: "▶", color: "#38bdf8" },
-  scheduled:   { label: "Scheduled",   icon: "◷", color: "#fb923c" },
-  done:        { label: "Done",        icon: "✓", color: "#4ade80" },
-  deferred:    { label: "Future",      icon: "→", color: "#94a3b8" },
-};
-const STATUS_KEYS = Object.keys(STATUSES);
-const CATEGORIES = ["Work", "Personal", "Creative", "Learning", "Health"];
-
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function todayStr() { return new Date().toISOString().split("T")[0]; }
-function fmtDate(d) { return new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); }
-function fmtTime(m) { if(!m) return ""; const h=Math.floor(m/60),mn=m%60; return h?mn?`${h}h ${mn}m`:`${h}h`:`${mn}m`; }
-function getWeekDates(offset) {
-  const now=new Date(); now.setDate(now.getDate()+offset*7);
-  const day=now.getDay(), mon=new Date(now); mon.setDate(now.getDate()-((day+6)%7));
-  return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().split("T")[0];});
-}
-
-// ── Default items ──
-const DEFAULTS = [
-  { id:genId(), text:"Welcome! Drag cards between columns to change status", status:"spark", category:null, timeSpent:0, scheduledDate:null, createdAt:Date.now() },
-  { id:genId(), text:"Try the Timeline view to plan your week", status:"scheduled", category:"Work", timeSpent:0, scheduledDate:todayStr(), createdAt:Date.now() },
-  { id:genId(), text:"Use the ⋮ menu to set categories and start timers", status:"in_progress", category:"Learning", timeSpent:15, scheduledDate:todayStr(), createdAt:Date.now() },
-];
-
-// ── App State ──
-let state = {
-  items: loadData() || DEFAULTS,
-  view: "board",
-  newText: "",
-  weekOffset: 0,
-  activeTimer: null,
-  timerStart: null,
-  elapsed: 0,
-  filter: "all",
-  openMenu: null,
-  editingCard: null,
-  editText: "",
-  dragId: null,
-};
-let timerInterval = null;
-
-function setState(patch) {
-  Object.assign(state, patch);
-  if (patch.items) saveData(state.items);
-  render();
-}
-
-function updateItem(id, updates) {
-  setState({ items: state.items.map(i => i.id===id ? {...i,...updates} : i) });
-}
-
-function addItem() {
-  if (!state.newText.trim()) return;
-  setState({ items: [...state.items, { id:genId(), text:state.newText.trim(), status:"spark", category:null, timeSpent:0, scheduledDate:null, createdAt:Date.now() }], newText:"" });
-}
-
-function deleteItem(id) {
-  if (state.activeTimer===id) stopTimer();
-  setState({ items: state.items.filter(i=>i.id!==id), openMenu:null });
-}
-
-function startTimer(id) {
-  if (state.activeTimer===id) { stopTimer(); return; }
-  if (state.activeTimer) stopTimer();
-  state.activeTimer = id; state.timerStart = Date.now(); state.elapsed = 0;
-  clearInterval(timerInterval);
-  timerInterval = setInterval(()=>{ state.elapsed=Math.floor((Date.now()-state.timerStart)/1000); render(); },1000);
-  setState({ openMenu:null });
-}
-
-function stopTimer() {
-  if (!state.timerStart||!state.activeTimer) return;
-  const mins = Math.max(1, Math.round((Date.now()-state.timerStart)/60000));
-  const id = state.activeTimer;
-  clearInterval(timerInterval);
-  state.activeTimer=null; state.timerStart=null; state.elapsed=0;
-  updateItem(id, { timeSpent: (state.items.find(i=>i.id===id)?.timeSpent||0)+mins });
-}
-
-// ── Render Helpers ──
-function h(tag, attrs, ...children) {
-  const el = document.createElement(tag);
-  if (attrs) Object.entries(attrs).forEach(([k,v])=>{
-    if (k==="style"&&typeof v==="object") Object.assign(el.style,v);
-    else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(),v);
-    else if (k==="className") el.className=v;
-    else if (k==="draggable") el.draggable=v;
-    else el.setAttribute(k,v);
-  });
-  children.flat(Infinity).forEach(c=>{ if(c!=null) el.append(typeof c==="string"?document.createTextNode(c):c); });
-  return el;
-}
-
-function renderCard(item) {
-  const s = STATUSES[item.status];
-  const isTimer = state.activeTimer===item.id;
-  const isEditing = state.editingCard===item.id;
-  const isMenu = state.openMenu===item.id;
-
-  const tags = [];
-  if (item.category) tags.push(h("span",{className:"tag",style:{background:"#334155",color:"#94a3b8"}},item.category));
-  if (item.timeSpent>0) tags.push(h("span",{className:"tag",style:{background:"#1e3a5f",color:"#60a5fa"}},"⏱ "+fmtTime(item.timeSpent)));
-  if (item.scheduledDate&&item.scheduledDate!==todayStr()) tags.push(h("span",{className:"tag",style:{background:"#3b2f1a",color:"#fb923c"}},fmtDate(item.scheduledDate)));
-  if (isTimer) tags.push(h("span",{className:"tag",style:{background:"#4ade8020",color:"#4ade80",animation:"pulse 1.5s infinite"}},"● tracking"));
-
-  const textEl = isEditing
-    ? h("input",{className:"card-edit",value:state.editText,onInput:(e)=>{state.editText=e.target.value;},onBlur:()=>{updateItem(item.id,{text:state.editText});setState({editingCard:null});},onKeydown:(e)=>{if(e.key==="Enter"){updateItem(item.id,{text:state.editText});setState({editingCard:null});}}})
-    : h("div",{className:"card-text"+(item.status==="done"?" done":""),onClick:()=>setState({editingCard:item.id,editText:item.text})},item.text);
-
-  // Menu
-  let menuEl = null;
-  if (isMenu) {
-    const items = [];
-    STATUS_KEYS.forEach(k=>{const st=STATUSES[k];items.push(h("button",{className:"menu-item",style:{color:st.color,background:item.status===k?st.color+"20":"transparent"},onClick:()=>{updateItem(item.id,{status:k});setState({openMenu:null});}},h("span",{},st.icon)," "+st.label));});
-    items.push(h("div",{className:"menu-divider"}));
-    CATEGORIES.forEach(c=>{items.push(h("button",{className:"menu-item",style:{color:"#94a3b8",background:item.category===c?"#334155":"transparent",fontSize:"11px"},onClick:()=>{updateItem(item.id,{category:item.category===c?null:c});setState({openMenu:null});}},item.category===c?"✓ ":"",c));});
-    items.push(h("div",{className:"menu-divider"}));
-    items.push(h("button",{className:"menu-item",style:{color:isTimer?"#4ade80":"#60a5fa"},onClick:()=>startTimer(item.id)},isTimer?"⏹ Stop Timer":"⏱ Start Timer"));
-    items.push(h("button",{className:"menu-item",style:{color:"var(--red)"},onClick:()=>deleteItem(item.id)},"🗑 Delete"));
-    menuEl = h("div",{className:"menu"},...items);
+  function getTheme() { return localStorage.getItem("vibe_theme") || "dark"; }
+  function applyTheme() {
+    const t = getTheme();
+    document.documentElement.setAttribute("data-theme", t);
+    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️" : "🌙";
   }
-
-  const card = h("div",{
-    className:"card",
-    draggable:true,
-    style:{borderLeft:`3px solid ${s.color}`,borderColor:`${s.color}33`},
-    onDragstart:(e)=>{state.dragId=item.id;e.currentTarget.classList.add("dragging");},
-    onDragend:(e)=>{state.dragId=null;e.currentTarget.classList.remove("dragging");}
-  },
-    h("div",{className:"card-inner"},
-      h("span",{className:"card-icon",style:{color:s.color}},s.icon),
-      h("div",{className:"card-body"},textEl,tags.length?h("div",{className:"card-tags"},...tags):null),
-      h("button",{className:"menu-btn",onClick:(e)=>{e.stopPropagation();setState({openMenu:isMenu?null:item.id});}},"\u22EE")
-    ),
-    menuEl
-  );
-
-  if (isEditing) setTimeout(()=>{const inp=card.querySelector("input.card-edit");if(inp){inp.focus();inp.selectionStart=inp.value.length;}},0);
-  return card;
-}
-
-function renderBoard() {
-  const filtered = state.filter==="all"?state.items:state.items.filter(i=>i.category===state.filter);
-  const cols = STATUS_KEYS.map(key=>{
-    const s = STATUSES[key];
-    const colItems = filtered.filter(i=>i.status===key);
-    const col = h("div",{className:"column",
-      onDragover:(e)=>{e.preventDefault();col.classList.add("drag-over");},
-      onDragleave:()=>col.classList.remove("drag-over"),
-      onDrop:(e)=>{e.preventDefault();col.classList.remove("drag-over");if(state.dragId)updateItem(state.dragId,{status:key});}
-    },
-      h("div",{className:"col-header"},
-        h("span",{className:"col-icon",style:{color:s.color}},s.icon),
-        h("span",{className:"col-title",style:{color:s.color}},s.label),
-        h("span",{className:"col-count"},String(colItems.length))
-      ),
-      ...colItems.map(renderCard),
-      colItems.length===0?h("div",{className:"col-empty"},"Drop vibes here"):null
-    );
-    return col;
-  });
-  return h("div",{className:"board"},...cols);
-}
-
-function renderTimeline() {
-  const dates = getWeekDates(state.weekOffset);
-  const td = todayStr();
-  const filtered = state.filter==="all"?state.items:state.items.filter(i=>i.category===state.filter);
-  const label = state.weekOffset===0?"This Week":state.weekOffset===1?"Next Week":state.weekOffset===-1?"Last Week":`${state.weekOffset>0?"+":""}${state.weekOffset} weeks`;
-
-  const dayCols = dates.map(date=>{
-    const isToday = date===td;
-    const dayItems = filtered.filter(i=>i.scheduledDate===date);
-    const d = new Date(date+"T12:00:00");
-    const col = h("div",{className:"day-col"+(isToday?" today":""),
-      onDragover:(e)=>{e.preventDefault();col.classList.add("drag-over");},
-      onDragleave:()=>col.classList.remove("drag-over"),
-      onDrop:(e)=>{e.preventDefault();col.classList.remove("drag-over");if(state.dragId){const it=state.items.find(i=>i.id===state.dragId);updateItem(state.dragId,{scheduledDate:date,status:it&&it.status==="spark"?"scheduled":it.status});}}
-    },
-      h("div",{className:"day-header"},
-        h("div",{className:"day-name",style:{color:isToday?"#818cf8":"var(--muted)"}},d.toLocaleDateString("en-US",{weekday:"short"})),
-        h("div",{className:"day-num",style:{color:isToday?"var(--text)":"var(--slate)"}},String(d.getDate()))
-      ),
-      ...dayItems.map(renderCard),
-      dayItems.length===0?h("div",{className:"day-empty"},"—"):null
-    );
-    return col;
-  });
-
-  return h("div",{className:"timeline"},
-    h("div",{className:"week-nav"},
-      h("button",{className:"week-btn",onClick:()=>setState({weekOffset:state.weekOffset-1})},"← Prev"),
-      h("span",{className:"week-label"},label),
-      h("button",{className:"week-btn",onClick:()=>setState({weekOffset:state.weekOffset+1})},"Next →")
-    ),
-    h("div",{className:"week-grid"},...dayCols)
-  );
-}
-
-function renderList() {
-  const filtered = state.filter==="all"?state.items:state.items.filter(i=>i.category===state.filter);
-  const order = {in_progress:0,scheduled:1,spark:2,deferred:3,done:4};
-  const sorted = [...filtered].sort((a,b)=>order[a.status]-order[b.status]);
-  return h("div",{className:"list"},...sorted.map(item=>{
-    const s=STATUSES[item.status];
-    return h("div",{className:"list-item",draggable:true,onDragstart:()=>{state.dragId=item.id;},onDragend:()=>{state.dragId=null;}},
-      h("button",{className:"list-status-btn",style:{background:s.color+"20",borderColor:s.color+"44",color:s.color},onClick:()=>{const next=STATUS_KEYS[(STATUS_KEYS.indexOf(item.status)+1)%STATUS_KEYS.length];updateItem(item.id,{status:next});}},s.icon),
-      h("div",{className:"list-text"+(item.status==="done"?" done":"")},item.text),
-      item.category?h("span",{className:"tag",style:{background:"#334155",color:"#94a3b8"}},item.category):null,
-      item.timeSpent>0?h("span",{style:{fontSize:"10px",color:"#60a5fa"}},"⏱ "+fmtTime(item.timeSpent)):null,
-      h("button",{className:"list-action",style:{color:state.activeTimer===item.id?"#4ade80":"var(--dim)"},onClick:()=>startTimer(item.id)},state.activeTimer===item.id?"⏹":"▶"),
-      h("button",{className:"list-action",style:{color:"var(--dim)"},onClick:()=>deleteItem(item.id)},"✕")
-    );
-  }));
-}
-
-// ── Main Render ──
-function render() {
-  const app = document.getElementById("app");
-  app.innerHTML = "";
-
-  const todayItems = state.items.filter(i=>i.scheduledDate===todayStr());
-  const doneToday = todayItems.filter(i=>i.status==="done").length;
-  const totalTime = state.items.reduce((s,i)=>s+(i.timeSpent||0),0);
-  const fmtElapsed = state.elapsed>0?`${Math.floor(state.elapsed/60)}:${(state.elapsed%60).toString().padStart(2,"0")}`:null;
-
-  // Header
-  const headerRight = [];
-  if (fmtElapsed) headerRight.push(h("div",{className:"timer-display"},"⏱ "+fmtElapsed));
-  headerRight.push(
-    h("div",{className:"view-tabs"},
-      ...["board","timeline","list"].map(v=>
-        h("button",{className:"view-tab"+(state.view===v?" active":""),onClick:()=>setState({view:v})},v.charAt(0).toUpperCase()+v.slice(1))
-      )
-    )
-  );
-
-  // Data management buttons
-  const dataButtons = h("div",{style:{display:"flex",gap:"6px",marginLeft:"auto"}},
-    h("button",{className:"week-btn",style:{fontSize:"11px",padding:"4px 10px"},onClick:()=>exportData(state.items)},"↓ Export"),
-    h("button",{className:"week-btn",style:{fontSize:"11px",padding:"4px 10px"},onClick:()=>importData((data)=>setState({items:data}))},"↑ Import")
-  );
-
-  const header = h("div",{className:"header"},
-    h("div",{className:"header-top"},
-      h("div",{},h("div",{className:"logo"},"✦ Vibe Planner"),h("div",{className:"subtitle"},"Capture sparks. Plan actions. Track flow.")),
-      h("div",{style:{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}},...headerRight)
-    ),
-    h("div",{style:{display:"flex",alignItems:"center",flexWrap:"wrap",gap:"12px",marginTop:"12px"}},
-      h("div",{className:"stats"},
-        ...[
-          {label:"Total Vibes",value:state.items.length,color:"var(--purple)"},
-          {label:"In Progress",value:state.items.filter(i=>i.status==="in_progress").length,color:"var(--blue)"},
-          {label:"Today",value:`${doneToday}/${todayItems.length}`,color:"var(--green)"},
-          {label:"Time Tracked",value:fmtTime(totalTime)||"0m",color:"var(--orange)"},
-        ].map(s=>h("div",{className:"stat"},
-          h("div",{className:"stat-dot",style:{background:s.color}}),
-          h("span",{className:"stat-label"},s.label),
-          h("span",{className:"stat-value",style:{color:s.color}},String(s.value))
-        ))
-      ),
-      dataButtons
-    ),
-    h("div",{className:"input-row"},
-      h("input",{className:"input-main",placeholder:"Capture a vibe... (press Enter)",value:state.newText,onInput:(e)=>{state.newText=e.target.value;},onKeydown:(e)=>{if(e.key==="Enter")addItem();}}),
-      h("button",{className:"btn-add",onClick:addItem},"+ Add"),
-      h("select",{className:"filter-select",value:state.filter,onChange:(e)=>setState({filter:e.target.value})},
-        h("option",{value:"all"},"All Categories"),
-        ...CATEGORIES.map(c=>h("option",{value:c},c))
-      )
-    )
-  );
-  app.appendChild(header);
-
-  // Content
-  if (state.view==="board") app.appendChild(renderBoard());
-  else if (state.view==="timeline") app.appendChild(renderTimeline());
-  else app.appendChild(renderList());
-
-  // Close menus on outside click
-  app.addEventListener("click",(e)=>{
-    if (state.openMenu && !e.target.closest(".menu") && !e.target.closest(".menu-btn")) {
-      setState({openMenu:null});
-    }
-  },{once:true});
-}
-
-// ── Close menu on escape ──
-document.addEventListener("keydown",(e)=>{
-  if(e.key==="Escape" && state.openMenu) setState({openMenu:null});
-});
-
-// ── Init ──
-render();
+  function toggleTheme() {
+    const next = getTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem("vibe_theme", next);
+    applyTheme();
+  }
+  applyTheme();
 </script>
+
 </body>
 </html>

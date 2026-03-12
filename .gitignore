@@ -1,3 +1,21 @@
+# OS files
 .DS_Store
 Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
 *.log
+
+# Backups
+*.bak
+
+# Environment & secrets (never commit)
+.env
+.env.local
+config.js
+**/config.js
