@@ -208,7 +208,10 @@
   var LOCAL_KEY = "vibe_planner_data";
 
   // ── Utilities ──
-  function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function genId() {
+    if (IS_CLOUD && typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
   function todayStr() { return new Date().toISOString().split("T")[0]; }
   function fmtDate(d) { return new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); }
   function fmtTime(m) { if(!m) return ""; var hr=Math.floor(m/60),mn=m%60; return hr?(mn?hr+"h "+mn+"m":hr+"h"):mn+"m"; }
@@ -329,22 +332,39 @@
     state.items.push(item);
     state.newText = "";
     render();
-    if (IS_CLOUD && db) db.from("vibes").insert(item);
-    else localSave(state.items);
+    if (IS_CLOUD && db) {
+      var dbItem = { user_id:item.user_id, text:item.text, status:item.status, category:item.category, time_spent:item.time_spent, scheduled_date:item.scheduled_date };
+      db.from("vibes").insert(dbItem).select().then(function(res) {
+        if (res.error) console.error("Insert failed:", res.error.message);
+        else if (res.data && res.data[0]) {
+          // Update local item with Supabase-generated id
+          var oldId = item.id;
+          var newItem = res.data[0];
+          state.items = state.items.map(function(i) { return i.id === oldId ? newItem : i; });
+          render();
+        }
+      });
+    } else localSave(state.items);
   }
   function updateItem(id, updates) {
     state.items = state.items.map(function(i){ return i.id===id ? Object.assign({},i,updates) : i; });
     render();
-    if (IS_CLOUD && db) db.from("vibes").update(updates).eq("id", id);
-    else localSave(state.items);
+    if (IS_CLOUD && db) {
+      db.from("vibes").update(updates).eq("id", id).then(function(res) {
+        if (res.error) console.error("Update failed:", res.error.message);
+      });
+    } else localSave(state.items);
   }
   function deleteItem(id) {
     if (state.activeTimer===id) stopTimer();
     state.items = state.items.filter(function(i){ return i.id!==id; });
     state.openMenu = null;
     render();
-    if (IS_CLOUD && db) db.from("vibes").delete().eq("id", id);
-    else localSave(state.items);
+    if (IS_CLOUD && db) {
+      db.from("vibes").delete().eq("id", id).then(function(res) {
+        if (res.error) console.error("Delete failed:", res.error.message);
+      });
+    } else localSave(state.items);
   }
 
   // ═════════════════════════
