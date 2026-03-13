@@ -84,6 +84,9 @@ function AdminContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const perPage = 5;
+  const [maxUsers, setMaxUsers] = useState(15);
+  const [editingMaxUsers, setEditingMaxUsers] = useState(false);
+  const [maxUsersInput, setMaxUsersInput] = useState('15');
 
   useEffect(() => {
     if (!user) return;
@@ -131,6 +134,13 @@ function AdminContent() {
           else s.active++;
         });
         setStats(Array.from(userMap.values()));
+      }
+
+      // Fetch max_users setting
+      const { data: setting } = await supabase.from('app_settings').select('value').eq('key', 'max_users').single();
+      if (setting?.value) {
+        setMaxUsers(parseInt(setting.value, 10));
+        setMaxUsersInput(setting.value);
       }
 
       setLoading(false);
@@ -192,7 +202,16 @@ function AdminContent() {
   const totalVibes = stats.reduce((sum, s) => sum + s.total, 0);
   const totalActive = stats.reduce((sum, s) => sum + s.active, 0);
   const totalDone = stats.reduce((sum, s) => sum + s.done, 0);
-  const maxUsers = parseInt(process.env.NEXT_PUBLIC_MAX_USERS || '10', 10);
+
+  const saveMaxUsers = async () => {
+    const val = parseInt(maxUsersInput, 10);
+    if (isNaN(val) || val < 1) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    await supabase.from('app_settings').update({ value: String(val) }).eq('key', 'max_users');
+    setMaxUsers(val);
+    setEditingMaxUsers(false);
+  };
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -210,20 +229,58 @@ function AdminContent() {
         <StatCard label="Total Vibes" value={totalVibes} color="var(--orange)" icon={BarChart3} />
       </div>
 
-      {/* User capacity bar */}
-      <div className="mb-8 bg-[var(--surface)] rounded-2xl p-4 border border-[var(--border)]">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[14px] font-medium text-[var(--text)]">User Capacity</span>
-          <span className="text-[14px] text-[var(--muted)]">{totalUsers} / {maxUsers}</span>
+      {/* User capacity */}
+      <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-[13px] text-[var(--muted)] mb-1">User Capacity</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-[28px] font-bold" style={{ color: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)' }}>{totalUsers}</span>
+              <span className="text-[16px] text-[var(--dim)]">/ {maxUsers}</span>
+            </div>
+          </div>
+
+          {isSuperAdmin && (
+            editingMaxUsers ? (
+              <div className="flex items-center gap-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-2">
+                <span className="text-[12px] text-[var(--muted)]">Max</span>
+                <input
+                  type="number"
+                  value={maxUsersInput}
+                  onChange={(e) => setMaxUsersInput(e.target.value)}
+                  className="w-14 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[15px] text-[var(--text)] outline-none text-center font-bold"
+                  min={1}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveMaxUsers(); if (e.key === 'Escape') setEditingMaxUsers(false); }}
+                  autoFocus
+                />
+                <button onClick={saveMaxUsers} className="px-2.5 py-1.5 rounded-lg bg-[var(--green)]/15 text-[var(--green)] text-[13px] font-medium cursor-pointer">Save</button>
+                <button onClick={() => { setEditingMaxUsers(false); setMaxUsersInput(String(maxUsers)); }} className="px-2.5 py-1.5 rounded-lg text-[var(--muted)] text-[13px] cursor-pointer hover:bg-[var(--hover-bg)]">Cancel</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditingMaxUsers(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--purple)] text-white text-[13px] font-medium cursor-pointer hover:opacity-90 transition-all shadow-sm"
+              >
+                <Zap size={14} />
+                Change Limit
+              </button>
+            )
+          )}
         </div>
-        <div className="h-3 bg-[var(--border)] rounded-full overflow-hidden">
+
+        {/* Progress bar */}
+        <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{
-              width: `${(totalUsers / maxUsers) * 100}%`,
+              width: `${Math.min((totalUsers / maxUsers) * 100, 100)}%`,
               background: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)',
             }}
           />
+        </div>
+        <div className="flex justify-between mt-2 text-[11px] text-[var(--dim)]">
+          <span>{maxUsers - totalUsers} slots remaining</span>
+          <span>{Math.round((totalUsers / maxUsers) * 100)}% used</span>
         </div>
       </div>
 

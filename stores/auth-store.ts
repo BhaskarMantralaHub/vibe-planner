@@ -158,6 +158,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signup: async (email: string, password: string, name: string) => {
     set({ authError: '', syncing: true });
 
+    // Check max users from app_settings (no auth needed)
+    const sb = getSupabaseClient();
+    if (sb) {
+      const [{ data: countData }, { data: settings }] = await Promise.all([
+        sb.rpc('get_user_count'),
+        sb.from('app_settings').select('value').eq('key', 'max_users').single(),
+      ]);
+      const maxUsers = parseInt(settings?.value || '15', 10);
+      if (typeof countData === 'number' && countData >= maxUsers) {
+        set({ authError: 'Maximum number of accounts reached. Contact the administrator.', syncing: false });
+        return;
+      }
+    }
+
     if (!name.trim()) {
       set({ authError: 'Please enter your name.', syncing: false });
       return;
