@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vibe Planner</title>
 <meta name="theme-color" content="#0f0f17">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co;">
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -115,6 +116,13 @@
   .card-edit { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:4px 8px; font-size:13px; outline:none; }
   .card-tags { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; align-items:center; }
   .tag { font-size:10px; padding:2px 6px; border-radius:4px; }
+  .card-notes { margin-top:8px; animation:slideIn 0.15s; }
+  .card-notes textarea { width:100%; min-height:50px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:6px 8px; font-size:11px; outline:none; resize:vertical; font-family:inherit; }
+  .card-notes textarea:focus { border-color:var(--indigo); }
+  .card-notes textarea::placeholder { color:var(--dim); }
+  .card-notes-preview { font-size:11px; color:var(--muted); margin-top:4px; line-height:1.4; white-space:pre-wrap; word-break:break-word; max-height:60px; overflow:hidden; cursor:pointer; }
+  .card-notes-preview:hover { color:var(--text); }
+  .notes-tag { cursor:pointer; }
   .menu-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 4px; line-height:1; flex-shrink:0; }
   .menu { position:absolute; right:8px; top:32px; background:var(--menu-bg); border:1px solid var(--border); border-radius:8px; padding:4px; z-index:50; min-width:150px; box-shadow:0 8px 24px rgba(0,0,0,0.4); animation:slideIn 0.15s; }
   .menu-item { display:flex; align-items:center; gap:8px; width:100%; padding:6px 10px; background:none; border:none; font-size:12px; cursor:pointer; border-radius:6px; text-align:left; color:inherit; }
@@ -200,12 +208,23 @@
     spark:       { label:"Spark",       icon:"✦", color:"#a78bfa" },
     in_progress: { label:"In Progress", icon:"▶", color:"#38bdf8" },
     scheduled:   { label:"Scheduled",   icon:"◷", color:"#fb923c" },
-    done:        { label:"Done",        icon:"✓", color:"#4ade80" },
-    deferred:    { label:"Future",      icon:"→", color:"#94a3b8" }
+    done:        { label:"Done",        icon:"✓", color:"#4ade80" }
   };
   var SK = Object.keys(STATUSES);
   var CATEGORIES = ["Work","Personal","Creative","Learning","Health"];
   var LOCAL_KEY = "vibe_planner_data";
+  var MAX_USERS = _cfg.MAX_USERS || 10;
+  var ALLOWED_EMAILS = _cfg.ALLOWED_EMAILS || [];
+
+  // ── Greeting helper ──
+  function getGreeting(name) {
+    var h = new Date().getHours();
+    var first = (name || "").split(" ")[0];
+    if (h >= 5 && h < 12) return "Good morning, " + first + " ☀️";
+    if (h >= 12 && h < 17) return "Good afternoon, " + first;
+    if (h >= 17 && h < 21) return "Good evening, " + first + " ✦";
+    return "Late night vibes, " + first + " 🌙";
+  }
 
   // ── Utilities ──
   function genId() {
@@ -240,6 +259,7 @@
     items: [], view: "board", newText: "", weekOffset: 0,
     activeTimer: null, timerStart: null, elapsed: 0,
     filter: "all", openMenu: null, editingCard: null, editText: "",
+    expandedNotes: null, editingNotes: null,
     dragId: null, syncing: false,
     theme: localStorage.getItem("vibe_theme") || "dark",
     bannerDismissed: sessionStorage.getItem("vibe_banner_dismissed") === "true"
@@ -284,19 +304,58 @@
   // ═════════════════════════
   // AUTH (Supabase only)
   // ═════════════════════════
-  function handleSignUp(email, pass) {
+  var SIGNUP_ENABLED = _cfg.SIGNUP_ENABLED === true;
+  var authAttempts = [];
+  var AUTH_MAX_ATTEMPTS = 5;
+  var AUTH_WINDOW_MS = 60000;
+
+  function isRateLimited() {
+    var now = Date.now();
+    authAttempts = authAttempts.filter(function(t) { return now - t < AUTH_WINDOW_MS; });
+    if (authAttempts.length >= AUTH_MAX_ATTEMPTS) return true;
+    authAttempts.push(now);
+    return false;
+  }
+
+  function sanitizeAuthError(msg) {
+    if (!msg) return "Something went wrong. Please try again.";
+    if (/invalid.*credential|invalid.*password|invalid.*email/i.test(msg)) return "Invalid email or password.";
+    if (/already.*registered|already.*exists|duplicate/i.test(msg)) return "Unable to create account. Please try logging in.";
+    if (/rate.*limit|too.*many/i.test(msg)) return "Too many attempts. Please wait a moment.";
+    if (/weak.*password|at least/i.test(msg)) return msg;
+    return "Authentication failed. Please try again.";
+  }
+
+  function validatePassword(pass) {
+    if (!pass || pass.length < 6) return "Password must be at least 6 characters.";
+    return null;
+  }
+
+  function handleSignUp(email, pass, name) {
     if (!IS_CLOUD || !db) return;
+    if (!SIGNUP_ENABLED) { setState({ authError:"Signups are currently closed." }); return; }
+    if (!name || !name.trim()) { setState({ authError:"Please enter your name." }); return; }
+    if (!email || !email.trim()) { setState({ authError:"Please enter your email." }); return; }
+    if (ALLOWED_EMAILS.length > 0 && ALLOWED_EMAILS.indexOf(email.trim().toLowerCase()) === -1) {
+      setState({ authError:"This email is not authorized to sign up." }); return;
+    }
+    var passErr = validatePassword(pass);
+    if (passErr) { setState({ authError:passErr }); return; }
+    if (isRateLimited()) { setState({ authError:"Too many attempts. Please wait a moment." }); return; }
     setState({ authError:"", syncing:true });
-    db.auth.signUp({ email:email, password:pass }).then(function(res) {
-      if (res.error) setState({ authError:res.error.message, syncing:false });
+    db.auth.signUp({ email:email, password:pass, options:{ data:{ full_name:name.trim() } } }).then(function(res) {
+      if (res.error) setState({ authError:sanitizeAuthError(res.error.message), syncing:false });
       else setState({ authError:"", syncing:false, authMode:"check-email" });
     });
   }
   function handleLogin(email, pass) {
     if (!IS_CLOUD || !db) return;
+    if (!email || !email.trim()) { setState({ authError:"Please enter your email." }); return; }
+    if (!pass) { setState({ authError:"Please enter your password." }); return; }
+    if (isRateLimited()) { setState({ authError:"Too many attempts. Please wait a moment." }); return; }
     setState({ authError:"", syncing:true });
     db.auth.signInWithPassword({ email:email, password:pass }).then(function(res) {
-      if (res.error) setState({ authError:res.error.message, syncing:false });
+      if (res.error) setState({ authError:sanitizeAuthError(res.error.message), syncing:false });
       else { setState({ user:res.data.user, syncing:false }); loadItems(); }
     });
   }
@@ -323,17 +382,20 @@
   function addItem() {
     if (!state.newText.trim()) return;
     if (IS_CLOUD && !state.user) return;
+    var trimmed = state.newText.trim();
+    var isDup = state.items.some(function(i) { return i.text.toLowerCase() === trimmed.toLowerCase(); });
+    if (isDup) { state.newText = ""; render(); return; }
     var item = {
       id:genId(), user_id: state.user ? state.user.id : "local",
-      text:state.newText.trim(), status:"spark",
-      category:null, time_spent:0,
+      text:trimmed, status:"spark",
+      category:null, time_spent:0, notes:"",
       scheduled_date:null, created_at:new Date().toISOString()
     };
     state.items.push(item);
     state.newText = "";
     render();
     if (IS_CLOUD && db) {
-      var dbItem = { user_id:item.user_id, text:item.text, status:item.status, category:item.category, time_spent:item.time_spent, scheduled_date:item.scheduled_date };
+      var dbItem = { user_id:item.user_id, text:item.text, status:item.status, category:item.category, time_spent:item.time_spent, notes:item.notes, scheduled_date:item.scheduled_date };
       db.from("vibes").insert(dbItem).select().then(function(res) {
         if (res.error) console.error("Insert failed:", res.error.message);
         else if (res.data && res.data[0]) {
@@ -350,8 +412,10 @@
     state.items = state.items.map(function(i){ return i.id===id ? Object.assign({},i,updates) : i; });
     render();
     if (IS_CLOUD && db) {
-      db.from("vibes").update(updates).eq("id", id).then(function(res) {
-        if (res.error) console.error("Update failed:", res.error.message);
+      db.from("vibes").update(updates).eq("id", id).eq("user_id", state.user.id).then(function(res) {
+        if (res.error) {
+          console.error("Update failed:", res.error.message, "updates:", JSON.stringify(updates));
+        }
       });
     } else localSave(state.items);
   }
@@ -361,8 +425,10 @@
     state.openMenu = null;
     render();
     if (IS_CLOUD && db) {
-      db.from("vibes").delete().eq("id", id).then(function(res) {
-        if (res.error) console.error("Delete failed:", res.error.message);
+      db.from("vibes").delete().eq("id", id).eq("user_id", state.user.id).then(function(res) {
+        if (res.error) {
+          console.error("Delete failed:", res.error.message);
+        }
       });
     } else localSave(state.items);
   }
@@ -402,14 +468,45 @@
     if(isTimer) tags.push(h("span",{className:"tag",style:{background:"#4ade8020",color:"#4ade80",animation:"pulse 1.5s infinite"}},"● tracking"));
 
     var textEl;
+    function saveEdit() {
+      var t = state.editText.trim();
+      if (t) updateItem(item.id, {text:t});
+      setState({editingCard:null});
+    }
     if(isEditing) {
       textEl = h("input",{className:"card-edit",value:state.editText,
         onInput:function(e){state.editText=e.target.value;},
-        onBlur:function(){updateItem(item.id,{text:state.editText});setState({editingCard:null});},
-        onKeydown:function(e){if(e.key==="Enter"){updateItem(item.id,{text:state.editText});setState({editingCard:null});}}
+        onBlur:saveEdit,
+        onKeydown:function(e){if(e.key==="Enter")saveEdit();if(e.key==="Escape")setState({editingCard:null});}
       });
     } else {
       textEl = h("div",{className:"card-text"+(item.status==="done"?" done":""),onClick:function(){setState({editingCard:item.id,editText:item.text});}},item.text);
+    }
+
+    // Notes section
+    var isNotesExpanded = state.expandedNotes === item.id;
+    var notesEl = null;
+    if (item.notes && !isNotesExpanded) {
+      tags.push(h("span",{className:"tag notes-tag",style:{background:"#3b2f1a",color:"#fb923c",cursor:"pointer"},
+        onClick:function(e){e.stopPropagation();setState({expandedNotes:item.id});}
+      },"📝 Notes"));
+    }
+    if (isNotesExpanded) {
+      notesEl = h("div",{className:"card-notes"},
+        h("textarea",{placeholder:"Add notes, URLs, or justifications...",value:item.notes||"",
+          onInput:function(e){
+            var it=state.items.find(function(x){return x.id===item.id;});
+            if(it) it.notes=e.target.value;
+          },
+          onBlur:function(e){
+            updateItem(item.id,{notes:e.target.value});
+            setState({expandedNotes:null});
+          },
+          onKeydown:function(e){
+            if(e.key==="Escape"){updateItem(item.id,{notes:e.target.value});setState({expandedNotes:null});}
+          }
+        })
+      );
     }
 
     var menuEl = null;
@@ -419,6 +516,7 @@
       mi.push(h("div",{className:"menu-divider"}));
       CATEGORIES.forEach(function(c){mi.push(h("button",{className:"menu-item",style:{color:"#94a3b8",background:item.category===c?"#334155":"transparent",fontSize:"11px"},onClick:function(){updateItem(item.id,{category:item.category===c?null:c});setState({openMenu:null});}},item.category===c?"✓ ":"",c));});
       mi.push(h("div",{className:"menu-divider"}));
+      mi.push(h("button",{className:"menu-item",style:{color:"#fb923c"},onClick:function(){setState({openMenu:null,expandedNotes:isNotesExpanded?null:item.id});}},"📝 "+(item.notes?"Edit":"Add")+" Notes"));
       mi.push(h("button",{className:"menu-item",style:{color:isTimer?"#4ade80":"#60a5fa"},onClick:function(){startTimer(item.id);}},isTimer?"⏹ Stop Timer":"⏱ Start Timer"));
       mi.push(h("button",{className:"menu-item",style:{color:"var(--red)"},onClick:function(){deleteItem(item.id);}},"🗑 Delete"));
       menuEl = h("div",{className:"menu"},mi);
@@ -433,9 +531,11 @@
         h("div",{className:"card-body"},textEl, tags.length?h("div",{className:"card-tags"},tags):null),
         h("button",{className:"menu-btn",onClick:function(e){e.stopPropagation();setState({openMenu:isMenu?null:item.id});}},"\u22EE")
       ),
+      notesEl,
       menuEl
     );
     if(isEditing) setTimeout(function(){var inp=card.querySelector("input.card-edit");if(inp){inp.focus();inp.selectionStart=inp.value.length;}},0);
+    if(isNotesExpanded) setTimeout(function(){var ta=card.querySelector("textarea");if(ta){ta.focus();ta.selectionStart=ta.value.length;}},0);
     return card;
   }
 
@@ -495,7 +595,7 @@
   // ── List ──
   function renderList() {
     var filtered=state.filter==="all"?state.items:state.items.filter(function(i){return i.category===state.filter;});
-    var order={in_progress:0,scheduled:1,spark:2,deferred:3,done:4};
+    var order={in_progress:0,scheduled:1,spark:2,done:3};
     var sorted=filtered.slice().sort(function(a,b){return order[a.status]-order[b.status];});
     return h("div",{className:"list"},sorted.map(function(item){
       var s=STATUSES[item.status];
@@ -522,16 +622,27 @@
       );
     }
     var isLogin = state.authMode === "login";
+    var fields = [];
+    if (!isLogin) fields.push(h("input",{className:"auth-input",type:"text",placeholder:"Your name"}));
+    fields.push(h("input",{className:"auth-input",type:"email",placeholder:"Email address"}));
+    fields.push(h("input",{className:"auth-input",type:"password",placeholder:"Password (min 6 chars)",
+      onKeydown:function(e){if(e.key==="Enter"){
+        var box=e.target.closest(".auth-box");var inputs=box.querySelectorAll("input");
+        if(isLogin)handleLogin(inputs[0].value,inputs[1].value);
+        else handleSignUp(inputs[1].value,inputs[2].value,inputs[0].value);
+      }}}));
     return h("div",{className:"auth-wrap"},
       h("div",{className:"auth-box"},
         h("h1",{},"✦ Vibe Planner"),
         h("p",{className:"auth-sub"},isLogin?"Welcome back — log in to your vibes":"Create an account to start vibing"),
         h("div",{className:"auth-error"},state.authError),
-        h("input",{className:"auth-input",type:"email",placeholder:"Email address"}),
-        h("input",{className:"auth-input",type:"password",placeholder:"Password (min 6 chars)",
-          onKeydown:function(e){if(e.key==="Enter"){var box=e.target.closest(".auth-box");var inputs=box.querySelectorAll("input");if(isLogin)handleLogin(inputs[0].value,inputs[1].value);else handleSignUp(inputs[0].value,inputs[1].value);}}}),
-        h("button",{className:"auth-btn primary",onClick:function(e){var box=e.target.closest(".auth-box");var inputs=box.querySelectorAll("input");if(isLogin)handleLogin(inputs[0].value,inputs[1].value);else handleSignUp(inputs[0].value,inputs[1].value);}},
-          state.syncing?h("span",{className:"spinner"}):isLogin?"Log In":"Sign Up"),
+        fields,
+        h("button",{className:"auth-btn primary",onClick:function(e){
+          var box=e.target.closest(".auth-box");var inputs=box.querySelectorAll("input");
+          if(isLogin)handleLogin(inputs[0].value,inputs[1].value);
+          else handleSignUp(inputs[1].value,inputs[2].value,inputs[0].value);
+        }},state.syncing?h("span",{className:"spinner"}):isLogin?"Log In":"Sign Up"),
+        (isLogin && !SIGNUP_ENABLED) ? null :
         h("button",{className:"auth-toggle",onClick:function(){setState({authMode:isLogin?"signup":"login",authError:""});}},
           isLogin?"Don't have an account? Sign up":"Already have an account? Log in"),
         h("a",{href:"../",className:"auth-toggle",style:{display:"block",marginTop:"16px",color:"var(--muted)",textDecoration:"none",fontSize:"12px"}},"← Back to Toolkit"),
@@ -582,8 +693,9 @@
     ));
     rightItems.push(h("button",{className:"theme-toggle",onClick:toggleTheme,title:"Toggle theme"},state.theme==="dark"?"☀️":"🌙"));
     if(IS_CLOUD && state.user) {
+      var userName = (state.user.user_metadata && state.user.user_metadata.full_name) || state.user.email;
       rightItems.push(h("div",{className:"user-bar"},
-        h("span",{className:"user-email"},state.user.email),
+        h("span",{className:"user-email",style:{color:"var(--purple)",fontWeight:"600"}},getGreeting(userName)),
         h("button",{className:"btn-sm",onClick:handleLogout},"Logout")
       ));
     } else {

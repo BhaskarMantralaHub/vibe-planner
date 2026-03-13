@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+/* ── Deep Space Dark Theme (default) ── */
+:root,
+[data-theme="dark"] {
+  --bg: #0F0F1A;
+  --surface: #141428;
+  --card: #1C1F3F;
+  --card-end: #242A57;
+  --border: #3A3F6B;
+  --text: #E5E7EB;
+  --muted: #9CA3AF;
+  --dim: #6B7280;
+  --purple: #C084FC;
+  --blue: #60A5FA;
+  --orange: #FBBF24;
+  --green: #4ADE80;
+  --slate: #94A3B8;
+  --indigo: #818CF8;
+  --red: #F87171;
+  --accent: #8B5CF6;
+  --today-bg: #1E1E40;
+  --menu-bg: #1C1F3F;
+  --hover-bg: rgba(255, 255, 255, 0.06);
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --card-hover-shadow: 0 12px 30px rgba(139, 92, 246, 0.25);
+
+  /* Status card gradients */
+  --spark-from: #1A1C2E;
+  --spark-to: #25284A;
+  --spark-glow: #8B5CF6;
+
+  --progress-from: #18202E;
+  --progress-to: #243347;
+  --progress-glow: #38BDF8;
+
+  --scheduled-from: #1F1A30;
+  --scheduled-to: #33215A;
+  --scheduled-glow: #F59E0B;
+
+  --done-from: #132A1E;
+  --done-to: #1F5136;
+  --done-glow: #22C55E;
+
+  /* Filter buttons */
+  --filter-bg: #1A1C2E;
+  --filter-border: #2D2F55;
+  --filter-active: #8B5CF6;
+}
+
+/* ── Soft Light Theme ── */
+[data-theme="light"] {
+  --bg: #F5F6FA;
+  --surface: #FFFFFF;
+  --card: #F6F7FF;
+  --card-end: #EEF1FF;
+  --border: #D8DBFF;
+  --text: #1E1E2F;
+  --muted: #6B7280;
+  --dim: #9CA3AF;
+  --purple: #7C3AED;
+  --blue: #3B82F6;
+  --orange: #D97706;
+  --green: #16A34A;
+  --slate: #475569;
+  --indigo: #6C63FF;
+  --red: #EF4444;
+  --accent: #6C63FF;
+  --today-bg: #EEF1FF;
+  --menu-bg: #FFFFFF;
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --card-shadow: 0 2px 8px rgba(108, 99, 255, 0.08);
+  --card-hover-shadow: 0 12px 30px rgba(108, 99, 255, 0.15);
+
+  /* Status card gradients — soft pastels */
+  --spark-from: #F0EDFF;
+  --spark-to: #E8E5FF;
+  --spark-glow: #7C3AED;
+
+  --progress-from: #EDF5FF;
+  --progress-to: #E0EFFF;
+  --progress-glow: #3B82F6;
+
+  --scheduled-from: #FFF8ED;
+  --scheduled-to: #FFF3D6;
+  --scheduled-glow: #D97706;
+
+  --done-from: #ECFDF5;
+  --done-to: #D1FAE5;
+  --done-glow: #16A34A;
+
+  /* Filter buttons */
+  --filter-bg: #F1F3F9;
+  --filter-border: #E5E7EB;
+  --filter-active: #6C63FF;
+}
+
+/* ── Base ── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* ── Animations ── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-spin { animation: spin 1s linear infinite; }
+.animate-slide-in { animation: slideIn 0.25s ease-out; }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--dim) transparent; }
+
+/* ── Selection ── */
+::selection { background: var(--indigo); color: white; }

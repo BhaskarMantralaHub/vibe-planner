@@ -19,9 +19,29 @@ Thumbs.db
 .env.local
 config.js
 **/config.js
+/.idea/
+
+# Next.js
+.next/
+out/
+node_modules/
+next-env.d.ts
 
 # wrangler files
 .wrangler
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Claude Code settings (may contain allowed command patterns with creds)
+.claude/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Old vanilla JS app (gitignored config has creds)
+vibe-planner/config.js
+
+# Test artifacts
+test-results/
+playwright-report/

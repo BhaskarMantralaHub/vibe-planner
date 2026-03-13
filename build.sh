@@ -6,7 +6,8 @@ if [ -n "$SUPABASE_URL" ] && [ -n "$ANON_KEY" ]; then
   cat > vibe-planner/config.js <<JSEOF
 const CONFIG = {
   SUPABASE_URL: "${SUPABASE_URL}",
-  SUPABASE_ANON_KEY: "${ANON_KEY}"
+  SUPABASE_ANON_KEY: "${ANON_KEY}",
+  SIGNUP_ENABLED: ${SIGNUP_ENABLED:-false}
 };
 JSEOF
   echo "✓ config.js generated from environment variables"

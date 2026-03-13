@@ -25,6 +25,7 @@ CREATE TABLE vibes (
   status TEXT NOT NULL DEFAULT 'spark',
   category TEXT,
   time_spent INTEGER DEFAULT 0,
+  notes TEXT DEFAULT '',
   scheduled_date DATE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -54,6 +55,24 @@ CREATE POLICY "Users can delete own vibes"
 
 -- Index for faster queries
 CREATE INDEX idx_vibes_user_id ON vibes(user_id);
+```
+
+## Step 2b — Migration: Add Notes Column
+
+If you already have the `vibes` table, run this to add the `notes` column:
+
+```sql
+-- Add notes column for URLs, justifications, and comments per vibe
+ALTER TABLE vibes ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
+```
+
+## Step 2c — Migration: Remove Deferred Status
+
+If you have vibes with the old "deferred" status, migrate them to "spark":
+
+```sql
+-- Migrate old "deferred" vibes to "spark" (Future status was removed)
+UPDATE vibes SET status = 'spark' WHERE status = 'deferred';
 ```
 
 ## Step 3 — Get Your API Keys

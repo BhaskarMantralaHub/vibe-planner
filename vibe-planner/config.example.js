@@ -8,5 +8,8 @@
 
 const CONFIG = {
   SUPABASE_URL: "YOUR_SUPABASE_URL",           // e.g. https://xyzcompany.supabase.co
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_KEY"  // your anon/public key from Settings → API
+  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_KEY", // your anon/public key from Settings → API
+  SIGNUP_ENABLED: false,                        // set true temporarily when you need to create an account
+  MAX_USERS: 10,                                // max allowed accounts (personal project)
+  ALLOWED_EMAILS: []                            // whitelist: ["user@email.com"] — empty = allow any
 };
