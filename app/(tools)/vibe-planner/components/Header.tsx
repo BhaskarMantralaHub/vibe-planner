@@ -6,7 +6,6 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { CATEGORIES } from '../lib/constants';
 import { todayStr, getGreeting } from '../lib/utils';
 import ViewTabs from './ViewTabs';
-import DailyQuote from './DailyQuote';
 
 export default function Header() {
   const {
@@ -46,10 +45,11 @@ export default function Header() {
   };
 
   return (
-    <div className="px-5 py-5 border-b border-[var(--border)] sticky top-[52px] bg-[var(--bg)] z-30">
-      {/* Greeting */}
+    <>
+    {/* Scrollable section — greeting, quote, stats */}
+    <div className="px-4 lg:px-5 pt-4 lg:pt-5">
       {greeting && (
-        <h2 className="text-[20px] lg:text-[24px] font-semibold mb-3 bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-transparent">
+        <h2 className="text-[18px] lg:text-[24px] font-semibold mb-2 lg:mb-3 bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-transparent">
           {greeting} {(() => {
             const h = new Date().getHours();
             if (h >= 5 && h < 12) return '☀️';
@@ -59,43 +59,40 @@ export default function Header() {
           })()}
         </h2>
       )}
-      <DailyQuote />
-
-      {/* Top row: Stats + View tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-        {/* Stats cards */}
-        <div className="flex flex-wrap items-center gap-3" data-testid="stats-row">
-          <div className="bg-[var(--surface)] rounded-2xl px-4 py-3 min-w-[100px]">
-            <div className="text-[13px] text-[var(--muted)]">Total Vibes</div>
-            <div className="text-[22px] font-bold text-[var(--purple)]">{total}</div>
-          </div>
-          <div className="bg-[var(--surface)] rounded-2xl px-4 py-3 min-w-[100px]">
-            <div className="text-[13px] text-[var(--muted)]">In Progress</div>
-            <div className="text-[22px] font-bold text-[var(--blue)]">{inProgress}</div>
-          </div>
-          <div className="bg-[var(--surface)] rounded-2xl px-4 py-3 min-w-[100px]">
-            <div className="text-[13px] text-[var(--muted)]">Today</div>
-            <div className="text-[22px] font-bold text-[var(--green)]">{todayDone}<span className="text-[15px] font-normal text-[var(--muted)]">/{todayScheduled}</span></div>
-          </div>
+      {/* Stats — compact on mobile */}
+      <div className="flex items-center gap-2 lg:gap-3 mb-3 overflow-x-auto" data-testid="stats-row">
+        <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
+          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Vibes</div>
+          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--purple)]">{total}</div>
+        </div>
+        <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
+          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Active</div>
+          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--blue)]">{inProgress}</div>
+        </div>
+        <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
+          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Today</div>
+          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--green)]">{todayDone}<span className="text-[13px] font-normal text-[var(--muted)]">/{todayScheduled}</span></div>
         </div>
 
-        {/* View tabs + User info */}
-        <div className="flex items-center gap-4">
+        {/* View tabs inline with stats on mobile */}
+        <div className="ml-auto shrink-0">
           <ViewTabs
             view={view}
             onViewChange={(v) => setView(v as 'board' | 'timeline' | 'list')}
           />
-
-          {!cloud && (
-            <span className="text-[13px] text-[var(--dim)] px-3 py-1.5 rounded-xl bg-[var(--surface)]">
-              Local Mode
-            </span>
-          )}
         </div>
-      </div>
 
-      {/* Input row */}
-      <div className="flex items-center gap-3 mb-4" data-testid="input-row">
+        {!cloud && (
+          <span className="text-[11px] text-[var(--dim)] px-2 py-1 rounded-lg bg-[var(--surface)] shrink-0">
+            Local
+          </span>
+        )}
+      </div>
+    </div>
+
+    {/* Sticky section — input + filters only */}
+    <div className="sticky top-[52px] bg-[var(--bg)] z-30 px-4 lg:px-5 pb-3 pt-2 border-b border-[var(--border)]">
+      <div className="flex items-center gap-2 lg:gap-3 mb-2" data-testid="input-row">
         <input
           type="text"
           value={newText}
@@ -154,5 +151,6 @@ export default function Header() {
         })}
       </div>
     </div>
+    </>
   );
 }
