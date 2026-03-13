@@ -100,6 +100,16 @@ Full SQL in `docs/SUPABASE_SETUP.md`.
 
 4. **Build check** — `npx next build` must pass with zero errors before pushing
 
+## Documentation — MANDATORY Updates
+
+When making changes, ALWAYS update these files if affected:
+
+1. **`docs/DATABASE_SCHEMA.sql`** — if any SQL changes (new tables, columns, policies, functions, triggers)
+2. **`docs/SUPABASE_SETUP.md`** — if any config/setup changes (env vars, build settings, new tables)
+3. **`CLAUDE.md`** — if architecture, commands, or workflow changes
+4. **`README.md`** — if features, tech stack, or project structure changes
+5. **`.env.example`** — if any new environment variables are added
+
 ## Adding a New Tool
 
 1. Create folder under `app/(tools)/your-tool/`

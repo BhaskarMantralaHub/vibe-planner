@@ -8,19 +8,19 @@ A personal productivity suite — fast, private, and self-hosted.
 
 ## Tools
 
-| Tool | Status | Description |
-|------|--------|-------------|
-| Vibe Planner | ✅ Live | Kanban board + timeline with drag & drop, due dates, notes, categories |
-| Focus Timer | 🔜 Coming Soon | Pomodoro sessions with break reminders |
-| Daily Journal | 🔜 Coming Soon | Quick reflections with mood tracking |
-| Habit Tracker | 🔜 Coming Soon | Streak tracking and consistency visualization |
+| Tool | Description |
+|------|-------------|
+| **Vibe Planner** | Kanban board + timeline with drag & drop, due dates, notes, categories |
+| **Sports — Coin Toss** | 3D cricket coin toss with sound effects, ICC standard fair randomness |
+| **Admin Dashboard** | User management, activity stats, enable/disable users, set limits |
 
 ## Tech Stack
 
 - **Framework** — [Next.js 15](https://nextjs.org) (App Router, static export)
 - **Language** — TypeScript
-- **Styling** — [Tailwind CSS v4](https://tailwindcss.com)
+- **Styling** — [Tailwind CSS v4](https://tailwindcss.com) with CSS custom properties
 - **State** — [Zustand](https://zustand-demo.pmnd.rs)
+- **Icons** — [Lucide React](https://lucide.dev)
 - **Drag & Drop** — [@dnd-kit](https://dndkit.com)
 - **Auth & Database** — [Supabase](https://supabase.com) (PostgreSQL + Auth + RLS)
 - **Hosting** — [Cloudflare Pages](https://pages.cloudflare.com) (static export)
@@ -32,21 +32,29 @@ A personal productivity suite — fast, private, and self-hosted.
 vibers-toolkit/
 ├── app/
 │   ├── layout.tsx                    # Root layout: theme, shell, metadata
-│   ├── page.tsx                      # Homepage (redirects to vibe-planner)
+│   ├── page.tsx                      # Redirects to /vibe-planner
 │   ├── globals.css                   # Tailwind + dark/light theme variables
 │   ├── providers.tsx                 # ThemeProvider
 │   └── (tools)/
-│       └── vibe-planner/
-│           ├── page.tsx              # Main vibe planner page
-│           ├── components/           # Board, Timeline, VibeCard, Header, etc.
-│           └── lib/                  # Constants, utils
+│       ├── vibe-planner/             # Vibe Planner
+│       │   ├── page.tsx
+│       │   ├── components/           # Board, Timeline, VibeCard, Header, etc.
+│       │   └── lib/                  # Constants, utils
+│       ├── sports/toss/              # Cricket Coin Toss
+│       │   └── page.tsx
+│       └── admin/                    # Admin Dashboard
+│           └── page.tsx
 ├── components/                       # Shared: Shell, AuthGate, HamburgerMenu, etc.
-├── lib/                              # Supabase client, auth helpers, storage
-├── stores/                           # Zustand stores (auth, vibes)
+├── lib/                              # Supabase client, auth helpers, storage, nav
+├── stores/                           # Zustand stores (auth-store, vibe-store)
 ├── types/                            # TypeScript types
 ├── tests/                            # Playwright E2E tests
-├── public/                           # Static assets (hero image)
-└── docs/                             # Supabase setup guide
+├── public/                           # Static assets (hero.png, toss.png)
+├── docs/
+│   ├── SUPABASE_SETUP.md            # Setup guide
+│   └── DATABASE_SCHEMA.sql          # Complete DB schema with comments
+├── .env.example                      # Template for env vars
+└── .env.local                        # GITIGNORED — real credentials
 ```
 
 ## Quick Start
@@ -78,34 +86,75 @@ npx serve out    # Preview locally
 
 ### Set Up Supabase
 
-See [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) for the full database + auth setup guide.
+See [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) — run [DATABASE_SCHEMA.sql](./docs/DATABASE_SCHEMA.sql) to create everything in one go.
 
 ## Features
 
 ### Vibe Planner
 - **Board view** — 4-column kanban (Spark → In Progress → Scheduled → Done)
-- **Timeline view** — Weekly calendar with drag-to-schedule
-- **Due dates** — Color-coded (red overdue, orange soon, green future)
-- **Notes** — Add URLs, justifications, context to any vibe
-- **Categories** — Work, Personal, Creative, Learning, Health with filter pills
-- **Soft delete** — Recently Deleted with restore, synced across devices
-- **Mobile** — Bottom sheet menus, swipe to change status, long-press for options
-- **Desktop** — Drag & drop between columns, right-click menus, keyboard shortcuts
-- **Quotes** — Daily motivational quotes in English and Telugu
+- **Timeline view** — Weekly calendar with unscheduled vibes section
+- **Due dates** — Color-coded: red (overdue), orange (≤3 days), green (future). Click to edit.
+- **Notes** — Add URLs, justifications, context. Links are auto-clickable.
+- **Categories** — Work, Personal, Creative, Learning, Health with filter pills and counts
+- **Soft delete** — Recently Deleted with restore, synced across devices via `deleted_at` column
+- **Inline edit** — Double-click to edit vibe text, click to expand notes
+- **Completed date** — Shows "✓ Completed Mar 13" when done
+- **Mobile** — Bottom sheet menus, tap ⋮ for options
+- **Desktop** — Drag & drop between columns, right-click menus
+
+### Sports — Coin Toss
+- **3D coin flip** — Bronze (Heads) and Silver (Tails) with realistic animation
+- **Sound effects** — Metallic spinning + landing clink via Web Audio API
+- **Idle spin** — Coin rotates showing both sides before first toss (no bias)
+- **History** — Last 20 tosses with H/T count
+- **Cryptographic randomness** — `crypto.getRandomValues()` for true 50/50 fairness
+- **Fair Play notice** — Expandable disclaimer
+
+### Admin Dashboard (admin only)
+- **User list** — All enrolled users with name, email, join date, activity stats
+- **Matrix filters** — All, Admins, Users, Flagged, Disabled with visual cards
+- **Search** — Filter by name or email
+- **Pagination** — 5 users per page
+- **Recently joined** — Top 3 newest users with activity breakdown
+- **Suspicious user flagging** — Auto-detects disposable emails, unusual names, missing info
+- **Accept / Reject** — Super admin can accept flagged users or reject (delete) them
+- **Enable / Disable users** — Disabled users can't log in, shown "account disabled" message
+- **Make / Revoke admin** — Super admin only, via ⋮ menu
+- **User capacity** — Visual progress bar with editable limit (stored in DB, no deploy needed)
+- **Super admin** — Cannot be revoked, configured via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`
 
 ### Auth & Security
 - Email/password login with Supabase Auth
-- Signup with max user limit (default: 10)
+- Signup with dynamic max user limit (editable from admin dashboard)
 - Forgot password / reset password flow
 - Row Level Security — each user sees only their own data
+- Disabled user check on login AND session load
 - Rate limiting on auth attempts
 - Sanitized error messages (no information leaks)
+- `is_admin()` SECURITY DEFINER function for safe RLS checks
+
+### Database
+- **3 tables**: `vibes`, `profiles`, `app_settings`
+- **4 functions**: `is_admin()`, `get_user_count()`, `handle_new_user()`, `update_updated_at()`
+- **Auto-profile creation** on signup via trigger
+- **Soft delete** with `deleted_at` column
+- **Auto `updated_at`** via trigger
+- Full schema: [docs/DATABASE_SCHEMA.sql](./docs/DATABASE_SCHEMA.sql)
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `NEXT_PUBLIC_SUPER_ADMIN_EMAIL` | Super admin email (can't be revoked) |
+
+> `NEXT_PUBLIC_MAX_USERS` is no longer needed — the limit is stored in the `app_settings` DB table and editable from the admin dashboard.
 
 ## Running Tests
 
 ```bash
-# Start dev server first
-npm run dev
+npm run dev  # Start dev server first
 
 # In another terminal
 TEST_EMAIL=you@example.com TEST_PASSWORD=yourpass node tests/smoke.mjs
