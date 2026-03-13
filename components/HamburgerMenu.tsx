@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { tools } from '@/lib/nav';
 import { useAuthStore } from '@/stores/auth-store';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -11,6 +12,17 @@ interface HamburgerMenuProps {
 }
 
 export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
+  const { user } = useAuthStore();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+      .then(({ data }: { data: { is_admin: boolean } | null }) => setIsAdmin(data?.is_admin || false));
+  }, [user]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -20,6 +32,8 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
       return () => document.removeEventListener('keydown', handleKey);
     }
   }, [isOpen, onClose]);
+
+  const visibleTools = tools.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <>
@@ -56,7 +70,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
         {/* Tools */}
         <nav className="flex flex-col gap-1">
-          {tools.map((tool) => (
+          {visibleTools.map((tool) => (
             <Link key={tool.name} href={tool.href} onClick={onClose}>
               <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
                 <span className="mt-0.5 text-xl">{tool.icon}</span>
