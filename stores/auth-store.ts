@@ -56,13 +56,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
 
+    const checkDisabledAndSetUser = async (session: Session | null) => {
+      if (!session?.user) {
+        set({ user: null, loading: false });
+        return;
+      }
+      // Check if user is disabled
+      const { data: profile } = await supabase.from('profiles').select('disabled').eq('id', session.user.id).single();
+      if (profile?.disabled) {
+        await supabase.auth.signOut();
+        set({ user: null, loading: false, authError: 'Your account has been disabled. Contact the administrator.' });
+        return;
+      }
+      set({ user: session.user, loading: false });
+    };
+
     const afterCodeExchange = () => {
       supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-        set({ user: session?.user ?? null, loading: false });
+        checkDisabledAndSetUser(session);
       });
 
       supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-        set({ user: session?.user ?? null });
+        if (session?.user) {
+          checkDisabledAndSetUser(session);
+        } else {
+          set({ user: null });
+        }
       });
     };
 
@@ -116,11 +135,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       set({ authError: sanitizeAuthError(error.message), syncing: false });
       return;
+    }
+
+    // Check if user is disabled
+    if (data?.user) {
+      const { data: profile } = await supabase.from('profiles').select('disabled').eq('id', data.user.id).single();
+      if (profile?.disabled) {
+        await supabase.auth.signOut();
+        set({ authError: 'Your account has been disabled. Contact the administrator.', syncing: false, user: null });
+        return;
+      }
     }
 
     set({ syncing: false });
@@ -128,18 +157,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signup: async (email: string, password: string, name: string) => {
     set({ authError: '', syncing: true });
-
-    // Check max users
-    const maxUsers = parseInt(process.env.NEXT_PUBLIC_MAX_USERS || '10', 10);
-    const sb = getSupabaseClient();
-    if (sb) {
-      const { data: userCount } = await sb.from('vibes').select('user_id').limit(1000);
-      const distinctUsers = new Set(userCount?.map((r: { user_id: string }) => r.user_id) || []).size;
-      if (distinctUsers >= maxUsers) {
-        set({ authError: 'Maximum number of accounts reached.', syncing: false });
-        return;
-      }
-    }
 
     if (!name.trim()) {
       set({ authError: 'Please enter your name.', syncing: false });
