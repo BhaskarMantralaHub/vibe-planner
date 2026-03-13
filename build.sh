@@ -1,15 +1,11 @@
 #!/bin/bash
 # Build script for Cloudflare Pages deployment
-# Generates config.js from environment variables set in Cloudflare dashboard
+# Injects Supabase config directly into index.html (avoids .gitignore issues with config.js)
 
 if [ -n "$SUPABASE_URL" ] && [ -n "$ANON_KEY" ]; then
-  cat > vibe-planner/config.js <<JSEOF
-const CONFIG = {
-  SUPABASE_URL: "${SUPABASE_URL}",
-  SUPABASE_ANON_KEY: "${ANON_KEY}"
-};
-JSEOF
-  echo "✓ config.js generated from environment variables"
+  # Replace the external config.js script tag with an inline script
+  sed -i "s|<script src=\"config.js\"></script>|<script>const CONFIG={SUPABASE_URL:\"${SUPABASE_URL}\",SUPABASE_ANON_KEY:\"${ANON_KEY}\"};</script>|" vibe-planner/index.html
+  echo "✓ Supabase config injected into index.html"
 else
   echo "⚠ SUPABASE_URL or ANON_KEY not set — app will run in Local Mode"
 fi
