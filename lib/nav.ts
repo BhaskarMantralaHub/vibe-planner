@@ -3,6 +3,7 @@ export type Tool = {
   href: string;
   icon: string;
   description: string;
+  adminOnly?: boolean;
 };
 
 export const tools: Tool[] = [
@@ -17,5 +18,12 @@ export const tools: Tool[] = [
     href: '/sports/toss',
     icon: '🏏',
     description: 'Cricket toss. Fair coin. ICC standard.',
+  },
+  {
+    name: 'Admin',
+    href: '/admin',
+    icon: '⚙️',
+    description: 'Users, activity & stats.',
+    adminOnly: true,
   },
 ];
