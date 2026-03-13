@@ -1,10 +1,10 @@
 'use client';
 
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { Vibe } from '@/types/vibe';
 import { useVibeStore } from '@/stores/vibe-store';
-import { STATUSES, STATUS_KEYS } from '../lib/constants';
+import { STATUSES } from '../lib/constants';
 import { fmtTime, fmtDate, todayStr } from '../lib/utils';
 import CardNotes from './CardNotes';
 import CardMenu from './CardMenu';
@@ -28,79 +28,10 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
   const isNotesExpanded = expandedNotes === vibe.id;
   const isMenuOpen = openMenu === vibe.id;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [swipeStatus, setSwipeStatus] = useState<string | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
 
   const hasBadges = vibe.category || vibe.time_spent > 0;
 
-  // Touch tracking for long-press + swipe
-  const touchRef = useRef({ startX: 0, startY: 0, moved: false, longPressed: false, swiped: false });
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchRef.current = { startX: touch.clientX, startY: touch.clientY, moved: false, longPressed: false, swiped: false };
-    setSwipeOffset(0);
-    setSwipeStatus(null);
-
-    longPressTimer.current = setTimeout(() => {
-      touchRef.current.longPressed = true;
-      setOpenMenu(vibe.id);
-    }, 500);
-  }, [vibe.id, setOpenMenu]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - touchRef.current.startX;
-    const deltaY = touch.clientY - touchRef.current.startY;
-
-    // If moved more than 10px, cancel long-press
-    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-      touchRef.current.moved = true;
-      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    }
-
-    // Horizontal swipe detection (only if more horizontal than vertical)
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
-      setSwipeOffset(deltaX * 0.3); // Damped follow
-
-      const currentIdx = STATUS_KEYS.indexOf(vibe.status);
-      if (deltaX > 60 && currentIdx < STATUS_KEYS.length - 1) {
-        const next = STATUS_KEYS[currentIdx + 1];
-        setSwipeStatus(STATUSES[next].label + ' →');
-      } else if (deltaX < -60 && currentIdx > 0) {
-        const prev = STATUS_KEYS[currentIdx - 1];
-        setSwipeStatus('← ' + STATUSES[prev].label);
-      } else {
-        setSwipeStatus(null);
-      }
-    }
-  }, [vibe.status]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-
-    const deltaX = swipeOffset / 0.3; // Undo damping to get real delta
-    const currentIdx = STATUS_KEYS.indexOf(vibe.status);
-
-    // Swipe right → next status
-    if (deltaX > 60 && currentIdx < STATUS_KEYS.length - 1) {
-      touchRef.current.swiped = true;
-      updateItem(vibe.id, { status: STATUS_KEYS[currentIdx + 1] as Vibe['status'] });
-    }
-    // Swipe left → previous status
-    else if (deltaX < -60 && currentIdx > 0) {
-      touchRef.current.swiped = true;
-      updateItem(vibe.id, { status: STATUS_KEYS[currentIdx - 1] as Vibe['status'] });
-    }
-
-    setSwipeOffset(0);
-    setSwipeStatus(null);
-  }, [swipeOffset, vibe.id, vibe.status, updateItem]);
-
   const handleCardClick = () => {
-    // Don't toggle expand if we just long-pressed or swiped
-    if (touchRef.current.longPressed || touchRef.current.swiped || touchRef.current.moved) return;
     setIsExpanded(!isExpanded);
   };
 
@@ -126,22 +57,14 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
   const style = {
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-      : swipeOffset ? `translateX(${swipeOffset}px)` : undefined,
+      : undefined,
     opacity: isDragging ? 0.4 : 1,
     borderLeftColor: status.color,
-    transition: swipeOffset ? 'none' : undefined,
+    transition: isDragging ? 'none' : 'transform 200ms ease, opacity 200ms ease',
   };
 
   return (
     <div className="relative mb-3">
-      {/* Swipe status indicator */}
-      {swipeStatus && (
-        <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none">
-          <span className="text-[13px] font-semibold text-[var(--indigo)] bg-[var(--surface)] px-3 py-1 rounded-xl">
-            {swipeStatus}
-          </span>
-        </div>
-      )}
       <div
         ref={setNodeRef}
         {...(isMobile ? {} : { ...listeners, ...attributes })}
@@ -151,16 +74,12 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
         style={{
           transform: style.transform,
           opacity: style.opacity,
-          transition: style.transition,
           background: status.gradient,
           boxShadow: isExpanded ? 'var(--card-hover-shadow)' : 'var(--card-shadow)',
         }}
         data-testid="vibe-card"
         onClick={handleCardClick}
         onContextMenu={handleContextMenu}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
       >
       {/* Main row */}
       <div className="flex items-start gap-3">
@@ -227,11 +146,11 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           </div>
         </div>
 
-        {/* Menu button */}
+        {/* Menu button — prominent on mobile */}
         <button
           onClick={handleMenuToggle}
           data-menu-id={vibe.id}
-          className="text-[var(--dim)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] w-10 h-10 flex items-center justify-center rounded-xl transition-colors text-xl shrink-0"
+          className="text-[var(--muted)] bg-[var(--surface)] border border-[var(--border)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] w-10 h-10 flex items-center justify-center rounded-xl transition-colors text-xl shrink-0"
           title="Options"
         >
           ⋮

@@ -156,8 +156,15 @@ export default function CardMenu({ vibe, onClose }: CardMenuProps) {
         <div className="flex justify-center py-3 shrink-0">
           <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
         </div>
-        <div className="overflow-y-auto overscroll-contain px-2 pb-8">
+        <div className="overflow-y-auto overscroll-contain px-2 pb-4">
           {menuItems}
+
+          <div className="border-t border-[var(--border)] my-2 mx-2" />
+
+          <button onClick={close}
+            className="flex items-center justify-center w-full px-4 py-3 text-[16px] font-semibold rounded-xl text-[var(--blue)] transition-colors active:bg-[var(--hover-bg)]">
+            Cancel
+          </button>
         </div>
       </div>
     </div>
