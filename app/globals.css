@@ -25,21 +25,21 @@
   --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   --card-hover-shadow: 0 12px 30px rgba(139, 92, 246, 0.25);
 
-  /* Status card gradients */
-  --spark-from: #1A1C2E;
-  --spark-to: #25284A;
+  /* Status card gradients — each has a distinct hue */
+  --spark-from: #1C1A2E;
+  --spark-to: #2D2650;
   --spark-glow: #8B5CF6;
 
-  --progress-from: #18202E;
-  --progress-to: #243347;
+  --progress-from: #0F1D2E;
+  --progress-to: #142E4A;
   --progress-glow: #38BDF8;
 
-  --scheduled-from: #1F1A30;
-  --scheduled-to: #33215A;
+  --scheduled-from: #2A1F0E;
+  --scheduled-to: #3D2E14;
   --scheduled-glow: #F59E0B;
 
-  --done-from: #132A1E;
-  --done-to: #1F5136;
+  --done-from: #0E2418;
+  --done-to: #143D24;
   --done-glow: #22C55E;
 
   /* Filter buttons */
@@ -97,15 +97,19 @@
 
 /* ── Base ── */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   transition: background 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
+  font-feature-settings: "ss01", "ss02", "cv01";
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 /* ── Animations ── */

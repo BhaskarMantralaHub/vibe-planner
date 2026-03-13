@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useDraggable } from '@dnd-kit/core';
 import type { Vibe } from '@/types/vibe';
 import { useVibeStore } from '@/stores/vibe-store';
@@ -8,6 +9,9 @@ import { STATUSES } from '../lib/constants';
 import { fmtTime, fmtDate, todayStr } from '../lib/utils';
 import CardNotes from './CardNotes';
 import CardMenu from './CardMenu';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Briefcase, Home, Palette, BookOpen, Heart, Calendar, CheckCircle } from 'lucide-react';
 
 function useIsMobile() {
   if (typeof window === 'undefined') return false;
@@ -30,6 +34,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const hasBadges = vibe.category || vibe.time_spent > 0;
+  const isOverdue = vibe.due_date && vibe.status !== 'done' && vibe.due_date < todayStr();
 
   const handleCardClick = () => {
     setIsExpanded(!isExpanded);
@@ -64,18 +69,27 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
   };
 
   return (
-    <div className="relative mb-3">
+    <div className="relative mb-2">
       <div
         ref={setNodeRef}
         {...(isMobile ? {} : { ...listeners, ...attributes })}
-        className={`rounded-[14px] p-[18px] relative border border-[var(--border)] transition-all duration-250 ${
-          !isMobile ? 'cursor-grab active:cursor-grabbing' : ''
-        } ${isExpanded ? 'ring-1 ring-[var(--accent)]' : 'hover:translate-y-[-2px]'}`}
+        className={`rounded-[14px] p-3.5 relative border ${
+          isOverdue ? 'border-[var(--red)]/50' : 'border-[var(--border)]'
+        } ${!isMobile ? 'cursor-grab active:cursor-grabbing' : ''
+        } ${isDragging ? '' : 'transition-shadow hover:translate-y-[-1px]'
+        } ${isExpanded ? 'ring-1 ring-[var(--accent)]' : ''}`}
         style={{
           transform: style.transform,
           opacity: style.opacity,
-          background: status.gradient,
-          boxShadow: isExpanded ? 'var(--card-hover-shadow)' : 'var(--card-shadow)',
+          transition: isDragging ? 'none' : 'box-shadow 0.2s, opacity 0.2s',
+          background: isOverdue
+            ? 'linear-gradient(135deg, rgba(248,113,113,0.08), rgba(248,113,113,0.03))'
+            : status.gradient,
+          boxShadow: isDragging
+            ? '0 20px 40px rgba(0,0,0,0.3)'
+            : isOverdue
+              ? '0 0 0 1px rgba(248,113,113,0.2), var(--card-shadow)'
+              : isExpanded ? 'var(--card-hover-shadow)' : 'var(--card-shadow)',
         }}
         data-testid="vibe-card"
         onClick={handleCardClick}
@@ -104,7 +118,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           ) : (
             <span
               onDoubleClick={(e) => { e.stopPropagation(); setEditingCard(vibe.id, vibe.text); }}
-              className={`text-[17px] leading-relaxed block ${
+              className={`text-[16px] font-medium leading-relaxed block tracking-[-0.01em] ${
                 vibe.status === 'done' ? 'line-through text-[var(--dim)]' : 'text-[var(--text)]'
               }`}
             >
@@ -114,9 +128,10 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
 
           {/* Due date or completed date */}
           {vibe.status === 'done' && vibe.completed_at ? (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="text-[14px] font-medium text-[var(--green)]">
-                ✓ Completed {fmtDate(vibe.completed_at.split('T')[0])}
+            <div className="flex items-center gap-1.5 mt-2">
+              <CheckCircle size={14} className="text-[var(--green)]" />
+              <span className="text-[13px] font-semibold text-[var(--green)]">
+                Completed {fmtDate(vibe.completed_at.split('T')[0])}
               </span>
             </div>
           ) : (
@@ -126,11 +141,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           {/* Badges */}
           {hasBadges && (
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              {vibe.category && (
-                <span className="text-[13px] px-2.5 py-0.5 rounded-lg bg-[var(--surface)] text-[var(--muted)]">
-                  {vibe.category}
-                </span>
-              )}
+              {vibe.category && <CategoryBadge category={vibe.category} vibeId={vibe.id} />}
               {vibe.time_spent > 0 && (
                 <span className="text-[13px] px-2.5 py-0.5 rounded-lg bg-[var(--blue)]/10 text-[var(--blue)]">
                   ⏱ {fmtTime(vibe.time_spent)}
@@ -160,23 +171,56 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
       {/* Notes — always visible if they exist */}
       {vibe.notes && !isNotesExpanded && (
         <div
-          className="mt-3 pt-3 border-t border-[var(--border)] cursor-pointer"
+          className="mt-3 cursor-pointer group/notes"
           onClick={(e) => {
-            // Don't open editor if user clicked a link
             if ((e.target as HTMLElement).tagName === 'A') return;
             e.stopPropagation();
             setExpandedNotes(vibe.id);
           }}
         >
-          <div className="text-[15px] text-[var(--muted)] leading-relaxed whitespace-pre-wrap break-words">
-            <Linkify text={vibe.notes} />
+          <div className="rounded-xl p-3.5 transition-all hover:shadow-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="text-[15px] text-[var(--text)] leading-[1.7] break-words tracking-[-0.005em]">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="text-[var(--blue)] font-medium underline decoration-[var(--blue)]/40 hover:decoration-[var(--blue)] underline-offset-2 transition-colors break-all">
+                      {children}
+                    </a>
+                  ),
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
+                  li: ({ children }) => <li>{children}</li>,
+                  strong: ({ children }) => <strong className="font-bold text-[var(--text)]">{children}</strong>,
+                  em: ({ children }) => <em className="italic">{children}</em>,
+                  code: ({ children }) => (
+                    <code className="text-[13px] px-1.5 py-0.5 rounded-md bg-[var(--card)] text-[var(--orange)] font-mono border border-[var(--border)]">{children}</code>
+                  ),
+                  blockquote: ({ children }) => (
+                    <blockquote className="border-l-3 border-[var(--purple)] pl-4 my-2 text-[var(--muted)]">{children}</blockquote>
+                  ),
+                  h1: ({ children }) => <h1 className="text-[18px] font-bold text-[var(--text)] mb-2">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-[16px] font-bold text-[var(--text)] mb-1.5">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-[15px] font-semibold text-[var(--text)] mb-1">{children}</h3>,
+                  hr: () => <hr className="border-[var(--border)] my-3" />,
+                }}
+              >
+                {vibe.notes}
+              </ReactMarkdown>
+            </div>
+            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[var(--border)]">
+              <span className="text-[11px] text-[var(--muted)] font-medium">📝 Notes</span>
+              <span className="text-[11px] text-[var(--blue)] font-medium opacity-0 group-hover/notes:opacity-100 transition-opacity">Tap to edit</span>
+            </div>
           </div>
         </div>
       )}
 
       {/* Notes editor */}
       {isNotesExpanded && (
-        <div className="mt-3 pt-3 border-t border-[var(--border)] animate-[slideIn_0.15s]" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-3 pt-3 border-t border-[var(--border)]" onClick={(e) => e.stopPropagation()}>
           <CardNotes
             notes={vibe.notes}
             onSave={(notes) => updateItem(vibe.id, { notes })}
@@ -204,6 +248,93 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
       )}
     </div>
     </div>
+  );
+}
+
+const CATEGORY_STYLES: Record<string, { bg: string; text: string; icon: React.ComponentType<{ size?: number; color?: string; className?: string }> }> = {
+  Work:     { bg: '#2563eb', text: '#ffffff', icon: Briefcase },
+  Personal: { bg: '#0d9488', text: '#ffffff', icon: Home },
+  Creative: { bg: '#ea580c', text: '#ffffff', icon: Palette },
+  Learning: { bg: '#16a34a', text: '#ffffff', icon: BookOpen },
+  Health:   { bg: '#e11d48', text: '#ffffff', icon: Heart },
+};
+
+function CategoryBadge({ category, vibeId }: { category: string; vibeId: string }) {
+  const [open, setOpen] = useState(false);
+  const { updateItem } = useVibeStore();
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const style = CATEGORY_STYLES[category];
+  if (!style) return null;
+  const Icon = style.icon;
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const menuHeight = 280; // approximate dropdown height
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow < menuHeight ? rect.top - menuHeight : rect.bottom + 4;
+      setPos({ top: Math.max(8, top), left: Math.max(8, rect.left) });
+    }
+    setOpen(!open);
+  };
+
+  const handleSelect = (cat: string | null, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateItem(vibeId, { category: cat as Vibe['category'] });
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className="inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1 rounded-lg shadow-sm cursor-pointer hover:opacity-85 active:scale-95 transition-all"
+        style={{ background: style.bg, color: style.text }}
+      >
+        <Icon size={12} />
+        {category}
+      </button>
+
+      {open && typeof document !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-[150]" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div
+            className="fixed z-[151] bg-[var(--card)] border border-[var(--border)] rounded-xl p-1.5 shadow-2xl min-w-[150px] animate-[scaleIn_0.15s]"
+            style={{ top: pos.top, left: pos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {Object.entries(CATEGORY_STYLES).map(([cat, s]) => {
+              const CatIcon = s.icon;
+              const isActive = cat === category;
+              return (
+                <button
+                  key={cat}
+                  onClick={(e) => handleSelect(isActive ? null : cat, e)}
+                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-[13px] font-medium transition-colors cursor-pointer ${
+                    isActive ? 'text-white' : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
+                  }`}
+                  style={isActive ? { background: s.bg } : undefined}
+                >
+                  <CatIcon size={14} color={isActive ? '#fff' : s.bg} />
+                  <span>{cat}</span>
+                </button>
+              );
+            })}
+            <div className="border-t border-[var(--border)] my-1" />
+            <button
+              onClick={(e) => handleSelect(null, e)}
+              className="flex items-center w-full px-3 py-2 rounded-lg text-[13px] text-[var(--red)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+            >
+              Remove
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -278,14 +409,15 @@ function DueDateDisplay({ dueDate, vibeId, vibeStatus }: { dueDate: string; vibe
   };
 
   return (
-    <div className="flex items-center gap-1.5 mt-1.5">
-      <span
-        className="text-[14px] font-medium cursor-pointer hover:opacity-70 transition-opacity"
-        style={{ color }}
+    <div className="flex items-center gap-1.5 mt-2">
+      <button
+        className="inline-flex items-center gap-1.5 text-[13px] font-semibold cursor-pointer hover:opacity-80 transition-opacity px-2.5 py-1 rounded-lg"
+        style={{ color, background: `${color}15` }}
         onClick={handleClick}
       >
-        📅 {label}
-      </span>
+        <Calendar size={13} />
+        {label}
+      </button>
       {editing && (
         <input
           ref={inputRef}

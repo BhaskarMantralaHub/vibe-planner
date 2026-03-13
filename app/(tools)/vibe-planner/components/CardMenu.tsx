@@ -107,7 +107,7 @@ export default function CardMenu({ vibe, onClose }: CardMenuProps) {
       <div className="border-t border-[var(--border)] my-1 mx-2" />
 
       {CATEGORIES.map((cat) => (
-        <button key={cat} onClick={() => updateItem(vibe.id, { category: vibe.category === cat ? null : (cat as Vibe['category']) })}
+        <button key={cat} onClick={() => { updateItem(vibe.id, { category: vibe.category === cat ? null : (cat as Vibe['category']) }); close(); }}
           className="flex items-center gap-3 w-full px-4 py-2.5 text-[15px] rounded-xl text-[var(--muted)] transition-colors active:bg-[var(--hover-bg)]">
           <span className="w-5 text-center">{vibe.category === cat ? '✓' : ''}</span><span>{cat}</span>
         </button>
@@ -119,7 +119,7 @@ export default function CardMenu({ vibe, onClose }: CardMenuProps) {
         <span>📅</span>
         <span className="text-[15px] text-[var(--muted)]">Due</span>
         <input type="date" value={vibe.due_date || ''}
-          onChange={(e) => { const val = e.target.value || null; updateItem(vibe.id, { due_date: val, status: val && vibe.status === 'spark' ? 'scheduled' : vibe.status }); }}
+          onChange={(e) => { const val = e.target.value || null; updateItem(vibe.id, { due_date: val, status: val && vibe.status === 'spark' ? 'scheduled' : vibe.status }); close(); }}
           className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[14px] text-[var(--text)] outline-none" />
         {vibe.due_date && (
           <button onClick={() => updateItem(vibe.id, { due_date: null })} className="text-[var(--dim)] hover:text-[var(--red)] text-sm">✕</button>

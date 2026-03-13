@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { Save, X, Trash2, FileText } from 'lucide-react';
 
 interface CardNotesProps {
   notes: string;
@@ -18,54 +19,89 @@ export default function CardNotes({ notes, onSave, onDelete, onClose }: CardNote
     if (ta) {
       ta.focus();
       ta.selectionStart = ta.value.length;
+      ta.style.height = 'auto';
+      ta.style.height = Math.max(80, ta.scrollHeight) + 'px';
     }
   }, []);
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.max(80, e.target.scrollHeight) + 'px';
+  };
 
   const handleSave = () => {
     onSave(text);
     onClose();
   };
 
-  const handleDelete = () => {
-    onDelete();
-    onClose();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') handleSave();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      handleSave();
-    }
-  };
+  const hasChanges = text !== notes;
 
   return (
-    <div className="mt-2 animate-[slideIn_0.15s]">
+    <div className="animate-[slideIn_0.15s]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <FileText size={16} className="text-[var(--orange)]" />
+          <span className="text-[14px] font-semibold text-[var(--text)]">Notes</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Textarea */}
       <textarea
         ref={textareaRef}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleInput}
         onKeyDown={handleKeyDown}
         placeholder="Add notes, URLs, or justifications..."
-        className="w-full min-h-[60px] bg-[var(--surface)] border border-[var(--border)] rounded-md text-[var(--text)] p-2 text-xs font-sans outline-none resize-y focus:border-[var(--indigo)]"
+        className="w-full min-h-[80px] rounded-xl text-[var(--text)] px-4 py-3 text-[15px] leading-relaxed font-sans outline-none resize-none transition-all placeholder:text-[var(--dim)]"
+        style={{
+          background: 'linear-gradient(135deg, var(--surface), var(--card))',
+          border: '1.5px solid var(--purple)',
+          boxShadow: '0 0 0 3px color-mix(in srgb, var(--purple) 15%, transparent)',
+        }}
       />
-      <div className="flex items-center gap-2 mt-1.5">
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 mt-3">
         <button
           onClick={handleSave}
-          className="text-[10px] px-2.5 py-1 rounded-md bg-[var(--indigo)] text-white font-medium hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-[0.98]"
+          style={{
+            background: hasChanges ? 'linear-gradient(135deg, var(--purple), var(--indigo))' : 'var(--surface)',
+            color: hasChanges ? '#fff' : 'var(--muted)',
+            border: hasChanges ? 'none' : '1px solid var(--border)',
+          }}
         >
+          <Save size={14} />
           Save
         </button>
+
         <button
           onClick={onClose}
-          className="text-[10px] px-2.5 py-1 rounded-md bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] hover:bg-[var(--hover-bg)] transition-colors"
+          className="px-3 py-2 rounded-xl text-[13px] font-medium text-[var(--text)] bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
         >
           Cancel
         </button>
+
         {notes && (
           <button
-            onClick={handleDelete}
-            className="text-[10px] px-2.5 py-1 rounded-md text-[var(--red)] hover:bg-[var(--red)]/10 transition-colors ml-auto"
+            onClick={() => { onDelete(); onClose(); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-medium text-white cursor-pointer transition-all ml-auto active:scale-[0.98]"
+            style={{ background: 'linear-gradient(135deg, var(--red), #dc2626)' }}
           >
-            Delete Notes
+            <Trash2 size={13} />
+            Delete
           </button>
         )}
       </div>
