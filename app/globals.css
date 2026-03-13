@@ -144,6 +144,50 @@ body {
   66% { transform: translate(-20px, 20px) scale(0.95); }
 }
 
+@keyframes coinFlip {
+  0% { transform: rotateY(0deg) translateY(0); }
+  15% { transform: rotateY(540deg) translateY(-120px); }
+  30% { transform: rotateY(1080deg) translateY(-180px); }
+  50% { transform: rotateY(1620deg) translateY(-200px); }
+  70% { transform: rotateY(2160deg) translateY(-100px); }
+  85% { transform: rotateY(2520deg) translateY(-20px); }
+  92% { transform: rotateY(2700deg) translateY(10px); }
+  100% { transform: rotateY(2880deg) translateY(0); }
+}
+
+/* Tails variant — ends at 180deg offset */
+[data-result="tails"] {
+  animation-name: coinFlipTails !important;
+}
+
+@keyframes coinFlipTails {
+  0% { transform: rotateY(0deg) translateY(0); }
+  15% { transform: rotateY(540deg) translateY(-120px); }
+  30% { transform: rotateY(1080deg) translateY(-180px); }
+  50% { transform: rotateY(1620deg) translateY(-200px); }
+  70% { transform: rotateY(2160deg) translateY(-100px); }
+  85% { transform: rotateY(2520deg) translateY(-20px); }
+  92% { transform: rotateY(2700deg) translateY(10px); }
+  100% { transform: rotateY(2880deg + 180deg) translateY(0); }
+}
+
+@keyframes coinIdle {
+  0%, 100% { transform: rotateY(0deg); }
+  50% { transform: rotateY(180deg); }
+}
+
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.1); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+@keyframes particleBurst {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
+}
+
 .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 .animate-spin { animation: spin 1s linear infinite; }
 .animate-slide-in { animation: slideIn 0.25s ease-out; }

@@ -56,50 +56,21 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
         {/* Tools */}
         <nav className="flex flex-col gap-1">
-          {tools.map((tool) => {
-            const isLive = tool.badge === 'live';
-
-            const inner = (
-              <div
-                className={`flex items-start gap-3 rounded-lg px-3 py-3 transition-colors ${
-                  isLive
-                    ? 'cursor-pointer hover:bg-[var(--hover-bg)]'
-                    : 'cursor-default opacity-50'
-                }`}
-              >
+          {tools.map((tool) => (
+            <Link key={tool.name} href={tool.href} onClick={onClose}>
+              <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
                 <span className="mt-0.5 text-xl">{tool.icon}</span>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[var(--text)]">
-                      {tool.name}
-                    </span>
-                    {isLive ? (
-                      <span className="rounded-full bg-[var(--green)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--green)]">
-                        Live
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-[var(--muted)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                        Soon
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-[var(--muted)]">
+                  <span className="text-[15px] font-medium text-[var(--text)]">
+                    {tool.name}
+                  </span>
+                  <p className="mt-0.5 text-[13px] text-[var(--muted)]">
                     {tool.description}
                   </p>
                 </div>
               </div>
-            );
-
-            if (isLive) {
-              return (
-                <Link key={tool.name} href={tool.href} onClick={onClose}>
-                  {inner}
-                </Link>
-              );
-            }
-
-            return <div key={tool.name}>{inner}</div>;
-          })}
+            </Link>
+          ))}
         </nav>
 
         {/* Bottom section — user info + logout */}
