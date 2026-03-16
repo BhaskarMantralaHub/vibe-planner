@@ -7,7 +7,7 @@ import {
 } from '@/lib/auth';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 
-type AuthMode = 'login' | 'signup' | 'check-email' | 'forgot' | 'reset-sent';
+type AuthMode = 'login' | 'signup' | 'check-email' | 'forgot' | 'reset-sent' | 'pending-approval';
 
 interface AuthState {
   user: User | null;
@@ -17,15 +17,18 @@ interface AuthState {
   syncing: boolean;
   isCloud: boolean;
   needsPasswordReset: boolean;
+  userAccess: string[];
+  userApproved: boolean;
 
   init: () => void;
   updatePassword: (password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, access?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   setAuthMode: (mode: AuthMode) => void;
   clearError: () => void;
+  hasAccess: (role: string) => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -36,6 +39,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   syncing: false,
   isCloud: false,
   needsPasswordReset: false,
+  userAccess: [],
+  userApproved: true,
 
   init: () => {
     const cloud = isCloudMode();
@@ -57,29 +62,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const type = params.get('type');
     const code = params.get('code');
 
-    const checkDisabledAndSetUser = async (session: Session | null) => {
+    const checkProfileAndSetUser = async (session: Session | null) => {
       if (!session?.user) {
         set({ user: null, loading: false });
         return;
       }
-      // Check if user is disabled
-      const { data: profile } = await supabase.from('profiles').select('disabled').eq('id', session.user.id).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('disabled, access, approved')
+        .eq('id', session.user.id)
+        .single();
+
       if (profile?.disabled) {
         await supabase.auth.signOut();
         set({ user: null, loading: false, authError: 'Your account has been disabled. Contact the administrator.' });
         return;
       }
-      set({ user: session.user, loading: false });
+
+      const access: string[] = profile?.access ?? ['toolkit'];
+      const approved: boolean = profile?.approved ?? true;
+
+      if (!approved) {
+        await supabase.auth.signOut();
+        set({ user: null, loading: false, authMode: 'pending-approval' });
+        return;
+      }
+
+      set({ user: session.user, loading: false, userAccess: access, userApproved: approved });
     };
 
     const setupAuthListener = () => {
       supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-        checkDisabledAndSetUser(session);
+        checkProfileAndSetUser(session);
       });
 
       supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
         if (session?.user) {
-          checkDisabledAndSetUser(session);
+          checkProfileAndSetUser(session);
         } else {
           set({ user: null });
         }
@@ -156,20 +175,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Check if user is disabled
+    // Check profile: disabled, approved, access
     if (data?.user) {
-      const { data: profile } = await supabase.from('profiles').select('disabled').eq('id', data.user.id).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('disabled, access, approved')
+        .eq('id', data.user.id)
+        .single();
+
       if (profile?.disabled) {
         await supabase.auth.signOut();
         set({ authError: 'Your account has been disabled. Contact the administrator.', syncing: false, user: null });
         return;
       }
+
+      if (!profile?.approved) {
+        await supabase.auth.signOut();
+        set({ syncing: false, user: null, authMode: 'pending-approval' });
+        return;
+      }
+
+      set({ userAccess: profile?.access ?? ['toolkit'], userApproved: profile?.approved ?? true });
     }
 
     set({ syncing: false });
   },
 
-  signup: async (email: string, password: string, name: string) => {
+  signup: async (email: string, password: string, name: string, access?: string) => {
     set({ authError: '', syncing: true });
 
     // Check max users from app_settings (no auth needed)
@@ -218,10 +250,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    const role = access || 'toolkit';
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name.trim() } },
+      options: { data: { full_name: name.trim(), access: role, approved: role !== 'cricket' } },
     });
 
     if (error) {
@@ -261,7 +294,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     const supabase = getSupabaseClient();
     supabase?.auth.signOut();
-    set({ user: null, authMode: 'login', authError: '' });
+    set({ user: null, authMode: 'login', authError: '', userAccess: [], userApproved: true });
+  },
+
+  hasAccess: (role: string) => {
+    const { userAccess } = get();
+    return userAccess.includes(role) || userAccess.includes('admin');
   },
 
   setAuthMode: (mode: AuthMode) => {

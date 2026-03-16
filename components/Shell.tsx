@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, isCloud } = useAuthStore();
+  const { user, isCloud, userAccess } = useAuthStore();
+  const pathname = usePathname();
+
+  // Show cricket branding if on cricket URL OR if user only has cricket access
+  const isCricketContext = pathname.startsWith('/cricket')
+    || (userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin'));
 
   const showNav = !isCloud || !!user;
 
@@ -28,9 +34,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="w-8" />
         )}
 
-        <Link href="/" className="group flex items-center gap-2">
-          <h1 className="bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
-            Viber&apos;s Toolkit
+        <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
+          <h1 className={`bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80 ${
+            isCricketContext
+              ? 'bg-gradient-to-r from-[var(--orange)] to-[var(--red)]'
+              : 'bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)]'
+          }`}>
+            {isCricketContext ? 'Sunrisers Manteca' : "Viber\u0027s Toolkit"}
           </h1>
         </Link>
 

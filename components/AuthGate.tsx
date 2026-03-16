@@ -3,9 +3,53 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 
-export function AuthGate({ children }: { children: React.ReactNode }) {
+type AuthGateVariant = 'toolkit' | 'cricket';
+
+const VARIANT_CONFIG = {
+  toolkit: {
+    heroImage: '/hero.png',
+    heroAlt: "Viber's Toolkit",
+    tagline: 'Capture Ideas. Align with Flow.',
+    subtitle: 'Your personal productivity toolkit to think, plan, and achieve.',
+    pills: ['✦ Capture', '◷ Plan', '✓ Track', '🚀 Achieve'],
+    loginTitle: 'Welcome Back',
+    loginSubtitle: 'Log in to your toolkit',
+    signupTitle: 'Get Started',
+    signupSubtitle: 'Create your account',
+    gradient: 'from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)]',
+    buttonGradient: 'from-[var(--purple)] to-[var(--indigo)]',
+    focusColor: 'focus:border-[var(--purple)] focus:ring-[var(--purple)]/30',
+    orbColor1: 'var(--purple)',
+    orbColor2: 'var(--blue)',
+    shadowColor: 'rgba(139, 92, 246, 0.15)',
+    accentColor: 'var(--purple)',
+    access: 'toolkit',
+  },
+  cricket: {
+    heroImage: '/cricket-hero.png',
+    heroAlt: 'Sunrisers Manteca',
+    tagline: 'Sunrisers Manteca Cricket',
+    subtitle: 'Team expenses, dues, and more — all in one place.',
+    pills: ['🏏 Cricket', '💰 Expenses', '📊 Dues', '🤝 Settle'],
+    loginTitle: 'Welcome Back',
+    loginSubtitle: 'Log in to your team',
+    signupTitle: 'Join the Team',
+    signupSubtitle: 'Create your account',
+    gradient: 'from-[var(--orange)] to-[var(--red)]',
+    buttonGradient: 'from-[var(--orange)] to-[var(--red)]',
+    focusColor: 'focus:border-[var(--orange)] focus:ring-[var(--orange)]/30',
+    orbColor1: 'var(--orange)',
+    orbColor2: 'var(--red)',
+    shadowColor: 'rgba(251, 191, 36, 0.15)',
+    accentColor: 'var(--orange)',
+    access: 'cricket',
+  },
+};
+
+export function AuthGate({ children, variant = 'toolkit' }: { children: React.ReactNode; variant?: AuthGateVariant }) {
   const { user, loading, isCloud, authMode, authError, syncing, login, signup, resetPassword, setAuthMode, clearError, init } =
     useAuthStore();
+  const v = VARIANT_CONFIG[variant];
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,21 +71,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // Message screens (check-email, reset-sent)
-  if (authMode === 'check-email' || authMode === 'reset-sent') {
-    const isReset = authMode === 'reset-sent';
+  // Message screens (check-email, reset-sent, pending-approval)
+  if (authMode === 'check-email' || authMode === 'reset-sent' || authMode === 'pending-approval') {
+    const config = {
+      'check-email': { icon: '✉️', title: 'Confirm Your Email', message: 'We sent a confirmation link. Click it, then come back and log in.' },
+      'reset-sent': { icon: '🔑', title: 'Check Your Email', message: 'We sent a password reset link to your email. Click it to set a new password.' },
+      'pending-approval': { icon: '⏳', title: 'Pending Approval', message: 'Your signup request has been sent to the team admin. You\u0027ll be able to log in once approved.' },
+    }[authMode];
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-          <div className="mb-4 text-4xl">{isReset ? '🔑' : '✉️'}</div>
-          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">
-            {isReset ? 'Check Your Email' : 'Confirm Your Email'}
-          </h2>
-          <p className="mb-6 text-[15px] text-[var(--muted)]">
-            {isReset
-              ? 'We sent a password reset link to your email. Click it to set a new password.'
-              : 'We sent a confirmation link. Click it, then come back and log in.'}
-          </p>
+          <div className="mb-4 text-4xl">{config.icon}</div>
+          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
+          <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
           <button
             onClick={() => setAuthMode('login')}
             className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
@@ -73,7 +115,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Email</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30 transition-all"
+              className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
               placeholder="you@example.com" autoComplete="email"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); resetPassword(email); } }}
             />
@@ -82,7 +124,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => resetPassword(email)}
             disabled={syncing}
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] px-4 py-3 text-[16px] font-semibold text-white shadow-lg transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${v.buttonGradient} px-4 py-3 text-[16px] font-semibold text-white shadow-lg transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60`}
           >
             {syncing && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
             Send Reset Link
@@ -92,7 +134,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             Remember your password?{' '}
             <button
               onClick={() => { setAuthMode('login'); clearError(); setEmail(''); }}
-              className="cursor-pointer font-medium text-[var(--purple)] hover:underline"
+              className="cursor-pointer font-medium hover:underline"
+              style={{ color: v.accentColor }}
             >
               Log in
             </button>
@@ -110,7 +153,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (isLogin) {
       await login(email, password);
     } else {
-      await signup(email, password, name);
+      await signup(email, password, name, v.access);
     }
   }
 
@@ -119,9 +162,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       {/* Gradient orbs background */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 -left-32 h-[500px] w-[500px] rounded-full opacity-20 blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--purple), transparent 70%)', animation: 'float 8s ease-in-out infinite' }} />
+          style={{ background: `radial-gradient(circle, ${v.orbColor1}, transparent 70%)`, animation: 'float 8s ease-in-out infinite' }} />
         <div className="absolute -bottom-32 -right-32 h-[400px] w-[400px] rounded-full opacity-15 blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--blue), transparent 70%)', animation: 'float 10s ease-in-out infinite reverse' }} />
+          style={{ background: `radial-gradient(circle, ${v.orbColor2}, transparent 70%)`, animation: 'float 10s ease-in-out infinite reverse' }} />
       </div>
 
       {/* Centered unified layout */}
@@ -130,24 +173,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
           {/* Combined card — stacked on mobile, side-by-side on desktop */}
           <div className="flex flex-col lg:flex-row rounded-3xl border border-[var(--border)] overflow-hidden shadow-2xl"
-            style={{ boxShadow: '0 20px 80px rgba(139, 92, 246, 0.15)' }}>
+            style={{ boxShadow: `0 20px 80px ${v.shadowColor}` }}>
 
             {/* Left: Hero image + tagline */}
             <div className="flex-1 bg-[var(--surface)] p-4 lg:p-10 flex flex-col justify-center">
               <img
-                src="/hero.png"
-                alt="Viber's Toolkit"
+                src={v.heroImage}
+                alt={v.heroAlt}
                 className="w-full max-h-[140px] lg:max-h-[320px] object-cover rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
               />
-              <h1 className="text-[18px] lg:text-[32px] font-bold text-center bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-transparent leading-tight mb-1 lg:mb-2">
-                Capture Ideas. Align with Flow.
+              <h1 className={`text-[18px] lg:text-[32px] font-bold text-center bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
+                {v.tagline}
               </h1>
               <p className="text-[12px] lg:text-[16px] text-[var(--muted)] text-center leading-relaxed hidden lg:block">
-                Your personal productivity toolkit to think, plan, and achieve.
+                {v.subtitle}
               </p>
               {/* Feature pills — desktop only */}
               <div className="hidden lg:flex items-center justify-center gap-2 mt-5">
-                {['✦ Capture', '◷ Plan', '✓ Track', '🚀 Achieve'].map((f) => (
+                {v.pills.map((f) => (
                   <span key={f} className="text-[13px] px-4 py-1.5 rounded-full border border-[var(--border)] text-[var(--muted)]">
                     {f}
                   </span>
@@ -164,10 +207,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             >
               <div className="mb-4 lg:mb-8 text-center">
                 <h2 className="mb-1 text-[20px] lg:text-[26px] font-bold text-[var(--text)]">
-                  {isLogin ? 'Welcome Back' : 'Get Started'}
+                  {isLogin ? v.loginTitle : v.signupTitle}
                 </h2>
                 <p className="text-[14px] lg:text-[16px] text-[var(--muted)]">
-                  {isLogin ? 'Log in to your toolkit' : 'Create your account'}
+                  {isLogin ? v.loginSubtitle : v.signupSubtitle}
                 </p>
               </div>
 
@@ -182,7 +225,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Name</label>
                   <input
                     type="text" value={name} onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30 transition-all"
+                    className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
                     placeholder="Your name" autoComplete="name"
                   />
                 </div>
@@ -192,7 +235,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Email</label>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30 transition-all"
+                  className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
                   placeholder="you@example.com" autoComplete="email"
                 />
               </div>
@@ -201,14 +244,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Password</label>
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30 transition-all"
+                  className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
                   placeholder="••••••••" autoComplete={isLogin ? 'current-password' : 'new-password'}
                 />
               </div>
 
               <button
                 type="submit" disabled={syncing}
-                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] px-4 py-3 text-[16px] font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${v.buttonGradient} px-4 py-3 text-[16px] font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {syncing && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                 {isLogin ? 'Log In' : 'Sign Up'}
@@ -219,7 +262,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     onClick={() => { setAuthMode('forgot'); clearError(); setPassword(''); }}
-                    className="cursor-pointer text-[13px] text-[var(--muted)] hover:text-[var(--purple)] transition-colors"
+                    className="cursor-pointer text-[13px] text-[var(--muted)] transition-colors"
+                    style={{ '--hover-accent': v.accentColor } as React.CSSProperties}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = `${v.accentColor}`)}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = '')}
                   >
                     Forgot password?
                   </button>
@@ -231,7 +277,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); clearError(); setEmail(''); setPassword(''); setName(''); }}
-                  className="cursor-pointer font-medium text-[var(--purple)] hover:underline"
+                  className="cursor-pointer font-medium hover:underline"
+                  style={{ color: v.accentColor }}
                 >
                   {isLogin ? 'Sign up' : 'Log in'}
                 </button>
