@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const access: string[] = profile?.access ?? ['toolkit'];
-      const approved: boolean = profile?.approved ?? true;
+      const approved: boolean = profile?.approved !== false;
 
       if (!approved) {
         await supabase.auth.signOut();
@@ -189,13 +189,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      if (!profile?.approved) {
+      if (profile?.approved === false) {
         await supabase.auth.signOut();
         set({ syncing: false, user: null, authMode: 'pending-approval' });
         return;
       }
 
-      set({ userAccess: profile?.access ?? ['toolkit'], userApproved: profile?.approved ?? true });
+      set({ userAccess: profile?.access ?? ['toolkit'], userApproved: profile?.approved !== false });
     }
 
     set({ syncing: false });
