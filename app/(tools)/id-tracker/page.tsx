@@ -72,50 +72,52 @@ function CardMenu({ anchorRef, onEdit, onDelete, onClose }: {
   onDelete: () => void;
   onClose: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.right - 140 });
+      const menuWidth = 140;
+      const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
+      setPos({ top: rect.bottom + 4, left: Math.max(8, left) });
     }
-  }, [anchorRef]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node) &&
-          anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+    // Close on scroll or resize
+    const close = () => onClose();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
   }, [anchorRef, onClose]);
 
   return createPortal(
-    <div
-      ref={menuRef}
-      className="fixed z-[100] w-[140px] rounded-xl overflow-hidden shadow-lg animate-[slideIn_0.1s]"
-      style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}
-    >
-      <button
-        onClick={() => { onEdit(); onClose(); }}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left"
-        style={{ color: 'var(--text)' }}
+    <>
+      {/* Invisible backdrop to catch taps */}
+      <div className="fixed inset-0 z-[99]" onClick={onClose} />
+      <div
+        className="fixed z-[100] w-[140px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
+        style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
-        <Edit3 size={14} style={{ color: 'var(--blue)' }} />
-        Edit
-      </button>
-      <button
-        onClick={() => { onDelete(); onClose(); }}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left"
-        style={{ color: 'var(--red)' }}
-      >
-        <Trash2 size={14} />
-        Delete
-      </button>
-    </div>,
+        <button
+          onClick={() => { onEdit(); onClose(); }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+          style={{ color: 'var(--text)' }}
+        >
+          <Edit3 size={14} style={{ color: 'var(--blue)' }} />
+          Edit
+        </button>
+        <button
+          onClick={() => { onDelete(); onClose(); }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+          style={{ color: 'var(--red)' }}
+        >
+          <Trash2 size={14} />
+          Delete
+        </button>
+      </div>
+    </>,
     document.body,
   );
 }
