@@ -194,9 +194,11 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
         <div className="flex-1 min-w-0">
           <div className="text-[14px] font-semibold leading-snug" style={{ color: 'var(--text)' }}>{doc.label}</div>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
-              {typeConfig?.label || doc.id_type}
-            </span>
+            {doc.label !== (typeConfig?.label || doc.id_type) && (
+              <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
+                {typeConfig?.label || doc.id_type}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
               style={{ background: getPersonColor(owners.indexOf(doc.owner_name)), color: '#fff' }}>
               {doc.owner_name}
