@@ -20,6 +20,12 @@ export const tools: Tool[] = [
     description: 'Cricket toss. Fair coin. ICC standard.',
   },
   {
+    name: 'ID Tracker',
+    href: '/id-tracker',
+    icon: '🪪',
+    description: 'Track IDs & get expiry reminders.',
+  },
+  {
     name: 'Admin',
     href: '/admin',
     icon: '⚙️',
