@@ -9,7 +9,7 @@ import { AuthGate } from '@/components/AuthGate';
 import type { IDDocument, IDCountry } from '@/types/id-tracker';
 import { ID_TYPES, DEFAULT_REMINDER_DAYS, REMINDER_OPTIONS } from './lib/constants';
 import type { IDTypeConfig } from './lib/constants';
-import { getUrgency, getDaysLeft, formatDate } from './lib/utils';
+import { getUrgency, getDaysLeft, formatDate, formatDaysLeft } from './lib/utils';
 import type { UrgencyLevel } from './lib/utils';
 import {
   ShieldCheck, Globe, Globe2, FileCheck, Building2, Car, Plane, IdCard, Lock,
@@ -215,8 +215,8 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${urgency === 'expired' ? 'animate-pulse' : ''}`}
                   style={{ background: `color-mix(in srgb, ${config.color} 18%, transparent)`, color: config.color }}>
                   {daysLeft !== null && daysLeft < 0
-                    ? `${Math.abs(daysLeft)}d overdue`
-                    : `${daysLeft}d`}
+                    ? `${formatDaysLeft(doc.expiry_date)} overdue`
+                    : formatDaysLeft(doc.expiry_date)}
                 </span>
               </div>
               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
@@ -261,8 +261,8 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
                   </div>
                   <div className="text-[12px] font-medium" style={{ color: config.color }}>
                     {daysLeft !== null && daysLeft < 0
-                      ? `${Math.abs(daysLeft)} days overdue`
-                      : `${daysLeft} days remaining`}
+                      ? `${formatDaysLeft(doc.expiry_date)} overdue`
+                      : `${formatDaysLeft(doc.expiry_date)} remaining`}
                   </div>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${urgency === 'expired' ? 'animate-pulse' : ''}`}
@@ -305,6 +305,24 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
 function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: string) => void; owners: string[]; editDoc: IDDocument | null }) {
   const { user } = useAuthStore();
   const store = useIDTrackerStore();
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
 
   const editTypeConfig = editDoc ? getTypeConfig(editDoc.id_type) : null;
 
@@ -996,20 +1014,83 @@ function IDTrackerContent() {
         </div>
       )}
 
-      {/* ID cards grid */}
+      {/* ID cards — grouped by country */}
       {!loading && displayedDocs.length > 0 && (
         <div className="px-4 lg:px-6 pb-48">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
-            {displayedDocs.map((doc) => (
-              <IDCard
-                key={doc.id}
-                doc={doc}
-                owners={owners}
-                onEdit={() => handleEdit(doc)}
-                onDelete={() => handleDelete(doc)}
-              />
-            ))}
-          </div>
+          {(() => {
+            const usDocs = displayedDocs.filter(d => d.country === 'US');
+            const inDocs = displayedDocs.filter(d => d.country === 'IN');
+
+            return (
+              <div className="space-y-6">
+                {/* US Section */}
+                {usDocs.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold"
+                        style={{ background: 'rgba(96,165,250,0.15)', color: 'var(--blue)' }}>
+                        US
+                      </div>
+                      <span className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>United States</span>
+                      <span className="text-[12px] font-medium px-2 py-0.5 rounded-lg" style={{ background: 'var(--surface)', color: 'var(--muted)' }}>
+                        {usDocs.length}
+                      </span>
+                      {usDocs.some(d => getUrgency(d.expiry_date) === 'expired') && (
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded animate-pulse"
+                          style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}>
+                          {usDocs.filter(d => getUrgency(d.expiry_date) === 'expired').length} expired
+                        </span>
+                      )}
+                      {usDocs.some(d => { const u = getUrgency(d.expiry_date); return u === 'critical' || u === 'warning'; }) && (
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: 'rgba(251,146,60,0.15)', color: 'var(--orange)' }}>
+                          {usDocs.filter(d => { const u = getUrgency(d.expiry_date); return u === 'critical' || u === 'warning'; }).length} expiring
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                      {usDocs.map((doc) => (
+                        <IDCard key={doc.id} doc={doc} owners={owners} onEdit={() => handleEdit(doc)} onDelete={() => handleDelete(doc)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* India Section */}
+                {inDocs.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold"
+                        style={{ background: 'rgba(251,146,60,0.15)', color: 'var(--orange)' }}>
+                        IN
+                      </div>
+                      <span className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>India</span>
+                      <span className="text-[12px] font-medium px-2 py-0.5 rounded-lg" style={{ background: 'var(--surface)', color: 'var(--muted)' }}>
+                        {inDocs.length}
+                      </span>
+                      {inDocs.some(d => getUrgency(d.expiry_date) === 'expired') && (
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded animate-pulse"
+                          style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}>
+                          {inDocs.filter(d => getUrgency(d.expiry_date) === 'expired').length} expired
+                        </span>
+                      )}
+                      {inDocs.some(d => { const u = getUrgency(d.expiry_date); return u === 'critical' || u === 'warning'; }) && (
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: 'rgba(251,146,60,0.15)', color: 'var(--orange)' }}>
+                          {inDocs.filter(d => { const u = getUrgency(d.expiry_date); return u === 'critical' || u === 'warning'; }).length} expiring
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                      {inDocs.map((doc) => (
+                        <IDCard key={doc.id} doc={doc} owners={owners} onEdit={() => handleEdit(doc)} onDelete={() => handleDelete(doc)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
