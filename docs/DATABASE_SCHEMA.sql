@@ -206,6 +206,64 @@ ON CONFLICT (key) DO NOTHING;
 
 
 -- ============================================================================
+-- TABLE: id_documents
+-- ============================================================================
+-- WHY: Tracks identity documents (US + India) for the user and their family.
+--      No sensitive data stored — only type, label, expiry date, renewal URL.
+--      Used by the ID Tracker tool for expiry reminders.
+-- COLUMNS:
+--   id_type      — e.g. 'us_passport', 'oci_card' (matches constants in code)
+--   country      — 'US' or 'IN'
+--   label        — user-facing name, e.g. "My US Passport"
+--   owner_name   — family member name, e.g. "Bhaskar", "Mounika", "Dad"
+--   description  — optional notes
+--   expiry_date  — null for non-expiring IDs (SSN, PAN, Aadhaar, Voter ID)
+--   renewal_url  — pre-filled from constants, user can override
+--   reminder_days — Postgres integer array, e.g. {90,30,7} = remind at 90, 30, 7 days before
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS id_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  id_type TEXT NOT NULL,
+  country TEXT NOT NULL DEFAULT 'US',
+  label TEXT NOT NULL,
+  owner_name TEXT NOT NULL DEFAULT '',
+  description TEXT DEFAULT '',
+  expiry_date DATE,
+  renewal_url TEXT DEFAULT '',
+  reminder_days INTEGER[] DEFAULT '{90,30,7}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_id_documents_user_id ON id_documents(user_id);
+-- WHY: Fast lookups for daily expiry reminder checks
+CREATE INDEX IF NOT EXISTS idx_id_documents_expiry ON id_documents(expiry_date)
+  WHERE expiry_date IS NOT NULL;
+
+ALTER TABLE id_documents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own id_documents"
+  ON id_documents FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own id_documents"
+  ON id_documents FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own id_documents"
+  ON id_documents FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own id_documents"
+  ON id_documents FOR DELETE USING (auth.uid() = user_id);
+-- WHY: Admin dashboard may show all users' expiring IDs in future
+CREATE POLICY "Admin can read all id_documents"
+  ON id_documents FOR SELECT USING (is_admin());
+
+-- Reuse existing update_updated_at() trigger function
+DROP TRIGGER IF EXISTS id_documents_updated_at ON id_documents;
+CREATE TRIGGER id_documents_updated_at
+  BEFORE UPDATE ON id_documents
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+
+-- ============================================================================
 -- FUNCTION: get_user_count()
 -- ============================================================================
 -- WHY: Signup needs to check how many users exist BEFORE the new user is

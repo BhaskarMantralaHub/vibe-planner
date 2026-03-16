@@ -4,6 +4,12 @@
 
 Viber's Toolkit — a personal productivity suite hosted on Cloudflare Pages. Two users (Bhaskar + wife). Multiple tools under one shell with hamburger menu navigation.
 
+### Tools
+- **Vibe Planner** — Kanban board + timeline for tasks/ideas
+- **Sports — Coin Toss** — 3D cricket coin toss with sound effects
+- **ID Tracker** — Track identity documents (US + India) for family members, with expiry reminders
+- **Admin Dashboard** — User management, activity stats, enable/disable users
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router, static export)
@@ -28,11 +34,14 @@ Viber's Toolkit — a personal productivity suite hosted on Cloudflare Pages. Tw
 │       │   ├── page.tsx
 │       │   ├── components/         # Board, Timeline, VibeCard, Header, etc.
 │       │   └── lib/                # constants, utils
-│       └── sports/toss/            # Cricket coin toss tool
-│           └── page.tsx
+│       ├── sports/toss/            # Cricket coin toss tool
+│       │   └── page.tsx
+│       └── id-tracker/            # ID Tracker tool
+│           ├── page.tsx
+│           └── lib/               # constants (ID types), utils (urgency helpers)
 ├── components/                     # Shared: Shell, AuthGate, HamburgerMenu, etc.
 ├── lib/                            # Supabase client, auth helpers, storage, nav
-├── stores/                         # Zustand stores (auth-store, vibe-store)
+├── stores/                         # Zustand stores (auth-store, vibe-store, id-tracker-store)
 ├── types/                          # TypeScript types
 ├── tests/                          # Playwright E2E tests
 ├── public/                         # Static assets (hero.png, toss.png, _headers, _redirects)
@@ -64,13 +73,16 @@ Table `vibes`: `id` (UUID), `user_id`, `text`, `status`, `category`, `time_spent
 Statuses: `spark`, `in_progress`, `scheduled`, `done`.
 Soft delete via `deleted_at` column. Auto-updated `updated_at` via DB trigger.
 
-Full SQL in `docs/SUPABASE_SETUP.md`.
+Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `label`, `owner_name`, `description`, `expiry_date`, `renewal_url`, `reminder_days` (integer array, e.g. {90,30,7}), `created_at`, `updated_at`.
+RLS: users see own documents only; admins can read all. Auto-updated `updated_at` via trigger.
+
+Full SQL in `docs/DATABASE_SCHEMA.sql`.
 
 ## Key Architecture
 
 - **Static export** (`output: 'export'`) — no server-side code at runtime
 - **All Supabase calls are client-side** via `@supabase/ssr` browser client
-- **Zustand stores** — `auth-store.ts` (auth state, login/signup/reset) and `vibe-store.ts` (vibes CRUD, UI state)
+- **Zustand stores** — `auth-store.ts` (auth state, login/signup/reset), `vibe-store.ts` (vibes CRUD, UI state), `id-tracker-store.ts` (ID documents CRUD)
 - **RLS enforced** — every query filters by `user_id`, server-side RLS as backup
 - **Soft delete** — `deleted_at` column, Recently Deleted UI with restore
 - **Feature branches** — develop on branches, merge to `main` only when ready to deploy

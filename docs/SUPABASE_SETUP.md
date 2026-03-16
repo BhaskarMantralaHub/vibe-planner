@@ -74,6 +74,7 @@ See [DATABASE_SCHEMA.sql](./DATABASE_SCHEMA.sql) for the complete schema with de
 | `vibes` | Core tasks/ideas with status, categories, due dates, notes, soft delete |
 | `profiles` | User info (auto-created on signup via trigger) with admin/disabled flags |
 | `app_settings` | Dynamic config (max_users limit, editable from admin dashboard) |
+| `id_documents` | Identity documents (US + India) with expiry dates, renewal URLs, reminder days |
 
 ### Key Functions
 

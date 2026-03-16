@@ -12,6 +12,7 @@ A personal productivity suite — fast, private, and self-hosted.
 |------|-------------|
 | **Vibe Planner** | Kanban board + timeline with drag & drop, due dates, notes, categories |
 | **Sports — Coin Toss** | 3D cricket coin toss with sound effects, ICC standard fair randomness |
+| **ID Tracker** | Track US & India identity documents for family, expiry reminders, renewal links |
 | **Admin Dashboard** | User management, activity stats, enable/disable users, set limits |
 
 ## Tech Stack
@@ -42,11 +43,14 @@ vibers-toolkit/
 │       │   └── lib/                  # Constants, utils
 │       ├── sports/toss/              # Cricket Coin Toss
 │       │   └── page.tsx
+│       ├── id-tracker/              # ID Tracker
+│       │   ├── page.tsx
+│       │   └── lib/                 # constants, utils
 │       └── admin/                    # Admin Dashboard
 │           └── page.tsx
 ├── components/                       # Shared: Shell, AuthGate, HamburgerMenu, etc.
 ├── lib/                              # Supabase client, auth helpers, storage, nav
-├── stores/                           # Zustand stores (auth-store, vibe-store)
+├── stores/                           # Zustand stores (auth-store, vibe-store, id-tracker-store)
 ├── types/                            # TypeScript types
 ├── tests/                            # Playwright E2E tests
 ├── public/                           # Static assets (hero.png, toss.png)
@@ -123,6 +127,16 @@ See [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) — run [DATABASE_SCHEMA.
 - **User capacity** — Visual progress bar with editable limit (stored in DB, no deploy needed)
 - **Super admin** — Cannot be revoked, configured via `NEXT_PUBLIC_SUPER_ADMIN_EMAIL`
 
+### ID Tracker
+- **US documents** — Passport, Driver's License, Green Card, EAD, H1B/H4 Visa, Travel Document, State ID, SSN, Global Entry, TSA PreCheck
+- **India documents** — Passport, Aadhaar, PAN Card, Driver's License, Voter ID, OCI Card
+- **Custom types** — Other (US) and Other (India) for anything not listed
+- **Family support** — Track documents per person (owner_name field), filter by person
+- **Expiry tracking** — Color-coded urgency: expired (red), critical <=30 days (orange), warning <=90 days (yellow), safe (green)
+- **Reminders** — Configurable reminder days (default: 90, 30, 7 days before expiry)
+- **Renewal links** — Pre-filled official renewal URLs for each document type
+- **Local + cloud** — Works offline via localStorage, syncs to Supabase when logged in
+
 ### Auth & Security
 - Email/password login with Supabase Auth
 - Signup with dynamic max user limit (editable from admin dashboard)
@@ -134,7 +148,7 @@ See [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) — run [DATABASE_SCHEMA.
 - `is_admin()` SECURITY DEFINER function for safe RLS checks
 
 ### Database
-- **3 tables**: `vibes`, `profiles`, `app_settings`
+- **4 tables**: `vibes`, `profiles`, `app_settings`, `id_documents`
 - **4 functions**: `is_admin()`, `get_user_count()`, `handle_new_user()`, `update_updated_at()`
 - **Auto-profile creation** on signup via trigger
 - **Soft delete** with `deleted_at` column
