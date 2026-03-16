@@ -35,13 +35,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
         )}
 
         <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
-          <h1 className={`bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80 ${
-            isCricketContext
-              ? 'bg-gradient-to-r from-[var(--orange)] to-[var(--red)]'
-              : 'bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)]'
-          }`}>
-            {isCricketContext ? 'Sunrisers Manteca' : "Viber\u0027s Toolkit"}
-          </h1>
+          {isCricketContext ? (
+            <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
+          ) : (
+            <h1 className="bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
+              Viber&apos;s Toolkit
+            </h1>
+          )}
         </Link>
 
         <ThemeToggle />
