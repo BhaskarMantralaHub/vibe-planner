@@ -52,8 +52,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Check for reset code in URL — exchange it FIRST before getSession
     const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get('token_hash');
+    const type = params.get('type');
     const code = params.get('code');
 
     const checkDisabledAndSetUser = async (session: Session | null) => {
@@ -71,7 +72,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: session.user, loading: false });
     };
 
-    const afterCodeExchange = () => {
+    const setupAuthListener = () => {
       supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
         checkDisabledAndSetUser(session);
       });
@@ -85,17 +86,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     };
 
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }: { error: Error | null }) => {
-        if (!error) {
-          // Clean URL
-          window.history.replaceState({}, '', window.location.pathname);
-          set({ needsPasswordReset: true });
-        }
-        afterCodeExchange();
-      });
+    const handleResetResult = (error: Error | null) => {
+      window.history.replaceState({}, '', window.location.pathname);
+      if (!error) {
+        set({ needsPasswordReset: true });
+      } else {
+        console.warn('[auth] password reset verification failed:', error.message);
+        set({
+          authError:
+            'This password reset link is invalid or has expired. Please request a new one using "Forgot password?" below.',
+        });
+      }
+      setupAuthListener();
+    };
+
+    // Token hash flow — works across any browser/device (no PKCE needed)
+    if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        .then(({ error }: { error: Error | null }) => handleResetResult(error));
+    // Legacy PKCE code flow — fallback for old emails
+    } else if (code) {
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ error }: { error: Error | null }) => handleResetResult(error));
     } else {
-      afterCodeExchange();
+      setupAuthListener();
     }
   },
 
