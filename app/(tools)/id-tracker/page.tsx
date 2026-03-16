@@ -185,32 +185,26 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
       onClick={() => setExpanded(!expanded)}
     >
       {/* Main row */}
-      <div className="flex items-center gap-3 px-3.5 py-3">
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
         <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: `color-mix(in srgb, ${config.color} 15%, transparent)` }}>
           <IconComp size={18} style={{ color: config.color }} />
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[14px] font-semibold truncate" style={{ color: 'var(--text)' }}>{doc.label}</span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wider"
-              style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
-              {doc.country}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="text-[14px] font-semibold leading-snug" style={{ color: 'var(--text)' }}>{doc.label}</div>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
               {typeConfig?.label || doc.id_type}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md"
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
               style={{ background: getPersonColor(owners.indexOf(doc.owner_name)), color: '#fff' }}>
               {doc.owner_name}
             </span>
           </div>
         </div>
 
-        <div className="shrink-0 w-[120px] lg:w-[160px]">
+        <div className="shrink-0 w-[90px] lg:w-[130px]">
           {urgency !== 'noexpiry' ? (
             <div>
               <div className="flex items-center justify-between mb-1">
