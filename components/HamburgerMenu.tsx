@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { tools } from '@/lib/nav';
 import { useAuthStore } from '@/stores/auth-store';
-import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -12,16 +11,7 @@ interface HamburgerMenuProps {
 }
 
 export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
-  const { user } = useAuthStore();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-      .then(({ data }: { data: { is_admin: boolean } | null }) => setIsAdmin(data?.is_admin || false));
-  }, [user]);
+  const { user, userAccess } = useAuthStore();
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -33,7 +23,11 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
     }
   }, [isOpen, onClose]);
 
-  const visibleTools = tools.filter(t => !t.adminOnly || isAdmin);
+  const access = userAccess.length > 0 ? userAccess : ['toolkit'];
+  const visibleTools = tools.filter((t) => {
+    if (!t.roles) return true;
+    return t.roles.some((r) => access.includes(r));
+  });
 
   return (
     <>
@@ -54,7 +48,9 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="bg-gradient-to-r from-[var(--purple)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
-            Viber&apos;s Toolkit
+            {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
+              ? 'Sunrisers Manteca'
+              : "Viber\u0027s Toolkit"}
           </h2>
           <button
             onClick={onClose}
