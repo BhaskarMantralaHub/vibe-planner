@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { getCategoryConfig } from '../lib/constants';
+import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
 import { FaTshirt, FaTrophy, FaUtensils, FaBox } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import type { IconType } from 'react-icons';
@@ -25,14 +25,21 @@ function ExpenseMenu({ anchorRef, onEdit, onDelete, onClose }: {
 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
-  useState(() => {
+  useEffect(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
       const menuWidth = 150;
       const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
       setPos({ top: rect.bottom + 4, left: Math.max(8, left) });
     }
-  });
+    const close = () => onClose();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [anchorRef, onClose]);
 
   return createPortal(
     <>
@@ -88,14 +95,72 @@ function DeleteConfirm({ description, onConfirm, onCancel }: { description: stri
   );
 }
 
+/* ── Inline Edit Form ── */
+function InlineEditForm({ expense, onSave, onCancel }: {
+  expense: { category: string; description: string; amount: number; expense_date: string };
+  onSave: (updates: { category: string; description: string; amount: number; expense_date: string }) => void;
+  onCancel: () => void;
+}) {
+  const [cat, setCat] = useState(expense.category);
+  const [desc, setDesc] = useState(expense.description);
+  const [amt, setAmt] = useState(String(expense.amount));
+  const [date, setDate] = useState(expense.expense_date);
+
+  return (
+    <div className="space-y-3">
+      {/* Category chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {EXPENSE_CATEGORIES.map((c) => {
+          const active = cat === c.key;
+          const Icon = CATEGORY_ICONS[c.iconName];
+          return (
+            <button key={c.key} onClick={() => setCat(c.key)}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold cursor-pointer border transition-all"
+              style={{
+                backgroundColor: active ? `${c.color}15` : 'transparent',
+                borderColor: active ? c.color : 'var(--border)',
+                color: active ? c.color : 'var(--muted)',
+              }}>
+              {Icon && <Icon size={12} />} {c.label}
+            </button>
+          );
+        })}
+      </div>
+      <input value={desc} onChange={(e) => setDesc(e.target.value)}
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+        placeholder="Description" />
+      <div className="flex gap-2">
+        <input type="number" step="0.01" value={amt} onChange={(e) => setAmt(e.target.value)}
+          className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+          placeholder="Amount" />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors" />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button onClick={onCancel}
+          className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">
+          Cancel
+        </button>
+        <button onClick={() => onSave({ category: cat, description: desc, amount: parseFloat(amt), expense_date: date })}
+          disabled={!amt}
+          className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
+          style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)' }}>
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ExpenseList() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { expenses, fees, players, selectedSeasonId, deleteExpense, setShowExpenseForm } = useCricketStore();
+  const { expenses, fees, players, selectedSeasonId, deleteExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string } | null>(null);
-  const menuBtnRef = useState<HTMLButtonElement | null>(null);
+  const [editingExpense, setEditingExpense] = useState<string | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
@@ -185,67 +250,80 @@ export default function ExpenseList() {
 
                   {/* Three-dot menu */}
                   {isAdmin && (
-                    <button
-                      ref={(el) => { if (openMenu === e.id && el) (menuBtnRef as unknown as [HTMLButtonElement | null, React.Dispatch<React.SetStateAction<HTMLButtonElement | null>>])[1](el); }}
-                      onClick={() => setOpenMenu(openMenu === e.id ? null : e.id)}
-                      className="absolute top-2.5 right-2.5 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
-                      <FaEllipsisV size={12} />
-                    </button>
+                    <>
+                      <button
+                        ref={openMenu === e.id ? menuBtnRef : null}
+                        onClick={() => setOpenMenu(openMenu === e.id ? null : e.id)}
+                        className="absolute top-2.5 right-2.5 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                        <FaEllipsisV size={12} />
+                      </button>
+
+                      {openMenu === e.id && (
+                        <ExpenseMenu
+                          anchorRef={menuBtnRef}
+                          onEdit={() => { setEditingExpense(e.id); setOpenMenu(null); }}
+                          onDelete={() => { setDeletingExpense({ id: e.id, desc: e.description || cfg.label }); setOpenMenu(null); }}
+                          onClose={() => setOpenMenu(null)}
+                        />
+                      )}
+                    </>
                   )}
 
-                  {openMenu === e.id && (
-                    <ExpenseMenu
-                      anchorRef={{ current: (menuBtnRef as unknown as [HTMLButtonElement | null, React.Dispatch<React.SetStateAction<HTMLButtonElement | null>>])[0] }}
-                      onEdit={() => { /* TODO: edit expense */ setOpenMenu(null); }}
-                      onDelete={() => { setDeletingExpense({ id: e.id, desc: e.description || cfg.label }); setOpenMenu(null); }}
-                      onClose={() => setOpenMenu(null)}
+                  {editingExpense === e.id ? (
+                    <InlineEditForm
+                      expense={e}
+                      onSave={(updates) => { updateExpense(e.id, updates as Partial<typeof e>); setEditingExpense(null); }}
+                      onCancel={() => setEditingExpense(null)}
                     />
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-3 pr-8">
+                        {/* Category icon */}
+                        <div className="flex-shrink-0">
+                          {(() => {
+                            const Icon = CATEGORY_ICONS[cfg.iconName];
+                            return (
+                              <div className="h-10 w-10 rounded-xl flex items-center justify-center"
+                                style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
+                                {Icon && <Icon size={18} style={{ color: cfg.color }} />}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] sm:text-[15px] font-semibold text-[var(--text)] truncate">
+                            {e.description || cfg.label}
+                          </p>
+                          <p className="text-[12px] text-[var(--muted)] mt-0.5">
+                            {formatDate(e.expense_date)}
+                          </p>
+                        </div>
+
+                        {/* Amount */}
+                        <div className="flex-shrink-0 text-right">
+                          <p className="text-[16px] sm:text-[18px] font-extrabold text-[var(--text)]">
+                            {formatCurrency(Number(e.amount))}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-2 pt-2 border-t border-[var(--border)]/30 space-y-0.5 text-[12px]">
+                        <p className="text-[var(--muted)]">
+                          Added <span className="font-semibold text-[var(--text)]">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
+                          {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
+                        </p>
+                        {e.updated_at && e.updated_at !== e.created_at && (
+                          <p className="text-[var(--muted)]">
+                            Updated <span className="font-semibold text-[var(--text)]">{formatDate(e.updated_at.split('T')[0])}</span>
+                            {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
+                          </p>
+                        )}
+                      </div>
+                    </>
                   )}
-
-                  <div className="flex items-start gap-3 pr-8">
-                    {/* Category icon */}
-                    <div className="flex-shrink-0">
-                      {(() => {
-                        const Icon = CATEGORY_ICONS[cfg.iconName];
-                        return (
-                          <div className="h-10 w-10 rounded-xl flex items-center justify-center"
-                            style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
-                            {Icon && <Icon size={18} style={{ color: cfg.color }} />}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[14px] sm:text-[15px] font-semibold text-[var(--text)] truncate">
-                        {e.description || cfg.label}
-                      </p>
-                      <p className="text-[12px] text-[var(--muted)] mt-0.5">
-                        {formatDate(e.expense_date)}
-                      </p>
-                    </div>
-
-                    {/* Amount */}
-                    <div className="flex-shrink-0 text-right">
-                      <p className="text-[16px] sm:text-[18px] font-extrabold text-[var(--text)]">
-                        {formatCurrency(Number(e.amount))}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Footer — added by / updated info */}
-                  <div className="mt-2 pt-2 border-t border-[var(--border)]/30 flex items-center justify-between text-[12px]">
-                    <span className="text-[var(--muted)]">
-                      Added <span className="font-semibold text-[var(--text)]">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
-                      {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
-                    </span>
-                    {e.updated_at && e.updated_at !== e.created_at && (
-                      <span className="text-[var(--muted)]">
-                        Updated <span className="font-semibold text-[var(--text)]">{formatDate(e.updated_at.split('T')[0])}</span>
-                      </span>
-                    )}
-                  </div>
                 </div>
               );
             })}

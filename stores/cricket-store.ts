@@ -103,6 +103,7 @@ interface CricketState {
     seasonId: string,
     data: { category: string; description: string; amount: number; expense_date: string },
   ) => void;
+  updateExpense: (id: string, updates: Partial<CricketExpense>) => void;
   deleteExpense: (id: string) => void;
 
   // Settlements
@@ -302,6 +303,16 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  updateExpense: (id, updates) => {
+    set({ expenses: get().expenses.map((e) => e.id === id ? { ...e, ...updates } : e) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_expenses').update(updates).eq('id', id).then(({ error }) => {
+        if (error) console.error('[cricket] updateExpense failed:', error);
+      });
     }
   },
 
