@@ -143,12 +143,12 @@ export default function ExpenseList() {
 
         {!isLow && totalCollected > 0 && poolBalance > 0 && (
           <div className="mt-3 p-3 rounded-xl flex items-start gap-2.5"
-            style={{ background: 'linear-gradient(135deg, #3B82F612, #60A5FA18)', border: '1px solid #3B82F630' }}>
-            <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#60A5FA' }} />
+            style={{ background: 'color-mix(in srgb, var(--blue) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)' }}>
+            <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--blue)' }} />
             <div>
-              <p className="text-[14px] font-bold" style={{ color: '#60A5FA' }}>Funds available</p>
-              <p className="text-[13px] leading-relaxed text-[var(--muted)]">
-                <span className="font-bold" style={{ color: '#93C5FD' }}>{formatCurrency(poolBalance)}</span> remaining. Rolls over to next season.
+              <p className="text-[14px] font-bold text-[var(--blue)]">Funds available</p>
+              <p className="text-[13px] leading-relaxed text-[var(--text)]">
+                <span className="font-bold text-[var(--blue)]">{formatCurrency(poolBalance)}</span> remaining. Rolls over to next season.
               </p>
             </div>
           </div>
