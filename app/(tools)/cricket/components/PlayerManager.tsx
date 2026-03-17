@@ -8,6 +8,7 @@ import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../li
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
 import { GiCricketBat, GiBaseballGlove } from 'react-icons/gi';
 import { FaBullseye, FaStar, FaWind, FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { TbHandFingerLeft, TbHandFingerRight } from 'react-icons/tb';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
 
@@ -25,10 +26,11 @@ function playerSort(a: CricketPlayer, b: CricketPlayer): number {
 }
 
 /* ── Three-dot Card Menu (portal) ── */
-function PlayerCardMenu({ anchorRef, onEdit, onDelete, onClose }: {
+function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onClose }: {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleAdmin: () => void;
   onClose: () => void;
 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -64,6 +66,15 @@ function PlayerCardMenu({ anchorRef, onEdit, onDelete, onClose }: {
           <MdEdit size={15} style={{ color: 'var(--blue)' }} />
           Edit
         </button>
+        <button
+          onClick={() => { onToggleAdmin(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+          style={{ color: 'var(--purple)' }}
+        >
+          <FaCrown size={13} style={{ color: 'var(--purple)' }} />
+          Admin Access
+        </button>
+        <div className="border-t border-[var(--border)] my-0.5 mx-2" />
         <button
           onClick={() => { onDelete(); onClose(); }}
           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
@@ -124,6 +135,13 @@ const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: 
   keeper: { icon: <GiBaseballGlove size={13} />, label: 'Keeper', color: '#16A34A' },
 };
 
+const JERSEY_COLORS = ['#F59E0B', '#3B82F6', '#16A34A', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#F97316'];
+
+function getJerseyColor(jerseyNumber: number | null, index: number): string {
+  if (jerseyNumber) return JERSEY_COLORS[jerseyNumber % JERSEY_COLORS.length];
+  return JERSEY_COLORS[index % JERSEY_COLORS.length];
+}
+
 const battingIcon = (style: string) => style === 'right'
   ? <TbHandFingerRight size={14} /> : <TbHandFingerLeft size={14} />;
 
@@ -141,6 +159,7 @@ export default function PlayerManager() {
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
+  const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
@@ -221,6 +240,70 @@ export default function PlayerManager() {
     if (editingPlayer) updatePlayer(editingPlayer, data);
     else addPlayer(user.id, data);
     resetForm(); setShowPlayerForm(false);
+  };
+
+  const handleAdminAccess = async (p: CricketPlayer) => {
+    if (!p.email) {
+      setAdminModal({ player: p, status: 'no-email' });
+      return;
+    }
+    setAdminModal({ player: p, status: 'loading' });
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, access')
+      .eq('email', p.email)
+      .single();
+
+    if (!profile) {
+      setAdminModal({ player: p, status: 'no-account' });
+      return;
+    }
+
+    const access: string[] = profile.access ?? [];
+    if (access.includes('admin')) {
+      setAdminModal({ player: p, status: 'has-admin' });
+    } else {
+      setAdminModal({ player: p, status: 'can-grant' });
+    }
+  };
+
+  const grantAdmin = async () => {
+    if (!adminModal?.player.email) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, access')
+      .eq('email', adminModal.player.email)
+      .single();
+
+    if (!profile) return;
+    const access: string[] = profile.access ?? [];
+    if (!access.includes('admin')) {
+      await supabase.from('profiles').update({ access: [...access, 'admin'] }).eq('id', profile.id);
+    }
+    setAdminModal(null);
+  };
+
+  const revokeAdmin = async () => {
+    if (!adminModal?.player.email) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, access')
+      .eq('email', adminModal.player.email)
+      .single();
+
+    if (!profile) return;
+    const access: string[] = profile.access ?? [];
+    await supabase.from('profiles').update({ access: access.filter((a) => a !== 'admin') }).eq('id', profile.id);
+    setAdminModal(null);
   };
 
   const handleEdit = (p: CricketPlayer) => {
@@ -399,6 +482,7 @@ export default function PlayerManager() {
                       <PlayerCardMenu
                         anchorRef={menuBtnRef}
                         onEdit={() => handleEdit(p)}
+                        onToggleAdmin={() => handleAdminAccess(p)}
                         onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
                         onClose={() => setOpenMenu(null)}
                       />
@@ -410,9 +494,9 @@ export default function PlayerManager() {
                 <div className="flex items-center gap-3 pr-10">
                   <div className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-xl font-bold text-[14px]"
                     style={{
-                      backgroundColor: rc ? `${rc.color}15` : 'var(--hover-bg)',
-                      color: rc?.color ?? 'var(--muted)',
-                      border: `1.5px solid ${rc?.color ?? 'var(--border)'}30`,
+                      backgroundColor: '#F59E0B15',
+                      color: '#F59E0B',
+                      border: '1.5px solid #F59E0B30',
                     }}>
                     {p.jersey_number ? `#${p.jersey_number}` : '—'}
                   </div>
@@ -476,6 +560,95 @@ export default function PlayerManager() {
           onConfirm={() => { removePlayer(deletingPlayer.id); setDeletingPlayer(null); }}
           onCancel={() => setDeletingPlayer(null)}
         />
+      )}
+
+      {/* Admin access modal */}
+      {adminModal && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setAdminModal(null)}
+        >
+          <div
+            className="w-[360px] rounded-2xl p-5"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.1)' }}>
+                <FaCrown size={18} style={{ color: 'var(--purple)' }} />
+              </div>
+              <div>
+                <p className="text-[15px] font-semibold text-[var(--text)]">Admin Access</p>
+                <p className="text-[13px] text-[var(--muted)]">{adminModal.player.name}</p>
+              </div>
+            </div>
+
+            {adminModal.status === 'loading' && (
+              <div className="flex justify-center py-4">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--purple)] border-t-transparent" />
+              </div>
+            )}
+
+            {adminModal.status === 'no-email' && (
+              <div className="rounded-xl bg-[var(--orange)]/10 border border-[var(--orange)]/20 p-3 mb-4">
+                <p className="text-[13px] text-[var(--text)]">This player doesn&apos;t have an email address. Add their email first to link them to an account.</p>
+              </div>
+            )}
+
+            {adminModal.status === 'no-account' && (
+              <div className="rounded-xl bg-[var(--orange)]/10 border border-[var(--orange)]/20 p-3 mb-4">
+                <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.email}</b> is not registered with the cricket tool. Ask them to sign up first at <b>/cricket</b>.</p>
+              </div>
+            )}
+
+            {adminModal.status === 'has-admin' && (
+              <>
+                <div className="rounded-xl bg-[var(--green)]/10 border border-[var(--green)]/20 p-3 mb-4">
+                  <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.name}</b> already has admin access.</p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setAdminModal(null)}
+                    className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                    Close
+                  </button>
+                  <button onClick={revokeAdmin}
+                    className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">
+                    Revoke Admin
+                  </button>
+                </div>
+              </>
+            )}
+
+            {adminModal.status === 'can-grant' && (
+              <>
+                <div className="rounded-xl bg-[var(--purple)]/10 border border-[var(--purple)]/20 p-3 mb-4">
+                  <p className="text-[13px] text-[var(--text)]">Grant admin access to <b>{adminModal.player.name}</b>? They will be able to manage players, expenses, and seasons.</p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setAdminModal(null)}
+                    className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                    Cancel
+                  </button>
+                  <button onClick={grantAdmin}
+                    className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--purple)] text-white cursor-pointer hover:opacity-90">
+                    Grant Admin
+                  </button>
+                </div>
+              </>
+            )}
+
+            {(adminModal.status === 'no-email' || adminModal.status === 'no-account') && (
+              <div className="flex justify-end">
+                <button onClick={() => setAdminModal(null)}
+                  className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
