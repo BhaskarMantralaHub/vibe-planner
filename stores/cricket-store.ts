@@ -310,7 +310,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     set({ expenses: get().expenses.map((e) => e.id === id ? { ...e, ...updates } : e) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_expenses').update(updates).eq('id', id).then(({ error }) => {
+      supabase?.from('cricket_expenses').update(updates).eq('id', id).then(({ error }: { error: unknown }) => {
         if (error) console.error('[cricket] updateExpense failed:', error);
       });
     }
