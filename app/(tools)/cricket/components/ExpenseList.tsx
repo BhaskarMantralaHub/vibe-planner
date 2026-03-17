@@ -315,8 +315,8 @@ export default function ExpenseList() {
                       {/* Footer */}
                       <div className="mt-2.5 pt-2 border-t border-[var(--border)]/30 space-y-1 text-[11px]">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
-                            style={{ background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)' }}>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                            style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
                             Added
                           </span>
                           <span className="text-[var(--text)] font-bold">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
@@ -324,8 +324,8 @@ export default function ExpenseList() {
                         </div>
                         {e.updated_at && e.updated_at !== e.created_at && (
                           <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
-                              style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                              style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
                               Updated
                             </span>
                             <span className="text-[var(--text)] font-bold">{formatDate(e.updated_at.split('T')[0])}</span>
@@ -377,8 +377,8 @@ export default function ExpenseList() {
                     <span className="text-[14px] font-extrabold text-[var(--text)] flex-shrink-0">{formatCurrency(Number(e.amount))}</span>
                     <button
                       onClick={() => restoreExpense(e.id)}
-                      className="flex-shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold text-white cursor-pointer active:scale-95 transition-all"
-                      style={{ background: 'linear-gradient(135deg, #059669, #10B981)', border: '1.5px solid #059669', boxShadow: '0 2px 6px rgba(16,185,129,0.25)' }}
+                      className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
+                      style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}
                     >
                       Restore
                     </button>
