@@ -106,31 +106,6 @@ export default function FeeTracker() {
         </div>
       </div>
 
-      {/* Partial payment form */}
-      {payingPlayer && (
-        <div className="rounded-2xl border border-[var(--orange)]/20 bg-[var(--orange)]/5 p-3 sm:p-4">
-          <p className="text-[13px] text-[var(--text)] mb-3">
-            Record partial payment for <b>{activePlayers.find((p) => p.id === payingPlayer)?.name}</b>
-          </p>
-          <div className="flex gap-2">
-            <div className="flex items-center gap-1 flex-1">
-              <span className="text-[var(--muted)]">$</span>
-              <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none"
-                placeholder="Amount" autoFocus />
-            </div>
-            <button onClick={handlePartialSubmit} disabled={!payAmount}
-              className="rounded-lg bg-[var(--green)] px-4 py-2.5 text-[13px] font-medium text-white cursor-pointer disabled:opacity-40">
-              Save
-            </button>
-            <button onClick={() => { setPayingPlayer(null); setPayAmount(''); }}
-              className="rounded-lg px-3 py-2.5 text-[13px] text-[var(--muted)] cursor-pointer border border-[var(--border)]">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Player fee cards */}
       <div className="space-y-2">
         {activePlayers.map((p) => {
@@ -168,9 +143,13 @@ export default function FeeTracker() {
                     <span className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{p.name}</span>
                   </div>
                   {fee?.paid_date && (
-                    <span className="text-[10px] sm:text-[11px] text-[var(--dim)] block truncate">
+                    <span className="text-[11px] sm:text-[12px] block truncate" style={{
+                      color: isPaid ? 'var(--green)' : isPartial ? 'var(--orange)' : 'var(--muted)',
+                    }}>
                       {isPaid ? 'Paid' : 'Partial'} on {new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {fee.marked_by && <> &middot; updated by {fee.marked_by}</>}
+                      {fee.marked_by && (
+                        <span className="text-[var(--muted)]"> &middot; by {fee.marked_by}</span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -211,6 +190,27 @@ export default function FeeTracker() {
                   </div>
                 )}
               </div>
+
+              {/* Inline partial payment form */}
+              {payingPlayer === p.id && (
+                <div className="mt-2 pt-2 border-t border-[var(--border)]/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-[var(--muted)]">$</span>
+                    <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                      className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none"
+                      placeholder="Amount" autoFocus />
+                    <button onClick={handlePartialSubmit} disabled={!payAmount}
+                      className="rounded-lg px-3 py-2 text-[12px] font-semibold text-white cursor-pointer disabled:opacity-40"
+                      style={{ background: 'linear-gradient(135deg, #059669, #10B981)' }}>
+                      Save
+                    </button>
+                    <button onClick={() => { setPayingPlayer(null); setPayAmount(''); }}
+                      className="rounded-lg px-3 py-2 text-[12px] text-[var(--muted)] cursor-pointer border border-[var(--border)]">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
