@@ -155,7 +155,7 @@ function InlineEditForm({ expense, onSave, onCancel }: {
 export default function ExpenseList() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { expenses, fees, players, selectedSeasonId, deleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
+  const { expenses, fees, sponsorships, players, selectedSeasonId, deleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string } | null>(null);
@@ -169,7 +169,10 @@ export default function ExpenseList() {
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const activePlayers = players.filter((p) => p.is_active);
 
-  const totalCollected = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
+  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
+  const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
+  const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
+  const totalCollected = totalFees + totalSponsorship;
   const totalSpent = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const poolBalance = totalCollected - totalSpent;
   const isLow = poolBalance < 0;
@@ -198,8 +201,9 @@ export default function ExpenseList() {
           </div>
         </div>
 
-        <div className="flex gap-4 text-[13px] sm:text-[14px] font-semibold">
-          <span className="text-[var(--green)]">Collected: {formatCurrency(totalCollected)}</span>
+        <div className="flex flex-wrap gap-3 text-[12px] sm:text-[13px] font-semibold">
+          <span className="text-[var(--green)]">Fees: {formatCurrency(totalFees)}</span>
+          {totalSponsorship > 0 && <span className="text-[var(--orange)]">Sponsors: {formatCurrency(totalSponsorship)}</span>}
           <span className="text-[var(--red)]">Spent: {formatCurrency(totalSpent)}</span>
         </div>
 

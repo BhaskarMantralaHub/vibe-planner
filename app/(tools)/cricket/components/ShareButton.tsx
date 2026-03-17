@@ -68,7 +68,7 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
 
 async function generatePdf(storeState: ReturnType<typeof useCricketStore.getState>) {
   const { jsPDF } = await import('jspdf');
-  const { players, seasons, expenses, fees, selectedSeasonId } = storeState;
+  const { players, seasons, expenses, fees, sponsorships, selectedSeasonId } = storeState;
   const season = seasons.find((s) => s.id === selectedSeasonId);
   if (!season) return null;
 
@@ -77,8 +77,11 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
+  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
 
-  const totalCollected = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
+  const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
+  const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
+  const totalCollected = totalFees + totalSponsorship;
   const totalSpent = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const poolBalance = totalCollected - totalSpent;
 
@@ -175,11 +178,14 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   text('POOL FUND', M + 6, cardInner, { size: 8, bold: true, color: GRAY });
 
   const statsY = cardInner + 7;
-  text(`Collected`, M + 6, statsY, { size: 8, color: GRAY });
-  text(formatCurrency(totalCollected), M + 6, statsY + 5, { size: 12, bold: true, color: GREEN });
+  text(`Fees`, M + 6, statsY, { size: 8, color: GRAY });
+  text(formatCurrency(totalFees), M + 6, statsY + 5, { size: 11, bold: true, color: GREEN });
 
-  text(`Spent`, M + 55, statsY, { size: 8, color: GRAY });
-  text(formatCurrency(totalSpent), M + 55, statsY + 5, { size: 12, bold: true, color: RED });
+  text(`Sponsors`, M + 45, statsY, { size: 8, color: GRAY });
+  text(formatCurrency(totalSponsorship), M + 45, statsY + 5, { size: 11, bold: true, color: ORANGE });
+
+  text(`Spent`, M + 90, statsY, { size: 8, color: GRAY });
+  text(formatCurrency(totalSpent), M + 90, statsY + 5, { size: 11, bold: true, color: RED });
 
   text(`Balance`, W - M - 6, statsY, { size: 8, color: GRAY, align: 'right' });
   const balColor: RGB = poolBalance >= 0 ? GREEN : RED;
@@ -222,6 +228,23 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   });
   drawTable(['#', 'Player', 'Status', 'Amount'], [M + 3, M + 18, M + 100, 0], feeRows);
   gap(8);
+
+  // ═══ SPONSORSHIPS ═══
+  if (seasonSponsors.length) {
+    checkPage(30);
+    text('SPONSORSHIPS', M, y, { size: 9, bold: true, color: GRAY });
+    y += 5;
+    text(`Sponsorships — ${formatCurrency(totalSponsorship)}`, M, y, { size: 14, bold: true, color: BLACK });
+    y += 8;
+
+    const sponsorRows = seasonSponsors.map((s) => ({
+      cells: [s.sponsor_name, formatDate(s.sponsored_date), s.notes || '—', formatCurrency(Number(s.amount))],
+      bold: [true, false, false, true],
+      colors: [BLACK, GRAY, GRAY, GREEN] as (RGB | null)[],
+    }));
+    drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [M + 3, M + 70, M + 100, 0], sponsorRows);
+    gap(8);
+  }
 
   // ═══ EXPENSES TABLE ═══
   if (seasonExpenses.length) {

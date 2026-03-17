@@ -16,6 +16,7 @@ import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
 import TossWidget from './components/TossWidget';
 import FeeTracker from './components/FeeTracker';
+import SponsorshipSection from './components/SponsorshipSection';
 
 type View = 'players' | 'expenses' | 'fees' | 'charts' | 'toss' | 'share';
 
@@ -195,7 +196,12 @@ function CricketDashboard() {
                 <MonthlyBar />
               </div>
             )}
-            {activeView === 'fees' && <FeeTracker />}
+            {activeView === 'fees' && (
+              <div className="space-y-5">
+                <FeeTracker />
+                <SponsorshipSection />
+              </div>
+            )}
             {activeView === 'toss' && <TossWidget />}
             {activeView === 'share' && <ShareButton />}
           </div>

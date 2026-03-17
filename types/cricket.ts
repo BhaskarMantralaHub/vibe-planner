@@ -78,6 +78,16 @@ export type CricketSeasonFee = {
   created_at: string;
 };
 
+export type CricketSponsorship = {
+  id: string;
+  season_id: string;
+  sponsor_name: string;
+  amount: number;
+  sponsored_date: string;
+  notes: string | null;
+  created_at: string;
+};
+
 export type PlayerBalance = {
   player_id: string;
   player_name: string;

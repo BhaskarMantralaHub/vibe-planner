@@ -6,6 +6,7 @@ import type {
   CricketExpenseSplit,
   CricketSettlement,
   CricketSeasonFee,
+  CricketSponsorship,
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { computeSplitAmounts } from '@/app/(tools)/cricket/lib/utils';
@@ -75,6 +76,7 @@ interface CricketState {
   splits: CricketExpenseSplit[];
   settlements: CricketSettlement[];
   fees: CricketSeasonFee[];
+  sponsorships: CricketSponsorship[];
   loading: boolean;
   selectedSeasonId: string | null;
 
@@ -119,6 +121,10 @@ interface CricketState {
   recordFee: (seasonId: string, playerId: string, amountPaid: number, markedBy?: string) => void;
   deleteFee: (id: string) => void;
 
+  // Sponsorships
+  addSponsorship: (seasonId: string, data: { sponsor_name: string; amount: number; sponsored_date: string; notes: string | null }) => void;
+  deleteSponsorship: (id: string) => void;
+
   // UI
   setShowPlayerForm: (show: boolean) => void;
   setShowExpenseForm: (show: boolean) => void;
@@ -133,6 +139,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   splits: [],
   settlements: [],
   fees: [],
+  sponsorships: [],
   loading: true,
   selectedSeasonId: null,
 
@@ -149,13 +156,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       if (!supabase) { set({ loading: false }); return; }
 
       // Load ALL team data — not filtered by user_id (shared team data)
-      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes] = await Promise.all([
+      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes, sponsorsRes] = await Promise.all([
         supabase.from('cricket_players').select('*').order('created_at'),
         supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
         supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false }),
         supabase.from('cricket_expense_splits').select('*'),
         supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
         supabase.from('cricket_season_fees').select('*').order('created_at'),
+        supabase.from('cricket_sponsorships').select('*').order('created_at'),
       ]);
 
       const players = (playersRes.data ?? []) as CricketPlayer[];
@@ -166,9 +174,10 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       );
       const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
       const fees = (feesRes.data ?? []) as CricketSeasonFee[];
+      const sponsorships = (sponsorsRes.data ?? []) as CricketSponsorship[];
 
       const selectedSeasonId = pickCurrentSeason(seasons);
-      set({ players, seasons, expenses, splits, settlements, fees, selectedSeasonId, loading: false });
+      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, selectedSeasonId, loading: false });
     } else {
       const data = localLoad();
       const selectedSeasonId = pickCurrentSeason(data.seasons);
@@ -413,6 +422,33 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_season_fees').delete().eq('id', id).then(() => {});
+    }
+  },
+
+  // ── Sponsorships ──────────────────────────────────────────────────────
+
+  addSponsorship: (seasonId, data) => {
+    const localId = genId();
+    const now = new Date().toISOString();
+    const newSponsorship: CricketSponsorship = { id: localId, season_id: seasonId, ...data, created_at: now };
+    set({ sponsorships: [...get().sponsorships, newSponsorship] });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_sponsorships')
+        .insert({ season_id: seasonId, ...data })
+        .select().single()
+        .then(({ data: row }: { data: CricketSponsorship | null }) => {
+          if (row) set({ sponsorships: get().sponsorships.map((s) => s.id === localId ? row : s) });
+        });
+    }
+  },
+
+  deleteSponsorship: (id) => {
+    set({ sponsorships: get().sponsorships.filter((s) => s.id !== id) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_sponsorships').delete().eq('id', id).then(() => {});
     }
   },
 
