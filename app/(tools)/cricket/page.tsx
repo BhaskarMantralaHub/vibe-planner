@@ -22,7 +22,7 @@ type View = 'players' | 'expenses' | 'fees' | 'charts' | 'toss' | 'share';
 
 const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
   { key: 'players', label: 'Players', icon: <FaUsers size={14} /> },
-  { key: 'fees', label: 'Fees', icon: <FaMoneyBillWave size={14} /> },
+  { key: 'fees', label: 'Fees & Sponsors', icon: <FaMoneyBillWave size={14} /> },
   { key: 'expenses', label: 'Expenses', icon: <FaReceipt size={14} /> },
   { key: 'charts', label: 'Charts', icon: <FaChartPie size={14} /> },
   { key: 'toss', label: 'Toss', icon: <MdSportsCricket size={15} /> },

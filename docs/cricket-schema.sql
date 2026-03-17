@@ -4,6 +4,7 @@
 -- All cricket data is team-wide. Any user with 'cricket' access
 -- can read. Only users with 'admin' access can create/edit/delete.
 -- user_id is kept on records for audit trail only.
+-- Pool Fund model: fees + sponsorships - expenses = balance
 
 -- ── Helper functions ───────────────────────────────────────
 CREATE OR REPLACE FUNCTION has_cricket_access()
@@ -31,13 +32,13 @@ CREATE TABLE IF NOT EXISTS cricket_players (
   name          TEXT NOT NULL,
   jersey_number INTEGER,
   phone         TEXT,
-  player_role   TEXT,
-  batting_style TEXT,
-  bowling_style TEXT,
+  player_role   TEXT,           -- 'batsman' | 'bowler' | 'all-rounder' | 'keeper'
+  batting_style TEXT,           -- 'right' | 'left'
+  bowling_style TEXT,           -- 'pace' | 'medium' | 'spin'
   cricclub_id   TEXT,
-  shirt_size    TEXT,
+  shirt_size    TEXT,           -- 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL'
   email         TEXT,
-  designation   TEXT,     -- 'captain' | 'vice-captain'
+  designation   TEXT,           -- 'captain' | 'vice-captain'
   is_active     BOOLEAN DEFAULT true,
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now()
@@ -59,7 +60,7 @@ CREATE TABLE IF NOT EXISTS cricket_seasons (
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   year        INTEGER NOT NULL,
-  season_type TEXT,
+  season_type TEXT,             -- 'spring' | 'summer' | 'fall'
   share_token UUID DEFAULT gen_random_uuid(),
   fee_amount  NUMERIC(10,2) DEFAULT 60,
   is_active   BOOLEAN DEFAULT true,
@@ -77,13 +78,13 @@ CREATE POLICY "Admin can delete seasons" ON cricket_seasons FOR DELETE USING (is
 CREATE TRIGGER set_cricket_seasons_updated_at BEFORE UPDATE ON cricket_seasons
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ── Expenses ─────────────────────────────────────────────────
+-- ── Expenses (pool fund model — no paid_by player) ──────────
 CREATE TABLE IF NOT EXISTS cricket_expenses (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id      UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   season_id    UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
-  paid_by      UUID NOT NULL REFERENCES cricket_players(id) ON DELETE RESTRICT,
-  category     TEXT NOT NULL,
+  paid_by      UUID REFERENCES cricket_players(id) ON DELETE SET NULL,  -- legacy, nullable
+  category     TEXT NOT NULL,   -- 'ground' (jerseys) | 'equipment' (cricket kit) | 'tournament' | 'food' | 'other'
   description  TEXT,
   amount       NUMERIC(10,2) NOT NULL,
   expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -103,46 +104,14 @@ CREATE POLICY "Admin can delete expenses" ON cricket_expenses FOR DELETE USING (
 CREATE TRIGGER set_cricket_expenses_updated_at BEFORE UPDATE ON cricket_expenses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ── Expense Splits ───────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS cricket_expense_splits (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  expense_id   UUID NOT NULL REFERENCES cricket_expenses(id) ON DELETE CASCADE,
-  player_id    UUID NOT NULL REFERENCES cricket_players(id) ON DELETE RESTRICT,
-  share_amount NUMERIC(10,2) NOT NULL,
-  UNIQUE(expense_id, player_id)
-);
-
-ALTER TABLE cricket_expense_splits ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Cricket users can read splits" ON cricket_expense_splits FOR SELECT USING (has_cricket_access());
-CREATE POLICY "Admin can manage splits" ON cricket_expense_splits FOR INSERT WITH CHECK (is_cricket_admin());
-CREATE POLICY "Admin can delete splits" ON cricket_expense_splits FOR DELETE USING (is_cricket_admin());
-
--- ── Settlements ──────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS cricket_settlements (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  season_id    UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
-  from_player  UUID NOT NULL REFERENCES cricket_players(id) ON DELETE RESTRICT,
-  to_player    UUID NOT NULL REFERENCES cricket_players(id) ON DELETE RESTRICT,
-  amount       NUMERIC(10,2) NOT NULL,
-  settled_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  created_at   TIMESTAMPTZ DEFAULT now()
-);
-
-ALTER TABLE cricket_settlements ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Cricket users can read settlements" ON cricket_settlements FOR SELECT USING (has_cricket_access());
-CREATE POLICY "Admin can manage settlements" ON cricket_settlements FOR INSERT WITH CHECK (is_cricket_admin());
-CREATE POLICY "Admin can delete settlements" ON cricket_settlements FOR DELETE USING (is_cricket_admin());
-
--- ── Season Fees ──────────────────────────────────────────────
+-- ── Season Fees (per-player fee tracking) ───────────────────
 CREATE TABLE IF NOT EXISTS cricket_season_fees (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   season_id   UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
   player_id   UUID NOT NULL REFERENCES cricket_players(id) ON DELETE CASCADE,
   amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0,
   paid_date   DATE,
+  marked_by   TEXT,             -- who recorded the payment
   created_at  TIMESTAMPTZ DEFAULT now(),
   UNIQUE(season_id, player_id)
 );
@@ -154,10 +123,80 @@ CREATE POLICY "Admin can manage fees" ON cricket_season_fees FOR INSERT WITH CHE
 CREATE POLICY "Admin can update fees" ON cricket_season_fees FOR UPDATE USING (is_cricket_admin());
 CREATE POLICY "Admin can delete fees" ON cricket_season_fees FOR DELETE USING (is_cricket_admin());
 
+-- ── Sponsorships (income to pool fund) ──────────────────────
+CREATE TABLE IF NOT EXISTS cricket_sponsorships (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  season_id       UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  sponsor_name    TEXT NOT NULL,
+  amount          NUMERIC(10,2) NOT NULL,
+  sponsored_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes           TEXT,
+  created_by      TEXT,
+  updated_by      TEXT,
+  deleted_at      TIMESTAMPTZ DEFAULT NULL,
+  deleted_by      TEXT DEFAULT NULL,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_sponsorships ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read sponsorships" ON cricket_sponsorships FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Admin can manage sponsorships" ON cricket_sponsorships FOR INSERT WITH CHECK (is_cricket_admin());
+CREATE POLICY "Admin can update sponsorships" ON cricket_sponsorships FOR UPDATE USING (is_cricket_admin());
+CREATE POLICY "Admin can delete sponsorships" ON cricket_sponsorships FOR DELETE USING (is_cricket_admin());
+
 -- ── Profiles: Role-based access columns ─────────────────────
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS access text[] DEFAULT '{toolkit}';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approved boolean DEFAULT true;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS player_meta JSONB DEFAULT NULL;
+
+-- ── Handle new user trigger (reads access/approved/player meta) ──
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  raw_access TEXT;
+  user_access TEXT[];
+  user_approved BOOLEAN;
+  meta JSONB;
+BEGIN
+  raw_access := NEW.raw_user_meta_data->>'access';
+
+  IF raw_access IS NOT NULL THEN
+    user_access := ARRAY[raw_access];
+  ELSE
+    user_access := '{toolkit}';
+  END IF;
+
+  user_approved := COALESCE(
+    (NEW.raw_user_meta_data->>'approved')::boolean,
+    true
+  );
+
+  IF raw_access = 'cricket' THEN
+    meta := jsonb_build_object(
+      'jersey_number', NEW.raw_user_meta_data->>'jersey_number',
+      'player_role', NEW.raw_user_meta_data->>'player_role',
+      'batting_style', NEW.raw_user_meta_data->>'batting_style',
+      'bowling_style', NEW.raw_user_meta_data->>'bowling_style',
+      'shirt_size', NEW.raw_user_meta_data->>'shirt_size'
+    );
+  ELSE
+    meta := NULL;
+  END IF;
+
+  INSERT INTO public.profiles (id, email, full_name, access, approved, player_meta)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+    user_access,
+    user_approved,
+    meta
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ── Auto-approve: check if player email exists ───────────────
 CREATE OR REPLACE FUNCTION check_cricket_player_email(check_email TEXT)
@@ -184,7 +223,7 @@ DECLARE
   result JSON;
   season_rec RECORD;
 BEGIN
-  SELECT id, name, year, season_type
+  SELECT id, name, year, season_type, fee_amount
   INTO season_rec
   FROM cricket_seasons
   WHERE share_token = token AND is_active = true;
@@ -195,7 +234,8 @@ BEGIN
 
   SELECT json_build_object(
     'season', json_build_object(
-      'name', season_rec.name, 'year', season_rec.year, 'season_type', season_rec.season_type
+      'name', season_rec.name, 'year', season_rec.year,
+      'season_type', season_rec.season_type, 'fee_amount', season_rec.fee_amount
     ),
     'players', (
       SELECT COALESCE(json_agg(json_build_object(
@@ -206,24 +246,23 @@ BEGIN
     ),
     'expenses', (
       SELECT COALESCE(json_agg(json_build_object(
-        'id', e.id, 'paid_by', e.paid_by, 'category', e.category,
-        'description', e.description, 'amount', e.amount, 'expense_date', e.expense_date
+        'id', e.id, 'category', e.category, 'description', e.description,
+        'amount', e.amount, 'expense_date', e.expense_date
       )), '[]'::json)
-      FROM cricket_expenses e WHERE e.season_id = season_rec.id
+      FROM cricket_expenses e WHERE e.season_id = season_rec.id AND e.deleted_at IS NULL
     ),
-    'splits', (
+    'fees', (
       SELECT COALESCE(json_agg(json_build_object(
-        'id', s.id, 'expense_id', s.expense_id, 'player_id', s.player_id, 'share_amount', s.share_amount
+        'player_id', f.player_id, 'amount_paid', f.amount_paid, 'paid_date', f.paid_date
       )), '[]'::json)
-      FROM cricket_expense_splits s
-      WHERE s.expense_id IN (SELECT id FROM cricket_expenses WHERE season_id = season_rec.id)
+      FROM cricket_season_fees f WHERE f.season_id = season_rec.id
     ),
-    'settlements', (
+    'sponsorships', (
       SELECT COALESCE(json_agg(json_build_object(
-        'id', st.id, 'from_player', st.from_player, 'to_player', st.to_player,
-        'amount', st.amount, 'settled_date', st.settled_date
+        'sponsor_name', sp.sponsor_name, 'amount', sp.amount,
+        'sponsored_date', sp.sponsored_date, 'notes', sp.notes
       )), '[]'::json)
-      FROM cricket_settlements st WHERE st.season_id = season_rec.id
+      FROM cricket_sponsorships sp WHERE sp.season_id = season_rec.id AND sp.deleted_at IS NULL
     )
   ) INTO result;
 
