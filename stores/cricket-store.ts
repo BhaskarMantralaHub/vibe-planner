@@ -101,8 +101,7 @@ interface CricketState {
   addExpense: (
     userId: string,
     seasonId: string,
-    data: { paid_by: string; category: string; description: string; amount: number; expense_date: string },
-    splitPlayerIds: string[],
+    data: { category: string; description: string; amount: number; expense_date: string },
   ) => void;
   deleteExpense: (id: string) => void;
 
@@ -274,25 +273,17 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Expenses ─────────────────────────────────────────────────────────
 
-  addExpense: (userId, seasonId, data, splitPlayerIds) => {
+  addExpense: (userId, seasonId, data) => {
     const now = new Date().toISOString();
     const expenseId = genId();
     const newExpense: CricketExpense = {
       id: expenseId, user_id: userId, season_id: seasonId,
-      paid_by: data.paid_by, category: data.category as CricketExpense['category'],
+      paid_by: userId, category: data.category as CricketExpense['category'],
       description: data.description, amount: data.amount,
       expense_date: data.expense_date, created_at: now, updated_at: now,
     };
 
-    const amounts = computeSplitAmounts(data.amount, splitPlayerIds.length);
-    const newSplits: CricketExpenseSplit[] = splitPlayerIds.map((playerId, i) => ({
-      id: genId(), expense_id: expenseId, player_id: playerId, share_amount: amounts[i],
-    }));
-
-    set({
-      expenses: [newExpense, ...get().expenses],
-      splits: [...get().splits, ...newSplits],
-    });
+    set({ expenses: [newExpense, ...get().expenses] });
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
@@ -300,32 +291,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
       supabase.from('cricket_expenses')
         .insert({
-          user_id: userId, season_id: seasonId, paid_by: data.paid_by,
+          user_id: userId, season_id: seasonId,
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
         })
         .select().single()
-        .then(({ data: row }: { data: CricketExpense | null }) => {
-          if (!row) return;
-          // Update local expense with real ID
-          set({ expenses: get().expenses.map((e) => e.id === expenseId ? row : e) });
-
-          // Insert splits with real expense ID
-          const splitInserts = splitPlayerIds.map((playerId, i) => ({
-            expense_id: row.id, player_id: playerId, share_amount: amounts[i],
-          }));
-          supabase.from('cricket_expense_splits').insert(splitInserts).select()
-            .then(({ data: rows }: { data: CricketExpenseSplit[] | null }) => {
-              if (rows) {
-                // Replace local splits for this expense with real ones
-                set({
-                  splits: [
-                    ...get().splits.filter((s) => s.expense_id !== expenseId),
-                    ...rows,
-                  ],
-                });
-              }
-            });
+        .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
+          if (error) console.error('[cricket] addExpense failed:', error);
+          if (row) set({ expenses: get().expenses.map((e) => e.id === expenseId ? row : e) });
         });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });

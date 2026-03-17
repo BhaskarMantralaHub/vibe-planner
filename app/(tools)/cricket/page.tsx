@@ -112,7 +112,18 @@ function CricketDashboard() {
   const isAdmin = userAccess.includes('admin');
   const activePlayers = players.filter((p) => p.is_active);
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
-  const [activeView, setActiveView] = useState<View>('players');
+  const [activeView, setActiveView] = useState<View>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '') as View;
+      if (['players', 'expenses', 'fees', 'charts', 'toss', 'share'].includes(hash)) return hash;
+    }
+    return 'players';
+  });
+
+  const handleViewChange = (view: View) => {
+    setActiveView(view);
+    window.history.replaceState(null, '', `#${view}`);
+  };
 
   useEffect(() => {
     document.title = 'Sunrisers Manteca';
@@ -156,7 +167,7 @@ function CricketDashboard() {
           <div className="mb-5 flex flex-wrap items-center gap-2">
             <ViewSelector
               active={activeView}
-              onChange={setActiveView}
+              onChange={handleViewChange}
               playerCount={activePlayers.length}
               expenseCount={seasonExpenses.length}
             />

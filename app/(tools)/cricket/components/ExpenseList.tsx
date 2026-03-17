@@ -4,6 +4,13 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getCategoryConfig } from '../lib/constants';
+import { FaTshirt, FaTrophy, FaUtensils, FaBox } from 'react-icons/fa';
+import { MdSportsCricket } from 'react-icons/md';
+import type { IconType } from 'react-icons';
+
+const CATEGORY_ICONS: Record<string, IconType> = {
+  FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
+};
 import { formatCurrency, formatDate } from '../lib/utils';
 import { FaExclamationTriangle, FaCheckCircle, FaWallet, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
@@ -196,12 +203,17 @@ export default function ExpenseList() {
                   )}
 
                   <div className="flex items-start gap-3 pr-8">
-                    {/* Category badge */}
+                    {/* Category icon */}
                     <div className="flex-shrink-0">
-                      <div className="h-10 w-10 rounded-xl flex items-center justify-center text-[18px]"
-                        style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
-                        {cfg.icon}
-                      </div>
+                      {(() => {
+                        const Icon = CATEGORY_ICONS[cfg.iconName];
+                        return (
+                          <div className="h-10 w-10 rounded-xl flex items-center justify-center"
+                            style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
+                            {Icon && <Icon size={18} style={{ color: cfg.color }} />}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Info */}
