@@ -139,7 +139,7 @@ function CricketDashboard() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden w-full px-3 py-5 sm:px-4 lg:px-8">
+    <div className="min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-[20px] sm:text-[22px] font-bold text-[var(--text)]">Cricket Team Expenses</h2>

@@ -240,7 +240,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {showNav && <HamburgerMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <main>{children}</main>
+      <main className="overflow-x-hidden">{children}</main>
     </>
   );
 }
