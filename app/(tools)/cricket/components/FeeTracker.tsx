@@ -143,20 +143,29 @@ export default function FeeTracker() {
             <div key={p.id} className="rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 min-w-0 overflow-hidden"
               style={{ borderColor: isPaid ? 'var(--green)' : isPartial ? 'var(--orange)' : 'var(--border)', borderLeftWidth: isPaid || isPartial ? '4px' : '1px' }}>
               <div className="flex items-center gap-2 sm:gap-3">
-                {/* Status icon */}
-                <div className="flex-shrink-0">
-                  {isPaid && <FaCheckCircle size={18} style={{ color: 'var(--green)' }} />}
-                  {isPartial && <FaExclamationCircle size={18} style={{ color: 'var(--orange)' }} />}
-                  {!isPaid && !isPartial && <FaTimesCircle size={18} style={{ color: 'var(--red)' }} />}
+                {/* Jersey badge as status indicator */}
+                <div className="flex-shrink-0 relative">
+                  <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl font-bold text-[13px] sm:text-[14px] transition-all"
+                    style={{
+                      backgroundColor: isPaid ? '#05966920' : isPartial ? '#D9770620' : '#EF444420',
+                      color: isPaid ? '#059669' : isPartial ? '#D97706' : '#EF4444',
+                      border: `2px solid ${isPaid ? '#05966940' : isPartial ? '#D9770640' : '#EF444440'}`,
+                    }}>
+                    {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                  </div>
+                  {/* Status dot overlay */}
+                  <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: isPaid ? '#059669' : isPartial ? '#D97706' : '#EF4444', border: '2px solid var(--surface)' }}>
+                    {isPaid && <FaCheckCircle size={8} color="#fff" />}
+                    {isPartial && <FaExclamationCircle size={8} color="#fff" />}
+                    {!isPaid && !isPartial && <FaTimesCircle size={8} color="#fff" />}
+                  </div>
                 </div>
 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{p.name}</span>
-                    {p.jersey_number && (
-                      <span className="text-[11px] font-bold text-[var(--orange)] flex-shrink-0">#{p.jersey_number}</span>
-                    )}
                   </div>
                   {fee?.paid_date && (
                     <span className="text-[10px] sm:text-[11px] text-[var(--dim)] block truncate">
@@ -188,11 +197,13 @@ export default function FeeTracker() {
                     ) : (
                       <>
                         <button onClick={() => handleMarkPaid(p.id)}
-                          className="rounded-lg px-2 sm:px-3 py-1.5 text-[11px] sm:text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90 whitespace-nowrap">
-                          Paid
+                          className="rounded-full px-3 sm:px-4 py-1.5 text-[11px] sm:text-[12px] font-bold tracking-wide uppercase cursor-pointer whitespace-nowrap transition-all active:scale-95"
+                          style={{ background: 'linear-gradient(135deg, #059669, #10B981)', color: '#fff', border: '1.5px solid #059669', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}>
+                          Mark Paid
                         </button>
                         <button onClick={() => { setPayingPlayer(p.id); setPayAmount(''); }}
-                          className="rounded-lg px-1.5 sm:px-2.5 py-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--orange)] border border-[var(--orange)]/30 cursor-pointer hover:bg-[var(--orange)]/10 whitespace-nowrap">
+                          className="rounded-full px-3 sm:px-4 py-1.5 text-[11px] sm:text-[12px] font-bold tracking-wide uppercase cursor-pointer whitespace-nowrap transition-all active:scale-95"
+                          style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706', boxShadow: '0 2px 8px rgba(245,158,11,0.25)' }}>
                           Partial
                         </button>
                       </>
