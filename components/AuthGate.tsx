@@ -89,6 +89,18 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     init();
   }, [init]);
 
+  // Set favicon + title for cricket variant
+  useEffect(() => {
+    if (variant === 'cricket') {
+      document.title = 'Sunrisers Manteca';
+      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
+        || document.createElement('link');
+      link.rel = 'icon';
+      link.href = '/cricket-logo.png';
+      document.head.appendChild(link);
+    }
+  }, [variant]);
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
