@@ -33,7 +33,8 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   lines.push(`   Spent: ${formatCurrency(totalSpent)}`);
   lines.push(`   Balance: ${poolBalance >= 0 ? '✅' : '❌'} *${formatCurrency(poolBalance)}*`);
   if (poolBalance < 0 && activePlayers.length > 0) {
-    lines.push(`   ⚠️ Short! Need ${formatCurrency(Math.ceil(Math.abs(poolBalance) / activePlayers.length))}/player`);
+    const perPlayer = Math.ceil(Math.abs(poolBalance) / activePlayers.length);
+    lines.push(`   ⚠️ Deficit: ${formatCurrency(Math.abs(poolBalance))} • ${formatCurrency(perPlayer)} per player`);
   }
   lines.push('');
 
@@ -83,12 +84,12 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
-  const M = 15; // margin
+  const M = 18; // margin (more breathing room for professional layout)
   const TW = W - M * 2; // table width
   let y = 20;
 
   type RGB = [number, number, number];
-  const BLACK: RGB = [30, 30, 30]; const GRAY: RGB = [100, 100, 100]; const LGRAY: RGB = [150, 150, 150];
+  const BLACK: RGB = [30, 30, 30]; const GRAY: RGB = [100, 100, 100]; const LGRAY: RGB = [150, 150, 150]; const HEADER_BG: RGB = [235, 235, 235];
   const GREEN: RGB = [5, 150, 105]; const RED: RGB = [239, 68, 68]; const ORANGE: RGB = [217, 119, 6];
 
   const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
@@ -108,8 +109,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const textY = 5.5; // text offset within row
 
     // Header
-    doc.setFillColor(240, 240, 240);
-    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
+    doc.setFillColor(...HEADER_BG);
+    doc.setDrawColor(210, 210, 210);
+    doc.setLineWidth(0.3);
     doc.rect(M, y, TW, rH, 'FD');
     headers.forEach((h, i) => {
       const align = i === headers.length - 1 ? 'right' as const : 'left' as const;
@@ -137,19 +139,16 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     });
 
     // Bottom border
-    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
     doc.line(M, y, W - M, y);
-    // Left + right borders
-    const tableTop = y - rH * rows.length - rH; // approximate
-    doc.line(M, tableTop, M, y);
-    doc.line(W - M, tableTop, W - M, y);
   };
 
   // ═══ HEADER ═══
-  text(TEAM_NAME, W / 2, y, { size: 24, bold: true, color: ORANGE, align: 'center' });
+  text(TEAM_NAME, W / 2, y, { size: 26, bold: true, color: ORANGE, align: 'center' });
+  y += 10;
+  text(`${season.name} — Season Report`, W / 2, y, { size: 12, color: GRAY, align: 'center' });
   y += 8;
-  text(`${season.name} — Season Report`, W / 2, y, { size: 11, color: GRAY, align: 'center' });
-  y += 6;
   hr();
 
   // ═══ POOL FUND CARD ═══
@@ -174,12 +173,22 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   if (poolBalance < 0 && activePlayers.length > 0) {
     const pp = Math.ceil(Math.abs(poolBalance) / activePlayers.length);
-    text(`Shortfall! Suggest ${formatCurrency(pp)}/player (${activePlayers.length} players)`, M + 6, statsY + 14, { size: 8, color: RED });
+    // clearer message for shortfall
+    const deficit = formatCurrency(Math.abs(poolBalance));
+    const perPlayer = formatCurrency(pp);
+    text(
+      `Additional ${perPlayer} per player needed to cover ${deficit} shortfall (${activePlayers.length} players)`,
+      M + 6,
+      statsY + 14,
+      { size: 8.5, color: RED }
+    );
   }
 
   y += cardH + 8;
 
   // ═══ SEASON FEE TABLE ═══
+  text('SEASON FEES', M, y, { size: 9, bold: true, color: GRAY });
+  y += 5;
   text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M, y, { size: 14, bold: true, color: BLACK });
   y += 8;
 
@@ -188,7 +197,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const paidAmt = fee ? Number(fee.amount_paid) : 0;
     const isPaid = paidAmt >= feeAmount;
     const isPartial = paidAmt > 0 && paidAmt < feeAmount;
-    const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Not Paid';
+    const status = isPaid ? '[PAID]' : isPartial ? '[PARTIAL]' : '[UNPAID]';
     const sColor: RGB = isPaid ? GREEN : isPartial ? ORANGE : RED;
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
     return {
@@ -203,6 +212,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ EXPENSES TABLE ═══
   if (seasonExpenses.length) {
     checkPage(30);
+    text('EXPENSES', M, y, { size: 9, bold: true, color: GRAY });
+    y += 5;
     text(`Expenses — ${formatCurrency(totalSpent)}`, M, y, { size: 14, bold: true, color: BLACK });
     y += 8;
 
@@ -253,6 +264,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   // ═══ SQUAD TABLE ═══
   checkPage(30);
+  text('TEAM SQUAD', M, y, { size: 9, bold: true, color: GRAY });
+  y += 5;
   text(`Squad — ${activePlayers.length} Players`, M, y, { size: 14, bold: true, color: BLACK });
   y += 8;
 
@@ -270,7 +283,12 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ FOOTER ═══
   gap(10);
   text(
-    `Generated on ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${TEAM_NAME}`,
+    `Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+    W / 2, y, { size: 8, color: LGRAY, align: 'center' }
+  );
+  y += 4;
+  text(
+    `${TEAM_NAME}`,
     W / 2, y, { size: 8, color: LGRAY, align: 'center' }
   );
 
