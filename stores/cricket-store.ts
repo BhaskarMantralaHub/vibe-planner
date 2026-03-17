@@ -139,12 +139,13 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) { set({ loading: false }); return; }
 
+      // Load ALL team data — not filtered by user_id (shared team data)
       const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes] = await Promise.all([
-        supabase.from('cricket_players').select('*').eq('user_id', userId).order('created_at'),
-        supabase.from('cricket_seasons').select('*').eq('user_id', userId).order('year', { ascending: false }),
-        supabase.from('cricket_expenses').select('*').eq('user_id', userId).order('expense_date', { ascending: false }),
-        supabase.from('cricket_expense_splits').select('*, cricket_expenses!inner(user_id)').eq('cricket_expenses.user_id', userId),
-        supabase.from('cricket_settlements').select('*').eq('user_id', userId).order('settled_date', { ascending: false }),
+        supabase.from('cricket_players').select('*').order('created_at'),
+        supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
+        supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false }),
+        supabase.from('cricket_expense_splits').select('*'),
+        supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
       ]);
 
       const players = (playersRes.data ?? []) as CricketPlayer[];
