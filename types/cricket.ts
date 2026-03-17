@@ -13,6 +13,9 @@ export type CricketPlayer = {
   player_role: PlayerRole | null;
   batting_style: BattingStyle | null;
   bowling_style: BowlingStyle | null;
+  cricclub_id: string | null;
+  shirt_size: string | null;
+  email: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

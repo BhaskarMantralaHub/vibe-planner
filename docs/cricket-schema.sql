@@ -12,6 +12,9 @@ CREATE TABLE cricket_players (
   player_role TEXT,           -- 'batsman' | 'bowler' | 'all-rounder' | 'keeper'
   batting_style TEXT,         -- 'right' | 'left'
   bowling_style TEXT,         -- 'pace' | 'medium' | 'spin'
+  cricclub_id TEXT,           -- CricClub player ID (optional)
+  shirt_size  TEXT,           -- 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL'
+  email       TEXT,           -- Player email address (optional)
   is_active   BOOLEAN DEFAULT true,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()

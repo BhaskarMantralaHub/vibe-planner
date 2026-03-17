@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES } from '../lib/constants';
+import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
 
 export default function PlayerManager() {
@@ -13,13 +13,15 @@ export default function PlayerManager() {
 
   const [name, setName] = useState('');
   const [jersey, setJersey] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [cricclubId, setCricclubId] = useState('');
+  const [shirtSize, setShirtSize] = useState('');
   const [playerRole, setPlayerRole] = useState('');
   const [battingStyle, setBattingStyle] = useState('');
   const [bowlingStyle, setBowlingStyle] = useState('');
 
   const resetForm = () => {
-    setName(''); setJersey(''); setPhone('');
+    setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle('');
     setEditingPlayer(null);
   };
@@ -30,7 +32,10 @@ export default function PlayerManager() {
     const data = {
       name: name.trim(),
       jersey_number: jersey ? Number(jersey) : null,
-      phone: phone.trim() || null,
+      phone: null,
+      email: email.trim() || null,
+      cricclub_id: cricclubId.trim() || null,
+      shirt_size: shirtSize || null,
       player_role: (playerRole || null) as PlayerRole | null,
       batting_style: (battingStyle || null) as BattingStyle | null,
       bowling_style: (bowlingStyle || null) as BowlingStyle | null,
@@ -49,20 +54,17 @@ export default function PlayerManager() {
     setEditingPlayer(p.id);
     setName(p.name);
     setJersey(p.jersey_number?.toString() ?? '');
-    setPhone(p.phone ?? '');
+    setEmail(p.email ?? '');
+    setCricclubId(p.cricclub_id ?? '');
+    setShirtSize(p.shirt_size ?? '');
     setPlayerRole(p.player_role ?? '');
     setBattingStyle(p.batting_style ?? '');
     setBowlingStyle(p.bowling_style ?? '');
     setShowPlayerForm(true);
   };
 
-  const getRoleIcon = (role: string | null) => {
-    return PLAYER_ROLES.find((r) => r.key === role)?.icon ?? '';
-  };
-
-  const getRoleLabel = (role: string | null) => {
-    return PLAYER_ROLES.find((r) => r.key === role)?.label ?? '';
-  };
+  const getRoleIcon = (role: string | null) => PLAYER_ROLES.find((r) => r.key === role)?.icon ?? '';
+  const getRoleLabel = (role: string | null) => PLAYER_ROLES.find((r) => r.key === role)?.label ?? '';
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
@@ -78,7 +80,7 @@ export default function PlayerManager() {
 
       {showPlayerForm && (
         <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
-          {/* Row 1: Name, Jersey, Phone */}
+          {/* Row 1: Name, Jersey */}
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex-1 min-w-[140px]">
               <label className="mb-1 block text-[12px] text-[var(--muted)]">Name *</label>
@@ -97,17 +99,41 @@ export default function PlayerManager() {
                 placeholder="#"
               />
             </div>
-            <div className="w-36">
-              <label className="mb-1 block text-[12px] text-[var(--muted)]">Phone</label>
+          </div>
+
+          {/* Row 2: Email, CricClub ID, Shirt Size */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[160px]">
+              <label className="mb-1 block text-[12px] text-[var(--muted)]">Email</label>
               <input
-                value={phone} onChange={(e) => setPhone(e.target.value)}
+                type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none"
+                placeholder="player@email.com"
+              />
+            </div>
+            <div className="w-32">
+              <label className="mb-1 block text-[12px] text-[var(--muted)]">CricClub ID</label>
+              <input
+                value={cricclubId} onChange={(e) => setCricclubId(e.target.value)}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none"
                 placeholder="Optional"
               />
             </div>
+            <div className="w-24">
+              <label className="mb-1 block text-[12px] text-[var(--muted)]">Shirt Size</label>
+              <select
+                value={shirtSize} onChange={(e) => setShirtSize(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-2 text-[14px] text-[var(--text)] outline-none"
+              >
+                <option value="">—</option>
+                {SHIRT_SIZES.map((s) => (
+                  <option key={s.key} value={s.key}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Row 2: Role chips */}
+          {/* Row 3: Role chips */}
           <div>
             <label className="mb-1.5 block text-[12px] text-[var(--muted)]">Role</label>
             <div className="flex flex-wrap gap-1.5">
@@ -129,7 +155,7 @@ export default function PlayerManager() {
             </div>
           </div>
 
-          {/* Row 3: Batting + Bowling style */}
+          {/* Row 4: Batting + Bowling style */}
           <div className="flex gap-4">
             <div>
               <label className="mb-1.5 block text-[12px] text-[var(--muted)]">Batting</label>
@@ -201,11 +227,17 @@ export default function PlayerManager() {
                       {getRoleIcon(p.player_role)} {getRoleLabel(p.player_role)}
                     </span>
                   )}
+                  {p.shirt_size && (
+                    <span className="text-[11px] rounded-md px-1.5 py-0.5 border border-[var(--border)] text-[var(--dim)]">
+                      {p.shirt_size}
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-2 text-[11px] text-[var(--dim)]">
                   {p.batting_style && <span>{p.batting_style === 'right' ? 'RHB' : 'LHB'}</span>}
                   {p.bowling_style && <span>{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>}
-                  {p.phone && <span>{p.phone}</span>}
+                  {p.cricclub_id && <span>CC: {p.cricclub_id}</span>}
+                  {p.email && <span>{p.email}</span>}
                 </div>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

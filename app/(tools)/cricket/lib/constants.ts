@@ -34,6 +34,15 @@ export const BOWLING_STYLES = [
   { key: 'spin', label: 'Spin' },
 ] as const;
 
+export const SHIRT_SIZES = [
+  { key: 'XS', label: 'XS' },
+  { key: 'S', label: 'S' },
+  { key: 'M', label: 'M' },
+  { key: 'L', label: 'L' },
+  { key: 'XL', label: 'XL' },
+  { key: 'XXL', label: 'XXL' },
+] as const;
+
 export const SEASON_TYPES = [
   { key: 'spring', label: 'Spring' },
   { key: 'summer', label: 'Summer' },

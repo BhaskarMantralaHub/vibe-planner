@@ -5,9 +5,15 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
 
+function useIsAdmin() {
+  const { userAccess } = useAuthStore();
+  return userAccess.includes('admin');
+}
+
 export default function SeasonSelector() {
   const { user } = useAuthStore();
   const { seasons, selectedSeasonId, setSelectedSeason, addSeason } = useCricketStore();
+  const isAdmin = useIsAdmin();
   const [showCreate, setShowCreate] = useState(false);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
   const [newType, setNewType] = useState('summer');
@@ -32,14 +38,14 @@ export default function SeasonSelector() {
         {seasons.length === 0 && <option value="">No seasons</option>}
       </select>
 
-      {!showCreate ? (
+      {isAdmin && !showCreate ? (
         <button
           onClick={() => setShowCreate(true)}
           className="rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-2 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all"
         >
           + New Season
         </button>
-      ) : (
+      ) : isAdmin && showCreate ? (
         <div className="flex items-center gap-2">
           <select
             value={newType}
@@ -63,7 +69,7 @@ export default function SeasonSelector() {
             Cancel
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
