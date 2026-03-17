@@ -236,20 +236,20 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   },
 
   removePlayer: (id) => {
-    set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: false } : p) });
+    set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: false, designation: null } : p) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_players').update({ is_active: false }).eq('id', id).then(() => {});
+      supabase?.from('cricket_players').update({ is_active: false, designation: null }).eq('id', id).then(() => {});
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }
   },
 
   restorePlayer: (id) => {
-    set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: true } : p) });
+    set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: true, designation: null } : p) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_players').update({ is_active: true }).eq('id', id).then(() => {});
+      supabase?.from('cricket_players').update({ is_active: true, designation: null }).eq('id', id).then(() => {});
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }
