@@ -59,23 +59,25 @@ export default function ExpenseForm() {
 
         {/* Category */}
         <div className="mb-4">
-          <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Category</label>
-          <div className="flex flex-wrap gap-1.5">
+          <label className="mb-2 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Category</label>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {EXPENSE_CATEGORIES.map((c) => {
-              const cfg = getCategoryConfig(c.key);
               const active = category === c.key;
               return (
                 <button
                   key={c.key}
                   onClick={() => setCategory(c.key)}
-                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium cursor-pointer transition-all border"
+                  className="flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 cursor-pointer transition-all border-2 active:scale-95"
                   style={{
-                    backgroundColor: active ? cfg.bgColor : 'transparent',
-                    borderColor: active ? cfg.borderColor : 'var(--border)',
-                    color: active ? cfg.color : 'var(--muted)',
+                    backgroundColor: active ? `${c.color}15` : 'var(--surface)',
+                    borderColor: active ? c.color : 'var(--border)',
+                    boxShadow: active ? `0 2px 12px ${c.color}20` : 'none',
                   }}
                 >
-                  {c.label}
+                  <span className="text-[20px]">{c.icon}</span>
+                  <span className="text-[11px] font-bold" style={{ color: active ? c.color : 'var(--muted)' }}>
+                    {c.label}
+                  </span>
                 </button>
               );
             })}

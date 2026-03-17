@@ -197,11 +197,11 @@ export default function ExpenseList() {
 
                   <div className="flex items-start gap-3 pr-8">
                     {/* Category badge */}
-                    <div className="flex-shrink-0 mt-0.5">
-                      <span className="inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold"
-                        style={{ backgroundColor: cfg.bgColor, color: cfg.color, border: `1px solid ${cfg.borderColor}` }}>
-                        {cfg.label}
-                      </span>
+                    <div className="flex-shrink-0">
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center text-[18px]"
+                        style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
+                        {cfg.icon}
+                      </div>
                     </div>
 
                     {/* Info */}
