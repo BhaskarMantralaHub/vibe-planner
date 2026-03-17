@@ -8,8 +8,9 @@ import { FaCheckCircle, FaExclamationCircle, FaTimesCircle } from 'react-icons/f
 import { MdEdit, MdUndo } from 'react-icons/md';
 
 export default function FeeTracker() {
-  const { userAccess } = useAuthStore();
+  const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
+  const adminName = (user?.user_metadata?.full_name as string) || user?.email || 'Admin';
   const { players, fees, selectedSeasonId, seasons, updateSeason, recordFee, deleteFee } = useCricketStore();
   const activePlayers = players.filter((p) => p.is_active);
 
@@ -40,7 +41,7 @@ export default function FeeTracker() {
 
   const handleMarkPaid = (playerId: string) => {
     if (!selectedSeasonId) return;
-    recordFee(selectedSeasonId, playerId, feeAmount);
+    recordFee(selectedSeasonId, playerId, feeAmount, adminName);
   };
 
   const handleUndo = (playerId: string) => {
@@ -50,7 +51,7 @@ export default function FeeTracker() {
 
   const handlePartialSubmit = () => {
     if (!selectedSeasonId || !payingPlayer || !payAmount) return;
-    recordFee(selectedSeasonId, payingPlayer, parseFloat(payAmount));
+    recordFee(selectedSeasonId, payingPlayer, parseFloat(payAmount), adminName);
     setPayingPlayer(null);
     setPayAmount('');
   };
@@ -160,6 +161,7 @@ export default function FeeTracker() {
                   {fee?.paid_date && (
                     <span className="text-[11px] text-[var(--dim)]">
                       {isPaid ? 'Paid' : 'Partial'} on {new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fee.marked_by && <> &middot; by {fee.marked_by}</>}
                     </span>
                   )}
                 </div>

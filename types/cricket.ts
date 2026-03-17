@@ -72,6 +72,7 @@ export type CricketSeasonFee = {
   player_id: string;
   amount_paid: number;
   paid_date: string | null;
+  marked_by: string | null;
   created_at: string;
 };
 

@@ -115,7 +115,7 @@ interface CricketState {
   deleteSettlement: (id: string) => void;
 
   // Fees
-  recordFee: (seasonId: string, playerId: string, amountPaid: number) => void;
+  recordFee: (seasonId: string, playerId: string, amountPaid: number, markedBy?: string) => void;
   deleteFee: (id: string) => void;
 
   // UI
@@ -380,29 +380,30 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Fees ──────────────────────────────────────────────────────────────
 
-  recordFee: (seasonId, playerId, amountPaid) => {
+  recordFee: (seasonId, playerId, amountPaid, markedBy) => {
     const localId = genId();
     const now = new Date().toISOString();
     const today = now.split('T')[0];
+    const by = markedBy ?? null;
 
     // Check if fee already exists for this player+season — update it
     const existing = get().fees.find((f) => f.season_id === seasonId && f.player_id === playerId);
     if (existing) {
-      set({ fees: get().fees.map((f) => f.id === existing.id ? { ...f, amount_paid: amountPaid, paid_date: today } : f) });
+      set({ fees: get().fees.map((f) => f.id === existing.id ? { ...f, amount_paid: amountPaid, paid_date: today, marked_by: by } : f) });
       if (isCloudMode()) {
         const supabase = getSupabaseClient();
-        supabase?.from('cricket_season_fees').update({ amount_paid: amountPaid, paid_date: today }).eq('id', existing.id).then(() => {});
+        supabase?.from('cricket_season_fees').update({ amount_paid: amountPaid, paid_date: today, marked_by: by }).eq('id', existing.id).then(() => {});
       }
       return;
     }
 
-    const newFee: CricketSeasonFee = { id: localId, season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, created_at: now };
+    const newFee: CricketSeasonFee = { id: localId, season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, marked_by: by, created_at: now };
     set({ fees: [...get().fees, newFee] });
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_season_fees')
-        .insert({ season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today })
+        .insert({ season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, marked_by: by })
         .select().single()
         .then(({ data: row }: { data: CricketSeasonFee | null }) => {
           if (row) set({ fees: get().fees.map((f) => f.id === localId ? row : f) });
