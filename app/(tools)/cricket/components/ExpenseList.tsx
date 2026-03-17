@@ -310,16 +310,24 @@ export default function ExpenseList() {
                       </div>
 
                       {/* Footer */}
-                      <div className="mt-2 pt-2 border-t border-[var(--border)]/30 space-y-0.5 text-[12px]">
-                        <p className="text-[var(--muted)]">
-                          Added <span className="font-semibold text-[var(--text)]">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
-                          {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
-                        </p>
+                      <div className="mt-2.5 pt-2 border-t border-[var(--border)]/30 space-y-1 text-[11px]">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
+                            style={{ background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)' }}>
+                            Added
+                          </span>
+                          <span className="text-[var(--text)] font-medium">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
+                          {adminName && <span className="text-[var(--muted)]">by <span className="text-[var(--text)] font-medium">{adminName}</span></span>}
+                        </div>
                         {e.updated_at && e.updated_at !== e.created_at && (
-                          <p className="text-[var(--muted)]">
-                            Updated <span className="font-semibold text-[var(--text)]">{formatDate(e.updated_at.split('T')[0])}</span>
-                            {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
+                              style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}>
+                              Updated
+                            </span>
+                            <span className="text-[var(--text)] font-medium">{formatDate(e.updated_at.split('T')[0])}</span>
+                            {adminName && <span className="text-[var(--muted)]">by <span className="text-[var(--text)] font-medium">{adminName}</span></span>}
+                          </div>
                         )}
                       </div>
                     </>
