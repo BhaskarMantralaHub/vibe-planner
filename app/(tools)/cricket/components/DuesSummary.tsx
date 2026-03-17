@@ -1,9 +1,12 @@
 'use client';
 
 import { useCricketStore } from '@/stores/cricket-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { calculatePlayerBalances, formatCurrency } from '../lib/utils';
 
 export default function DuesSummary() {
+  const { userAccess } = useAuthStore();
+  const isAdmin = userAccess.includes('admin');
   const { players, expenses, splits, settlements, selectedSeasonId, setShowSettleForm } = useCricketStore();
 
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
@@ -26,12 +29,14 @@ export default function DuesSummary() {
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[16px] font-semibold text-[var(--text)]">Player Dues</h3>
-        <button
-          onClick={() => setShowSettleForm(true)}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
-        >
-          Settle Up
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowSettleForm(true)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+          >
+            Settle Up
+          </button>
+        )}
       </div>
 
       <div className="space-y-1">

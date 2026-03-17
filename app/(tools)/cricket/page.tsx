@@ -106,6 +106,8 @@ function ViewSelector({ active, onChange, playerCount, expenseCount }: {
 function CricketDashboard() {
   const { user } = useAuthStore();
   const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses } = useCricketStore();
+  const { userAccess } = useAuthStore();
+  const isAdmin = userAccess.includes('admin');
   const activePlayers = players.filter((p) => p.is_active);
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
   const [activeView, setActiveView] = useState<View>('players');
@@ -156,7 +158,7 @@ function CricketDashboard() {
               playerCount={activePlayers.length}
               expenseCount={seasonExpenses.length}
             />
-            {activeView === 'expenses' && (
+            {isAdmin && activeView === 'expenses' && (
               <button
                 onClick={() => setShowExpenseForm(true)}
                 disabled={activePlayers.length === 0}
@@ -165,7 +167,7 @@ function CricketDashboard() {
                 + Add Expense
               </button>
             )}
-            {activeView === 'expenses' && activePlayers.length === 0 && (
+            {isAdmin && activeView === 'expenses' && activePlayers.length === 0 && (
               <p className="text-[13px] text-[var(--muted)]">Add players first</p>
             )}
           </div>

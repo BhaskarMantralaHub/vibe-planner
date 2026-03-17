@@ -134,6 +134,8 @@ const bowlingIcon = (style: string) => style === 'pace'
 /* ── Main Component ── */
 export default function PlayerManager() {
   const { user } = useAuthStore();
+  const { userAccess } = useAuthStore();
+  const isAdmin = userAccess.includes('admin');
   const { players, addPlayer, updatePlayer, removePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer } = useCricketStore();
   const activePlayers = [...players.filter((p) => p.is_active)].sort(playerSort);
 
@@ -235,14 +237,16 @@ export default function PlayerManager() {
         <h3 className="text-[16px] font-semibold text-[var(--text)]">
           Players <span className="text-[var(--muted)] font-normal">({activePlayers.length})</span>
         </h3>
-        <button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
-          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-1.5 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all">
-          {showPlayerForm ? '✕ Close' : '＋ Add Player'}
-        </button>
+        {isAdmin && (
+          <button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-1.5 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all">
+            {showPlayerForm ? '✕ Close' : '＋ Add Player'}
+          </button>
+        )}
       </div>
 
-      {/* ── Form ── */}
-      {showPlayerForm && (
+      {/* ── Form (admin only) ── */}
+      {isAdmin && showPlayerForm && (
         <div className="mb-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-4">
           <div className="grid grid-cols-[1fr_72px] gap-2">
             <div>
@@ -379,24 +383,27 @@ export default function PlayerManager() {
 
             return (
               <div key={p.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                {/* Three-dot menu trigger */}
-                <button
-                  ref={openMenu === p.id ? menuBtnRef : null}
-                  data-menu-id={p.id}
-                  onClick={() => setOpenMenu(openMenu === p.id ? null : p.id)}
-                  className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-                >
-                  <FaEllipsisV size={14} />
-                </button>
+                {/* Three-dot menu trigger (admin only) */}
+                {isAdmin && (
+                  <>
+                    <button
+                      ref={openMenu === p.id ? menuBtnRef : null}
+                      data-menu-id={p.id}
+                      onClick={() => setOpenMenu(openMenu === p.id ? null : p.id)}
+                      className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                    >
+                      <FaEllipsisV size={14} />
+                    </button>
 
-                {/* Menu dropdown */}
-                {openMenu === p.id && (
-                  <PlayerCardMenu
-                    anchorRef={menuBtnRef}
-                    onEdit={() => handleEdit(p)}
-                    onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
-                    onClose={() => setOpenMenu(null)}
-                  />
+                    {openMenu === p.id && (
+                      <PlayerCardMenu
+                        anchorRef={menuBtnRef}
+                        onEdit={() => handleEdit(p)}
+                        onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
+                        onClose={() => setOpenMenu(null)}
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Player info */}

@@ -1,10 +1,13 @@
 'use client';
 
 import { useCricketStore } from '@/stores/cricket-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate } from '../lib/utils';
 
 export default function ExpenseList() {
+  const { userAccess } = useAuthStore();
+  const isAdmin = userAccess.includes('admin');
   const { expenses, splits, players, selectedSeasonId, deleteExpense } = useCricketStore();
 
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
@@ -49,12 +52,14 @@ export default function ExpenseList() {
                 </p>
               </div>
               <span className="text-[15px] font-semibold text-[var(--text)]">{formatCurrency(Number(e.amount))}</span>
-              <button
-                onClick={() => deleteExpense(e.id)}
-                className="rounded-lg px-2 py-1 text-[12px] text-[var(--red)] opacity-0 group-hover:opacity-100 hover:bg-[var(--red)]/10 cursor-pointer transition-all"
-              >
-                Delete
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => deleteExpense(e.id)}
+                  className="rounded-lg px-2 py-1 text-[12px] text-[var(--red)] opacity-0 group-hover:opacity-100 hover:bg-[var(--red)]/10 cursor-pointer transition-all"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           );
         })}
