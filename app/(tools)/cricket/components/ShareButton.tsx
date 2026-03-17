@@ -118,7 +118,8 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
   // Pool Fund
   addLine(14, 'bold', [30, 30, 30], 'Pool Fund');
   addGap(1);
-  addLine(10, 'normal', [80, 80, 80], `Collected: ${formatCurrency(totalCollected)}     Spent: ${formatCurrency(totalSpent)}`);
+  addLine(10, 'normal', [5, 150, 105], `Collected: ${formatCurrency(totalCollected)}`);
+  addLine(10, 'normal', [239, 68, 68], `Spent: ${formatCurrency(totalSpent)}`);
   const balColor: [number, number, number] = poolBalance >= 0 ? [5, 150, 105] : [239, 68, 68];
   addLine(16, 'bold', balColor, `Balance: ${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`);
   if (poolBalance < 0 && activePlayers.length > 0) {
@@ -136,11 +137,12 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
   doc.setFillColor(245, 245, 245);
   doc.rect(15, y - 2, pageW - 30, 7, 'F');
   doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
-  doc.text('#', 18, y + 3); doc.text('Player', 28, y + 3); doc.text('Status', 100, y + 3); doc.text('Paid', 140, y + 3);
+  doc.text('#', 18, y + 3); doc.text('Player', 35, y + 3); doc.text('Status', 120, y + 3); doc.text('Paid', pageW - 20, y + 3, { align: 'right' });
   y += 9;
 
-  activePlayers.forEach((p) => {
+  activePlayers.forEach((p, i) => {
     checkPage();
+    if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3.5, pageW - 30, 6, 'F'); }
     const fee = feeMap[p.id];
     const paidAmt = fee ? Number(fee.amount_paid) : 0;
     const isPaid = paidAmt >= feeAmount;
@@ -148,14 +150,14 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
     const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Not Paid';
     const statusColor: [number, number, number] = isPaid ? [5, 150, 105] : isPartial ? [217, 119, 6] : [239, 68, 68];
 
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
     doc.text(p.jersey_number ? `#${p.jersey_number}` : '—', 18, y);
-    doc.text(p.name + (p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : ''), 28, y);
+    doc.text(p.name + (p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : ''), 35, y);
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...statusColor);
-    doc.text(status, 100, y);
-    doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal');
-    doc.text(formatCurrency(paidAmt), 140, y);
-    y += 5;
+    doc.text(status, 120, y);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(60, 60, 60);
+    doc.text(formatCurrency(paidAmt), pageW - 20, y, { align: 'right' });
+    y += 6;
   });
 
   addGap(2);
@@ -169,19 +171,58 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
     doc.setFillColor(245, 245, 245);
     doc.rect(15, y - 2, pageW - 30, 7, 'F');
     doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
-    doc.text('Category', 18, y + 3); doc.text('Description', 55, y + 3); doc.text('Date', 120, y + 3); doc.text('Amount', 150, y + 3);
+    doc.text('Category', 18, y + 3); doc.text('Description', 60, y + 3); doc.text('Date', 130, y + 3); doc.text('Amount', pageW - 20, y + 3, { align: 'right' });
     y += 9;
 
-    seasonExpenses.forEach((e) => {
+    seasonExpenses.forEach((e, i) => {
       checkPage();
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(15, y - 3.5, pageW - 30, 6, 'F'); }
       const cfg = getCategoryConfig(e.category);
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
       doc.text(cfg.label, 18, y);
-      doc.text(e.description || cfg.label, 55, y);
-      doc.text(formatDate(e.expense_date), 120, y);
-      doc.setFont('helvetica', 'bold');
-      doc.text(formatCurrency(Number(e.amount)), 150, y);
-      y += 5;
+      doc.text((e.description || cfg.label).substring(0, 30), 60, y);
+      doc.text(formatDate(e.expense_date), 130, y);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(40, 40, 40);
+      doc.text(formatCurrency(Number(e.amount)), pageW - 20, y, { align: 'right' });
+      y += 6;
+    });
+
+    addGap(2);
+    addSeparator();
+
+    // Expense Breakdown (bar chart)
+    checkPage();
+    addLine(14, 'bold', [30, 30, 30], 'Expense Breakdown');
+    addGap(2);
+
+    const catTotals: Record<string, number> = {};
+    seasonExpenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount); });
+    const catEntries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    const catColors: Record<string, [number, number, number]> = {
+      ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [245, 158, 11], food: [239, 68, 68], other: [107, 114, 128],
+    };
+    const maxBarW = 80;
+
+    catEntries.forEach(([cat, total]) => {
+      checkPage();
+      const cfg = getCategoryConfig(cat);
+      const pct = Math.round((total / totalSpent) * 100);
+      const barW = (total / totalSpent) * maxBarW;
+      const color = catColors[cat] ?? [107, 114, 128];
+
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+      doc.text(cfg.label, 18, y);
+
+      // Bar
+      doc.setFillColor(240, 240, 240);
+      doc.rect(65, y - 3, maxBarW, 4, 'F');
+      doc.setFillColor(...color);
+      doc.rect(65, y - 3, barW, 4, 'F');
+
+      // Amount + percentage
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(40, 40, 40);
+      doc.text(`${formatCurrency(total)} (${pct}%)`, 65 + maxBarW + 5, y);
+      y += 7;
     });
 
     addGap(2);
