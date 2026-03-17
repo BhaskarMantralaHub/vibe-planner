@@ -5,6 +5,7 @@ import type {
   CricketExpense,
   CricketExpenseSplit,
   CricketSettlement,
+  CricketSeasonFee,
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { computeSplitAmounts } from '@/app/(tools)/cricket/lib/utils';
@@ -73,6 +74,7 @@ interface CricketState {
   expenses: CricketExpense[];
   splits: CricketExpenseSplit[];
   settlements: CricketSettlement[];
+  fees: CricketSeasonFee[];
   loading: boolean;
   selectedSeasonId: string | null;
 
@@ -111,6 +113,10 @@ interface CricketState {
   ) => void;
   deleteSettlement: (id: string) => void;
 
+  // Fees
+  recordFee: (seasonId: string, playerId: string, amountPaid: number) => void;
+  deleteFee: (id: string) => void;
+
   // UI
   setShowPlayerForm: (show: boolean) => void;
   setShowExpenseForm: (show: boolean) => void;
@@ -124,6 +130,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   expenses: [],
   splits: [],
   settlements: [],
+  fees: [],
   loading: true,
   selectedSeasonId: null,
 
@@ -140,12 +147,13 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       if (!supabase) { set({ loading: false }); return; }
 
       // Load ALL team data — not filtered by user_id (shared team data)
-      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes] = await Promise.all([
+      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes] = await Promise.all([
         supabase.from('cricket_players').select('*').order('created_at'),
         supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
         supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false }),
         supabase.from('cricket_expense_splits').select('*'),
         supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
+        supabase.from('cricket_season_fees').select('*').order('created_at'),
       ]);
 
       const players = (playersRes.data ?? []) as CricketPlayer[];
@@ -155,14 +163,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         ({ cricket_expenses: _, ...s }) => s as CricketExpenseSplit,
       );
       const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
+      const fees = (feesRes.data ?? []) as CricketSeasonFee[];
 
-      // Auto-select current season (match current month to season type + current year)
       const selectedSeasonId = pickCurrentSeason(seasons);
-      set({ players, seasons, expenses, splits, settlements, selectedSeasonId, loading: false });
+      set({ players, seasons, expenses, splits, settlements, fees, selectedSeasonId, loading: false });
     } else {
       const data = localLoad();
       const selectedSeasonId = pickCurrentSeason(data.seasons);
-      set({ ...data, selectedSeasonId, loading: false });
+      set({ ...data, fees: [], selectedSeasonId, loading: false });
     }
   },
 
@@ -231,7 +239,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const localId = genId();
     const newSeason: CricketSeason = {
       id: localId, user_id: userId, ...data, season_type: data.season_type as CricketSeason['season_type'],
-      share_token: genId(), is_active: true, created_at: now, updated_at: now,
+      share_token: genId(), fee_amount: 60, is_active: true, created_at: now, updated_at: now,
     };
     set({ seasons: [newSeason, ...get().seasons], selectedSeasonId: localId });
 
@@ -358,6 +366,46 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       supabase?.from('cricket_settlements').delete().eq('id', id).then(() => {});
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  // ── Fees ──────────────────────────────────────────────────────────────
+
+  recordFee: (seasonId, playerId, amountPaid) => {
+    const localId = genId();
+    const now = new Date().toISOString();
+    const today = now.split('T')[0];
+
+    // Check if fee already exists for this player+season — update it
+    const existing = get().fees.find((f) => f.season_id === seasonId && f.player_id === playerId);
+    if (existing) {
+      set({ fees: get().fees.map((f) => f.id === existing.id ? { ...f, amount_paid: amountPaid, paid_date: today } : f) });
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        supabase?.from('cricket_season_fees').update({ amount_paid: amountPaid, paid_date: today }).eq('id', existing.id).then(() => {});
+      }
+      return;
+    }
+
+    const newFee: CricketSeasonFee = { id: localId, season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, created_at: now };
+    set({ fees: [...get().fees, newFee] });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_season_fees')
+        .insert({ season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today })
+        .select().single()
+        .then(({ data: row }: { data: CricketSeasonFee | null }) => {
+          if (row) set({ fees: get().fees.map((f) => f.id === localId ? row : f) });
+        });
+    }
+  },
+
+  deleteFee: (id) => {
+    set({ fees: get().fees.filter((f) => f.id !== id) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_season_fees').delete().eq('id', id).then(() => {});
     }
   },
 

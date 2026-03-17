@@ -29,6 +29,7 @@ export type CricketSeason = {
   year: number;
   season_type: SeasonType;
   share_token: string;
+  fee_amount: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -62,6 +63,15 @@ export type CricketSettlement = {
   to_player: string;
   amount: number;
   settled_date: string;
+  created_at: string;
+};
+
+export type CricketSeasonFee = {
+  id: string;
+  season_id: string;
+  player_id: string;
+  amount_paid: number;
+  paid_date: string | null;
   created_at: string;
 };
 
