@@ -85,7 +85,12 @@ export type CricketSponsorship = {
   amount: number;
   sponsored_date: string;
   notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export type PlayerBalance = {

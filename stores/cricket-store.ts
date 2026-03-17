@@ -122,8 +122,10 @@ interface CricketState {
   deleteFee: (id: string) => void;
 
   // Sponsorships
-  addSponsorship: (seasonId: string, data: { sponsor_name: string; amount: number; sponsored_date: string; notes: string | null }) => void;
-  deleteSponsorship: (id: string) => void;
+  addSponsorship: (seasonId: string, data: { sponsor_name: string; amount: number; sponsored_date: string; notes: string | null }, createdBy?: string) => void;
+  updateSponsorship: (id: string, updates: Partial<CricketSponsorship>, updatedBy?: string) => void;
+  deleteSponsorship: (id: string, deletedBy?: string) => void;
+  restoreSponsorship: (id: string) => void;
 
   // UI
   setShowPlayerForm: (show: boolean) => void;
@@ -427,16 +429,21 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Sponsorships ──────────────────────────────────────────────────────
 
-  addSponsorship: (seasonId, data) => {
+  addSponsorship: (seasonId, data, createdBy) => {
     const localId = genId();
     const now = new Date().toISOString();
-    const newSponsorship: CricketSponsorship = { id: localId, season_id: seasonId, ...data, created_at: now };
+    const newSponsorship: CricketSponsorship = {
+      id: localId, season_id: seasonId, ...data,
+      created_by: createdBy ?? null, updated_by: null,
+      deleted_at: null, deleted_by: null,
+      created_at: now, updated_at: now,
+    };
     set({ sponsorships: [...get().sponsorships, newSponsorship] });
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_sponsorships')
-        .insert({ season_id: seasonId, ...data })
+        .insert({ season_id: seasonId, ...data, created_by: createdBy ?? null })
         .select().single()
         .then(({ data: row }: { data: CricketSponsorship | null }) => {
           if (row) set({ sponsorships: get().sponsorships.map((s) => s.id === localId ? row : s) });
@@ -444,11 +451,29 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
   },
 
-  deleteSponsorship: (id) => {
-    set({ sponsorships: get().sponsorships.filter((s) => s.id !== id) });
+  updateSponsorship: (id, updates, updatedBy) => {
+    const merged = { ...updates, updated_by: updatedBy ?? null };
+    set({ sponsorships: get().sponsorships.map((s) => s.id === id ? { ...s, ...merged } : s) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_sponsorships').delete().eq('id', id).then(() => {});
+      supabase?.from('cricket_sponsorships').update(merged).eq('id', id).then(() => {});
+    }
+  },
+
+  deleteSponsorship: (id, deletedBy) => {
+    const now = new Date().toISOString();
+    set({ sponsorships: get().sponsorships.map((s) => s.id === id ? { ...s, deleted_at: now, deleted_by: deletedBy ?? null } : s) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_sponsorships').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id).then(() => {});
+    }
+  },
+
+  restoreSponsorship: (id) => {
+    set({ sponsorships: get().sponsorships.map((s) => s.id === id ? { ...s, deleted_at: null, deleted_by: null } : s) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_sponsorships').update({ deleted_at: null, deleted_by: null }).eq('id', id).then(() => {});
     }
   },
 

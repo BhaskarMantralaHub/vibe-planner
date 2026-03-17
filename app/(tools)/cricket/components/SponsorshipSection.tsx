@@ -1,35 +1,94 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { FaHandshake } from 'react-icons/fa';
-import { MdDeleteOutline } from 'react-icons/md';
+import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
+import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
+
+function SponsorMenu({ anchorRef, onEdit, onDelete, onClose }: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onEdit: () => void; onDelete: () => void; onClose: () => void;
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: Math.min(rect.right - 150, window.innerWidth - 158) });
+    }
+    const close = () => onClose();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [anchorRef, onClose]);
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[99]" onClick={onClose} />
+      <div className="fixed z-[100] w-[150px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
+        style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <button onClick={() => { onEdit(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+          style={{ color: 'var(--text)' }}>
+          <MdEdit size={15} style={{ color: 'var(--blue)' }} /> Edit
+        </button>
+        <button onClick={() => { onDelete(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+          style={{ color: 'var(--red)' }}>
+          <MdDeleteOutline size={15} /> Delete
+        </button>
+      </div>
+    </>,
+    document.body,
+  );
+}
 
 export default function SponsorshipSection() {
-  const { userAccess } = useAuthStore();
+  const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { sponsorships, selectedSeasonId, addSponsorship, deleteSponsorship } = useCricketStore();
+  const adminName = (user?.user_metadata?.full_name as string) || user?.email || '';
+  const { sponsorships, selectedSeasonId, addSponsorship, updateSponsorship, deleteSponsorship, restoreSponsorship } = useCricketStore();
 
-  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
-  const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
+  const allSeasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
+  const activeSponsors = allSeasonSponsors.filter((s) => !s.deleted_at);
+  const deletedSponsors = allSeasonSponsors.filter((s) => s.deleted_at);
+  const totalSponsorship = activeSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
+  const resetForm = () => { setName(''); setAmount(''); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setEditingId(null); };
+
   const handleSubmit = () => {
     if (!selectedSeasonId || !name.trim() || !amount) return;
-    addSponsorship(selectedSeasonId, {
-      sponsor_name: name.trim(),
-      amount: parseFloat(amount),
-      sponsored_date: date,
-      notes: notes.trim() || null,
-    });
-    setName(''); setAmount(''); setNotes(''); setShowForm(false);
+    if (editingId) {
+      updateSponsorship(editingId, {
+        sponsor_name: name.trim(), amount: parseFloat(amount),
+        sponsored_date: date, notes: notes.trim() || null,
+      }, adminName);
+    } else {
+      addSponsorship(selectedSeasonId, {
+        sponsor_name: name.trim(), amount: parseFloat(amount),
+        sponsored_date: date, notes: notes.trim() || null,
+      }, adminName);
+    }
+    resetForm(); setShowForm(false);
+  };
+
+  const handleEdit = (s: typeof activeSponsors[0]) => {
+    setEditingId(s.id); setName(s.sponsor_name); setAmount(String(s.amount));
+    setDate(s.sponsored_date); setNotes(s.notes || '');
+    setShowForm(true); setOpenMenu(null);
   };
 
   return (
@@ -43,7 +102,7 @@ export default function SponsorshipSection() {
           )}
         </div>
         {isAdmin && (
-          <button onClick={() => setShowForm(!showForm)}
+          <button onClick={() => { resetForm(); setShowForm(!showForm); }}
             className="flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[13px] font-medium cursor-pointer transition-all flex-shrink-0 whitespace-nowrap"
             style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706' }}>
             {showForm ? '✕ Close' : '+ Add'}
@@ -51,7 +110,7 @@ export default function SponsorshipSection() {
         )}
       </div>
 
-      {/* Add form */}
+      {/* Form */}
       {isAdmin && showForm && (
         <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-3">
           <div>
@@ -82,41 +141,105 @@ export default function SponsorshipSection() {
           <button onClick={handleSubmit} disabled={!name.trim() || !amount}
             className="w-full rounded-xl py-2.5 text-[13px] font-bold text-white cursor-pointer active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', border: '1.5px solid #D97706' }}>
-            Add Sponsorship
+            {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
           </button>
         </div>
       )}
 
-      {/* List */}
-      {seasonSponsors.length === 0 ? (
+      {/* Active List */}
+      {activeSponsors.length === 0 ? (
         <p className="text-[13px] text-[var(--muted)] text-center py-4">No sponsorships yet this season.</p>
       ) : (
         <div className="space-y-2">
-          {seasonSponsors.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 sm:p-3"
+          {activeSponsors.map((s) => (
+            <div key={s.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
               style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--orange)' }}>
-              <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
-                style={{ background: '#D9770615' }}>
-                <FaHandshake size={16} style={{ color: '#D97706' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>
-                <p className="text-[11px] text-[var(--muted)]">
-                  {formatDate(s.sponsored_date)}
-                  {s.notes && <> &middot; {s.notes}</>}
-                </p>
-              </div>
-              <span className="text-[14px] sm:text-[15px] font-extrabold text-[var(--green)] flex-shrink-0">
-                +{formatCurrency(Number(s.amount))}
-              </span>
+
+              {/* Three-dot menu */}
               {isAdmin && (
-                <button onClick={() => deleteSponsorship(s.id)}
-                  className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--red)]/10 hover:text-[var(--red)] transition-colors">
-                  <MdDeleteOutline size={16} />
-                </button>
+                <>
+                  <button ref={openMenu === s.id ? menuBtnRef : null}
+                    onClick={() => setOpenMenu(openMenu === s.id ? null : s.id)}
+                    className="absolute top-2.5 right-2.5 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                    <FaEllipsisV size={12} />
+                  </button>
+                  {openMenu === s.id && (
+                    <SponsorMenu anchorRef={menuBtnRef}
+                      onEdit={() => handleEdit(s)}
+                      onDelete={() => { deleteSponsorship(s.id, adminName); setOpenMenu(null); }}
+                      onClose={() => setOpenMenu(null)} />
+                  )}
+                </>
               )}
+
+              <div className="flex items-start gap-3 pr-8">
+                <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
+                  style={{ background: '#D9770615' }}>
+                  <FaHandshake size={16} style={{ color: '#D97706' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>
+                  <p className="text-[11px] text-[var(--muted)]">
+                    {formatDate(s.sponsored_date)}
+                    {s.notes && <> &middot; {s.notes}</>}
+                  </p>
+                </div>
+                <span className="text-[14px] sm:text-[15px] font-extrabold text-[var(--green)] flex-shrink-0">
+                  +{formatCurrency(Number(s.amount))}
+                </span>
+              </div>
+
+              {/* Audit footer */}
+              <div className="mt-2 pt-2 border-t border-[var(--border)]/30 space-y-0.5 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                    style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>Added</span>
+                  <span className="text-[var(--text)] font-bold">{formatDate(s.created_at?.split('T')[0] || s.sponsored_date)}</span>
+                  {s.created_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{s.created_by}</span></span>}
+                </div>
+                {s.updated_by && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                      style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>Updated</span>
+                    <span className="text-[var(--text)] font-bold">{s.updated_at ? formatDate(s.updated_at.split('T')[0]) : ''}</span>
+                    <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{s.updated_by}</span></span>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Deleted sponsorships */}
+      {isAdmin && deletedSponsors.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-[var(--red)]/20 overflow-hidden">
+          <button onClick={() => setShowDeleted(!showDeleted)}
+            className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            <span className="text-[13px] font-semibold text-[var(--red)]">Deleted ({deletedSponsors.length})</span>
+            <span className="text-[var(--muted)] text-[12px]">{showDeleted ? '▲' : '▼'}</span>
+          </button>
+          {showDeleted && (
+            <div className="px-3 pb-3 space-y-2">
+              {deletedSponsors.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>
+                    <p className="text-[11px] text-[var(--muted)]">
+                      {formatDate(s.sponsored_date)}
+                      {s.deleted_by && <> &middot; Deleted by <span className="font-bold text-[var(--text)]">{s.deleted_by}</span></>}
+                    </p>
+                  </div>
+                  <span className="text-[13px] font-bold text-[var(--text)] flex-shrink-0">{formatCurrency(Number(s.amount))}</span>
+                  <button onClick={() => restoreSponsorship(s.id)}
+                    className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
+                    style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}>
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
