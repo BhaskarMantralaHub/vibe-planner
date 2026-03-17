@@ -104,7 +104,8 @@ interface CricketState {
     data: { category: string; description: string; amount: number; expense_date: string },
   ) => void;
   updateExpense: (id: string, updates: Partial<CricketExpense>) => void;
-  deleteExpense: (id: string) => void;
+  deleteExpense: (id: string, deletedBy?: string) => void;
+  restoreExpense: (id: string) => void;
 
   // Settlements
   addSettlement: (
@@ -316,14 +317,26 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
   },
 
-  deleteExpense: (id) => {
+  deleteExpense: (id, deletedBy) => {
+    const now = new Date().toISOString();
     set({
-      expenses: get().expenses.filter((e) => e.id !== id),
-      splits: get().splits.filter((s) => s.expense_id !== id),
+      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: now, deleted_by: deletedBy ?? null } : e),
     });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_expenses').delete().eq('id', id).then(() => {});
+      supabase?.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id).then(() => {});
+    } else {
+      localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  restoreExpense: (id) => {
+    set({
+      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: null, deleted_by: null } : e),
+    });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_expenses').update({ deleted_at: null, deleted_by: null }).eq('id', id).then(() => {});
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }

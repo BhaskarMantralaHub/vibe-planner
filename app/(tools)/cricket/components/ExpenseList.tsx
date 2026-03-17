@@ -155,14 +155,17 @@ function InlineEditForm({ expense, onSave, onCancel }: {
 export default function ExpenseList() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { expenses, fees, players, selectedSeasonId, deleteExpense, updateExpense, setShowExpenseForm } = useCricketStore();
+  const { expenses, fees, players, selectedSeasonId, deleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string } | null>(null);
   const [editingExpense, setEditingExpense] = useState<string | null>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
-  const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
+  const allSeasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
+  const seasonExpenses = allSeasonExpenses.filter((e) => !e.deleted_at);
+  const deletedExpenses = allSeasonExpenses.filter((e) => e.deleted_at);
+  const [showDeleted, setShowDeleted] = useState(false);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const activePlayers = players.filter((p) => p.is_active);
 
@@ -339,11 +342,57 @@ export default function ExpenseList() {
         )}
       </div>
 
+      {/* Recently Deleted */}
+      {isAdmin && deletedExpenses.length > 0 && (
+        <div className="rounded-2xl border border-[var(--red)]/20 bg-[var(--card)] overflow-hidden min-w-0">
+          <button
+            onClick={() => setShowDeleted(!showDeleted)}
+            className="w-full flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+          >
+            <span className="text-[14px] font-semibold text-[var(--red)]">
+              Recently Deleted ({deletedExpenses.length})
+            </span>
+            <span className="text-[var(--muted)] text-[12px]">{showDeleted ? '▲' : '▼'}</span>
+          </button>
+
+          {showDeleted && (
+            <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2">
+              {deletedExpenses.map((e) => {
+                const cfg = getCategoryConfig(e.category);
+                const Icon = CATEGORY_ICONS[cfg.iconName];
+                return (
+                  <div key={e.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5 opacity-60">
+                    <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${cfg.color}10` }}>
+                      {Icon && <Icon size={16} style={{ color: cfg.color }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-[var(--text)] truncate">{e.description || cfg.label}</p>
+                      <p className="text-[11px] text-[var(--muted)]">
+                        {formatDate(e.expense_date)}
+                        {e.deleted_by && <> &middot; Deleted by <span className="font-semibold">{e.deleted_by}</span></>}
+                      </p>
+                    </div>
+                    <span className="text-[14px] font-bold text-[var(--muted)] flex-shrink-0">{formatCurrency(Number(e.amount))}</span>
+                    <button
+                      onClick={() => restoreExpense(e.id)}
+                      className="flex-shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--green)] border border-[var(--green)]/30 cursor-pointer hover:bg-[var(--green)]/10 transition-colors"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Delete confirmation */}
       {deletingExpense && (
         <DeleteConfirm
           description={deletingExpense.desc}
-          onConfirm={() => { deleteExpense(deletingExpense.id); setDeletingExpense(null); }}
+          onConfirm={() => { deleteExpense(deletingExpense.id, adminName); setDeletingExpense(null); }}
           onCancel={() => setDeletingExpense(null)}
         />
       )}
