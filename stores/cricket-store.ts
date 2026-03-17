@@ -16,6 +16,29 @@ function genId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+function pickCurrentSeason(seasons: CricketSeason[]): string | null {
+  if (seasons.length === 0) return null;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-11
+
+  // Map months to season types: Mar-May=spring, Jun-Sep=summer, Oct-Feb=fall
+  const currentType = month >= 2 && month <= 4 ? 'spring'
+    : month >= 5 && month <= 8 ? 'summer' : 'fall';
+
+  // Try exact match: current type + current year
+  const exact = seasons.find((s) => s.season_type === currentType && s.year === year);
+  if (exact) return exact.id;
+
+  // Try current year, any type
+  const sameYear = seasons.find((s) => s.year === year);
+  if (sameYear) return sameYear.id;
+
+  // Fallback: most recent season
+  const sorted = [...seasons].sort((a, b) => b.year - a.year);
+  return sorted[0]?.id ?? null;
+}
+
 interface LocalData {
   players: CricketPlayer[];
   seasons: CricketSeason[];
@@ -132,12 +155,12 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       );
       const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
 
-      // Auto-select first active season
-      const selectedSeasonId = seasons.find((s) => s.is_active)?.id ?? seasons[0]?.id ?? null;
+      // Auto-select current season (match current month to season type + current year)
+      const selectedSeasonId = pickCurrentSeason(seasons);
       set({ players, seasons, expenses, splits, settlements, selectedSeasonId, loading: false });
     } else {
       const data = localLoad();
-      const selectedSeasonId = data.seasons[0]?.id ?? null;
+      const selectedSeasonId = pickCurrentSeason(data.seasons);
       set({ ...data, selectedSeasonId, loading: false });
     }
   },
