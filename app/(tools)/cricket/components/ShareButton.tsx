@@ -65,9 +65,9 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   return lines.join('\n');
 }
 
-async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
+async function generatePdf(storeState: ReturnType<typeof useCricketStore.getState>) {
   const { jsPDF } = await import('jspdf');
-  const { players, seasons, expenses, fees, selectedSeasonId } = store;
+  const { players, seasons, expenses, fees, selectedSeasonId } = storeState;
   const season = seasons.find((s) => s.id === selectedSeasonId);
   if (!season) return null;
 
@@ -82,212 +82,197 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
   const poolBalance = totalCollected - totalSpent;
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
+  const W = doc.internal.pageSize.getWidth();
+  const M = 15; // margin
+  const TW = W - M * 2; // table width
   let y = 20;
 
-  const addLine = (size: number, weight: string, color: [number, number, number], text: string, align: 'left' | 'center' = 'left', x = 15) => {
-    doc.setFontSize(size);
-    doc.setFont('helvetica', weight);
-    doc.setTextColor(...color);
-    if (align === 'center') {
-      doc.text(text, pageW / 2, y, { align: 'center' });
-    } else {
-      doc.text(text, x, y);
-    }
-    y += size * 0.45 + 1;
+  type RGB = [number, number, number];
+  const BLACK: RGB = [30, 30, 30]; const GRAY: RGB = [100, 100, 100]; const LGRAY: RGB = [150, 150, 150];
+  const GREEN: RGB = [5, 150, 105]; const RED: RGB = [239, 68, 68]; const ORANGE: RGB = [217, 119, 6];
+
+  const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
+    doc.setFontSize(opts?.size ?? 9);
+    doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal');
+    doc.setTextColor(...(opts?.color ?? BLACK));
+    doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
 
-  const addGap = (gap = 4) => { y += gap; };
-  const addSeparator = () => {
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(15, y, pageW - 15, y);
-    y += 4;
+  const gap = (g = 5) => { y += g; };
+  const hr = () => { doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(M, y, W - M, y); y += 5; };
+  const checkPage = (need = 10) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+
+  // Draw a proper table
+  const drawTable = (headers: string[], colX: number[], rows: { cells: string[]; bold?: boolean[]; colors?: (RGB | null)[] }[]) => {
+    const rH = 8; // row height
+    const textY = 5.5; // text offset within row
+
+    // Header
+    doc.setFillColor(240, 240, 240);
+    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
+    doc.rect(M, y, TW, rH, 'FD');
+    headers.forEach((h, i) => {
+      const align = i === headers.length - 1 ? 'right' as const : 'left' as const;
+      const x = i === headers.length - 1 ? W - M - 2 : colX[i];
+      text(h, x, y + textY, { size: 8, bold: true, color: GRAY, align });
+    });
+    y += rH;
+
+    // Rows
+    rows.forEach((row, ri) => {
+      checkPage(rH);
+      if (ri % 2 === 0) { doc.setFillColor(252, 252, 254); doc.rect(M, y, TW, rH, 'F'); }
+      doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.1);
+      doc.line(M, y + rH, W - M, y + rH); // bottom border
+
+      row.cells.forEach((cell, ci) => {
+        const isLast = ci === row.cells.length - 1;
+        const align = isLast ? 'right' as const : 'left' as const;
+        const x = isLast ? W - M - 2 : colX[ci];
+        const isBold = row.bold?.[ci] ?? false;
+        const color = row.colors?.[ci] ?? BLACK;
+        text(cell, x, y + textY, { size: 9, bold: isBold, color, align });
+      });
+      y += rH;
+    });
+
+    // Bottom border
+    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
+    doc.line(M, y, W - M, y);
+    // Left + right borders
+    const tableTop = y - rH * rows.length - rH; // approximate
+    doc.line(M, tableTop, M, y);
+    doc.line(W - M, tableTop, W - M, y);
   };
 
-  const checkPage = () => {
-    if (y > 270) { doc.addPage(); y = 20; }
-  };
-
-  // Header
-  addLine(22, 'bold', [217, 119, 6], TEAM_NAME, 'center');
-  addLine(12, 'normal', [100, 100, 100], season.name + ' — Season Report', 'center');
-  addGap(2);
-  addSeparator();
-
-  // Pool Fund — card style
-  const cardY = y;
-  doc.setFillColor(248, 248, 248);
-  doc.roundedRect(15, cardY, pageW - 30, poolBalance < 0 ? 42 : 35, 3, 3, 'F');
-  doc.setDrawColor(220, 220, 220);
-  doc.roundedRect(15, cardY, pageW - 30, poolBalance < 0 ? 42 : 35, 3, 3, 'S');
-
-  y = cardY + 8;
-  addLine(12, 'bold', [30, 30, 30], 'Pool Fund', 'left', 22);
-
-  // Collected + Spent on same line, spaced
-  doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(5, 150, 105); doc.text(`Collected: ${formatCurrency(totalCollected)}`, 22, y);
-  doc.setTextColor(239, 68, 68); doc.text(`Spent: ${formatCurrency(totalSpent)}`, 90, y);
-
-  const balColor: [number, number, number] = poolBalance >= 0 ? [5, 150, 105] : [239, 68, 68];
-  doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(...balColor);
-  doc.text(`Balance: ${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`, pageW - 22, y, { align: 'right' });
+  // ═══ HEADER ═══
+  text(TEAM_NAME, W / 2, y, { size: 24, bold: true, color: ORANGE, align: 'center' });
+  y += 8;
+  text(`${season.name} — Season Report`, W / 2, y, { size: 11, color: GRAY, align: 'center' });
   y += 6;
+  hr();
+
+  // ═══ POOL FUND CARD ═══
+  const cardH = poolBalance < 0 ? 32 : 25;
+  doc.setFillColor(248, 249, 250);
+  doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
+  doc.roundedRect(M, y, TW, cardH, 2, 2, 'FD');
+
+  const cardInner = y + 7;
+  text('POOL FUND', M + 6, cardInner, { size: 8, bold: true, color: GRAY });
+
+  const statsY = cardInner + 7;
+  text(`Collected`, M + 6, statsY, { size: 8, color: GRAY });
+  text(formatCurrency(totalCollected), M + 6, statsY + 5, { size: 12, bold: true, color: GREEN });
+
+  text(`Spent`, M + 55, statsY, { size: 8, color: GRAY });
+  text(formatCurrency(totalSpent), M + 55, statsY + 5, { size: 12, bold: true, color: RED });
+
+  text(`Balance`, W - M - 6, statsY, { size: 8, color: GRAY, align: 'right' });
+  const balColor: RGB = poolBalance >= 0 ? GREEN : RED;
+  text(`${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`, W - M - 6, statsY + 5, { size: 14, bold: true, color: balColor, align: 'right' });
 
   if (poolBalance < 0 && activePlayers.length > 0) {
     const pp = Math.ceil(Math.abs(poolBalance) / activePlayers.length);
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(239, 68, 68);
-    doc.text(`Insufficient! Suggest collecting ${formatCurrency(pp)} per player (${activePlayers.length} players)`, 22, y);
-    y += 5;
+    text(`Shortfall! Suggest ${formatCurrency(pp)}/player (${activePlayers.length} players)`, M + 6, statsY + 14, { size: 8, color: RED });
   }
 
-  y = cardY + (poolBalance < 0 ? 46 : 39);
-  addGap(2);
+  y += cardH + 8;
 
-  // Fee Status
-  addLine(14, 'bold', [30, 30, 30], `Season Fee — ${formatCurrency(feeAmount)}/player`);
-  addGap(2);
+  // ═══ SEASON FEE TABLE ═══
+  text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M, y, { size: 14, bold: true, color: BLACK });
+  y += 8;
 
-  // Fee table
-  const feeColX = [18, 38, 120, pageW - 20];
-  const feeHeaders = ['#', 'Player', 'Status', 'Paid'];
-  const rowH = 7;
-  const tLeft = 15; const tRight = pageW - 15; const tW = tRight - tLeft;
-
-  // Header row
-  doc.setFillColor(235, 235, 235);
-  doc.rect(tLeft, y, tW, rowH, 'F');
-  doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
-  doc.rect(tLeft, y, tW, rowH, 'S');
-  doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
-  doc.text(feeHeaders[0], feeColX[0], y + 5);
-  doc.text(feeHeaders[1], feeColX[1], y + 5);
-  doc.text(feeHeaders[2], feeColX[2], y + 5);
-  doc.text(feeHeaders[3], feeColX[3], y + 5, { align: 'right' });
-  y += rowH;
-
-  activePlayers.forEach((p, i) => {
-    checkPage();
-    if (i % 2 === 0) { doc.setFillColor(250, 250, 252); doc.rect(tLeft, y, tW, rowH, 'F'); }
-    doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.1);
-    doc.rect(tLeft, y, tW, rowH, 'S');
-
+  const feeRows = activePlayers.map((p) => {
     const fee = feeMap[p.id];
     const paidAmt = fee ? Number(fee.amount_paid) : 0;
     const isPaid = paidAmt >= feeAmount;
     const isPartial = paidAmt > 0 && paidAmt < feeAmount;
     const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Not Paid';
-    const statusColor: [number, number, number] = isPaid ? [5, 150, 105] : isPartial ? [217, 119, 6] : [239, 68, 68];
-
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-    doc.text(p.jersey_number ? `#${p.jersey_number}` : '—', feeColX[0], y + 5);
-    doc.text(p.name + (p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : ''), feeColX[1], y + 5);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...statusColor);
-    doc.text(status, feeColX[2], y + 5);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(40, 40, 40);
-    doc.text(formatCurrency(paidAmt), feeColX[3], y + 5, { align: 'right' });
-    y += rowH;
+    const sColor: RGB = isPaid ? GREEN : isPartial ? ORANGE : RED;
+    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    return {
+      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, status, formatCurrency(paidAmt)],
+      bold: [false, false, true, true],
+      colors: [GRAY, BLACK, sColor, BLACK] as (RGB | null)[],
+    };
   });
+  drawTable(['#', 'Player', 'Status', 'Amount'], [M + 3, M + 18, M + 100, 0], feeRows);
+  gap(8);
 
-  addGap(2);
-  addSeparator();
-
-  // Expenses
+  // ═══ EXPENSES TABLE ═══
   if (seasonExpenses.length) {
-    addLine(14, 'bold', [30, 30, 30], `Expenses — ${formatCurrency(totalSpent)}`);
-    addGap(2);
+    checkPage(30);
+    text(`Expenses — ${formatCurrency(totalSpent)}`, M, y, { size: 14, bold: true, color: BLACK });
+    y += 8;
 
-    const expColX = [18, 62, 130, pageW - 20];
-    const expHeaders = ['Category', 'Description', 'Date', 'Amount'];
-
-    // Header
-    doc.setFillColor(235, 235, 235);
-    doc.rect(tLeft, y, tW, rowH, 'F');
-    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2);
-    doc.rect(tLeft, y, tW, rowH, 'S');
-    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
-    doc.text(expHeaders[0], expColX[0], y + 5);
-    doc.text(expHeaders[1], expColX[1], y + 5);
-    doc.text(expHeaders[2], expColX[2], y + 5);
-    doc.text(expHeaders[3], expColX[3], y + 5, { align: 'right' });
-    y += rowH;
-
-    seasonExpenses.forEach((e, i) => {
-      checkPage();
-      if (i % 2 === 0) { doc.setFillColor(250, 250, 252); doc.rect(tLeft, y, tW, rowH, 'F'); }
-      doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.1);
-      doc.rect(tLeft, y, tW, rowH, 'S');
-
+    const expRows = seasonExpenses.map((e) => {
       const cfg = getCategoryConfig(e.category);
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-      doc.text(cfg.label, expColX[0], y + 5);
-      doc.text((e.description || cfg.label).substring(0, 25), expColX[1], y + 5);
-      doc.text(formatDate(e.expense_date), expColX[2], y + 5);
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(40, 40, 40);
-      doc.text(formatCurrency(Number(e.amount)), expColX[3], y + 5, { align: 'right' });
-      y += rowH;
+      return {
+        cells: [cfg.label, (e.description || cfg.label).substring(0, 28), formatDate(e.expense_date), formatCurrency(Number(e.amount))],
+        bold: [false, false, false, true],
+        colors: [null, null, GRAY, BLACK] as (RGB | null)[],
+      };
     });
+    drawTable(['Category', 'Description', 'Date', 'Amount'], [M + 3, M + 40, M + 110, 0], expRows);
+    gap(8);
 
-    addGap(2);
-    addSeparator();
-
-    // Expense Breakdown (bar chart)
-    checkPage();
-    addLine(14, 'bold', [30, 30, 30], 'Expense Breakdown');
-    addGap(2);
+    // ═══ EXPENSE BREAKDOWN ═══
+    checkPage(30);
+    text('Expense Breakdown', M, y, { size: 14, bold: true, color: BLACK });
+    y += 8;
 
     const catTotals: Record<string, number> = {};
     seasonExpenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount); });
     const catEntries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-    const catColors: Record<string, [number, number, number]> = {
-      ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [245, 158, 11], food: [239, 68, 68], other: [107, 114, 128],
-    };
-    const maxBarW = 80;
+    const catRgb: Record<string, RGB> = { ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [245, 158, 11], food: [239, 68, 68], other: [107, 114, 128] };
+    const barMax = 75;
 
     catEntries.forEach(([cat, total]) => {
-      checkPage();
+      checkPage(10);
       const cfg = getCategoryConfig(cat);
       const pct = Math.round((total / totalSpent) * 100);
-      const barW = (total / totalSpent) * maxBarW;
-      const color = catColors[cat] ?? [107, 114, 128];
+      const barW = Math.max((total / totalSpent) * barMax, 2);
+      const c = catRgb[cat] ?? [107, 114, 128];
 
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-      doc.text(cfg.label, 18, y);
+      text(cfg.label, M + 3, y, { size: 9, color: BLACK });
 
-      // Bar
-      doc.setFillColor(240, 240, 240);
-      doc.rect(65, y - 3, maxBarW, 4, 'F');
-      doc.setFillColor(...color);
-      doc.rect(65, y - 3, barW, 4, 'F');
+      // Background bar
+      doc.setFillColor(235, 235, 235);
+      doc.roundedRect(M + 40, y - 3.5, barMax, 5, 1.5, 1.5, 'F');
+      // Filled bar
+      doc.setFillColor(...c);
+      doc.roundedRect(M + 40, y - 3.5, barW, 5, 1.5, 1.5, 'F');
 
-      // Amount + percentage
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(40, 40, 40);
-      doc.text(`${formatCurrency(total)} (${pct}%)`, 65 + maxBarW + 5, y);
-      y += 7;
+      text(`${formatCurrency(total)} (${pct}%)`, M + 40 + barMax + 4, y, { size: 9, bold: true, color: BLACK });
+      y += 8;
     });
-
-    addGap(2);
-    addSeparator();
+    gap(4);
+    hr();
   }
 
-  // Squad
-  checkPage();
-  addLine(14, 'bold', [30, 30, 30], `Squad — ${activePlayers.length} Players`);
-  addGap(2);
-  activePlayers.forEach((p) => {
-    checkPage();
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
-    const role = p.player_role ? ` — ${p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1)}` : '';
-    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
-    doc.text(`${p.jersey_number ? '#' + p.jersey_number : '•'}  ${p.name}${tag}${role}`, 18, y);
-    y += 5;
-  });
+  // ═══ SQUAD TABLE ═══
+  checkPage(30);
+  text(`Squad — ${activePlayers.length} Players`, M, y, { size: 14, bold: true, color: BLACK });
+  y += 8;
 
-  // Footer
-  addGap(6);
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(150, 150, 150);
-  doc.text(`Generated on ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${TEAM_NAME}`, pageW / 2, y, { align: 'center' });
+  const squadRows = activePlayers.map((p) => {
+    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1) : '—';
+    return {
+      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role],
+      bold: [false, true, false],
+      colors: [ORANGE, BLACK, GRAY] as (RGB | null)[],
+    };
+  });
+  drawTable(['#', 'Player', 'Role'], [M + 3, M + 18, M + 100, 0], squadRows);
+
+  // ═══ FOOTER ═══
+  gap(10);
+  text(
+    `Generated on ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${TEAM_NAME}`,
+    W / 2, y, { size: 8, color: LGRAY, align: 'center' }
+  );
 
   return doc;
 }
