@@ -478,7 +478,11 @@ export default function PlayerManager() {
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
 
             return (
-              <div key={p.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-3 overflow-hidden"
+                style={{
+                  borderColor: isCaptain ? '#D97706' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)',
+                  borderLeftWidth: (isCaptain || isVC || isPlayerAdmin) ? '4px' : '1px',
+                }}>
                 {/* Three-dot menu trigger (admin only) */}
                 {isAdmin && (
                   <>
@@ -524,11 +528,6 @@ export default function PlayerManager() {
                       {isVC && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#6B728015', color: '#6B7280' }}>
                           <FaShieldAlt size={10} /> VC
-                        </span>
-                      )}
-                      {isPlayerAdmin && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#3B82F620', color: '#3B82F6' }}>
-                          <FaShieldAlt size={10} /> Admin
                         </span>
                       )}
                       {rc && (
