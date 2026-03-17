@@ -316,8 +316,8 @@ export default function ExpenseList() {
                             style={{ background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)' }}>
                             Added
                           </span>
-                          <span className="text-[var(--text)] font-medium">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
-                          {adminName && <span className="text-[var(--muted)]">by <span className="text-[var(--text)] font-medium">{adminName}</span></span>}
+                          <span className="text-[var(--text)] font-bold">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
+                          {adminName && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{adminName}</span></span>}
                         </div>
                         {e.updated_at && e.updated_at !== e.created_at && (
                           <div className="flex items-center gap-2">
@@ -325,8 +325,8 @@ export default function ExpenseList() {
                               style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}>
                               Updated
                             </span>
-                            <span className="text-[var(--text)] font-medium">{formatDate(e.updated_at.split('T')[0])}</span>
-                            {adminName && <span className="text-[var(--muted)]">by <span className="text-[var(--text)] font-medium">{adminName}</span></span>}
+                            <span className="text-[var(--text)] font-bold">{formatDate(e.updated_at.split('T')[0])}</span>
+                            {adminName && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{adminName}</span></span>}
                           </div>
                         )}
                       </div>
