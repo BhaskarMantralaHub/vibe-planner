@@ -93,6 +93,7 @@ interface CricketState {
   addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; cricclub_id: string | null; shirt_size: string | null; email: string | null; designation: string | null }) => void;
   updatePlayer: (id: string, updates: Partial<CricketPlayer>) => void;
   removePlayer: (id: string) => void;
+  restorePlayer: (id: string) => void;
 
   // Seasons
   addSeason: (userId: string, data: { name: string; year: number; season_type: string }) => void;
@@ -235,11 +236,20 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   },
 
   removePlayer: (id) => {
-    // Soft deactivate
     set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: false } : p) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players').update({ is_active: false }).eq('id', id).then(() => {});
+    } else {
+      localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  restorePlayer: (id) => {
+    set({ players: get().players.map((p) => p.id === id ? { ...p, is_active: true } : p) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_players').update({ is_active: true }).eq('id', id).then(() => {});
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }

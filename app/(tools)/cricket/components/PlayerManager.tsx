@@ -149,8 +149,10 @@ export default function PlayerManager() {
   const { user } = useAuthStore();
   const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { players, addPlayer, updatePlayer, removePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer } = useCricketStore();
+  const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer } = useCricketStore();
   const activePlayers = [...players.filter((p) => p.is_active)].sort(playerSort);
+  const removedPlayers = players.filter((p) => !p.is_active);
+  const [showRemoved, setShowRemoved] = useState(false);
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
@@ -570,6 +572,43 @@ export default function PlayerManager() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Past Players */}
+      {isAdmin && removedPlayers.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
+          <button onClick={() => setShowRemoved(!showRemoved)}
+            className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            <span className="text-[13px] font-semibold text-[var(--muted)]">Past Players ({removedPlayers.length})</span>
+            <span className="text-[var(--muted)] text-[12px]">{showRemoved ? '▲' : '▼'}</span>
+          </button>
+          {showRemoved && (
+            <div className="px-3 pb-3 space-y-2">
+              {removedPlayers.map((p) => {
+                const rc = roleConfig[p.player_role ?? ''];
+                return (
+                  <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
+                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-lg text-[12px] font-bold"
+                      style={{ backgroundColor: '#F59E0B10', color: '#D9770660', border: '1.5px solid #F59E0B20' }}>
+                      {p.jersey_number ? `#${p.jersey_number}` : '—'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-[var(--muted)] truncate">{p.name}</p>
+                      {rc && (
+                        <span className="text-[10px] text-[var(--dim)]">{rc.label}</span>
+                      )}
+                    </div>
+                    <button onClick={() => restorePlayer(p.id)}
+                      className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
+                      style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}>
+                      Restore
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
