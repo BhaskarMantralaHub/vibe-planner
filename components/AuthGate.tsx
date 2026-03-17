@@ -7,67 +7,6 @@ import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
 import { FaBullseye, FaStar } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 
-import { getSupabaseClient } from '@/lib/supabase/client';
-
-type AuthMode = 'login' | 'signup' | 'check-email' | 'forgot' | 'reset-sent' | 'pending-approval';
-
-function PendingScreen({ config, authMode, setAuthMode }: {
-  config: { icon: string; title: string; message: string };
-  authMode: string;
-  setAuthMode: (mode: AuthMode) => void;
-}) {
-  const init = useAuthStore((s) => s.init);
-
-  // Auto-poll for approval every 10 seconds, stop after 5 minutes
-  useEffect(() => {
-    if (authMode !== 'pending-approval') return;
-    let attempts = 0;
-    const maxAttempts = 30; // 30 × 10s = 5 minutes
-
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts >= maxAttempts) { clearInterval(poll); return; }
-
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('approved')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile?.approved) {
-        clearInterval(poll);
-        init();
-      }
-    }, 10000);
-
-    return () => clearInterval(poll);
-  }, [authMode, init]);
-
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center px-4">
-      <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-        <div className="mb-4 text-4xl">{config.icon}</div>
-        <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
-        <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
-        {authMode === 'pending-approval' && (
-          <p className="mb-4 text-[12px] text-[var(--dim)]">This page will auto-refresh once approved.</p>
-        )}
-        <button
-          onClick={() => setAuthMode('login')}
-          className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
-        >
-          Back to Login
-        </button>
-      </div>
-    </div>
-  );
-}
-
 type AuthGateVariant = 'toolkit' | 'cricket';
 
 /* ── Role icon + color config for signup chip buttons ── */
@@ -170,7 +109,19 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
       'pending-approval': { icon: '⏳', title: 'Pending Approval', message: 'Your signup request has been sent to the team admin. You\u0027ll be able to log in once approved.' },
     }[authMode];
     return (
-      <PendingScreen config={config} authMode={authMode} setAuthMode={setAuthMode} />
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+          <div className="mb-4 text-4xl">{config.icon}</div>
+          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
+          <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
+          <button
+            onClick={() => setAuthMode('login')}
+            className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
     );
   }
 
