@@ -36,14 +36,14 @@ export default function ExpenseList() {
             <FaWallet size={18} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Team Pool Fund</p>
-            <p className="text-[22px] sm:text-[26px] font-bold" style={{ color: isLow ? 'var(--red)' : 'var(--green)' }}>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)] mb-0.5">Team Pool Fund</p>
+            <p className="text-[28px] sm:text-[34px] font-extrabold leading-tight" style={{ color: isLow ? 'var(--red)' : 'var(--green)' }}>
               {isLow ? '-' : ''}{formatCurrency(poolBalance)}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-4 text-[12px] sm:text-[13px]">
+        <div className="flex gap-4 text-[13px] sm:text-[14px] font-semibold">
           <span className="text-[var(--green)]">Collected: {formatCurrency(totalCollected)}</span>
           <span className="text-[var(--red)]">Spent: {formatCurrency(totalSpent)}</span>
         </div>
@@ -54,9 +54,9 @@ export default function ExpenseList() {
             style={{ backgroundColor: '#EF444410', border: '1px solid #EF444425' }}>
             <FaExclamationTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
             <div>
-              <p className="text-[13px] font-semibold text-[var(--text)]">Insufficient funds</p>
-              <p className="text-[12px] text-[var(--muted)]">
-                Pool is short by {formatCurrency(poolBalance)}. Suggest collecting <b>{formatCurrency(perPerson)}</b> per player ({activePlayers.length} players) to cover the deficit.
+              <p className="text-[14px] font-bold text-[var(--text)]">Insufficient funds</p>
+              <p className="text-[13px] text-[var(--muted)] leading-relaxed">
+                Pool is short by <span className="font-semibold text-[var(--red)]">{formatCurrency(poolBalance)}</span>. Suggest collecting <span className="font-bold text-[var(--text)]">{formatCurrency(perPerson)}</span> per player ({activePlayers.length} players) to cover the deficit.
               </p>
             </div>
           </div>
@@ -68,9 +68,9 @@ export default function ExpenseList() {
             style={{ backgroundColor: '#05966910', border: '1px solid #05966925' }}>
             <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#059669' }} />
             <div>
-              <p className="text-[13px] font-semibold text-[var(--text)]">Funds available</p>
-              <p className="text-[12px] text-[var(--muted)]">
-                {formatCurrency(poolBalance)} remaining in the pool. This will roll over to next season.
+              <p className="text-[14px] font-bold text-[var(--text)]">Funds available</p>
+              <p className="text-[13px] text-[var(--muted)] leading-relaxed">
+                <span className="font-semibold text-[var(--green)]">{formatCurrency(poolBalance)}</span> remaining in the pool. This will roll over to next season.
               </p>
             </div>
           </div>
@@ -80,11 +80,11 @@ export default function ExpenseList() {
       {/* Expense list */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 overflow-hidden min-w-0">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[15px] sm:text-[16px] font-semibold text-[var(--text)]">
-            Expenses <span className="text-[var(--muted)] font-normal">({seasonExpenses.length})</span>
+          <h3 className="text-[16px] sm:text-[18px] font-bold text-[var(--text)]">
+            Expenses <span className="text-[var(--muted)] font-normal text-[14px]">({seasonExpenses.length})</span>
           </h3>
           {seasonExpenses.length > 0 && (
-            <span className="text-[14px] font-bold text-[var(--red)]">-{formatCurrency(totalSpent)}</span>
+            <span className="text-[15px] font-extrabold text-[var(--red)]">-{formatCurrency(totalSpent)}</span>
           )}
         </div>
 
