@@ -12,6 +12,8 @@ import ExpenseList from './components/ExpenseList';
 import DuesSummary from './components/DuesSummary';
 import SettleUpModal from './components/SettleUpModal';
 import ShareButton from './components/ShareButton';
+import CategoryDonut from './components/CategoryDonut';
+import MonthlyBar from './components/MonthlyBar';
 
 function CricketDashboard() {
   const { user } = useAuthStore();
@@ -78,6 +80,8 @@ function CricketDashboard() {
             </div>
             <div className="space-y-5">
               <DuesSummary />
+              <CategoryDonut />
+              <MonthlyBar />
               <ShareButton />
             </div>
           </div>
