@@ -8,10 +8,32 @@ import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
+type PlayerMeta = {
+  jersey_number?: number;
+  player_role?: string;
+  batting_style?: string;
+  bowling_style?: string;
+  shirt_size?: string;
+};
+
+type PendingUser = {
+  id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  player_meta: PlayerMeta | null;
+  access: string[];
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  batsman: 'Batsman', bowler: 'Bowler', 'all-rounder': 'All-Rounder', keeper: 'Keeper',
+};
+
 function PendingApprovals() {
   const { user, userAccess } = useAuthStore();
-  const [pending, setPending] = useState<{ id: string; email: string; full_name: string; created_at: string }[]>([]);
+  const [pending, setPending] = useState<PendingUser[]>([]);
   const [showPopup, setShowPopup] = useState(false);
+  const [approving, setApproving] = useState<string | null>(null);
   const isAdmin = userAccess.includes('admin');
 
   useEffect(() => {
@@ -21,20 +43,43 @@ function PendingApprovals() {
 
     supabase
       .from('profiles')
-      .select('id, email, full_name, created_at')
+      .select('id, email, full_name, created_at, player_meta, access')
       .eq('approved', false)
       .eq('disabled', false)
       .order('created_at', { ascending: false })
-      .then(({ data }: { data: { id: string; email: string; full_name: string; created_at: string }[] | null }) => {
+      .then(({ data }: { data: PendingUser[] | null }) => {
         setPending(data ?? []);
       });
   }, [user, isAdmin]);
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (p: PendingUser) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    await supabase.from('profiles').update({ approved: true }).eq('id', id);
-    setPending((prev) => prev.filter((p) => p.id !== id));
+    setApproving(p.id);
+
+    try {
+      // If user has cricket access and player_meta, auto-create cricket_players record
+      const access: string[] = p.access ?? [];
+      if (access.includes('cricket') && p.player_meta) {
+        const meta = p.player_meta;
+        await supabase.from('cricket_players').insert({
+          user_id: p.id,
+          name: p.full_name || p.email,
+          jersey_number: meta.jersey_number ?? null,
+          player_role: meta.player_role ?? null,
+          batting_style: meta.batting_style ?? null,
+          bowling_style: meta.bowling_style ?? null,
+          shirt_size: meta.shirt_size ?? null,
+          email: p.email,
+          is_active: true,
+        });
+      }
+
+      await supabase.from('profiles').update({ approved: true }).eq('id', p.id);
+      setPending((prev) => prev.filter((u) => u.id !== p.id));
+    } finally {
+      setApproving(null);
+    }
   };
 
   const handleReject = async (id: string) => {
@@ -66,40 +111,79 @@ function PendingApprovals() {
       {showPopup && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowPopup(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-[320px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl animate-[scaleIn_0.15s]">
+          <div className="absolute right-0 top-full mt-2 z-50 w-[340px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl animate-[scaleIn_0.15s]">
             <div className="p-4 border-b border-[var(--border)]">
               <h3 className="text-[14px] font-semibold text-[var(--text)]">Pending Approvals</h3>
               <p className="text-[12px] text-[var(--muted)]">{pending.length} cricket signup{pending.length !== 1 ? 's' : ''} awaiting approval</p>
             </div>
-            <div className="max-h-[300px] overflow-y-auto">
-              {pending.map((p) => (
-                <div key={p.id} className="p-3 border-b border-[var(--border)]/50 last:border-b-0">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, var(--orange), var(--red))' }}>
-                      {(p.full_name || p.email || '?')[0].toUpperCase()}
+            <div className="max-h-[400px] overflow-y-auto">
+              {pending.map((p) => {
+                const meta = p.player_meta;
+                return (
+                  <div key={p.id} className="p-3 border-b border-[var(--border)]/50 last:border-b-0">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, var(--orange), var(--red))' }}>
+                        {(p.full_name || p.email || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-[var(--text)] truncate">{p.full_name || 'No name'}</div>
+                        <div className="text-[11px] text-[var(--muted)] truncate">{p.email}</div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-medium text-[var(--text)] truncate">{p.full_name || 'No name'}</div>
-                      <div className="text-[11px] text-[var(--muted)] truncate">{p.email}</div>
+                    {/* Player meta info */}
+                    {meta && (meta.player_role || meta.jersey_number) && (
+                      <div className="flex flex-wrap gap-1.5 mt-2 ml-12">
+                        {meta.jersey_number != null && (
+                          <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: '#F59E0B20', color: '#D97706' }}>
+                            #{meta.jersey_number}
+                          </span>
+                        )}
+                        {meta.player_role && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
+                            style={{ background: '#F59E0B15', color: '#D97706' }}>
+                            {ROLE_LABELS[meta.player_role] ?? meta.player_role}
+                          </span>
+                        )}
+                        {meta.batting_style && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
+                            style={{ background: 'color-mix(in srgb, var(--blue) 15%, transparent)', color: 'var(--blue)' }}>
+                            {meta.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
+                          </span>
+                        )}
+                        {meta.bowling_style && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
+                            style={{ background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }}>
+                            {meta.bowling_style.charAt(0).toUpperCase() + meta.bowling_style.slice(1)}
+                          </span>
+                        )}
+                        {meta.shirt_size && (
+                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
+                            style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
+                            {meta.shirt_size}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2 mt-2 ml-12">
+                      <button
+                        onClick={() => handleApprove(p)}
+                        disabled={approving === p.id}
+                        className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {approving === p.id ? 'Approving...' : 'Approve'}
+                      </button>
+                      <button
+                        onClick={() => handleReject(p.id)}
+                        className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-[var(--red)] border border-[var(--red)]/30 cursor-pointer hover:bg-[var(--red)]/10 transition-all"
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-2 ml-12">
-                    <button
-                      onClick={() => handleApprove(p.id)}
-                      className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90 transition-all"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(p.id)}
-                      className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-[var(--red)] border border-[var(--red)]/30 cursor-pointer hover:bg-[var(--red)]/10 transition-all"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>

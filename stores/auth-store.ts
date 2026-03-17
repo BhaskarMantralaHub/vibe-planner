@@ -9,6 +9,14 @@ import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 
 type AuthMode = 'login' | 'signup' | 'check-email' | 'forgot' | 'reset-sent' | 'pending-approval';
 
+export interface PlayerSignupData {
+  jersey_number?: number;
+  player_role?: string;
+  batting_style?: string;
+  bowling_style?: string;
+  shirt_size?: string;
+}
+
 interface AuthState {
   user: User | null;
   loading: boolean;
@@ -23,7 +31,7 @@ interface AuthState {
   init: () => void;
   updatePassword: (password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, access?: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   setAuthMode: (mode: AuthMode) => void;
@@ -201,7 +209,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ syncing: false });
   },
 
-  signup: async (email: string, password: string, name: string, access?: string) => {
+  signup: async (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData) => {
     set({ authError: '', syncing: true });
 
     // Check max users from app_settings (no auth needed)
@@ -251,10 +259,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const role = access || 'toolkit';
+    const metadata: Record<string, unknown> = {
+      full_name: name.trim(),
+      access: role,
+      approved: role !== 'cricket',
+    };
+    // Include player data in metadata for cricket signups
+    if (playerData) {
+      if (playerData.jersey_number != null) metadata.jersey_number = playerData.jersey_number;
+      if (playerData.player_role) metadata.player_role = playerData.player_role;
+      if (playerData.batting_style) metadata.batting_style = playerData.batting_style;
+      if (playerData.bowling_style) metadata.bowling_style = playerData.bowling_style;
+      if (playerData.shirt_size) metadata.shirt_size = playerData.shirt_size;
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name.trim(), access: role, approved: role !== 'cricket' } },
+      options: { data: metadata },
     });
 
     if (error) {

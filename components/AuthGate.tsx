@@ -2,8 +2,81 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
+import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '@/app/(tools)/cricket/lib/constants';
+import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
+import { FaBullseye, FaStar } from 'react-icons/fa';
+import { MdSportsCricket } from 'react-icons/md';
+
+import { getSupabaseClient } from '@/lib/supabase/client';
+
+type AuthMode = 'login' | 'signup' | 'check-email' | 'forgot' | 'reset-sent' | 'pending-approval';
+
+function PendingScreen({ config, authMode, setAuthMode }: {
+  config: { icon: string; title: string; message: string };
+  authMode: string;
+  setAuthMode: (mode: AuthMode) => void;
+}) {
+  const init = useAuthStore((s) => s.init);
+
+  // Auto-poll for approval every 10 seconds, stop after 5 minutes
+  useEffect(() => {
+    if (authMode !== 'pending-approval') return;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 × 10s = 5 minutes
+
+    const poll = setInterval(async () => {
+      attempts++;
+      if (attempts >= maxAttempts) { clearInterval(poll); return; }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('approved')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.approved) {
+        clearInterval(poll);
+        init();
+      }
+    }, 10000);
+
+    return () => clearInterval(poll);
+  }, [authMode, init]);
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+        <div className="mb-4 text-4xl">{config.icon}</div>
+        <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
+        <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
+        {authMode === 'pending-approval' && (
+          <p className="mb-4 text-[12px] text-[var(--dim)]">This page will auto-refresh once approved.</p>
+        )}
+        <button
+          onClick={() => setAuthMode('login')}
+          className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
+        >
+          Back to Login
+        </button>
+      </div>
+    </div>
+  );
+}
 
 type AuthGateVariant = 'toolkit' | 'cricket';
+
+/* ── Role icon + color config for signup chip buttons ── */
+const signupRoleConfig: Record<string, { icon: React.ReactNode; color: string }> = {
+  batsman: { icon: <GiCricketBat size={13} />, color: '#F59E0B' },
+  bowler: { icon: <FaBullseye size={12} />, color: '#3B82F6' },
+  'all-rounder': { icon: <FaStar size={12} />, color: '#D97706' },
+  keeper: { icon: <GiBaseballGlove size={13} />, color: '#16A34A' },
+};
 
 const VARIANT_CONFIG = {
   toolkit: {
@@ -55,6 +128,24 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
 
+  // Cricket player fields
+  const [jerseyNumber, setJerseyNumber] = useState('');
+  const [playerRole, setPlayerRole] = useState('');
+  const [battingStyle, setBattingStyle] = useState('');
+  const [bowlingStyle, setBowlingStyle] = useState('');
+  const [shirtSize, setShirtSize] = useState('');
+
+  const isCricketSignup = variant === 'cricket' && authMode === 'signup';
+  const showBatting = ['batsman', 'all-rounder', 'keeper'].includes(playerRole);
+  const showBowling = ['bowler', 'all-rounder'].includes(playerRole);
+
+  const handleRoleChange = (role: string) => {
+    const newRole = playerRole === role ? '' : role;
+    setPlayerRole(newRole);
+    if (!['batsman', 'all-rounder', 'keeper'].includes(newRole)) setBattingStyle('');
+    if (!['bowler', 'all-rounder'].includes(newRole)) setBowlingStyle('');
+  };
+
   useEffect(() => {
     init();
   }, [init]);
@@ -79,19 +170,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
       'pending-approval': { icon: '⏳', title: 'Pending Approval', message: 'Your signup request has been sent to the team admin. You\u0027ll be able to log in once approved.' },
     }[authMode];
     return (
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-          <div className="mb-4 text-4xl">{config.icon}</div>
-          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
-          <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
-          <button
-            onClick={() => setAuthMode('login')}
-            className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
-          >
-            Back to Login
-          </button>
-        </div>
-      </div>
+      <PendingScreen config={config} authMode={authMode} setAuthMode={setAuthMode} />
     );
   }
 
@@ -147,13 +226,24 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
 
   const isLogin = authMode === 'login';
 
+  const resetPlayerFields = () => {
+    setJerseyNumber(''); setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setShirtSize('');
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     clearError();
     if (isLogin) {
       await login(email, password);
     } else {
-      await signup(email, password, name, v.access);
+      const playerData = isCricketSignup ? {
+        jersey_number: jerseyNumber ? Number(jerseyNumber) : undefined,
+        player_role: playerRole || undefined,
+        batting_style: showBatting ? battingStyle || undefined : undefined,
+        bowling_style: showBowling ? bowlingStyle || undefined : undefined,
+        shirt_size: shirtSize || undefined,
+      } : undefined;
+      await signup(email, password, name, v.access, playerData);
     }
   }
 
@@ -240,7 +330,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 />
               </div>
 
-              <div className="mb-5">
+              <div className={isCricketSignup ? 'mb-3' : 'mb-5'}>
                 <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Password</label>
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -248,6 +338,98 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                   placeholder="••••••••" autoComplete={isLogin ? 'current-password' : 'new-password'}
                 />
               </div>
+
+              {/* ── Cricket player fields (signup only) ── */}
+              {isCricketSignup && (
+                <div className="mb-5 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Player Info</p>
+
+                  {/* Jersey Number */}
+                  <div>
+                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted)]">Jersey Number</label>
+                    <input
+                      type="number" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)}
+                      className={`w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none ${v.focusColor} transition-all`}
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  {/* Role (required) */}
+                  <div>
+                    <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Role *</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PLAYER_ROLES.map((r) => {
+                        const rc = signupRoleConfig[r.key];
+                        const selected = playerRole === r.key;
+                        return (
+                          <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium cursor-pointer transition-all border"
+                            style={{ backgroundColor: selected ? rc?.color ?? 'var(--orange)' : 'transparent', borderColor: selected ? rc?.color ?? 'var(--orange)' : 'var(--border)', color: selected ? 'white' : 'var(--text)' }}>
+                            {rc?.icon} {r.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Batting + Bowling (conditional) */}
+                  {(showBatting || showBowling) && (
+                    <div className={`grid gap-3 ${showBatting && showBowling ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {showBatting && (
+                        <div>
+                          <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Batting *</label>
+                          <div className="flex flex-col gap-1.5">
+                            {BATTING_STYLES.map((s) => {
+                              const selected = battingStyle === s.key;
+                              return (
+                                <button key={s.key} type="button" onClick={() => setBattingStyle(selected ? '' : s.key)}
+                                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium cursor-pointer transition-all border"
+                                  style={{ backgroundColor: selected ? 'var(--blue)' : 'transparent', borderColor: selected ? 'var(--blue)' : 'var(--border)', color: selected ? 'white' : 'var(--text)' }}>
+                                  <MdSportsCricket size={14} /> {s.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {showBowling && (
+                        <div>
+                          <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Bowling *</label>
+                          <div className="flex flex-col gap-1.5">
+                            {BOWLING_STYLES.map((s) => {
+                              const selected = bowlingStyle === s.key;
+                              return (
+                                <button key={s.key} type="button" onClick={() => setBowlingStyle(selected ? '' : s.key)}
+                                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium cursor-pointer transition-all border"
+                                  style={{ backgroundColor: selected ? 'var(--green)' : 'transparent', borderColor: selected ? 'var(--green)' : 'var(--border)', color: selected ? 'white' : 'var(--text)' }}>
+                                  <GiTennisBall size={13} /> {s.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Shirt Size */}
+                  <div>
+                    <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Shirt Size</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SHIRT_SIZES.map((s) => {
+                        const selected = shirtSize === s.key;
+                        return (
+                          <button key={s.key} type="button" onClick={() => setShirtSize(selected ? '' : s.key)}
+                            className="h-7 w-9 rounded-lg text-[11px] font-medium cursor-pointer transition-all border"
+                            style={{ backgroundColor: selected ? s.color : 'transparent', borderColor: selected ? s.color : 'var(--border)', color: selected ? 'white' : 'var(--muted)' }}>
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit" disabled={syncing}
@@ -276,7 +458,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
                 <button
                   type="button"
-                  onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); clearError(); setEmail(''); setPassword(''); setName(''); }}
+                  onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); clearError(); setEmail(''); setPassword(''); setName(''); resetPlayerFields(); }}
                   className="cursor-pointer font-medium hover:underline"
                   style={{ color: v.accentColor }}
                 >
