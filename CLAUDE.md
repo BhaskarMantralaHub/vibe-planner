@@ -105,8 +105,10 @@ Table `cricket_seasons`: `id`, `user_id`, `name`, `year`, `season_type`, `share_
 Table `cricket_expenses`: `id`, `user_id`, `season_id`, `paid_by` (player FK), `category`, `description`, `amount` (NUMERIC), `expense_date`, `created_at`, `updated_at`.
 Table `cricket_expense_splits`: `id`, `expense_id`, `player_id`, `share_amount` (NUMERIC). Junction table for equal splits.
 Table `cricket_settlements`: `id`, `user_id`, `season_id`, `from_player`, `to_player`, `amount`, `settled_date`, `created_at`.
+Table `cricket_season_fees`: `id`, `season_id`, `player_id`, `amount_paid` (NUMERIC), `paid_date`, `created_at`. Tracks per-player season fee payments (full/partial).
 
 RPC: `get_public_season_data(token UUID)` — SECURITY DEFINER function returning all season data as JSON for the public share page.
+RPC: `check_cricket_player_email(check_email TEXT)` — checks if a player exists with given email (for auto-approve on signup).
 
 Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 

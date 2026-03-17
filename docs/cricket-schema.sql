@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS cricket_seasons (
   year        INTEGER NOT NULL,
   season_type TEXT,
   share_token UUID DEFAULT gen_random_uuid(),
+  fee_amount  NUMERIC(10,2) DEFAULT 60,
   is_active   BOOLEAN DEFAULT true,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()
@@ -133,9 +134,43 @@ CREATE POLICY "Cricket users can read settlements" ON cricket_settlements FOR SE
 CREATE POLICY "Admin can manage settlements" ON cricket_settlements FOR INSERT WITH CHECK (is_cricket_admin());
 CREATE POLICY "Admin can delete settlements" ON cricket_settlements FOR DELETE USING (is_cricket_admin());
 
+-- ── Season Fees ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cricket_season_fees (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  season_id   UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  player_id   UUID NOT NULL REFERENCES cricket_players(id) ON DELETE CASCADE,
+  amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0,
+  paid_date   DATE,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(season_id, player_id)
+);
+
+ALTER TABLE cricket_season_fees ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read fees" ON cricket_season_fees FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Admin can manage fees" ON cricket_season_fees FOR INSERT WITH CHECK (is_cricket_admin());
+CREATE POLICY "Admin can update fees" ON cricket_season_fees FOR UPDATE USING (is_cricket_admin());
+CREATE POLICY "Admin can delete fees" ON cricket_season_fees FOR DELETE USING (is_cricket_admin());
+
 -- ── Profiles: Role-based access columns ─────────────────────
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS access text[] DEFAULT '{toolkit}';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approved boolean DEFAULT true;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS player_meta JSONB DEFAULT NULL;
+
+-- ── Auto-approve: check if player email exists ───────────────
+CREATE OR REPLACE FUNCTION check_cricket_player_email(check_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM cricket_players WHERE email = check_email AND is_active = true
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION check_cricket_player_email(TEXT) TO anon;
 
 -- ── Public season data function (bypasses RLS) ───────────────
 CREATE OR REPLACE FUNCTION get_public_season_data(token UUID)

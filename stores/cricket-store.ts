@@ -94,6 +94,7 @@ interface CricketState {
 
   // Seasons
   addSeason: (userId: string, data: { name: string; year: number; season_type: string }) => void;
+  updateSeason: (id: string, updates: Partial<CricketSeason>) => void;
   setSelectedSeason: (id: string | null) => void;
 
   // Expenses
@@ -258,6 +259,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  updateSeason: (id, updates) => {
+    set({ seasons: get().seasons.map((s) => s.id === id ? { ...s, ...updates } : s) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_seasons').update(updates).eq('id', id).then(() => {});
     }
   },
 
