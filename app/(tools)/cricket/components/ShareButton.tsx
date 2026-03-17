@@ -144,7 +144,21 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     doc.line(M, y, W - M, y);
   };
 
-  // ═══ HEADER ═══
+  // ═══ HEADER WITH LOGO ═══
+  try {
+    const logoRes = await fetch('/cricket-logo.png');
+    const logoBlob = await logoRes.blob();
+    const logoBase64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(logoBlob);
+    });
+    const logoSize = 20;
+    doc.addImage(logoBase64, 'PNG', W / 2 - logoSize / 2, y - 2, logoSize, logoSize);
+    y += logoSize + 3;
+  } catch {
+    // Logo failed to load — skip it
+  }
   text(TEAM_NAME, W / 2, y, { size: 26, bold: true, color: ORANGE, align: 'center' });
   y += 10;
   text(`${season.name} — Season Report`, W / 2, y, { size: 12, color: GRAY, align: 'center' });
