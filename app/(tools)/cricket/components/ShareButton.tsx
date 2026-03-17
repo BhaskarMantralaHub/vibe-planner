@@ -226,9 +226,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   // ═══ SEASON FEE TABLE ═══
   const feeStartY = y;
-  text('SEASON FEES', M, y, { size: 9, bold: true, color: GRAY });
+  text('SEASON FEES', M + 4, y, { size: 9, bold: true, color: GRAY });
   y += 5;
-  text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M, y, { size: 14, bold: true, color: BLACK });
+  text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M + 4, y, { size: 14, bold: true, color: BLACK });
   y += 8;
 
   const feeRows = activePlayers.map((p) => {
@@ -253,9 +253,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   if (seasonSponsors.length) {
     checkPage(30);
     const sponsorStartY = y;
-    text('SPONSORSHIPS', M, y, { size: 9, bold: true, color: GRAY });
+    text('SPONSORSHIPS', M + 4, y, { size: 9, bold: true, color: GRAY });
     y += 5;
-    text(`Sponsorships — ${formatCurrency(totalSponsorship)}`, M, y, { size: 14, bold: true, color: BLACK });
+    text(`Sponsorships — ${formatCurrency(totalSponsorship)}`, M + 4, y, { size: 14, bold: true, color: BLACK });
     y += 8;
 
     const sponsorRows = seasonSponsors.map((s) => ({
@@ -272,9 +272,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   if (seasonExpenses.length) {
     checkPage(30);
     const expStartY = y;
-    text('EXPENSES', M, y, { size: 9, bold: true, color: GRAY });
+    text('EXPENSES', M + 4, y, { size: 9, bold: true, color: GRAY });
     y += 5;
-    text(`Expenses — ${formatCurrency(totalSpent)}`, M, y, { size: 14, bold: true, color: BLACK });
+    text(`Expenses — ${formatCurrency(totalSpent)}`, M + 4, y, { size: 14, bold: true, color: BLACK });
     y += 8;
 
     const expRows = seasonExpenses.map((e) => {
@@ -290,7 +290,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
     // ═══ EXPENSE BREAKDOWN ═══
     checkPage(30);
-    text('Expense Breakdown', M, y, { size: 14, bold: true, color: BLACK });
+    text('Expense Breakdown', M + 4, y, { size: 14, bold: true, color: BLACK });
     y += 8;
 
     const catTotals: Record<string, number> = {};
@@ -325,9 +325,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ SQUAD TABLE ═══
   checkPage(30);
   const squadStartY = y;
-  text('TEAM SQUAD', M, y, { size: 9, bold: true, color: GRAY });
+  text('TEAM SQUAD', M + 4, y, { size: 9, bold: true, color: GRAY });
   y += 5;
-  text(`Squad — ${activePlayers.length} Players`, M, y, { size: 14, bold: true, color: BLACK });
+  text(`Squad — ${activePlayers.length} Players`, M + 4, y, { size: 14, bold: true, color: BLACK });
   y += 8;
 
   const squadRows = activePlayers.map((p) => {
