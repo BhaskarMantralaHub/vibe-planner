@@ -155,6 +155,21 @@ export default function PlayerManager() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
+  const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
+
+  // Load which player emails have admin access
+  useEffect(() => {
+    if (!isAdmin) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    supabase.from('profiles').select('email, access').then(({ data }: { data: { email: string; access: string[] }[] | null }) => {
+      if (!data) return;
+      const emails = new Set(
+        data.filter((p) => p.access?.includes('admin')).map((p) => p.email.toLowerCase())
+      );
+      setAdminEmails(emails);
+    });
+  }, [isAdmin, adminModal]); // re-fetch after granting/revoking
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
@@ -249,7 +264,7 @@ export default function PlayerManager() {
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, access')
-      .eq('email', p.email)
+      .ilike('email', p.email!)
       .single();
 
     if (!profile) {
@@ -270,16 +285,18 @@ export default function PlayerManager() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const { data: profile } = await supabase
+    const { data: profile, error: fetchErr } = await supabase
       .from('profiles')
       .select('id, access')
-      .eq('email', adminModal.player.email)
+      .ilike('email', adminModal.player.email)
       .single();
 
+    if (fetchErr) { console.error('[cricket] grant admin fetch:', fetchErr); }
     if (!profile) return;
     const access: string[] = profile.access ?? [];
     if (!access.includes('admin')) {
-      await supabase.from('profiles').update({ access: [...access, 'admin'] }).eq('id', profile.id);
+      const { error: updateErr } = await supabase.from('profiles').update({ access: [...access, 'admin'] }).eq('id', profile.id);
+      if (updateErr) { console.error('[cricket] grant admin update:', updateErr); }
     }
     setAdminModal(null);
   };
@@ -292,7 +309,7 @@ export default function PlayerManager() {
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, access')
-      .eq('email', adminModal.player.email)
+      .ilike('email', adminModal.player.email)
       .single();
 
     if (!profile) return;
@@ -458,6 +475,7 @@ export default function PlayerManager() {
             const rc = roleConfig[p.player_role ?? ''];
             const isCaptain = p.designation === 'captain';
             const isVC = p.designation === 'vice-captain';
+            const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
 
             return (
               <div key={p.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -506,6 +524,11 @@ export default function PlayerManager() {
                       {isVC && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#6B728015', color: '#6B7280' }}>
                           <FaShieldAlt size={10} /> VC
+                        </span>
+                      )}
+                      {isPlayerAdmin && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#3B82F620', color: '#3B82F6' }}>
+                          <FaShieldAlt size={10} /> Admin
                         </span>
                       )}
                       {rc && (
