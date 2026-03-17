@@ -9,7 +9,7 @@ import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/ty
 import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
 import { FaBullseye, FaStar, FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { MdEdit, MdDeleteOutline } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket } from 'react-icons/md';
 
 /* ── Sorting ── */
 const ROLE_ORDER: Record<string, number> = {
@@ -141,7 +141,7 @@ function getJerseyColor(jerseyNumber: number | null, index: number): string {
   return JERSEY_COLORS[index % JERSEY_COLORS.length];
 }
 
-const battingIcon = () => <GiCricketBat size={13} />;
+const battingIcon = () => <MdSportsCricket size={14} />;
 const bowlingIcon = () => <GiTennisBall size={13} />;
 
 /* ── Main Component ── */
