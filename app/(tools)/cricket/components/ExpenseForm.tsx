@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
@@ -13,6 +13,13 @@ export default function ExpenseForm() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!showExpenseForm) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [showExpenseForm]);
 
   if (!showExpenseForm) return null;
 
