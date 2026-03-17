@@ -5,7 +5,8 @@ import { AuthGate } from '@/components/AuthGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { FaUsers, FaReceipt, FaBalanceScale, FaChartPie, FaShareAlt } from 'react-icons/fa';
+import { FaUsers, FaReceipt, FaBalanceScale, FaChartPie, FaShareAlt, FaCoins } from 'react-icons/fa';
+import { MdSportsCricket } from 'react-icons/md';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
@@ -15,14 +16,16 @@ import SettleUpModal from './components/SettleUpModal';
 import ShareButton from './components/ShareButton';
 import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
+import TossWidget from './components/TossWidget';
 
-type View = 'players' | 'expenses' | 'dues' | 'charts' | 'share';
+type View = 'players' | 'expenses' | 'dues' | 'charts' | 'toss' | 'share';
 
 const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
   { key: 'players', label: 'Players', icon: <FaUsers size={14} /> },
   { key: 'expenses', label: 'Expenses', icon: <FaReceipt size={14} /> },
   { key: 'dues', label: 'Dues', icon: <FaBalanceScale size={14} /> },
   { key: 'charts', label: 'Charts', icon: <FaChartPie size={14} /> },
+  { key: 'toss', label: 'Toss', icon: <MdSportsCricket size={15} /> },
   { key: 'share', label: 'Share', icon: <FaShareAlt size={13} /> },
 ];
 
@@ -183,6 +186,7 @@ function CricketDashboard() {
                 <MonthlyBar />
               </div>
             )}
+            {activeView === 'toss' && <TossWidget />}
             {activeView === 'share' && <ShareButton />}
           </div>
         </>
