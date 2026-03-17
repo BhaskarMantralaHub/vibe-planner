@@ -115,19 +115,35 @@ async function generatePdf(store: ReturnType<typeof useCricketStore.getState>) {
   addGap(2);
   addSeparator();
 
-  // Pool Fund
-  addLine(14, 'bold', [30, 30, 30], 'Pool Fund');
-  addGap(1);
-  addLine(10, 'normal', [5, 150, 105], `Collected: ${formatCurrency(totalCollected)}`);
-  addLine(10, 'normal', [239, 68, 68], `Spent: ${formatCurrency(totalSpent)}`);
+  // Pool Fund — card style
+  const cardY = y;
+  doc.setFillColor(248, 248, 248);
+  doc.roundedRect(15, cardY, pageW - 30, poolBalance < 0 ? 42 : 35, 3, 3, 'F');
+  doc.setDrawColor(220, 220, 220);
+  doc.roundedRect(15, cardY, pageW - 30, poolBalance < 0 ? 42 : 35, 3, 3, 'S');
+
+  y = cardY + 8;
+  addLine(12, 'bold', [30, 30, 30], 'Pool Fund', 'left', 22);
+
+  // Collected + Spent on same line, spaced
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(5, 150, 105); doc.text(`Collected: ${formatCurrency(totalCollected)}`, 22, y);
+  doc.setTextColor(239, 68, 68); doc.text(`Spent: ${formatCurrency(totalSpent)}`, 90, y);
+
   const balColor: [number, number, number] = poolBalance >= 0 ? [5, 150, 105] : [239, 68, 68];
-  addLine(16, 'bold', balColor, `Balance: ${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`);
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(...balColor);
+  doc.text(`Balance: ${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`, pageW - 22, y, { align: 'right' });
+  y += 6;
+
   if (poolBalance < 0 && activePlayers.length > 0) {
     const pp = Math.ceil(Math.abs(poolBalance) / activePlayers.length);
-    addLine(9, 'normal', [239, 68, 68], `Insufficient! Suggest collecting ${formatCurrency(pp)} per player`);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(239, 68, 68);
+    doc.text(`Insufficient! Suggest collecting ${formatCurrency(pp)} per player (${activePlayers.length} players)`, 22, y);
+    y += 5;
   }
+
+  y = cardY + (poolBalance < 0 ? 46 : 39);
   addGap(2);
-  addSeparator();
 
   // Fee Status
   addLine(14, 'bold', [30, 30, 30], `Season Fee — ${formatCurrency(feeAmount)}/player`);
