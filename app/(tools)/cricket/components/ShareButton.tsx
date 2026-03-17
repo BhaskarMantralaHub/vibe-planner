@@ -106,6 +106,24 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const hr = () => { doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(M, y, W - M, y); y += 5; };
   const checkPage = (need = 10) => { if (y + need > 280) { doc.addPage(); y = 20; } };
 
+  // Draw a card wrapper — call startCard(), render content, then endCard()
+  let cardStartY = 0;
+  const startCard = () => { cardStartY = y; y += 5; };
+  const endCard = () => {
+    const h = y - cardStartY + 5;
+    doc.setFillColor(248, 249, 250);
+    doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3);
+    doc.roundedRect(M, cardStartY, TW, h, 2, 2, 'FD');
+    y = cardStartY; // reset to draw content on top
+  };
+
+  // Draw section accent line on left after content is rendered
+  const sectionAccent = (startY: number, color: RGB) => {
+    const h = y - startY;
+    doc.setDrawColor(...color); doc.setLineWidth(1.5);
+    doc.line(M - 2, startY - 2, M - 2, startY + h + 2);
+  };
+
   // Draw a proper table
   const drawTable = (headers: string[], colX: number[], rows: { cells: string[]; bold?: boolean[]; colors?: (RGB | null)[] }[]) => {
     const rH = 8; // row height
@@ -207,6 +225,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   y += cardH + 8;
 
   // ═══ SEASON FEE TABLE ═══
+  const feeStartY = y;
   text('SEASON FEES', M, y, { size: 9, bold: true, color: GRAY });
   y += 5;
   text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M, y, { size: 14, bold: true, color: BLACK });
@@ -227,11 +246,13 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     };
   });
   drawTable(['#', 'Player', 'Status', 'Amount'], [M + 3, M + 18, M + 100, 0], feeRows);
+  sectionAccent(feeStartY, GREEN);
   gap(8);
 
   // ═══ SPONSORSHIPS ═══
   if (seasonSponsors.length) {
     checkPage(30);
+    const sponsorStartY = y;
     text('SPONSORSHIPS', M, y, { size: 9, bold: true, color: GRAY });
     y += 5;
     text(`Sponsorships — ${formatCurrency(totalSponsorship)}`, M, y, { size: 14, bold: true, color: BLACK });
@@ -243,12 +264,14 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
       colors: [BLACK, GRAY, GRAY, GREEN] as (RGB | null)[],
     }));
     drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [M + 3, M + 70, M + 100, 0], sponsorRows);
+    sectionAccent(sponsorStartY, ORANGE);
     gap(8);
   }
 
   // ═══ EXPENSES TABLE ═══
   if (seasonExpenses.length) {
     checkPage(30);
+    const expStartY = y;
     text('EXPENSES', M, y, { size: 9, bold: true, color: GRAY });
     y += 5;
     text(`Expenses — ${formatCurrency(totalSpent)}`, M, y, { size: 14, bold: true, color: BLACK });
@@ -295,12 +318,13 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
       text(`${formatCurrency(total)} (${pct}%)`, M + 40 + barMax + 4, y, { size: 9, bold: true, color: BLACK });
       y += 8;
     });
-    gap(4);
-    hr();
+    sectionAccent(expStartY, RED);
+    gap(8);
   }
 
   // ═══ SQUAD TABLE ═══
   checkPage(30);
+  const squadStartY = y;
   text('TEAM SQUAD', M, y, { size: 9, bold: true, color: GRAY });
   y += 5;
   text(`Squad — ${activePlayers.length} Players`, M, y, { size: 14, bold: true, color: BLACK });
@@ -310,12 +334,13 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
     const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1) : '—';
     return {
-      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role],
-      bold: [false, true, false],
-      colors: [ORANGE, BLACK, GRAY] as (RGB | null)[],
+      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role, p.cricclub_id || '—'],
+      bold: [false, true, false, false],
+      colors: [ORANGE, BLACK, GRAY, GRAY] as (RGB | null)[],
     };
   });
-  drawTable(['#', 'Player', 'Role'], [M + 3, M + 18, M + 100, 0], squadRows);
+  drawTable(['#', 'Player', 'Role', 'CricClub ID'], [M + 3, M + 18, M + 85, 0], squadRows);
+  sectionAccent(squadStartY, ORANGE);
 
   // ═══ FOOTER ═══
   gap(10);
