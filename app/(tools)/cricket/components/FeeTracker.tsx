@@ -59,7 +59,7 @@ export default function FeeTracker() {
   return (
     <div className="space-y-5">
       {/* Summary card */}
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 min-w-0">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
         {/* Fee amount header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[16px] font-semibold text-[var(--text)]">Season Fee</h3>
@@ -94,11 +94,11 @@ export default function FeeTracker() {
         </div>
 
         {/* Stats row */}
-        <div className="flex justify-between text-[13px]">
+        <div className="flex flex-wrap justify-between gap-1 text-[12px] sm:text-[13px]">
           <span className="text-[var(--muted)]">
             {formatCurrency(totalCollected)} / {formatCurrency(totalExpected)}
           </span>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <span className="flex items-center gap-1 text-[var(--green)]"><FaCheckCircle size={12} /> {paidCount}</span>
             {partialCount > 0 && <span className="flex items-center gap-1 text-[var(--orange)]"><FaExclamationCircle size={12} /> {partialCount}</span>}
             <span className="flex items-center gap-1 text-[var(--red)]"><FaTimesCircle size={12} /> {unpaidCount}</span>
@@ -108,7 +108,7 @@ export default function FeeTracker() {
 
       {/* Partial payment form */}
       {payingPlayer && (
-        <div className="rounded-2xl border border-[var(--orange)]/20 bg-[var(--orange)]/5 p-4">
+        <div className="rounded-2xl border border-[var(--orange)]/20 bg-[var(--orange)]/5 p-3 sm:p-4">
           <p className="text-[13px] text-[var(--text)] mb-3">
             Record partial payment for <b>{activePlayers.find((p) => p.id === payingPlayer)?.name}</b>
           </p>
@@ -140,26 +140,26 @@ export default function FeeTracker() {
           const isPartial = paid > 0 && paid < feeAmount;
 
           return (
-            <div key={p.id} className="rounded-xl border bg-[var(--surface)] p-3 min-w-0"
+            <div key={p.id} className="rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 min-w-0 overflow-hidden"
               style={{ borderColor: isPaid ? 'var(--green)' : isPartial ? 'var(--orange)' : 'var(--border)', borderLeftWidth: isPaid || isPartial ? '4px' : '1px' }}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* Status icon */}
                 <div className="flex-shrink-0">
-                  {isPaid && <FaCheckCircle size={20} style={{ color: 'var(--green)' }} />}
-                  {isPartial && <FaExclamationCircle size={20} style={{ color: 'var(--orange)' }} />}
-                  {!isPaid && !isPartial && <FaTimesCircle size={20} style={{ color: 'var(--red)' }} />}
+                  {isPaid && <FaCheckCircle size={18} style={{ color: 'var(--green)' }} />}
+                  {isPartial && <FaExclamationCircle size={18} style={{ color: 'var(--orange)' }} />}
+                  {!isPaid && !isPartial && <FaTimesCircle size={18} style={{ color: 'var(--red)' }} />}
                 </div>
 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[14px] font-semibold text-[var(--text)]">{p.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{p.name}</span>
                     {p.jersey_number && (
-                      <span className="text-[11px] font-bold text-[var(--orange)]">#{p.jersey_number}</span>
+                      <span className="text-[11px] font-bold text-[var(--orange)] flex-shrink-0">#{p.jersey_number}</span>
                     )}
                   </div>
                   {fee?.paid_date && (
-                    <span className="text-[11px] text-[var(--dim)]">
+                    <span className="text-[10px] sm:text-[11px] text-[var(--dim)] block truncate">
                       {isPaid ? 'Paid' : 'Partial'} on {new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       {fee.marked_by && <> &middot; by {fee.marked_by}</>}
                     </span>
@@ -167,12 +167,12 @@ export default function FeeTracker() {
                 </div>
 
                 {/* Amount */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[15px] font-bold" style={{
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                  <span className="text-[13px] sm:text-[15px] font-bold" style={{
                     color: isPaid ? 'var(--green)' : isPartial ? 'var(--orange)' : 'var(--red)',
                   }}>
                     {formatCurrency(paid)}
-                    {isPartial && <span className="text-[11px] font-normal text-[var(--dim)]"> / {formatCurrency(feeAmount)}</span>}
+                    {isPartial && <span className="text-[10px] sm:text-[11px] font-normal text-[var(--dim)]"> / {formatCurrency(feeAmount)}</span>}
                   </span>
                 </div>
 
@@ -181,18 +181,18 @@ export default function FeeTracker() {
                   <div className="flex gap-1 flex-shrink-0">
                     {(isPaid || isPartial) ? (
                       <button onClick={() => handleUndo(p.id)}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer bg-[var(--red)]/10 text-[var(--red)] hover:bg-[var(--red)]/20 transition-colors"
+                        className="h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg cursor-pointer bg-[var(--red)]/10 text-[var(--red)] hover:bg-[var(--red)]/20 transition-colors"
                         title="Undo payment">
-                        <MdUndo size={16} />
+                        <MdUndo size={15} />
                       </button>
                     ) : (
                       <>
                         <button onClick={() => handleMarkPaid(p.id)}
-                          className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90">
+                          className="rounded-lg px-2 sm:px-3 py-1.5 text-[11px] sm:text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90 whitespace-nowrap">
                           Paid
                         </button>
                         <button onClick={() => { setPayingPlayer(p.id); setPayAmount(''); }}
-                          className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-[var(--orange)] border border-[var(--orange)]/30 cursor-pointer hover:bg-[var(--orange)]/10">
+                          className="rounded-lg px-1.5 sm:px-2.5 py-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--orange)] border border-[var(--orange)]/30 cursor-pointer hover:bg-[var(--orange)]/10 whitespace-nowrap">
                           Partial
                         </button>
                       </>

@@ -327,14 +327,14 @@ export default function PlayerManager() {
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 min-w-0">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-[16px] font-semibold text-[var(--text)]">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h3 className="text-[15px] sm:text-[16px] font-semibold text-[var(--text)] min-w-0 truncate">
           Players <span className="text-[var(--muted)] font-normal">({activePlayers.length})</span>
         </h3>
         {isAdmin && (
           <button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
-            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-1.5 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all">
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all flex-shrink-0 whitespace-nowrap">
             {showPlayerForm ? '✕ Close' : '＋ Add Player'}
           </button>
         )}
@@ -478,7 +478,7 @@ export default function PlayerManager() {
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
 
             return (
-              <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-3 overflow-hidden"
+              <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
                 style={{
                   borderColor: isCaptain ? '#D97706' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)',
                   borderLeftWidth: (isCaptain || isVC || isPlayerAdmin) ? '4px' : '1px',
@@ -508,8 +508,8 @@ export default function PlayerManager() {
                 )}
 
                 {/* Player info */}
-                <div className="flex items-center gap-3 pr-10">
-                  <div className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-xl font-bold text-[14px]"
+                <div className="flex items-center gap-2 sm:gap-3 pr-10">
+                  <div className="flex-shrink-0 flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl font-bold text-[13px] sm:text-[14px]"
                     style={{
                       backgroundColor: '#F59E0B20',
                       color: '#D97706',
@@ -518,8 +518,8 @@ export default function PlayerManager() {
                     {p.jersey_number ? `#${p.jersey_number}` : '—'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[15px] font-semibold text-[var(--text)]">{p.name}</span>
+                    <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                      <span className="text-[14px] sm:text-[15px] font-semibold text-[var(--text)] truncate max-w-[120px] sm:max-w-none">{p.name}</span>
                       {isCaptain && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#D9770615', color: '#D97706' }}>
                           <FaCrown size={10} /> C
@@ -536,7 +536,7 @@ export default function PlayerManager() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <div className="flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
                       {p.batting_style && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg shadow-sm"
                           style={{ background: 'color-mix(in srgb, var(--blue) 18%, transparent)', color: 'var(--blue)' }}>
