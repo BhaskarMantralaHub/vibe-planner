@@ -1,5 +1,8 @@
 export type ExpenseCategory = 'ground' | 'equipment' | 'tournament' | 'food' | 'other';
 export type SeasonType = 'spring' | 'summer' | 'fall';
+export type PlayerRole = 'batsman' | 'bowler' | 'all-rounder' | 'keeper';
+export type BattingStyle = 'right' | 'left';
+export type BowlingStyle = 'pace' | 'medium' | 'spin' | '';
 
 export type CricketPlayer = {
   id: string;
@@ -7,6 +10,9 @@ export type CricketPlayer = {
   name: string;
   jersey_number: number | null;
   phone: string | null;
+  player_role: PlayerRole | null;
+  batting_style: BattingStyle | null;
+  bowling_style: BowlingStyle | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

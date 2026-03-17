@@ -16,6 +16,24 @@ export const EXPENSE_CATEGORIES: CategoryConfig[] = [
   { key: 'other', label: 'Other', color: '#8B5CF6', bgColor: '#EDE9FE', borderColor: '#8B5CF6' },
 ];
 
+export const PLAYER_ROLES = [
+  { key: 'batsman', label: 'Batsman', icon: '🏏' },
+  { key: 'bowler', label: 'Bowler', icon: '🎯' },
+  { key: 'all-rounder', label: 'All-Rounder', icon: '⭐' },
+  { key: 'keeper', label: 'Wicket Keeper', icon: '🧤' },
+] as const;
+
+export const BATTING_STYLES = [
+  { key: 'right', label: 'Right Hand' },
+  { key: 'left', label: 'Left Hand' },
+] as const;
+
+export const BOWLING_STYLES = [
+  { key: 'pace', label: 'Pace' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'spin', label: 'Spin' },
+] as const;
+
 export const SEASON_TYPES = [
   { key: 'spring', label: 'Spring' },
   { key: 'summer', label: 'Summer' },

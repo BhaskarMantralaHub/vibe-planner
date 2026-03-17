@@ -9,6 +9,9 @@ CREATE TABLE cricket_players (
   name        TEXT NOT NULL,
   jersey_number INTEGER,
   phone       TEXT,
+  player_role TEXT,           -- 'batsman' | 'bowler' | 'all-rounder' | 'keeper'
+  batting_style TEXT,         -- 'right' | 'left'
+  bowling_style TEXT,         -- 'pace' | 'medium' | 'spin'
   is_active   BOOLEAN DEFAULT true,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()

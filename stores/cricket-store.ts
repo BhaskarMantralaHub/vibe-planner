@@ -63,7 +63,7 @@ interface CricketState {
   loadAll: (userId: string) => Promise<void>;
 
   // Players
-  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null }) => void;
+  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null }) => void;
   updatePlayer: (id: string, updates: Partial<CricketPlayer>) => void;
   removePlayer: (id: string) => void;
 
@@ -148,14 +148,22 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const now = new Date().toISOString();
     const localId = genId();
     const newPlayer: CricketPlayer = {
-      id: localId, user_id: userId, ...data, is_active: true, created_at: now, updated_at: now,
+      id: localId, user_id: userId, ...data,
+      player_role: data.player_role as CricketPlayer['player_role'],
+      batting_style: data.batting_style as CricketPlayer['batting_style'],
+      bowling_style: data.bowling_style as CricketPlayer['bowling_style'],
+      is_active: true, created_at: now, updated_at: now,
     };
     set({ players: [...get().players, newPlayer] });
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players')
-        .insert({ user_id: userId, name: data.name, jersey_number: data.jersey_number, phone: data.phone })
+        .insert({
+          user_id: userId, name: data.name, jersey_number: data.jersey_number,
+          phone: data.phone, player_role: data.player_role,
+          batting_style: data.batting_style, bowling_style: data.bowling_style,
+        })
         .select().single()
         .then(({ data: row }: { data: CricketPlayer | null }) => {
           if (row) set({ players: get().players.map((p) => p.id === localId ? row : p) });
