@@ -282,7 +282,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       id: expenseId, user_id: userId, season_id: seasonId,
       paid_by: userId, category: data.category as CricketExpense['category'],
       description: data.description, amount: data.amount,
-      expense_date: data.expense_date, created_at: now, updated_at: now,
+      expense_date: data.expense_date, deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
     };
 
     set({ expenses: [newExpense, ...get().expenses] });

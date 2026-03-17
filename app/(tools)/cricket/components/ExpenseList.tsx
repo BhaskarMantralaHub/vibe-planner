@@ -205,12 +205,12 @@ export default function ExpenseList() {
 
         {isLow && activePlayers.length > 0 && (
           <div className="mt-3 p-3 rounded-xl flex items-start gap-2.5"
-            style={{ backgroundColor: '#EF444410', border: '1px solid #EF444425' }}>
-            <FaExclamationTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+            style={{ background: 'color-mix(in srgb, var(--red) 12%, var(--surface))', border: '1.5px solid color-mix(in srgb, var(--red) 30%, transparent)' }}>
+            <FaExclamationTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--red)' }} />
             <div>
-              <p className="text-[14px] font-bold text-[var(--text)]">Insufficient funds</p>
-              <p className="text-[13px] leading-relaxed" style={{ color: '#FCA5A5' }}>
-                Pool is short by <span className="font-bold" style={{ color: '#F87171' }}>{formatCurrency(poolBalance)}</span>. Suggest collecting <span className="font-bold text-[var(--text)]">{formatCurrency(perPerson)}</span> per player ({activePlayers.length} players).
+              <p className="text-[14px] font-bold text-[var(--red)]">Insufficient funds</p>
+              <p className="text-[13px] leading-relaxed text-[var(--text)]">
+                Pool is short by <span className="font-extrabold text-[var(--red)]">{formatCurrency(poolBalance)}</span>. Suggest collecting <span className="font-extrabold text-[var(--orange)]">{formatCurrency(perPerson)}</span> per player ({activePlayers.length} players).
               </p>
             </div>
           </div>
