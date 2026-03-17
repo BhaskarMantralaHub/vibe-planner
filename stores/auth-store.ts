@@ -203,7 +203,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ userAccess: profile?.access ?? ['toolkit'], userApproved: profile?.approved !== false });
+      const access: string[] = profile?.access ?? ['toolkit'];
+      set({ userAccess: access, userApproved: profile?.approved !== false });
+
+      // Link cricket player record to this user if they signed up with a pre-added email
+      if (data?.user && access.includes('cricket')) {
+        supabase.from('cricket_players')
+          .update({ user_id: data.user.id })
+          .eq('email', data.user.email ?? '')
+          .eq('is_active', true)
+          .then(() => {});
+      }
     }
 
     set({ syncing: false });
@@ -259,10 +269,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const role = access || 'toolkit';
+
+    // Check if a cricket player record already exists with this email (admin pre-added)
+    let autoApprove = role !== 'cricket';
+    if (role === 'cricket') {
+      const { data: exists } = await supabase.rpc('check_cricket_player_email', { check_email: email.trim() });
+      if (exists) {
+        autoApprove = true; // Player was pre-added by admin — skip approval
+      }
+    }
+
     const metadata: Record<string, unknown> = {
       full_name: name.trim(),
       access: role,
-      approved: role !== 'cricket',
+      approved: autoApprove,
     };
     // Include player data in metadata for cricket signups
     if (playerData) {
