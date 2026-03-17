@@ -65,12 +65,12 @@ export default function ExpenseList() {
         {/* Healthy fund message */}
         {!isLow && totalCollected > 0 && poolBalance > 0 && (
           <div className="mt-3 p-3 rounded-xl flex items-start gap-2.5"
-            style={{ backgroundColor: '#05966910', border: '1px solid #05966925' }}>
-            <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#059669' }} />
+            style={{ background: 'linear-gradient(135deg, #05966912, #10B98118)', border: '1px solid #05966930' }}>
+            <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10B981' }} />
             <div>
-              <p className="text-[14px] font-bold text-[var(--text)]">Funds available</p>
-              <p className="text-[13px] text-[var(--muted)] leading-relaxed">
-                <span className="font-semibold text-[var(--green)]">{formatCurrency(poolBalance)}</span> remaining in the pool. This will roll over to next season.
+              <p className="text-[14px] font-bold" style={{ color: '#10B981' }}>Funds available</p>
+              <p className="text-[13px] leading-relaxed" style={{ color: '#6EE7B7' }}>
+                <span className="font-bold" style={{ color: '#34D399' }}>{formatCurrency(poolBalance)}</span> remaining in the pool. Rolls over to next season.
               </p>
             </div>
           </div>
