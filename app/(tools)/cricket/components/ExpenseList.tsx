@@ -235,14 +235,14 @@ export default function ExpenseList() {
                   </div>
 
                   {/* Footer — added by / updated info */}
-                  <div className="mt-2 pt-2 border-t border-[var(--border)]/30 flex items-center justify-between text-[11px]">
-                    <span className="text-[var(--dim)]">
-                      Added {formatDate(e.created_at?.split('T')[0] || e.expense_date)}
-                      {adminName && <> by <span className="text-[var(--muted)] font-medium">{adminName}</span></>}
+                  <div className="mt-2 pt-2 border-t border-[var(--border)]/30 flex items-center justify-between text-[12px]">
+                    <span className="text-[var(--muted)]">
+                      Added <span className="font-semibold text-[var(--text)]">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
+                      {adminName && <> by <span className="font-semibold text-[var(--text)]">{adminName}</span></>}
                     </span>
                     {e.updated_at && e.updated_at !== e.created_at && (
-                      <span className="text-[var(--dim)]">
-                        Updated {formatDate(e.updated_at.split('T')[0])}
+                      <span className="text-[var(--muted)]">
+                        Updated <span className="font-semibold text-[var(--text)]">{formatDate(e.updated_at.split('T')[0])}</span>
                       </span>
                     )}
                   </div>
