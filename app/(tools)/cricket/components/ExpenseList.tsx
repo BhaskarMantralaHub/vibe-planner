@@ -361,22 +361,24 @@ export default function ExpenseList() {
                 const cfg = getCategoryConfig(e.category);
                 const Icon = CATEGORY_ICONS[cfg.iconName];
                 return (
-                  <div key={e.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5 opacity-60">
+                  <div key={e.id} className="flex items-center gap-3 rounded-xl border bg-[var(--surface)] p-2.5"
+                    style={{ borderColor: 'color-mix(in srgb, var(--red) 25%, var(--border))' }}>
                     <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${cfg.color}10` }}>
+                      style={{ backgroundColor: `${cfg.color}20` }}>
                       {Icon && <Icon size={16} style={{ color: cfg.color }} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-[var(--text)] truncate">{e.description || cfg.label}</p>
+                      <p className="text-[13px] font-semibold text-[var(--text)] truncate">{e.description || cfg.label}</p>
                       <p className="text-[11px] text-[var(--muted)]">
-                        {formatDate(e.expense_date)}
-                        {e.deleted_by && <> &middot; Deleted by <span className="font-semibold">{e.deleted_by}</span></>}
+                        <span className="font-semibold">{formatDate(e.expense_date)}</span>
+                        {e.deleted_by && <> &middot; Deleted by <span className="font-bold text-[var(--text)]">{e.deleted_by}</span></>}
                       </p>
                     </div>
-                    <span className="text-[14px] font-bold text-[var(--muted)] flex-shrink-0">{formatCurrency(Number(e.amount))}</span>
+                    <span className="text-[14px] font-extrabold text-[var(--text)] flex-shrink-0">{formatCurrency(Number(e.amount))}</span>
                     <button
                       onClick={() => restoreExpense(e.id)}
-                      className="flex-shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--green)] border border-[var(--green)]/30 cursor-pointer hover:bg-[var(--green)]/10 transition-colors"
+                      className="flex-shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold text-white cursor-pointer active:scale-95 transition-all"
+                      style={{ background: 'linear-gradient(135deg, #059669, #10B981)', border: '1.5px solid #059669', boxShadow: '0 2px 6px rgba(16,185,129,0.25)' }}
                     >
                       Restore
                     </button>
