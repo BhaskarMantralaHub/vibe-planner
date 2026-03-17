@@ -77,7 +77,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
-  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
+  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
 
   const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
   const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);

@@ -169,7 +169,7 @@ export default function ExpenseList() {
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const activePlayers = players.filter((p) => p.is_active);
 
-  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId);
+  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
   const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
   const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
   const totalCollected = totalFees + totalSponsorship;
