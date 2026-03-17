@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS cricket_expenses (
   description  TEXT,
   amount       NUMERIC(10,2) NOT NULL,
   expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  deleted_at   TIMESTAMPTZ DEFAULT NULL,
+  deleted_by   TEXT DEFAULT NULL,
   created_at   TIMESTAMPTZ DEFAULT now(),
   updated_at   TIMESTAMPTZ DEFAULT now()
 );
