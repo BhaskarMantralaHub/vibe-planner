@@ -161,7 +161,7 @@ export default function FeeTracker() {
                   {fee?.paid_date && (
                     <span className="text-[10px] sm:text-[11px] text-[var(--dim)] block truncate">
                       {isPaid ? 'Paid' : 'Partial'} on {new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {fee.marked_by && <> &middot; by {fee.marked_by}</>}
+                      {fee.marked_by && <> &middot; updated by {fee.marked_by}</>}
                     </span>
                   )}
                 </div>
