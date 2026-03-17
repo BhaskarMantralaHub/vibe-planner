@@ -192,21 +192,6 @@ export default function ShareButton() {
         </div>
       )}
 
-      {/* Public Link */}
-      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
-        <h3 className="mb-1 text-[14px] font-semibold text-[var(--text)]">Public Dues Link</h3>
-        <p className="mb-3 text-[12px] text-[var(--muted)]">Anyone with this link can view dues — no login required</p>
-        <div className="flex gap-2 min-w-0">
-          <div className="flex-1 min-w-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[12px] text-[var(--muted)] truncate">
-            {shareUrl}
-          </div>
-          <button onClick={handleCopyLink}
-            className="flex-shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-[12px] font-semibold cursor-pointer transition-all"
-            style={{ background: 'var(--surface)', color: 'var(--text)', border: '1.5px solid var(--border)' }}>
-            <FaLink size={12} /> {copied ? 'Copied!' : 'Copy'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
