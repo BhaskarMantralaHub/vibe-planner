@@ -20,7 +20,7 @@ export default function CategoryDonut() {
   }));
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
       <h3 className="mb-4 text-[16px] font-semibold text-[var(--text)]">Where Money Goes</h3>
       <div className="flex items-center gap-6">
         <div className="h-[140px] w-[140px] flex-shrink-0">

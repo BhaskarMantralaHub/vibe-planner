@@ -12,7 +12,7 @@ export default function MonthlyBar() {
   if (data.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
       <h3 className="mb-4 text-[16px] font-semibold text-[var(--text)]">Monthly Spending</h3>
       <div className="h-[180px]">
         <ResponsiveContainer width="100%" height="100%">

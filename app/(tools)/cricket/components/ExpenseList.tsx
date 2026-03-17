@@ -12,7 +12,7 @@ export default function ExpenseList() {
 
   if (seasonExpenses.length === 0) {
     return (
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
         <h3 className="mb-2 text-[16px] font-semibold text-[var(--text)]">Expenses</h3>
         <p className="text-[14px] text-[var(--muted)] text-center py-6">No expenses yet this season.</p>
       </div>
@@ -22,7 +22,7 @@ export default function ExpenseList() {
   const total = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[16px] font-semibold text-[var(--text)]">Expenses ({seasonExpenses.length})</h3>
         <span className="text-[15px] font-bold text-[var(--orange)]">{formatCurrency(total)}</span>

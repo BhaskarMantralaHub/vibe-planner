@@ -166,12 +166,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           user_id: userId, name: data.name, jersey_number: data.jersey_number,
           phone: data.phone, player_role: data.player_role,
           batting_style: data.batting_style, bowling_style: data.bowling_style,
-          cricclub_id: data.cricclub_id,
-          shirt_size: data.shirt_size,
-          email: data.email,
+          cricclub_id: data.cricclub_id, shirt_size: data.shirt_size, email: data.email,
         })
         .select().single()
-        .then(({ data: row }: { data: CricketPlayer | null }) => {
+        .then(({ data: row, error }: { data: CricketPlayer | null; error: unknown }) => {
+          if (error) console.error('[cricket] addPlayer failed:', error);
           if (row) set({ players: get().players.map((p) => p.id === localId ? row : p) });
         });
     } else {

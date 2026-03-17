@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
@@ -15,8 +15,24 @@ export default function SeasonSelector() {
   const { seasons, selectedSeasonId, setSelectedSeason, addSeason } = useCricketStore();
   const isAdmin = useIsAdmin();
   const [showCreate, setShowCreate] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
   const [newType, setNewType] = useState('summer');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClick);
+      return () => document.removeEventListener('mousedown', handleClick);
+    }
+  }, [showDropdown]);
 
   const handleCreate = () => {
     if (!user) return;
@@ -26,36 +42,61 @@ export default function SeasonSelector() {
   };
 
   return (
-    <div className="flex items-center gap-3">
-      <select
-        value={selectedSeasonId ?? ''}
-        onChange={(e) => setSelectedSeason(e.target.value || null)}
-        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[14px] text-[var(--text)] outline-none"
-      >
-        {seasons.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-        {seasons.length === 0 && <option value="">No seasons</option>}
-      </select>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Custom dropdown instead of native select */}
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[14px] text-[var(--text)] cursor-pointer"
+        >
+          {selectedSeason?.name ?? 'No seasons'}
+          <span className="text-[var(--muted)] text-[12px]">&#9662;</span>
+        </button>
+        {showDropdown && seasons.length > 0 && (
+          <div className="absolute left-0 top-full mt-1 z-50 min-w-[160px] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1">
+            {seasons.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setSelectedSeason(s.id); setShowDropdown(false); }}
+                className={`w-full text-left px-3 py-2 text-[14px] cursor-pointer transition-colors ${
+                  s.id === selectedSeasonId
+                    ? 'text-[var(--orange)] font-medium bg-[var(--hover-bg)]'
+                    : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {isAdmin && !showCreate ? (
         <button
           onClick={() => setShowCreate(true)}
-          className="rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-2 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all"
+          className="rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-3 py-2 text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all whitespace-nowrap"
         >
           + New Season
         </button>
       ) : isAdmin && showCreate ? (
-        <div className="flex items-center gap-2">
-          <select
-            value={newType}
-            onChange={(e) => setNewType(e.target.value)}
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-[13px] text-[var(--text)] outline-none"
-          >
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex gap-1.5">
             {SEASON_TYPES.map((t) => (
-              <option key={t.key} value={t.key}>{t.label}</option>
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setNewType(t.key)}
+                className="rounded-lg px-2.5 py-1.5 text-[12px] cursor-pointer transition-all border"
+                style={{
+                  backgroundColor: newType === t.key ? 'var(--orange)' : 'transparent',
+                  borderColor: newType === t.key ? 'var(--orange)' : 'var(--border)',
+                  color: newType === t.key ? 'white' : 'var(--muted)',
+                }}
+              >
+                {t.label}
+              </button>
             ))}
-          </select>
+          </div>
           <input
             type="number"
             value={newYear}

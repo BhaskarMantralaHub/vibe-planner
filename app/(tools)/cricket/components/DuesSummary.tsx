@@ -15,7 +15,7 @@ export default function DuesSummary() {
 
   if (activePlayers.length === 0) {
     return (
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
         <h3 className="mb-2 text-[16px] font-semibold text-[var(--text)]">Player Dues</h3>
         <p className="text-[14px] text-[var(--muted)] text-center py-6">Add expenses to see player dues.</p>
       </div>
@@ -23,7 +23,7 @@ export default function DuesSummary() {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[16px] font-semibold text-[var(--text)]">Player Dues</h3>
         <button

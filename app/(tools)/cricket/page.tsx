@@ -42,9 +42,9 @@ function CricketDashboard() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-5 lg:px-8">
+    <div className="min-h-screen px-3 py-5 sm:px-4 lg:px-8 overflow-x-hidden w-full">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 space-y-3">
         <h2 className="text-[22px] font-bold text-[var(--text)]">Cricket Team Expenses</h2>
         <SeasonSelector />
       </div>
@@ -59,7 +59,7 @@ function CricketDashboard() {
       ) : (
         <div className="space-y-5">
           {/* Action bar */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setShowExpenseForm(true)}
               disabled={activePlayers.length === 0}
@@ -73,12 +73,12 @@ function CricketDashboard() {
           </div>
 
           {/* Two column layout on desktop */}
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2 min-w-0">
+            <div className="space-y-5 min-w-0">
               <PlayerManager />
               <ExpenseList />
             </div>
-            <div className="space-y-5">
+            <div className="space-y-5 min-w-0">
               <DuesSummary />
               <CategoryDonut />
               <MonthlyBar />
