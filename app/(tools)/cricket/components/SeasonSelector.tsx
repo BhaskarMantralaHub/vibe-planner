@@ -20,7 +20,12 @@ export default function SeasonSelector() {
   const [newType, setNewType] = useState('summer');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
+  const seasonOrder: Record<string, number> = { spring: 0, summer: 1, fall: 2 };
+  const sortedSeasons = [...seasons].sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return (seasonOrder[a.season_type] ?? 0) - (seasonOrder[b.season_type] ?? 0);
+  });
+  const selectedSeason = sortedSeasons.find((s) => s.id === selectedSeasonId);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -34,10 +39,21 @@ export default function SeasonSelector() {
     }
   }, [showDropdown]);
 
+  const [createError, setCreateError] = useState('');
+
   const handleCreate = () => {
     if (!user) return;
     const typeLabel = SEASON_TYPES.find((t) => t.key === newType)?.label ?? newType;
-    addSeason(user.id, { name: `${typeLabel} ${newYear}`, year: newYear, season_type: newType });
+    const newName = `${typeLabel} ${newYear}`;
+
+    // Check for duplicate season
+    const duplicate = seasons.find((s) => s.name.toLowerCase() === newName.toLowerCase());
+    if (duplicate) {
+      setCreateError(`"${newName}" already exists.`);
+      return;
+    }
+    setCreateError('');
+    addSeason(user.id, { name: newName, year: newYear, season_type: newType });
     setShowCreate(false);
   };
 
@@ -47,14 +63,14 @@ export default function SeasonSelector() {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[14px] text-[var(--text)] cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium cursor-pointer transition-all bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--muted)] text-[var(--text)]"
         >
-          {selectedSeason?.name ?? 'No seasons'}
-          <span className="text-[var(--muted)] text-[12px]">&#9662;</span>
+          <span>{selectedSeason?.name ?? 'No seasons'}</span>
+          <span className={`text-[var(--muted)] text-[10px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▾</span>
         </button>
-        {showDropdown && seasons.length > 0 && (
-          <div className="absolute left-0 top-full mt-1 z-50 min-w-[160px] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1">
-            {seasons.map((s) => (
+        {showDropdown && sortedSeasons.length > 0 && (
+          <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1">
+            {sortedSeasons.map((s) => (
               <button
                 key={s.id}
                 onClick={() => { setSelectedSeason(s.id); setShowDropdown(false); }}
@@ -81,21 +97,25 @@ export default function SeasonSelector() {
       ) : isAdmin && showCreate ? (
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="flex gap-1.5">
-            {SEASON_TYPES.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setNewType(t.key)}
-                className="rounded-lg px-2.5 py-1.5 text-[12px] cursor-pointer transition-all border"
-                style={{
-                  backgroundColor: newType === t.key ? 'var(--orange)' : 'transparent',
-                  borderColor: newType === t.key ? 'var(--orange)' : 'var(--border)',
-                  color: newType === t.key ? 'white' : 'var(--muted)',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+            {SEASON_TYPES.map((t) => {
+              const exists = seasons.some((s) => s.season_type === t.key && s.year === newYear);
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => !exists && setNewType(t.key)}
+                  disabled={exists}
+                  className="rounded-lg px-2.5 py-1.5 text-[12px] cursor-pointer transition-all border disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: newType === t.key && !exists ? 'var(--orange)' : 'transparent',
+                    borderColor: newType === t.key && !exists ? 'var(--orange)' : 'var(--border)',
+                    color: newType === t.key && !exists ? 'white' : 'var(--muted)',
+                  }}
+                >
+                  {t.label} {exists ? '✓' : ''}
+                </button>
+              );
+            })}
           </div>
           <input
             type="number"
@@ -103,12 +123,17 @@ export default function SeasonSelector() {
             onChange={(e) => setNewYear(Number(e.target.value))}
             className="w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-[13px] text-[var(--text)] outline-none"
           />
-          <button onClick={handleCreate} className="rounded-lg bg-[var(--green)] px-3 py-1.5 text-[13px] text-white cursor-pointer">
+          <button onClick={handleCreate}
+            disabled={seasons.some((s) => s.season_type === newType && s.year === newYear)}
+            className="rounded-lg bg-[var(--green)] px-3 py-1.5 text-[13px] text-white cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
             Create
           </button>
-          <button onClick={() => setShowCreate(false)} className="text-[13px] text-[var(--muted)] cursor-pointer">
+          <button onClick={() => { setShowCreate(false); setCreateError(''); }} className="text-[13px] text-[var(--muted)] cursor-pointer">
             Cancel
           </button>
+          {createError && (
+            <span className="text-[12px] text-[var(--red)] w-full">{createError}</span>
+          )}
         </div>
       ) : null}
     </div>

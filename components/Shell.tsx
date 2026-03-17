@@ -36,7 +36,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
           {isCricketContext ? (
-            <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
+            <>
+              <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
+              <span className="bg-gradient-to-r from-[var(--orange)] to-[var(--red)] bg-clip-text text-lg font-bold tracking-tight text-transparent">
+                Sunrisers Manteca
+              </span>
+            </>
           ) : (
             <h1 className="bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
               Viber&apos;s Toolkit

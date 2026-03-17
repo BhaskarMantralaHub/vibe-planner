@@ -23,9 +23,10 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
     }
   }, [isOpen, onClose]);
 
+  const access = userAccess.length > 0 ? userAccess : ['toolkit'];
   const visibleTools = tools.filter((t) => {
     if (!t.roles) return true;
-    return t.roles.some((r) => userAccess.includes(r));
+    return t.roles.some((r) => access.includes(r));
   });
 
   return (

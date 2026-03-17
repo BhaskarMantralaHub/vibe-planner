@@ -35,12 +35,12 @@ export const BOWLING_STYLES = [
 ] as const;
 
 export const SHIRT_SIZES = [
-  { key: 'XS', label: 'XS' },
-  { key: 'S', label: 'S' },
-  { key: 'M', label: 'M' },
-  { key: 'L', label: 'L' },
-  { key: 'XL', label: 'XL' },
-  { key: 'XXL', label: 'XXL' },
+  { key: 'XS', label: 'XS', color: '#06B6D4' },
+  { key: 'S', label: 'S', color: '#3B82F6' },
+  { key: 'M', label: 'M', color: '#8B5CF6' },
+  { key: 'L', label: 'L', color: '#16A34A' },
+  { key: 'XL', label: 'XL', color: '#F59E0B' },
+  { key: 'XXL', label: 'XXL', color: '#EF4444' },
 ] as const;
 
 export const SEASON_TYPES = [
