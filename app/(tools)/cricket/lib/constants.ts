@@ -37,9 +37,9 @@ export const BOWLING_STYLES = [
 export const SHIRT_SIZES = [
   { key: 'XS', label: 'XS', color: '#06B6D4' },
   { key: 'S', label: 'S', color: '#3B82F6' },
-  { key: 'M', label: 'M', color: '#8B5CF6' },
+  { key: 'M', label: 'M', color: '#F59E0B' },
   { key: 'L', label: 'L', color: '#16A34A' },
-  { key: 'XL', label: 'XL', color: '#F59E0B' },
+  { key: 'XL', label: 'XL', color: '#D97706' },
   { key: 'XXL', label: 'XXL', color: '#EF4444' },
 ] as const;
 

@@ -6,10 +6,9 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
-import { GiCricketBat, GiBaseballGlove } from 'react-icons/gi';
-import { FaBullseye, FaStar, FaWind, FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
+import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
+import { FaBullseye, FaStar, FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { TbHandFingerLeft, TbHandFingerRight } from 'react-icons/tb';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
 
 /* ── Sorting ── */
@@ -131,7 +130,7 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
 const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
   batsman: { icon: <GiCricketBat size={13} />, label: 'Batsman', color: '#F59E0B' },
   bowler: { icon: <FaBullseye size={12} />, label: 'Bowler', color: '#3B82F6' },
-  'all-rounder': { icon: <FaStar size={12} />, label: 'All-Rounder', color: '#8B5CF6' },
+  'all-rounder': { icon: <FaStar size={12} />, label: 'All-Rounder', color: '#D97706' },
   keeper: { icon: <GiBaseballGlove size={13} />, label: 'Keeper', color: '#16A34A' },
 };
 
@@ -142,12 +141,8 @@ function getJerseyColor(jerseyNumber: number | null, index: number): string {
   return JERSEY_COLORS[index % JERSEY_COLORS.length];
 }
 
-const battingIcon = (style: string) => style === 'right'
-  ? <TbHandFingerRight size={14} /> : <TbHandFingerLeft size={14} />;
-
-const bowlingIcon = (style: string) => style === 'pace'
-  ? <FaWind size={12} /> : style === 'medium'
-  ? <FaBullseye size={12} /> : <span className="text-[12px]">🌀</span>;
+const battingIcon = () => <GiCricketBat size={13} />;
+const bowlingIcon = () => <GiTennisBall size={13} />;
 
 /* ── Main Component ── */
 export default function PlayerManager() {
@@ -420,7 +415,7 @@ export default function PlayerManager() {
                       <button key={s.key} type="button" onClick={() => setBattingStyle(battingStyle === s.key ? '' : s.key)}
                         className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
                         style={{ backgroundColor: battingStyle === s.key ? 'var(--blue)' : 'transparent', borderColor: battingStyle === s.key ? 'var(--blue)' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
-                        {battingIcon(s.key)} {s.label}
+                        {battingIcon()} {s.label}
                       </button>
                     ))}
                   </div>
@@ -434,7 +429,7 @@ export default function PlayerManager() {
                       <button key={s.key} type="button" onClick={() => setBowlingStyle(bowlingStyle === s.key ? '' : s.key)}
                         className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
                         style={{ backgroundColor: bowlingStyle === s.key ? 'var(--green)' : 'transparent', borderColor: bowlingStyle === s.key ? 'var(--green)' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
-                        {bowlingIcon(s.key)} {s.label}
+                        {bowlingIcon()} {s.label}
                       </button>
                     ))}
                   </div>
@@ -494,9 +489,9 @@ export default function PlayerManager() {
                 <div className="flex items-center gap-3 pr-10">
                   <div className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-xl font-bold text-[14px]"
                     style={{
-                      backgroundColor: '#F59E0B15',
-                      color: '#F59E0B',
-                      border: '1.5px solid #F59E0B30',
+                      backgroundColor: '#F59E0B20',
+                      color: '#D97706',
+                      border: '2px solid #F59E0B40',
                     }}>
                     {p.jersey_number ? `#${p.jersey_number}` : '—'}
                   </div>
@@ -514,30 +509,33 @@ export default function PlayerManager() {
                         </span>
                       )}
                       {rc && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-0.5" style={{ background: `${rc.color}15`, color: rc.color }}>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-0.5" style={{ background: `${rc.color}20`, color: rc.color }}>
                           {rc.icon} {rc.label}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {p.batting_style && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-lg"
-                          style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}>
-                          {battingIcon(p.batting_style)} {p.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg shadow-sm"
+                          style={{ background: 'color-mix(in srgb, var(--blue) 18%, transparent)', color: 'var(--blue)' }}>
+                          {battingIcon()} {p.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
                         </span>
                       )}
                       {p.bowling_style && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-lg"
-                          style={{ background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)' }}>
-                          {bowlingIcon(p.bowling_style)} {p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg shadow-sm"
+                          style={{ background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)' }}>
+                          {bowlingIcon()} {p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}
                         </span>
                       )}
-                      {p.shirt_size && (
-                        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-lg"
-                          style={{ background: 'color-mix(in srgb, var(--purple) 12%, transparent)', color: 'var(--purple)' }}>
-                          Size {p.shirt_size}
-                        </span>
-                      )}
+                      {p.shirt_size && (() => {
+                        const sizeColor = SHIRT_SIZES.find((s) => s.key === p.shirt_size)?.color ?? '#F59E0B';
+                        return (
+                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-lg"
+                            style={{ background: `${sizeColor}20`, color: sizeColor }}>
+                            Size {p.shirt_size}
+                          </span>
+                        );
+                      })()}
                       {p.cricclub_id && (
                         <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-lg"
                           style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
