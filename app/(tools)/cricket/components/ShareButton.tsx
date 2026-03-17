@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { TEAM_NAME, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { FaWhatsapp, FaFilePdf, FaFileAlt } from 'react-icons/fa';
+import { FaFilePdf } from 'react-icons/fa';
 import { MdShare } from 'react-icons/md';
 
 function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
@@ -312,19 +312,11 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 export default function ShareButton() {
   const store = useCricketStore();
   const { seasons, selectedSeasonId } = store;
-  const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
 
   const season = seasons.find((s) => s.id === selectedSeasonId);
   if (!season) return null;
 
-  const report = buildTextReport(useCricketStore.getState());
-
-  const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(report);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-  };
 
   const handleDownloadPdf = async () => {
     setGenerating(true);
@@ -357,12 +349,6 @@ export default function ShareButton() {
     }
   };
 
-  const handleCopyReport = async () => {
-    await navigator.clipboard.writeText(report);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="space-y-4">
       {/* Share Report */}
@@ -370,48 +356,20 @@ export default function ShareButton() {
         <h3 className="mb-1 text-[16px] font-bold text-[var(--text)]">Share Report</h3>
         <p className="mb-4 text-[13px] text-[var(--muted)]">Share season summary as PDF or text with your team</p>
 
-        {/* Primary actions */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
           <button onClick={handleSharePdf} disabled={generating}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706' }}>
-            <FaFilePdf size={16} /> {generating ? 'Generating...' : 'Share PDF'}
+            <MdShare size={16} /> {generating ? 'Generating...' : 'Share PDF'}
           </button>
-          <button onClick={handleShareWhatsApp}
-            className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold text-white cursor-pointer active:scale-95 transition-all"
-            style={{ background: '#25D366' }}>
-            <FaWhatsapp size={18} /> WhatsApp
-          </button>
-        </div>
-
-        {/* Secondary actions */}
-        <div className="grid grid-cols-3 gap-2">
           <button onClick={handleDownloadPdf} disabled={generating}
-            className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-60"
-            style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
-            <FaFilePdf size={12} /> Download
-          </button>
-          <button onClick={handleCopyReport}
-            className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold cursor-pointer transition-all"
-            style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-            <FaFileAlt size={12} /> {copied ? 'Copied!' : 'Copy Text'}
-          </button>
-          <button onClick={() => setShowPreview(!showPreview)}
-            className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold cursor-pointer transition-all"
-            style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-            <MdShare size={14} /> Preview
+            className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
+            style={{ background: 'var(--surface)', color: 'var(--text)', border: '1.5px solid var(--border)' }}>
+            <FaFilePdf size={16} /> Download
           </button>
         </div>
       </div>
 
-      {/* Report Preview */}
-      {showPreview && (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 overflow-hidden min-w-0">
-          <pre className="text-[12px] sm:text-[13px] text-[var(--text)] whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
-            {report}
-          </pre>
-        </div>
-      )}
     </div>
   );
 }
