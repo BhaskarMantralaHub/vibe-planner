@@ -12,14 +12,39 @@ const CATEGORY_ICONS: Record<string, IconType> = {
   FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
 };
 
+const EXPENSE_FORM_KEY = 'cricket_expense_form_draft';
+
 export default function ExpenseForm() {
   const { user } = useAuthStore();
   const { selectedSeasonId, addExpense, showExpenseForm, setShowExpenseForm } = useCricketStore();
 
-  const [category, setCategory] = useState('ground');
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const getSavedForm = () => {
+    try {
+      const saved = sessionStorage.getItem(EXPENSE_FORM_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  };
+
+  const draft = getSavedForm();
+  const [category, setCategory] = useState(draft?.category ?? 'ground');
+  const [description, setDescription] = useState(draft?.description ?? '');
+  const [amount, setAmount] = useState(draft?.amount ?? '');
+  const [date, setDate] = useState(draft?.date ?? new Date().toISOString().split('T')[0]);
+
+  // Restore modal open state after iOS Safari reload
+  useEffect(() => {
+    if (draft && (draft.description || draft.amount)) {
+      setShowExpenseForm(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist form state to sessionStorage for iOS Safari survival
+  useEffect(() => {
+    if (showExpenseForm && (description || amount)) {
+      sessionStorage.setItem(EXPENSE_FORM_KEY, JSON.stringify({ category, description, amount, date }));
+    }
+  }, [category, description, amount, date, showExpenseForm]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -36,17 +61,19 @@ export default function ExpenseForm() {
     setAmount('');
     setDate(new Date().toISOString().split('T')[0]);
     setShowExpenseForm(false);
+    sessionStorage.removeItem(EXPENSE_FORM_KEY);
   };
 
   const handleSubmit = () => {
     if (!user || !selectedSeasonId || !amount) return;
 
+    const userName = (user.user_metadata?.full_name as string) || user.email || '';
     addExpense(user.id, selectedSeasonId, {
       category,
       description: description.trim(),
       amount: parseFloat(amount),
       expense_date: date,
-    });
+    }, userName);
 
     resetAndClose();
   };

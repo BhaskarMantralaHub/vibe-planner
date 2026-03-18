@@ -175,15 +175,44 @@ export default function PlayerManager() {
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
-  const [name, setName] = useState('');
-  const [jersey, setJersey] = useState('');
-  const [email, setEmail] = useState('');
-  const [cricclubId, setCricclubId] = useState('');
-  const [shirtSize, setShirtSize] = useState('');
-  const [playerRole, setPlayerRole] = useState('');
-  const [battingStyle, setBattingStyle] = useState('');
-  const [bowlingStyle, setBowlingStyle] = useState('');
-  const [designation, setDesignation] = useState('');
+  const FORM_STORAGE_KEY = 'cricket_player_form_draft';
+
+  const getSavedForm = () => {
+    try {
+      const saved = sessionStorage.getItem(FORM_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  };
+
+  const draft = getSavedForm();
+  const [name, setName] = useState(draft?.name ?? '');
+  const [jersey, setJersey] = useState(draft?.jersey ?? '');
+  const [email, setEmail] = useState(draft?.email ?? '');
+  const [cricclubId, setCricclubId] = useState(draft?.cricclubId ?? '');
+  const [shirtSize, setShirtSize] = useState(draft?.shirtSize ?? '');
+  const [playerRole, setPlayerRole] = useState(draft?.playerRole ?? '');
+  const [battingStyle, setBattingStyle] = useState(draft?.battingStyle ?? '');
+  const [bowlingStyle, setBowlingStyle] = useState(draft?.bowlingStyle ?? '');
+  const [designation, setDesignation] = useState(draft?.designation ?? '');
+
+  // Restore modal open state + editing player after iOS Safari reload
+  useEffect(() => {
+    if (draft && (draft.name || draft.jersey || draft.email)) {
+      setShowPlayerForm(true);
+      if (draft.editingPlayer) setEditingPlayer(draft.editingPlayer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist form state to sessionStorage for iOS Safari survival
+  useEffect(() => {
+    if (showPlayerForm && (name || jersey || email || cricclubId || playerRole)) {
+      sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
+        name, jersey, email, cricclubId, shirtSize, playerRole,
+        battingStyle, bowlingStyle, designation, editingPlayer,
+      }));
+    }
+  }, [name, jersey, email, cricclubId, shirtSize, playerRole, battingStyle, bowlingStyle, designation, editingPlayer, showPlayerForm]);
 
   const showBatting = ['batsman', 'all-rounder', 'keeper'].includes(playerRole);
   const showBowling = ['bowler', 'all-rounder'].includes(playerRole);
@@ -192,6 +221,7 @@ export default function PlayerManager() {
     setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setDesignation('');
     setEditingPlayer(null); setDesignationConflict(null);
+    sessionStorage.removeItem(FORM_STORAGE_KEY);
   };
 
   const handleRoleChange = (role: string) => {
@@ -227,6 +257,13 @@ export default function PlayerManager() {
   };
 
   const [formError, setFormError] = useState('');
+
+  // Lock body scroll when player form modal is open
+  useEffect(() => {
+    if (!showPlayerForm) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [showPlayerForm]);
 
   const handleSubmit = () => {
     if (!user || !isFormValid()) return;
@@ -342,144 +379,158 @@ export default function PlayerManager() {
         )}
       </div>
 
-      {/* ── Form (admin only) ── */}
-      {isAdmin && showPlayerForm && (
-        <div className="mb-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-4">
-          <div className="grid grid-cols-[1fr_72px] gap-2">
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
-              <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); }}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
-                placeholder="Player name" />
+      {/* ── Form Modal (admin only) ── */}
+      {isAdmin && showPlayerForm && createPortal(
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} />
+
+          {/* Modal */}
+          <div className="fixed inset-x-3 top-[5%] z-50 mx-auto max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-[18px] font-bold text-[var(--text)]">{editingPlayer ? 'Edit Player' : 'Add Player'}</h3>
+              <button onClick={() => { resetForm(); setShowPlayerForm(false); }} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer text-lg">✕</button>
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>
-              <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors text-center"
-                placeholder="#" />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
-              placeholder="player@email.com" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
-            <input value={cricclubId} onChange={(e) => setCricclubId(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
-              placeholder="Optional" />
-          </div>
-          {/* Designation */}
-          <div>
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => handleDesignation('captain')}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                style={{ backgroundColor: designation === 'captain' ? '#D97706' : 'transparent', borderColor: designation === 'captain' ? '#D97706' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
-                <FaCrown size={13} /> Captain
-              </button>
-              <button type="button" onClick={() => handleDesignation('vice-captain')}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                style={{ backgroundColor: designation === 'vice-captain' ? '#6B7280' : 'transparent', borderColor: designation === 'vice-captain' ? '#6B7280' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
-                <FaShieldAlt size={12} /> Vice Captain
-              </button>
-            </div>
-            {designationConflict && (
-              <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--orange)]/5 border border-[var(--orange)]/20">
-                <span className="text-[12px] text-[var(--text)] flex-1"><b>{designationConflict.existingName}</b> is currently {designationConflict.value === 'captain' ? 'Captain' : 'Vice Captain'}. Reassign?</span>
-                <button onClick={() => setDesignationConflict(null)} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">No</button>
-                <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--orange)] cursor-pointer hover:opacity-90">Yes</button>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-[1fr_72px] gap-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
+                  <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); }}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                    placeholder="Player name" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>
+                  <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors text-center"
+                    placeholder="#" />
+                </div>
               </div>
-            )}
-          </div>
-          {/* Shirt Size */}
-          <div>
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Shirt Size</label>
-            <div className="flex flex-wrap gap-1.5">
-              {SHIRT_SIZES.map((s) => (
-                <button key={s.key} type="button" onClick={() => setShirtSize(shirtSize === s.key ? '' : s.key)}
-                  className="h-8 w-10 rounded-lg text-[12px] font-medium cursor-pointer transition-all border"
-                  style={{ backgroundColor: shirtSize === s.key ? s.color : 'transparent', borderColor: shirtSize === s.key ? s.color : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Role — visual cards */}
-          <div>
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Role *</label>
-            <div className="grid grid-cols-2 gap-2">
-              {PLAYER_ROLES.map((r) => {
-                const rc = roleConfig[r.key];
-                const isSelected = playerRole === r.key;
-                return (
-                  <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
-                    className="flex items-center gap-2.5 rounded-xl p-2.5 cursor-pointer transition-all border-2 text-left"
-                    style={{
-                      backgroundColor: isSelected ? `${rc?.color}15` : 'var(--card)',
-                      borderColor: isSelected ? rc?.color : 'var(--border)',
-                    }}>
-                    <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition-all"
-                      style={{
-                        backgroundColor: isSelected ? rc?.color : `${rc?.color}15`,
-                        color: isSelected ? 'white' : rc?.color,
-                      }}>
-                      {rc?.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? rc?.color : 'var(--text)' }}>{r.label}</p>
-                      <p className="text-[10px] text-[var(--muted)] leading-tight mt-0.5">{rc?.desc}</p>
-                    </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                  placeholder="player@email.com" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
+                <input value={cricclubId} onChange={(e) => setCricclubId(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                  placeholder="Optional" />
+              </div>
+              {/* Designation */}
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleDesignation('captain')}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                    style={{ backgroundColor: designation === 'captain' ? '#D97706' : 'transparent', borderColor: designation === 'captain' ? '#D97706' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
+                    <FaCrown size={13} /> Captain
                   </button>
-                );
-              })}
+                  <button type="button" onClick={() => handleDesignation('vice-captain')}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                    style={{ backgroundColor: designation === 'vice-captain' ? '#D97706' : 'transparent', borderColor: designation === 'vice-captain' ? '#D97706' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
+                    <FaShieldAlt size={12} /> Vice Captain
+                  </button>
+                </div>
+                {designationConflict && (
+                  <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--orange)]/5 border border-[var(--orange)]/20">
+                    <span className="text-[12px] text-[var(--text)] flex-1"><b>{designationConflict.existingName}</b> is currently {designationConflict.value === 'captain' ? 'Captain' : 'Vice Captain'}. Reassign?</span>
+                    <button onClick={() => setDesignationConflict(null)} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">No</button>
+                    <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--orange)] cursor-pointer hover:opacity-90">Yes</button>
+                  </div>
+                )}
+              </div>
+              {/* Shirt Size */}
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Shirt Size</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {SHIRT_SIZES.map((s) => (
+                    <button key={s.key} type="button" onClick={() => setShirtSize(shirtSize === s.key ? '' : s.key)}
+                      className="h-8 w-10 rounded-lg text-[12px] font-medium cursor-pointer transition-all border"
+                      style={{ backgroundColor: shirtSize === s.key ? '#D97706' : 'transparent', borderColor: shirtSize === s.key ? '#D97706' : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Role — visual cards */}
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Role *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLAYER_ROLES.map((r) => {
+                    const rc = roleConfig[r.key];
+                    const isSelected = playerRole === r.key;
+                    return (
+                      <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
+                        className="flex items-center gap-2.5 rounded-xl p-2.5 cursor-pointer transition-all border-2 text-left"
+                        style={{
+                          backgroundColor: isSelected ? '#D9770615' : 'var(--surface)',
+                          borderColor: isSelected ? '#D97706' : 'var(--border)',
+                        }}>
+                        <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition-all"
+                          style={{
+                            backgroundColor: isSelected ? '#D97706' : `${rc?.color}15`,
+                            color: isSelected ? 'white' : rc?.color,
+                          }}>
+                          {rc?.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? '#D97706' : 'var(--text)' }}>{r.label}</p>
+                          <p className="text-[10px] text-[var(--muted)] leading-tight mt-0.5">{rc?.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Batting + Bowling — conditional */}
+              {(showBatting || showBowling) && (
+                <div className={`grid gap-4 ${showBatting && showBowling ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {showBatting && (
+                    <div>
+                      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Batting *</label>
+                      <div className="flex flex-col gap-1.5">
+                        {BATTING_STYLES.map((s) => (
+                          <button key={s.key} type="button" onClick={() => setBattingStyle(battingStyle === s.key ? '' : s.key)}
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                            style={{ backgroundColor: battingStyle === s.key ? '#D97706' : 'transparent', borderColor: battingStyle === s.key ? '#D97706' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            {battingIcon()} {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {showBowling && (
+                    <div>
+                      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Bowling *</label>
+                      <div className="flex flex-col gap-1.5">
+                        {BOWLING_STYLES.map((s) => (
+                          <button key={s.key} type="button" onClick={() => setBowlingStyle(bowlingStyle === s.key ? '' : s.key)}
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                            style={{ backgroundColor: bowlingStyle === s.key ? '#D97706' : 'transparent', borderColor: bowlingStyle === s.key ? '#D97706' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            {bowlingIcon()} {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {formError && (
+                <div className="rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2 text-[13px] text-[var(--red)]">
+                  {formError}
+                </div>
+              )}
+              <button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
+                className="w-full rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-3 text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
+              </button>
             </div>
           </div>
-          {/* Batting + Bowling — conditional */}
-          {(showBatting || showBowling) && (
-            <div className={`grid gap-4 ${showBatting && showBowling ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {showBatting && (
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Batting *</label>
-                  <div className="flex flex-col gap-1.5">
-                    {BATTING_STYLES.map((s) => (
-                      <button key={s.key} type="button" onClick={() => setBattingStyle(battingStyle === s.key ? '' : s.key)}
-                        className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                        style={{ backgroundColor: battingStyle === s.key ? 'var(--blue)' : 'transparent', borderColor: battingStyle === s.key ? 'var(--blue)' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
-                        {battingIcon()} {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {showBowling && (
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Bowling *</label>
-                  <div className="flex flex-col gap-1.5">
-                    {BOWLING_STYLES.map((s) => (
-                      <button key={s.key} type="button" onClick={() => setBowlingStyle(bowlingStyle === s.key ? '' : s.key)}
-                        className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                        style={{ backgroundColor: bowlingStyle === s.key ? 'var(--green)' : 'transparent', borderColor: bowlingStyle === s.key ? 'var(--green)' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
-                        {bowlingIcon()} {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {formError && (
-            <div className="rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2 text-[13px] text-[var(--red)]">
-              {formError}
-            </div>
-          )}
-          <button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
-            className="w-full rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-3 text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
-          </button>
-        </div>
+        </>,
+        document.body,
       )}
 
       {/* ── Player List ── */}

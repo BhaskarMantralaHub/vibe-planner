@@ -44,6 +44,8 @@ export type CricketExpense = {
   description: string;
   amount: number;
   expense_date: string;
+  created_by: string | null;
+  updated_by: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;
