@@ -87,13 +87,22 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
-  const M = 18; // margin (more breathing room for professional layout)
-  const TW = W - M * 2; // table width
-  let y = 20;
+  const H = doc.internal.pageSize.getHeight();
+  const M = 16;
+  const TW = W - M * 2;
+  let y = 0;
 
   type RGB = [number, number, number];
-  const BLACK: RGB = [30, 30, 30]; const GRAY: RGB = [100, 100, 100]; const LGRAY: RGB = [150, 150, 150]; const HEADER_BG: RGB = [235, 235, 235];
-  const GREEN: RGB = [5, 150, 105]; const RED: RGB = [239, 68, 68]; const ORANGE: RGB = [217, 119, 6];
+  const BLACK: RGB = [30, 30, 30];
+  const DARK: RGB = [55, 55, 55];
+  const GRAY: RGB = [120, 120, 120];
+  const LGRAY: RGB = [170, 170, 170];
+  const WHITE: RGB = [255, 255, 255];
+  const GREEN: RGB = [5, 150, 105];
+  const RED: RGB = [220, 50, 50];
+  const ORANGE: RGB = [217, 119, 6];
+  const AMBER: RGB = [245, 158, 11];
+  const BLUE: RGB = [59, 130, 246];
 
   const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
     doc.setFontSize(opts?.size ?? 9);
@@ -102,70 +111,104 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
 
-  const gap = (g = 5) => { y += g; };
-  const hr = () => { doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(M, y, W - M, y); y += 5; };
-  const checkPage = (need = 10) => { if (y + need > 280) { doc.addPage(); y = 20; } };
+  const checkPage = (need = 12) => { if (y + need > H - 20) { doc.addPage(); addPageFooter(); y = 18; } };
+  const pageCount = () => doc.getNumberOfPages();
 
-  // Draw a card wrapper — call startCard(), render content, then endCard()
-  let cardStartY = 0;
-  const startCard = () => { cardStartY = y; y += 5; };
-  const endCard = () => {
-    const h = y - cardStartY + 5;
-    doc.setFillColor(248, 249, 250);
-    doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3);
-    doc.roundedRect(M, cardStartY, TW, h, 2, 2, 'FD');
-    y = cardStartY; // reset to draw content on top
+  // Page footer on every page
+  const addPageFooter = () => {
+    const pg = pageCount();
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LGRAY);
+    doc.text(`${TEAM_NAME}  |  ${season.name}`, M, H - 8);
+    doc.text(`Page ${pg}`, W - M, H - 8, { align: 'right' });
+    // thin line above footer
+    doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.2);
+    doc.line(M, H - 12, W - M, H - 12);
   };
 
-  // Draw section accent line on left after content is rendered
-  const sectionAccent = (startY: number, color: RGB) => {
-    const h = y - startY;
-    doc.setDrawColor(...color); doc.setLineWidth(1.5);
-    doc.line(M - 2, startY - 2, M - 2, startY + h + 2);
+  // ─── Rounded rect fill helper ───
+  const fillRect = (x: number, ry: number, w: number, h: number, color: RGB, r = 2) => {
+    doc.setFillColor(...color);
+    doc.roundedRect(x, ry, w, h, r, r, 'F');
   };
 
-  // Draw a proper table
-  const drawTable = (headers: string[], colX: number[], rows: { cells: string[]; bold?: boolean[]; colors?: (RGB | null)[] }[]) => {
-    const rH = 8; // row height
-    const textY = 5.5; // text offset within row
+  // ─── Section header with colored dot ───
+  const sectionHeader = (label: string, subtitle: string, dotColor: RGB) => {
+    checkPage(20);
+    // Colored dot
+    doc.setFillColor(...dotColor);
+    doc.circle(M + 3, y + 1, 2, 'F');
+    text(label, M + 8, y + 2.5, { size: 8, bold: true, color: GRAY });
+    y += 8;
+    text(subtitle, M, y, { size: 15, bold: true, color: BLACK });
+    y += 9;
+  };
 
-    // Header
-    doc.setFillColor(...HEADER_BG);
-    doc.setDrawColor(210, 210, 210);
-    doc.setLineWidth(0.3);
-    doc.rect(M, y, TW, rH, 'FD');
+  // ─── Styled table ───
+  // colPcts: percentage of TW for each column (must sum to ~100). Last col is right-aligned.
+  const drawTable = (headers: string[], colPcts: number[], rows: { cells: string[]; bold?: boolean[]; colors?: (RGB | null)[] }[], accentColor: RGB) => {
+    const rH = 8.5;
+    const textY = 5.8;
+    const pad = 3;
+
+    // Convert percentages to absolute x positions
+    const colX = colPcts.map((_, i) => {
+      const offset = colPcts.slice(0, i).reduce((a, b) => a + b, 0);
+      return M + (offset / 100) * TW + pad;
+    });
+
+    // Header row — colored accent with white overlay
+    fillRect(M, y, TW, rH, [accentColor[0], accentColor[1], accentColor[2]], 0);
+    doc.setFillColor(255, 255, 255);
+    doc.setGState(new (doc as unknown as { GState: new (opts: { opacity: number }) => unknown }).GState({ opacity: 0.88 }));
+    doc.rect(M, y, TW, rH, 'F');
+    doc.setGState(new (doc as unknown as { GState: new (opts: { opacity: number }) => unknown }).GState({ opacity: 1 }));
+
     headers.forEach((h, i) => {
-      const align = i === headers.length - 1 ? 'right' as const : 'left' as const;
-      const x = i === headers.length - 1 ? W - M - 2 : colX[i];
-      text(h, x, y + textY, { size: 8, bold: true, color: GRAY, align });
+      const isLast = i === headers.length - 1;
+      const align = isLast ? 'right' as const : 'left' as const;
+      const x = isLast ? W - M - pad : colX[i];
+      text(h.toUpperCase(), x, y + textY, { size: 7, bold: true, color: accentColor, align });
     });
     y += rH;
 
-    // Rows
+    // Data rows
     rows.forEach((row, ri) => {
       checkPage(rH);
-      if (ri % 2 === 0) { doc.setFillColor(252, 252, 254); doc.rect(M, y, TW, rH, 'F'); }
-      doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.1);
-      doc.line(M, y + rH, W - M, y + rH); // bottom border
+      if (ri % 2 === 0) { fillRect(M, y, TW, rH, [250, 250, 252], 0); }
+      doc.setDrawColor(240, 240, 240); doc.setLineWidth(0.15);
+      doc.line(M, y + rH, W - M, y + rH);
 
       row.cells.forEach((cell, ci) => {
         const isLast = ci === row.cells.length - 1;
         const align = isLast ? 'right' as const : 'left' as const;
-        const x = isLast ? W - M - 2 : colX[ci];
+        const x = isLast ? W - M - pad : colX[ci];
         const isBold = row.bold?.[ci] ?? false;
-        const color = row.colors?.[ci] ?? BLACK;
+        const color = row.colors?.[ci] ?? DARK;
         text(cell, x, y + textY, { size: 9, bold: isBold, color, align });
       });
       y += rH;
     });
-
-    // Bottom border
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.line(M, y, W - M, y);
   };
 
-  // ═══ HEADER WITH LOGO ═══
+  // ═══════════════════════════════════════
+  // ═══ PAGE 1: HEADER BANNER ═══
+  // ═══════════════════════════════════════
+
+  // Orange gradient banner
+  const bannerH = 48;
+  // Draw gradient by layering thin strips
+  for (let i = 0; i < bannerH; i++) {
+    const t = i / bannerH;
+    const r = Math.round(180 + t * 30);  // 180→210
+    const g = Math.round(90 + t * 30);   // 90→120
+    const b = Math.round(0 + t * 10);    // 0→10
+    doc.setFillColor(r, g, b);
+    doc.rect(0, i, W, 1, 'F');
+  }
+
+  // Logo in banner
   try {
     const logoRes = await fetch('/cricket-logo.png');
     const logoBlob = await logoRes.blob();
@@ -174,185 +217,192 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(logoBlob);
     });
-    const logoSize = 20;
-    doc.addImage(logoBase64, 'PNG', W / 2 - logoSize / 2, y - 2, logoSize, logoSize);
-    y += logoSize + 3;
-  } catch {
-    // Logo failed to load — skip it
-  }
-  text(TEAM_NAME, W / 2, y, { size: 26, bold: true, color: ORANGE, align: 'center' });
-  y += 10;
-  text(`${season.name} — Season Report`, W / 2, y, { size: 12, color: GRAY, align: 'center' });
-  y += 8;
-  hr();
+    doc.addImage(logoBase64, 'PNG', M, 8, 16, 16);
+  } catch { /* skip logo */ }
 
-  // ═══ POOL FUND CARD ═══
-  const cardH = poolBalance < 0 ? 32 : 25;
-  doc.setFillColor(248, 249, 250);
-  doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
-  doc.roundedRect(M, y, TW, cardH, 2, 2, 'FD');
+  // Team name + season in banner
+  text(TEAM_NAME, M + 22, 17, { size: 22, bold: true, color: WHITE });
+  text(`${season.name}  —  Season Report`, M + 22, 25, { size: 11, color: [255, 255, 240] });
+  // Generated date
+  text(
+    `Generated ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+    W - M, 25, { size: 8, color: [255, 220, 180], align: 'right' }
+  );
 
-  const cardInner = y + 7;
-  text('POOL FUND', M + 6, cardInner, { size: 8, bold: true, color: GRAY });
+  y = bannerH + 8;
 
-  const statsY = cardInner + 7;
-  text(`Fees`, M + 6, statsY, { size: 8, color: GRAY });
-  text(formatCurrency(totalFees), M + 6, statsY + 5, { size: 11, bold: true, color: GREEN });
+  // ═══ SUMMARY STAT CARDS ═══
+  const cardW = (TW - 9) / 4; // 4 cards with 3px gaps
+  const cardH2 = 22;
+  const stats = [
+    { label: 'FEES', value: formatCurrency(totalFees), color: GREEN },
+    { label: 'SPONSORS', value: formatCurrency(totalSponsorship), color: AMBER },
+    { label: 'SPENT', value: formatCurrency(totalSpent), color: RED },
+    { label: 'BALANCE', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(Math.abs(poolBalance))}`, color: poolBalance >= 0 ? GREEN : RED },
+  ];
 
-  text(`Sponsors`, M + 45, statsY, { size: 8, color: GRAY });
-  text(formatCurrency(totalSponsorship), M + 45, statsY + 5, { size: 11, bold: true, color: ORANGE });
+  stats.forEach((s, i) => {
+    const cx = M + i * (cardW + 3);
+    // Card background
+    fillRect(cx, y, cardW, cardH2, [248, 249, 252], 3);
+    // Colored top accent line
+    doc.setFillColor(...s.color);
+    doc.roundedRect(cx, y, cardW, 2, 1, 1, 'F');
+    // Label
+    text(s.label, cx + cardW / 2, y + 9, { size: 7, bold: true, color: GRAY, align: 'center' });
+    // Value
+    text(s.value, cx + cardW / 2, y + 17, { size: 13, bold: true, color: s.color, align: 'center' });
+  });
+  y += cardH2 + 4;
 
-  text(`Spent`, M + 90, statsY, { size: 8, color: GRAY });
-  text(formatCurrency(totalSpent), M + 90, statsY + 5, { size: 11, bold: true, color: RED });
-
-  text(`Balance`, W - M - 6, statsY, { size: 8, color: GRAY, align: 'right' });
-  const balColor: RGB = poolBalance >= 0 ? GREEN : RED;
-  text(`${poolBalance < 0 ? '-' : ''}${formatCurrency(poolBalance)}`, W - M - 6, statsY + 5, { size: 14, bold: true, color: balColor, align: 'right' });
-
+  // Pool balance alert (compact)
   if (poolBalance < 0 && activePlayers.length > 0) {
     const pp = Math.ceil(Math.abs(poolBalance) / activePlayers.length);
-    // clearer message for shortfall
-    const deficit = formatCurrency(Math.abs(poolBalance));
-    const perPlayer = formatCurrency(pp);
+    fillRect(M, y, TW, 10, [255, 245, 245], 2);
+    doc.setDrawColor(...RED); doc.setLineWidth(0.3); doc.roundedRect(M, y, TW, 10, 2, 2, 'S');
     text(
-      `Additional ${perPlayer} per player needed to cover ${deficit} shortfall (${activePlayers.length} players)`,
-      M + 6,
-      statsY + 14,
-      { size: 8.5, color: RED }
+      `Shortfall: ${formatCurrency(Math.abs(poolBalance))}  —  collect ${formatCurrency(pp)}/player (${activePlayers.length} players) to cover`,
+      W / 2, y + 6.5, { size: 8.5, bold: true, color: RED, align: 'center' }
     );
+    y += 14;
+  } else if (poolBalance > 0 && totalCollected > 0) {
+    fillRect(M, y, TW, 10, [240, 253, 244], 2);
+    text(
+      `${formatCurrency(poolBalance)} remaining  —  rolls over to next season`,
+      W / 2, y + 6.5, { size: 8.5, color: GREEN, align: 'center' }
+    );
+    y += 14;
+  } else {
+    y += 4;
   }
 
-  y += cardH + 8;
-
   // ═══ SEASON FEE TABLE ═══
-  const feeStartY = y;
-  text('SEASON FEES', M + 4, y, { size: 9, bold: true, color: GRAY });
-  y += 5;
-  text(`Season Fee — ${formatCurrency(feeAmount)}/player`, M + 4, y, { size: 14, bold: true, color: BLACK });
-  y += 8;
+  sectionHeader('SEASON FEES', `${formatCurrency(feeAmount)} per player`, GREEN);
+
+  const paidPlayers = activePlayers.filter((p) => feeMap[p.id] && Number(feeMap[p.id].amount_paid) >= feeAmount);
+  const partialPlayers = activePlayers.filter((p) => feeMap[p.id] && Number(feeMap[p.id].amount_paid) > 0 && Number(feeMap[p.id].amount_paid) < feeAmount);
+  const unpaidPlayers = activePlayers.filter((p) => !feeMap[p.id] || Number(feeMap[p.id].amount_paid) === 0);
+
+  // Quick summary line
+  const parts = [];
+  if (paidPlayers.length) parts.push(`${paidPlayers.length} Paid`);
+  if (partialPlayers.length) parts.push(`${partialPlayers.length} Partial`);
+  if (unpaidPlayers.length) parts.push(`${unpaidPlayers.length} Unpaid`);
+  text(parts.join('  |  '), M, y, { size: 9, color: GRAY });
+  y += 6;
 
   const feeRows = activePlayers.map((p) => {
     const fee = feeMap[p.id];
     const paidAmt = fee ? Number(fee.amount_paid) : 0;
     const isPaid = paidAmt >= feeAmount;
     const isPartial = paidAmt > 0 && paidAmt < feeAmount;
-    const status = isPaid ? '[PAID]' : isPartial ? '[PARTIAL]' : '[UNPAID]';
-    const sColor: RGB = isPaid ? GREEN : isPartial ? ORANGE : RED;
+    const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid';
+    const sColor: RGB = isPaid ? GREEN : isPartial ? AMBER : RED;
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    const dateStr = fee?.paid_date ? formatDate(fee.paid_date) : '—';
     return {
-      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, status, formatCurrency(paidAmt)],
-      bold: [false, false, true, true],
-      colors: [GRAY, BLACK, sColor, BLACK] as (RGB | null)[],
+      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, status, dateStr, formatCurrency(paidAmt)],
+      bold: [false, true, true, false, true],
+      colors: [GRAY, DARK, sColor, LGRAY, DARK] as (RGB | null)[],
     };
   });
-  drawTable(['#', 'Player', 'Status', 'Amount'], [M + 3, M + 18, M + 100, 0], feeRows);
-  sectionAccent(feeStartY, GREEN);
-  gap(8);
+  // #(7%) Player(38%) Status(18%) Date(18%) Amount(19%)
+  drawTable(['Jersey', 'Player', 'Status', 'Date', 'Amount'], [8, 37, 18, 18, 19], feeRows, GREEN);
+  y += 10;
 
   // ═══ SPONSORSHIPS ═══
   if (seasonSponsors.length) {
-    checkPage(30);
-    const sponsorStartY = y;
-    text('SPONSORSHIPS', M + 4, y, { size: 9, bold: true, color: GRAY });
-    y += 5;
-    text(`Sponsorships — ${formatCurrency(totalSponsorship)}`, M + 4, y, { size: 14, bold: true, color: BLACK });
-    y += 8;
-
+    sectionHeader('SPONSORSHIPS', `${formatCurrency(totalSponsorship)} total`, AMBER);
     const sponsorRows = seasonSponsors.map((s) => ({
       cells: [s.sponsor_name, formatDate(s.sponsored_date), s.notes || '—', formatCurrency(Number(s.amount))],
       bold: [true, false, false, true],
-      colors: [BLACK, GRAY, GRAY, GREEN] as (RGB | null)[],
+      colors: [DARK, GRAY, LGRAY, GREEN] as (RGB | null)[],
     }));
-    drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [M + 3, M + 70, M + 100, 0], sponsorRows);
-    sectionAccent(sponsorStartY, ORANGE);
-    gap(8);
+    // Sponsor(35%) Date(20%) Notes(25%) Amount(20%)
+    drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [35, 20, 25, 20], sponsorRows, AMBER);
+    y += 10;
   }
 
   // ═══ EXPENSES TABLE ═══
   if (seasonExpenses.length) {
-    checkPage(30);
-    const expStartY = y;
-    text('EXPENSES', M + 4, y, { size: 9, bold: true, color: GRAY });
-    y += 5;
-    text(`Expenses — ${formatCurrency(totalSpent)}`, M + 4, y, { size: 14, bold: true, color: BLACK });
-    y += 8;
+    sectionHeader('EXPENSES', `${formatCurrency(totalSpent)} total  ·  ${seasonExpenses.length} transactions`, RED);
 
     const expRows = seasonExpenses.map((e) => {
       const cfg = getCategoryConfig(e.category);
       return {
-        cells: [cfg.label, (e.description || cfg.label).substring(0, 28), formatDate(e.expense_date), formatCurrency(Number(e.amount))],
+        cells: [cfg.label, (e.description || cfg.label).substring(0, 30), formatDate(e.expense_date), formatCurrency(Number(e.amount))],
         bold: [false, false, false, true],
-        colors: [null, null, GRAY, BLACK] as (RGB | null)[],
+        colors: [GRAY, DARK, LGRAY, DARK] as (RGB | null)[],
       };
     });
-    drawTable(['Category', 'Description', 'Date', 'Amount'], [M + 3, M + 40, M + 110, 0], expRows);
-    gap(8);
+    // Category(18%) Description(40%) Date(20%) Amount(22%)
+    drawTable(['Category', 'Description', 'Date', 'Amount'], [18, 40, 20, 22], expRows, RED);
+    y += 8;
 
-    // ═══ EXPENSE BREAKDOWN ═══
-    checkPage(30);
-    text('Expense Breakdown', M + 4, y, { size: 14, bold: true, color: BLACK });
+    // ═══ EXPENSE BREAKDOWN BARS ═══
+    checkPage(40);
+    text('Breakdown', M, y, { size: 12, bold: true, color: DARK });
     y += 8;
 
     const catTotals: Record<string, number> = {};
     seasonExpenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount); });
     const catEntries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
     const catRgb: Record<string, RGB> = { ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [245, 158, 11], food: [239, 68, 68], other: [107, 114, 128] };
-    const barMax = 75;
+    const barMax = 80;
 
     catEntries.forEach(([cat, total]) => {
-      checkPage(10);
+      checkPage(12);
       const cfg = getCategoryConfig(cat);
       const pct = Math.round((total / totalSpent) * 100);
-      const barW = Math.max((total / totalSpent) * barMax, 2);
+      const barW = Math.max((total / totalSpent) * barMax, 3);
       const c = catRgb[cat] ?? [107, 114, 128];
 
-      text(cfg.label, M + 3, y, { size: 9, color: BLACK });
+      text(cfg.label, M + 3, y + 1, { size: 9, bold: true, color: DARK });
 
       // Background bar
-      doc.setFillColor(235, 235, 235);
-      doc.roundedRect(M + 40, y - 3.5, barMax, 5, 1.5, 1.5, 'F');
-      // Filled bar
+      fillRect(M + 38, y - 2.5, barMax, 6, [238, 238, 238], 3);
+      // Filled bar with rounded ends
       doc.setFillColor(...c);
-      doc.roundedRect(M + 40, y - 3.5, barW, 5, 1.5, 1.5, 'F');
+      doc.roundedRect(M + 38, y - 2.5, barW, 6, 3, 3, 'F');
 
-      text(`${formatCurrency(total)} (${pct}%)`, M + 40 + barMax + 4, y, { size: 9, bold: true, color: BLACK });
-      y += 8;
+      text(`${formatCurrency(total)}`, M + 38 + barMax + 4, y + 1, { size: 9, bold: true, color: c });
+      text(`${pct}%`, W - M, y + 1, { size: 8, color: GRAY, align: 'right' });
+      y += 10;
     });
-    sectionAccent(expStartY, RED);
-    gap(8);
+    y += 6;
   }
 
   // ═══ SQUAD TABLE ═══
-  checkPage(30);
-  const squadStartY = y;
-  text('TEAM SQUAD', M + 4, y, { size: 9, bold: true, color: GRAY });
-  y += 5;
-  text(`Squad — ${activePlayers.length} Players`, M + 4, y, { size: 14, bold: true, color: BLACK });
-  y += 8;
-
+  sectionHeader('TEAM SQUAD', `${activePlayers.length} players`, ORANGE);
   const squadRows = activePlayers.map((p) => {
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
-    const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1) : '—';
+    const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1).replace('-', ' ') : '—';
+    const style = [
+      p.batting_style ? (p.batting_style === 'right' ? 'RHB' : 'LHB') : '',
+      p.bowling_style ? p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1) : '',
+    ].filter(Boolean).join(' / ') || '—';
     return {
-      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role, p.cricclub_id || '—'],
+      cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role, style],
       bold: [false, true, false, false],
-      colors: [ORANGE, BLACK, GRAY, GRAY] as (RGB | null)[],
+      colors: [ORANGE, DARK, GRAY, LGRAY] as (RGB | null)[],
     };
   });
-  drawTable(['#', 'Player', 'Role', 'CricClub ID'], [M + 3, M + 18, M + 85, 0], squadRows);
-  sectionAccent(squadStartY, ORANGE);
+  // #(7%) Player(38%) Role(25%) Style(30%)
+  drawTable(['Jersey', 'Player', 'Role', 'Style'], [8, 37, 25, 30], squadRows, ORANGE);
 
-  // ═══ FOOTER ═══
-  gap(10);
-  text(
-    `Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
-    W / 2, y, { size: 8, color: LGRAY, align: 'center' }
-  );
-  y += 4;
-  text(
-    `${TEAM_NAME}`,
-    W / 2, y, { size: 8, color: LGRAY, align: 'center' }
-  );
+  // ═══ ADD FOOTER TO ALL PAGES ═══
+  const total = pageCount();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LGRAY);
+    doc.text(`${TEAM_NAME}  |  ${season.name}`, M, H - 8);
+    doc.text(`\u00A9 Designed by Bhaskar Mantrala`, W / 2, H - 8, { align: 'center' });
+    doc.text(`Page ${i} of ${total}`, W - M, H - 8, { align: 'right' });
+    doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2);
+    doc.line(M, H - 12, W - M, H - 12);
+  }
 
   return doc;
 }

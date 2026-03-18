@@ -6,8 +6,8 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
-import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
-import { FaBullseye, FaStar, FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
+import { GiCricketBat, GiTennisBall, GiGloves, GiLightningTrio } from 'react-icons/gi';
+import { FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { MdEdit, MdDeleteOutline, MdSportsCricket } from 'react-icons/md';
 
@@ -127,11 +127,11 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
 }
 
 /* ── Role config ── */
-const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  batsman: { icon: <GiCricketBat size={13} />, label: 'Batsman', color: '#F59E0B' },
-  bowler: { icon: <FaBullseye size={12} />, label: 'Bowler', color: '#3B82F6' },
-  'all-rounder': { icon: <FaStar size={12} />, label: 'All-Rounder', color: '#D97706' },
-  keeper: { icon: <GiBaseballGlove size={13} />, label: 'Keeper', color: '#16A34A' },
+const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string; desc: string }> = {
+  batsman: { icon: <GiCricketBat size={15} />, label: 'Batsman', color: '#F59E0B', desc: 'Run scorer' },
+  bowler: { icon: <GiTennisBall size={14} />, label: 'Bowler', color: '#3B82F6', desc: 'Wicket taker' },
+  'all-rounder': { icon: <GiLightningTrio size={15} />, label: 'All-Rounder', color: '#D97706', desc: 'Bat & ball' },
+  keeper: { icon: <GiGloves size={15} />, label: 'Keeper', color: '#16A34A', desc: 'Behind stumps' },
 };
 
 const JERSEY_COLORS = ['#F59E0B', '#3B82F6', '#16A34A', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#F97316'];
@@ -407,17 +407,31 @@ export default function PlayerManager() {
               ))}
             </div>
           </div>
-          {/* Role */}
+          {/* Role — visual cards */}
           <div>
             <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Role *</label>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {PLAYER_ROLES.map((r) => {
                 const rc = roleConfig[r.key];
+                const isSelected = playerRole === r.key;
                 return (
                   <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                    style={{ backgroundColor: playerRole === r.key ? rc?.color ?? 'var(--orange)' : 'transparent', borderColor: playerRole === r.key ? rc?.color ?? 'var(--orange)' : 'var(--border)', color: playerRole === r.key ? 'white' : 'var(--text)' }}>
-                    {rc?.icon} {r.label}
+                    className="flex items-center gap-2.5 rounded-xl p-2.5 cursor-pointer transition-all border-2 text-left"
+                    style={{
+                      backgroundColor: isSelected ? `${rc?.color}15` : 'var(--card)',
+                      borderColor: isSelected ? rc?.color : 'var(--border)',
+                    }}>
+                    <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition-all"
+                      style={{
+                        backgroundColor: isSelected ? rc?.color : `${rc?.color}15`,
+                        color: isSelected ? 'white' : rc?.color,
+                      }}>
+                      {rc?.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? rc?.color : 'var(--text)' }}>{r.label}</p>
+                      <p className="text-[10px] text-[var(--muted)] leading-tight mt-0.5">{rc?.desc}</p>
+                    </div>
                   </button>
                 );
               })}
@@ -510,63 +524,45 @@ export default function PlayerManager() {
                 )}
 
                 {/* Player info */}
-                <div className="flex items-center gap-2 sm:gap-3 pr-10">
-                  <div className="flex-shrink-0 flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl font-bold text-[13px] sm:text-[14px]"
+                <div className="flex items-center gap-2.5 sm:gap-3 pr-10">
+                  {/* Circular jersey badge — colored by role */}
+                  <div className="flex-shrink-0 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full font-extrabold text-[13px] sm:text-[14px]"
                     style={{
-                      backgroundColor: '#F59E0B20',
-                      color: '#D97706',
-                      border: '2px solid #F59E0B40',
+                      backgroundColor: `${rc?.color ?? '#F59E0B'}18`,
+                      color: rc?.color ?? '#D97706',
+                      border: `2.5px solid ${rc?.color ?? '#F59E0B'}50`,
                     }}>
-                    {p.jersey_number ? `#${p.jersey_number}` : '—'}
+                    {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                      <span className="text-[14px] sm:text-[15px] font-semibold text-[var(--text)] truncate max-w-[120px] sm:max-w-none">{p.name}</span>
+                    {/* Line 1: Name + designation */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[14px] sm:text-[15px] font-bold text-[var(--text)] truncate">{p.name}</span>
                       {isCaptain && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#D9770615', color: '#D97706' }}>
-                          <FaCrown size={10} /> C
+                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-extrabold tracking-wide" style={{ color: '#D97706' }}>
+                          <FaCrown size={9} /> C
                         </span>
                       )}
                       {isVC && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2 py-0.5" style={{ background: '#6B728015', color: '#6B7280' }}>
-                          <FaShieldAlt size={10} /> VC
-                        </span>
-                      )}
-                      {rc && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-0.5" style={{ background: `${rc.color}20`, color: rc.color }}>
-                          {rc.icon} {rc.label}
+                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-extrabold tracking-wide" style={{ color: '#6B7280' }}>
+                          <FaShieldAlt size={9} /> VC
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
-                      {p.batting_style && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg shadow-sm"
-                          style={{ background: 'color-mix(in srgb, var(--blue) 18%, transparent)', color: 'var(--blue)' }}>
-                          {battingIcon()} {p.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
-                        </span>
-                      )}
-                      {p.bowling_style && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg shadow-sm"
-                          style={{ background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)' }}>
-                          {bowlingIcon()} {p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}
-                        </span>
-                      )}
-                      {p.shirt_size && (() => {
-                        const sizeColor = SHIRT_SIZES.find((s) => s.key === p.shirt_size)?.color ?? '#F59E0B';
-                        return (
-                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-lg"
-                            style={{ background: `${sizeColor}20`, color: sizeColor }}>
-                            Size {p.shirt_size}
-                          </span>
-                        );
-                      })()}
-                      {p.cricclub_id && (
-                        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-lg"
-                          style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
-                          CC: {p.cricclub_id}
-                        </span>
-                      )}
-                    </div>
+                    {/* Line 2: Role · Batting · Bowling · Size — dot-separated */}
+                    <p className="text-[12px] sm:text-[13px] text-[var(--muted)] mt-0.5 truncate">
+                      {[
+                        rc && <span key="role" style={{ color: rc.color, fontWeight: 600 }}>{rc.label}</span>,
+                        p.batting_style && <span key="bat">{p.batting_style === 'right' ? 'Right Hand' : 'Left Hand'} Bat</span>,
+                        p.bowling_style && <span key="bowl">{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>,
+                        p.shirt_size && <span key="size">Size {p.shirt_size}</span>,
+                        p.cricclub_id && <span key="cc" className="text-[var(--dim)]">CC: {p.cricclub_id}</span>,
+                      ].filter(Boolean).reduce<React.ReactNode[]>((acc, item, i) => {
+                        if (i > 0) acc.push(<span key={`dot-${i}`} className="text-[var(--border)] mx-1">&middot;</span>);
+                        acc.push(item);
+                        return acc;
+                      }, [])}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -589,9 +585,9 @@ export default function PlayerManager() {
                 const rc = roleConfig[p.player_role ?? ''];
                 return (
                   <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
-                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-lg text-[12px] font-bold"
-                      style={{ backgroundColor: '#F59E0B10', color: '#D9770660', border: '1.5px solid #F59E0B20' }}>
-                      {p.jersey_number ? `#${p.jersey_number}` : '—'}
+                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
+                      style={{ backgroundColor: `${rc?.color ?? '#F59E0B'}10`, color: `${rc?.color ?? '#D97706'}60`, border: `1.5px solid ${rc?.color ?? '#F59E0B'}20` }}>
+                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[var(--muted)] truncate">{p.name}</p>
