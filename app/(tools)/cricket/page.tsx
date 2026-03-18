@@ -185,13 +185,20 @@ function CricketDashboard() {
 
   useEffect(() => {
     document.title = 'Sunrisers Manteca';
-    // Set cricket favicon
-    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
-      || document.createElement('link');
-    link.rel = 'icon';
-    link.href = '/cricket-logo.png';
-    document.head.appendChild(link);
-    return () => { link.href = '/favicon.ico'; };
+    // Override ALL favicon links to cricket logo
+    const iconLinks = document.querySelectorAll("link[rel~='icon'], link[rel='shortcut icon']");
+    const prevHrefs = Array.from(iconLinks).map((l) => (l as HTMLLinkElement).href);
+    iconLinks.forEach((l) => { (l as HTMLLinkElement).href = '/cricket-logo.png'; });
+    // If no icon links exist, create one
+    if (iconLinks.length === 0) {
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = '/cricket-logo.png';
+      document.head.appendChild(link);
+    }
+    return () => {
+      iconLinks.forEach((l, i) => { (l as HTMLLinkElement).href = prevHrefs[i] || '/favicon.ico'; });
+    };
   }, []);
 
   useEffect(() => {
