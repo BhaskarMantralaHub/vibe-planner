@@ -395,8 +395,8 @@ export default function PlayerManager() {
           {/* Backdrop */}
           <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} />
 
-          {/* Modal */}
-          <div className="fixed inset-x-3 top-[5%] z-50 mx-auto max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
+          {/* Modal — use top/bottom instead of max-h-[90vh] because vh units include iOS Safari chrome */}
+          <div className="fixed inset-x-3 top-[3%] bottom-[3%] z-50 mx-auto max-w-md overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
             style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-[18px] font-bold text-[var(--text)]">{editingPlayer ? 'Edit Player' : 'Add Player'}</h3>
