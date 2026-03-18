@@ -258,11 +258,21 @@ export default function PlayerManager() {
 
   const [formError, setFormError] = useState('');
 
-  // Lock body scroll when player form modal is open
+  // Lock body scroll when player form modal is open (position:fixed is the only reliable method on iOS Safari)
   useEffect(() => {
     if (!showPlayerForm) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollY);
+    };
   }, [showPlayerForm]);
 
   const handleSubmit = () => {
@@ -383,13 +393,11 @@ export default function PlayerManager() {
       {isAdmin && showPlayerForm && createPortal(
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} onTouchMove={(e) => e.preventDefault()} />
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} />
 
           {/* Modal */}
-          <div
-            className="fixed inset-x-3 top-[5%] z-50 mx-auto max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
-            style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
-            onTouchMove={(e) => e.stopPropagation()}>
+          <div className="fixed inset-x-3 top-[5%] z-50 mx-auto max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
+            style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-[18px] font-bold text-[var(--text)]">{editingPlayer ? 'Edit Player' : 'Add Player'}</h3>
               <button onClick={() => { resetForm(); setShowPlayerForm(false); }} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer text-lg">✕</button>

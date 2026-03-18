@@ -46,11 +46,21 @@ export default function ExpenseForm() {
     }
   }, [category, description, amount, date, showExpenseForm]);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when modal is open (position:fixed for iOS Safari)
   useEffect(() => {
     if (!showExpenseForm) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      window.scrollTo(0, scrollY);
+    };
   }, [showExpenseForm]);
 
   if (!showExpenseForm) return null;
