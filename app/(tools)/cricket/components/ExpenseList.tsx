@@ -178,7 +178,7 @@ export default function ExpenseList() {
   const isLow = poolBalance < 0;
   const perPerson = activePlayers.length > 0 ? Math.ceil(Math.abs(poolBalance) / activePlayers.length) : 0;
 
-  const adminName = (user?.user_metadata?.full_name as string) || user?.email || '';
+  const currentUserName = (user?.user_metadata?.full_name as string) || user?.email || '';
 
   return (
     <div className="space-y-4">
@@ -326,7 +326,7 @@ export default function ExpenseList() {
                   {editingExpense === e.id ? (
                     <InlineEditForm
                       expense={e}
-                      onSave={(updates) => { updateExpense(e.id, updates as Partial<typeof e>); setEditingExpense(null); }}
+                      onSave={(updates) => { updateExpense(e.id, updates as Partial<typeof e>, currentUserName); setEditingExpense(null); }}
                       onCancel={() => setEditingExpense(null)}
                     />
                   ) : (
@@ -371,7 +371,7 @@ export default function ExpenseList() {
                             Added
                           </span>
                           <span className="text-[var(--text)] font-bold">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
-                          {adminName && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{adminName}</span></span>}
+                          {e.created_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.created_by}</span></span>}
                         </div>
                         {e.updated_at && e.updated_at !== e.created_at && (
                           <div className="flex items-center gap-2">
@@ -380,7 +380,7 @@ export default function ExpenseList() {
                               Updated
                             </span>
                             <span className="text-[var(--text)] font-bold">{formatDate(e.updated_at.split('T')[0])}</span>
-                            {adminName && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{adminName}</span></span>}
+                            {e.updated_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.updated_by}</span></span>}
                           </div>
                         )}
                       </div>
@@ -445,7 +445,7 @@ export default function ExpenseList() {
       {deletingExpense && (
         <DeleteConfirm
           description={deletingExpense.desc}
-          onConfirm={() => { deleteExpense(deletingExpense.id, adminName); setDeletingExpense(null); }}
+          onConfirm={() => { deleteExpense(deletingExpense.id, currentUserName); setDeletingExpense(null); }}
           onCancel={() => setDeletingExpense(null)}
         />
       )}

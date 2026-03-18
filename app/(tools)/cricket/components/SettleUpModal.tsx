@@ -1,18 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
+
+const SETTLE_FORM_KEY = 'cricket_settle_form_draft';
 
 export default function SettleUpModal() {
   const { user } = useAuthStore();
   const { players, selectedSeasonId, showSettleForm, setShowSettleForm, addSettlement } = useCricketStore();
   const activePlayers = players.filter((p) => p.is_active);
 
-  const [fromPlayer, setFromPlayer] = useState('');
-  const [toPlayer, setToPlayer] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const getSavedForm = () => {
+    try { const s = sessionStorage.getItem(SETTLE_FORM_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  };
+  const draft = getSavedForm();
+  const [fromPlayer, setFromPlayer] = useState(draft?.fromPlayer ?? '');
+  const [toPlayer, setToPlayer] = useState(draft?.toPlayer ?? '');
+  const [amount, setAmount] = useState(draft?.amount ?? '');
+  const [date, setDate] = useState(draft?.date ?? new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    if (draft && (draft.fromPlayer || draft.amount)) setShowSettleForm(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (showSettleForm && (fromPlayer || amount)) {
+      sessionStorage.setItem(SETTLE_FORM_KEY, JSON.stringify({ fromPlayer, toPlayer, amount, date }));
+    }
+  }, [fromPlayer, toPlayer, amount, date, showSettleForm]);
 
   if (!showSettleForm) return null;
 
@@ -22,6 +39,7 @@ export default function SettleUpModal() {
     setAmount('');
     setDate(new Date().toISOString().split('T')[0]);
     setShowSettleForm(false);
+    sessionStorage.removeItem(SETTLE_FORM_KEY);
   };
 
   const handleSubmit = () => {

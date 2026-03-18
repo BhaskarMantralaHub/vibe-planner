@@ -62,12 +62,28 @@ export default function SponsorshipSection() {
   const [showDeleted, setShowDeleted] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
+  const SPONSOR_FORM_KEY = 'cricket_sponsor_form_draft';
+  const getSavedForm = () => {
+    try { const s = sessionStorage.getItem(SPONSOR_FORM_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  };
+  const draft = getSavedForm();
+  const [name, setName] = useState(draft?.name ?? '');
+  const [amount, setAmount] = useState(draft?.amount ?? '');
+  const [date, setDate] = useState(draft?.date ?? new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState(draft?.notes ?? '');
 
-  const resetForm = () => { setName(''); setAmount(''); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setEditingId(null); };
+  useEffect(() => {
+    if (draft && (draft.name || draft.amount)) setShowForm(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (showForm && (name || amount)) {
+      sessionStorage.setItem(SPONSOR_FORM_KEY, JSON.stringify({ name, amount, date, notes, editingId }));
+    }
+  }, [name, amount, date, notes, editingId, showForm]);
+
+  const resetForm = () => { setName(''); setAmount(''); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setEditingId(null); sessionStorage.removeItem(SPONSOR_FORM_KEY); };
 
   const handleSubmit = () => {
     if (!selectedSeasonId || !name.trim() || !amount) return;

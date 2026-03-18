@@ -105,8 +105,9 @@ interface CricketState {
     userId: string,
     seasonId: string,
     data: { category: string; description: string; amount: number; expense_date: string },
+    createdBy?: string,
   ) => void;
-  updateExpense: (id: string, updates: Partial<CricketExpense>) => void;
+  updateExpense: (id: string, updates: Partial<CricketExpense>, updatedBy?: string) => void;
   deleteExpense: (id: string, deletedBy?: string) => void;
   restoreExpense: (id: string) => void;
 
@@ -296,14 +297,15 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Expenses ─────────────────────────────────────────────────────────
 
-  addExpense: (userId, seasonId, data) => {
+  addExpense: (userId, seasonId, data, createdBy) => {
     const now = new Date().toISOString();
     const expenseId = genId();
     const newExpense: CricketExpense = {
       id: expenseId, user_id: userId, season_id: seasonId,
       paid_by: userId, category: data.category as CricketExpense['category'],
       description: data.description, amount: data.amount,
-      expense_date: data.expense_date, deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
+      expense_date: data.expense_date, created_by: createdBy ?? null, updated_by: null,
+      deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
     };
 
     set({ expenses: [newExpense, ...get().expenses] });
@@ -317,6 +319,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           user_id: userId, season_id: seasonId,
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
+          created_by: createdBy ?? null,
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
@@ -328,11 +331,12 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
   },
 
-  updateExpense: (id, updates) => {
-    set({ expenses: get().expenses.map((e) => e.id === id ? { ...e, ...updates } : e) });
+  updateExpense: (id, updates, updatedBy) => {
+    const merged = { ...updates, updated_by: updatedBy ?? null };
+    set({ expenses: get().expenses.map((e) => e.id === id ? { ...e, ...merged } : e) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_expenses').update(updates).eq('id', id).then(({ error }: { error: unknown }) => {
+      supabase?.from('cricket_expenses').update(merged).eq('id', id).then(({ error }: { error: unknown }) => {
         if (error) console.error('[cricket] updateExpense failed:', error);
       });
     }
