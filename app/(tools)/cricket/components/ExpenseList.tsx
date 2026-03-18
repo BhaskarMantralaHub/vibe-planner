@@ -183,56 +183,103 @@ export default function ExpenseList() {
   return (
     <div className="space-y-4">
       {/* Pool Fund Balance */}
-      <div className="rounded-2xl border bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden"
-        style={{ borderColor: isLow ? 'var(--red)' : poolBalance > 0 ? 'var(--green)' : 'var(--border)' }}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
-            style={{
-              backgroundColor: isLow ? '#EF444415' : '#05966915',
-              color: isLow ? '#EF4444' : '#059669',
-            }}>
-            <FaWallet size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)] mb-0.5">Team Pool Fund</p>
-            <p className="text-[28px] sm:text-[34px] font-extrabold leading-tight" style={{ color: isLow ? 'var(--red)' : 'var(--green)' }}>
-              {isLow ? '-' : ''}{formatCurrency(poolBalance)}
-            </p>
-          </div>
-        </div>
+      {(() => {
+        const balanceColor = isLow ? '#EF4444' : poolBalance > 0 ? '#059669' : 'var(--muted)';
+        const spentPct = totalCollected > 0 ? Math.min((totalSpent / totalCollected) * 100, 100) : 0;
+        const feesPct = totalCollected > 0 ? (totalFees / totalCollected) * 100 : 0;
 
-        <div className="flex flex-wrap gap-3 text-[12px] sm:text-[13px] font-semibold">
-          <span className="text-[var(--green)]">Fees: {formatCurrency(totalFees)}</span>
-          {totalSponsorship > 0 && <span className="text-[var(--orange)]">Sponsors: {formatCurrency(totalSponsorship)}</span>}
-          <span className="text-[var(--red)]">Spent: {formatCurrency(totalSpent)}</span>
-        </div>
+        return (
+          <div className="rounded-2xl border bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden"
+            style={{ borderColor: `${balanceColor}40` }}>
 
-        {isLow && activePlayers.length > 0 && (
-          <div className="mt-3 p-3 rounded-xl flex items-start gap-2.5"
-            style={{ background: 'color-mix(in srgb, var(--red) 12%, var(--surface))', border: '1.5px solid color-mix(in srgb, var(--red) 30%, transparent)' }}>
-            <FaExclamationTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--red)' }} />
-            <div>
-              <p className="text-[14px] font-bold text-[var(--red)]">Insufficient funds</p>
-              <p className="text-[13px] leading-relaxed text-[var(--text)]">
-                Pool is short by <span className="font-extrabold text-[var(--red)]">{formatCurrency(poolBalance)}</span>. Suggest collecting <span className="font-extrabold text-[var(--orange)]">{formatCurrency(perPerson)}</span> per player ({activePlayers.length} players).
-              </p>
+            {/* Hero: Balance */}
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)] mb-1">Pool Balance</p>
+                <p className="text-[32px] sm:text-[40px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: balanceColor }}>
+                  {isLow ? '-' : ''}{formatCurrency(Math.abs(poolBalance))}
+                </p>
+              </div>
+              <div className="flex-shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: `${balanceColor}12`, border: `2px solid ${balanceColor}25` }}>
+                <FaWallet size={20} style={{ color: balanceColor }} />
+              </div>
             </div>
-          </div>
-        )}
 
-        {!isLow && totalCollected > 0 && poolBalance > 0 && (
-          <div className="mt-3 p-3 rounded-xl flex items-start gap-2.5"
-            style={{ background: 'color-mix(in srgb, var(--blue) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--blue) 25%, transparent)' }}>
-            <FaCheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--blue)' }} />
-            <div>
-              <p className="text-[14px] font-bold text-[var(--blue)]">Funds available</p>
-              <p className="text-[13px] leading-relaxed text-[var(--text)]">
-                <span className="font-bold text-[var(--blue)]">{formatCurrency(poolBalance)}</span> remaining. Rolls over to next season.
-              </p>
+            {/* Money in / out breakdown */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+              <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#05966910' }}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Fees</p>
+                <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#059669' }}>{formatCurrency(totalFees)}</p>
+              </div>
+              {totalSponsorship > 0 ? (
+                <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#F59E0B10' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Sponsors</p>
+                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#D97706' }}>{formatCurrency(totalSponsorship)}</p>
+                </div>
+              ) : (
+                <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#3B82F610' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Collected</p>
+                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#3B82F6' }}>{formatCurrency(totalCollected)}</p>
+                </div>
+              )}
+              <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#EF444410' }}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Spent</p>
+                <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#EF4444' }}>{formatCurrency(totalSpent)}</p>
+              </div>
             </div>
+
+            {/* Ratio bar: collected vs spent */}
+            {totalCollected > 0 && (
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                    {totalSponsorship > 0 ? 'Fees + Sponsors' : 'Collected'} vs Spent
+                  </span>
+                  <span className="text-[11px] font-extrabold tabular-nums" style={{ color: balanceColor }}>
+                    {Math.round(spentPct)}% used
+                  </span>
+                </div>
+                <div className="relative h-3 rounded-full overflow-hidden flex" style={{ background: 'var(--border)' }}>
+                  {/* Fees portion */}
+                  <div className="h-full transition-all duration-700" style={{ width: `${feesPct}%`, background: 'linear-gradient(90deg, #059669, #10B981)' }} />
+                  {/* Sponsors portion */}
+                  {totalSponsorship > 0 && (
+                    <div className="h-full transition-all duration-700" style={{ width: `${100 - feesPct}%`, background: 'linear-gradient(90deg, #D97706, #F59E0B)' }} />
+                  )}
+                  {/* Spent overlay hatching */}
+                  <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 pointer-events-none"
+                    style={{
+                      width: `${spentPct}%`,
+                      background: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 6px)',
+                    }} />
+                </div>
+              </div>
+            )}
+
+            {/* Alert */}
+            {isLow && activePlayers.length > 0 && (
+              <div className="p-3 rounded-xl flex items-start gap-2.5"
+                style={{ background: '#EF44440A', border: '1.5px solid #EF444425' }}>
+                <FaExclamationTriangle size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+                <p className="text-[13px] leading-relaxed text-[var(--text)]">
+                  Short <span className="font-extrabold" style={{ color: '#EF4444' }}>{formatCurrency(Math.abs(poolBalance))}</span> — collect <span className="font-extrabold" style={{ color: '#D97706' }}>{formatCurrency(perPerson)}</span>/player to cover it.
+                </p>
+              </div>
+            )}
+
+            {!isLow && totalCollected > 0 && poolBalance > 0 && (
+              <div className="p-3 rounded-xl flex items-center gap-2.5"
+                style={{ background: '#3B82F60A', border: '1px solid #3B82F620' }}>
+                <FaCheckCircle size={14} className="flex-shrink-0" style={{ color: '#3B82F6' }} />
+                <p className="text-[13px] text-[var(--muted)]">
+                  <span className="font-bold" style={{ color: '#3B82F6' }}>{formatCurrency(poolBalance)}</span> remaining — rolls over to next season.
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Expense list */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 overflow-hidden min-w-0">
