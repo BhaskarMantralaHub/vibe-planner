@@ -8,7 +8,7 @@ AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM cricket_players
-    WHERE email = check_email AND is_active = true
+    WHERE lower(email) = lower(check_email) AND is_active = true
   );
 END;
 $$;

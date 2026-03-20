@@ -58,21 +58,47 @@ function PendingApprovals() {
     setApproving(p.id);
 
     try {
-      // If user has cricket access and player_meta, auto-create cricket_players record
+      // If user has cricket access, link or create cricket_players record
       const access: string[] = p.access ?? [];
-      if (access.includes('cricket') && p.player_meta) {
-        const meta = p.player_meta;
-        await supabase.from('cricket_players').insert({
-          user_id: p.id,
-          name: p.full_name || p.email,
-          jersey_number: meta.jersey_number ?? null,
-          player_role: meta.player_role ?? null,
-          batting_style: meta.batting_style ?? null,
-          bowling_style: meta.bowling_style ?? null,
-          shirt_size: meta.shirt_size ?? null,
-          email: p.email,
-          is_active: true,
-        });
+      if (access.includes('cricket')) {
+        // Check if a player record already exists with this email (admin pre-added)
+        const { data: existing } = await supabase
+          .from('cricket_players')
+          .select('id')
+          .ilike('email', p.email.trim())
+          .limit(1)
+          .maybeSingle();
+
+        if (existing) {
+          // Link existing player record and merge signup preferences
+          const updates: Record<string, unknown> = { user_id: p.id, is_active: true };
+          if (p.full_name) updates.name = p.full_name;
+          if (p.player_meta) {
+            const meta = p.player_meta;
+            if (meta.jersey_number != null) updates.jersey_number = meta.jersey_number;
+            if (meta.player_role) updates.player_role = meta.player_role;
+            if (meta.batting_style) updates.batting_style = meta.batting_style;
+            if (meta.bowling_style) updates.bowling_style = meta.bowling_style;
+            if (meta.shirt_size) updates.shirt_size = meta.shirt_size;
+          }
+          await supabase.from('cricket_players')
+            .update(updates)
+            .eq('id', existing.id);
+        } else if (p.player_meta) {
+          // No existing record — create a new one from signup metadata
+          const meta = p.player_meta;
+          await supabase.from('cricket_players').insert({
+            user_id: p.id,
+            name: p.full_name || p.email,
+            jersey_number: meta.jersey_number ?? null,
+            player_role: meta.player_role ?? null,
+            batting_style: meta.batting_style ?? null,
+            bowling_style: meta.bowling_style ?? null,
+            shirt_size: meta.shirt_size ?? null,
+            email: p.email,
+            is_active: true,
+          });
+        }
       }
 
       await supabase.from('profiles').update({ approved: true }).eq('id', p.id);

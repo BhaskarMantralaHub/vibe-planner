@@ -286,6 +286,17 @@ export default function PlayerManager() {
       setFormError(`A player named "${duplicate.name}" already exists.`);
       return;
     }
+    // Check for duplicate email
+    const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail) {
+      const emailDup = players.find(
+        (p) => p.email?.trim().toLowerCase() === trimmedEmail && p.id !== editingPlayer
+      );
+      if (emailDup) {
+        setFormError(`A player with email "${email.trim()}" already exists (${emailDup.name}).`);
+        return;
+      }
+    }
     setFormError('');
 
     const data = {
@@ -554,6 +565,7 @@ export default function PlayerManager() {
             const isCaptain = p.designation === 'captain';
             const isVC = p.designation === 'vice-captain';
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
+            const isSignedUp = isAdmin && p.user_id !== user?.id;
 
             return (
               <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
@@ -587,14 +599,27 @@ export default function PlayerManager() {
 
                 {/* Player info */}
                 <div className="flex items-center gap-2.5 sm:gap-3 pr-10">
-                  {/* Circular jersey badge — colored by role */}
-                  <div className="flex-shrink-0 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full font-extrabold text-[13px] sm:text-[14px]"
-                    style={{
-                      backgroundColor: `${rc?.color ?? '#F59E0B'}18`,
-                      color: rc?.color ?? '#D97706',
-                      border: `2.5px solid ${rc?.color ?? '#F59E0B'}50`,
-                    }}>
-                    {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                  {/* Circular jersey badge — solid=signed up, dashed=pending */}
+                  <div className="relative flex-shrink-0">
+                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full font-extrabold text-[13px] sm:text-[14px]"
+                      style={{
+                        backgroundColor: `${rc?.color ?? '#F59E0B'}${isSignedUp ? '18' : '08'}`,
+                        color: isSignedUp ? (rc?.color ?? '#D97706') : `${rc?.color ?? '#D97706'}90`,
+                        border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${rc?.color ?? '#F59E0B'}${isSignedUp ? '50' : '35'}`,
+                      }}>
+                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                    </div>
+                    {/* Status dot: green pulse = signed up, gray = pending invite */}
+                    {isAdmin && (
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--surface)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
+                        title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
+                      >
+                        {isSignedUp && (
+                          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
+                        )}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     {/* Line 1: Name + designation */}
