@@ -110,6 +110,7 @@ Table `cricket_sponsorships`: `id`, `season_id`, `sponsor_name`, `amount` (NUMER
 
 RPC: `get_public_season_data(token UUID)` — SECURITY DEFINER function returning all season data as JSON for the public share page.
 RPC: `check_cricket_player_email(check_email TEXT)` — checks if a player exists with given email (for auto-approve on signup).
+RPC: `get_signed_up_emails(check_emails TEXT[])` — SECURITY DEFINER function returning lowercase emails from auth.users that match the input array (case-insensitive). Used by PlayerManager to show signup status dots.
 
 Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 

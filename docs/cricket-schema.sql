@@ -289,3 +289,15 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION get_public_season_data(UUID) TO anon;
+
+-- ── Signed-up player emails (bypasses RLS, checks auth.users) ──
+-- WHY: Player cards show signup status dots. Regular admins can't
+--      read all profiles due to RLS, so this SECURITY DEFINER function
+--      checks auth.users directly. Case-insensitive comparison.
+CREATE OR REPLACE FUNCTION get_signed_up_emails(check_emails TEXT[])
+RETURNS TEXT[] AS $$
+  SELECT ARRAY(
+    SELECT LOWER(email) FROM auth.users
+    WHERE LOWER(email) = ANY(SELECT LOWER(unnest(check_emails)))
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
