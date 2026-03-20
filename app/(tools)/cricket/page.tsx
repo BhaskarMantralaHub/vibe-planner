@@ -233,8 +233,9 @@ function CricketDashboard() {
       {/* Header — greeting + pulse */}
       {(() => {
         const hour = new Date().getHours();
-        // Find current user's player record for role-based greeting
-        const myPlayer = players.find((p) => p.user_id === user?.id && p.is_active);
+        // Find current user's player record by email (not user_id — admin owns unlinked records)
+        const userEmail = user?.email?.toLowerCase();
+        const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
         const firstName = myPlayer?.name?.split(' ')[0]
           || (user?.user_metadata?.full_name as string)?.split(' ')[0]
           || '';

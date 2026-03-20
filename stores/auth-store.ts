@@ -96,24 +96,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // If cricket user, ensure player record is linked to this account
-      if (access.includes('cricket') && session.user.email) {
-        supabase.from('cricket_players')
-          .select('id, user_id')
-          .ilike('email', session.user.email.trim())
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle()
-          .then(({ data: player }: { data: { id: string; user_id: string } | null }) => {
-            if (player && player.user_id !== session.user.id) {
-              supabase.from('cricket_players')
-                .update({ user_id: session.user.id })
-                .eq('id', player.id)
-                .then(() => {});
-            }
-          });
-      }
-
+      // Player record linking + preference override handled by handle_new_user() DB trigger
       set({ user: session.user, loading: false, userAccess: access, userApproved: approved });
     };
 
@@ -320,9 +303,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ authError: sanitizeAuthError(error.message), syncing: false });
       return;
     }
-
-    // TODO: Player signup preferences should be written to cricket_players via DB trigger
-    // (handle_new_user) since client-side update is blocked by RLS
 
     set({ authMode: 'check-email', syncing: false });
   },

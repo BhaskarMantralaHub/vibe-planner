@@ -15,7 +15,12 @@ import { MdEdit, MdDeleteOutline, MdSportsCricket } from 'react-icons/md';
 const ROLE_ORDER: Record<string, number> = {
   'all-rounder': 2, batsman: 3, bowler: 4, keeper: 5,
 };
-function playerSort(a: CricketPlayer, b: CricketPlayer): number {
+function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserId?: string): number {
+  // Current user's card always first
+  if (currentUserId) {
+    if (a.user_id === currentUserId && b.user_id !== currentUserId) return -1;
+    if (b.user_id === currentUserId && a.user_id !== currentUserId) return 1;
+  }
   const da = a.designation === 'captain' ? 0 : a.designation === 'vice-captain' ? 1 : 99;
   const db = b.designation === 'captain' ? 0 : b.designation === 'vice-captain' ? 1 : 99;
   if (da !== db) return da - db;
@@ -150,7 +155,10 @@ export default function PlayerManager() {
   const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer } = useCricketStore();
-  const activePlayers = [...players.filter((p) => p.is_active)].sort(playerSort);
+  const userEmail = user?.email?.toLowerCase();
+  const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
+  const isSelfEditing = !isAdmin && editingPlayer === myPlayer?.id;
+  const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, isAdmin ? undefined : myPlayer?.user_id));
   const removedPlayers = players.filter((p) => !p.is_active);
   const [showRemoved, setShowRemoved] = useState(false);
 
@@ -400,8 +408,8 @@ export default function PlayerManager() {
         )}
       </div>
 
-      {/* ── Form Modal (admin only) ── */}
-      {isAdmin && showPlayerForm && createPortal(
+      {/* ── Form Modal (admin or self-edit) ── */}
+      {(isAdmin || isSelfEditing) && showPlayerForm && createPortal(
         <>
           {/* Backdrop */}
           <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} />
@@ -441,8 +449,8 @@ export default function PlayerManager() {
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
                   placeholder="Optional" />
               </div>
-              {/* Designation */}
-              <div>
+              {/* Designation (admin only) */}
+              {isAdmin && <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleDesignation('captain')}
@@ -463,7 +471,7 @@ export default function PlayerManager() {
                     <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--orange)] cursor-pointer hover:opacity-90">Yes</button>
                   </div>
                 )}
-              </div>
+              </div>}
               {/* Shirt Size */}
               <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Shirt Size</label>
@@ -566,6 +574,7 @@ export default function PlayerManager() {
             const isVC = p.designation === 'vice-captain';
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
             const isSignedUp = isAdmin && p.user_id !== user?.id;
+            const isSelf = !isAdmin && p.id === myPlayer?.id;
 
             return (
               <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
@@ -595,6 +604,16 @@ export default function PlayerManager() {
                       />
                     )}
                   </>
+                )}
+
+                {/* Self-edit button for signed-up player's own card */}
+                {isSelf && (
+                  <button
+                    onClick={() => handleEdit(p)}
+                    className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                  >
+                    <MdEdit size={16} />
+                  </button>
                 )}
 
                 {/* Player info */}

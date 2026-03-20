@@ -196,6 +196,22 @@ BEGIN
     user_approved,
     meta
   );
+
+  -- Auto-approved cricket player: claim pre-added player record
+  -- Links user_id and overwrites with player's own signup preferences
+  IF raw_access = 'cricket' AND user_approved THEN
+    UPDATE cricket_players
+    SET user_id = NEW.id,
+        name = COALESCE(NEW.raw_user_meta_data->>'full_name', name),
+        jersey_number = COALESCE((NEW.raw_user_meta_data->>'jersey_number')::integer, jersey_number),
+        player_role = COALESCE(NEW.raw_user_meta_data->>'player_role', player_role),
+        batting_style = COALESCE(NEW.raw_user_meta_data->>'batting_style', batting_style),
+        bowling_style = COALESCE(NEW.raw_user_meta_data->>'bowling_style', bowling_style),
+        shirt_size = COALESCE(NEW.raw_user_meta_data->>'shirt_size', shirt_size),
+        updated_at = now()
+    WHERE lower(email) = lower(NEW.email) AND is_active = true;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
