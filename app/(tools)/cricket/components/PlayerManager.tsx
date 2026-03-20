@@ -11,22 +11,15 @@ import { FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { MdEdit, MdDeleteOutline, MdSportsCricket } from 'react-icons/md';
 
-/* ── Sorting ── */
-const ROLE_ORDER: Record<string, number> = {
-  'all-rounder': 2, batsman: 3, bowler: 4, keeper: 5,
-};
-function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserId?: string): number {
-  // Current user's card always first
-  if (currentUserId) {
-    if (a.user_id === currentUserId && b.user_id !== currentUserId) return -1;
-    if (b.user_id === currentUserId && a.user_id !== currentUserId) return 1;
+/* ── Sorting: logged-in user first, then alphabetical by name ── */
+function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: string): number {
+  if (currentUserEmail) {
+    const aIsSelf = a.email?.toLowerCase() === currentUserEmail;
+    const bIsSelf = b.email?.toLowerCase() === currentUserEmail;
+    if (aIsSelf && !bIsSelf) return -1;
+    if (bIsSelf && !aIsSelf) return 1;
   }
-  const da = a.designation === 'captain' ? 0 : a.designation === 'vice-captain' ? 1 : 99;
-  const db = b.designation === 'captain' ? 0 : b.designation === 'vice-captain' ? 1 : 99;
-  if (da !== db) return da - db;
-  const ra = ROLE_ORDER[a.player_role ?? ''] ?? 10;
-  const rb = ROLE_ORDER[b.player_role ?? ''] ?? 10;
-  return ra - rb;
+  return a.name.localeCompare(b.name);
 }
 
 /* ── Three-dot Card Menu (portal) ── */
@@ -158,7 +151,7 @@ export default function PlayerManager() {
   const userEmail = user?.email?.toLowerCase();
   const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
   const isSelfEditing = !isAdmin && editingPlayer === myPlayer?.id;
-  const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, isAdmin ? undefined : myPlayer?.user_id));
+  const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, userEmail));
   const removedPlayers = players.filter((p) => !p.is_active);
   const [showRemoved, setShowRemoved] = useState(false);
 
@@ -166,20 +159,33 @@ export default function PlayerManager() {
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
   const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
+  const [signedUpEmails, setSignedUpEmails] = useState<Set<string>>(new Set());
 
-  // Load which player emails have admin access
+  // Load admin emails from profiles + signed-up emails from auth.users via RPC
   useEffect(() => {
     if (!isAdmin) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+
+    // Fetch admin emails from profiles (RLS: own row for regular admins, all for super admin)
     supabase.from('profiles').select('email, access').then(({ data }: { data: { email: string; access: string[] }[] | null }) => {
       if (!data) return;
-      const emails = new Set(
+      setAdminEmails(new Set(
         data.filter((p) => p.access?.includes('admin')).map((p) => p.email.toLowerCase())
-      );
-      setAdminEmails(emails);
+      ));
     });
-  }, [isAdmin, adminModal]); // re-fetch after granting/revoking
+
+    // Fetch signed-up status via RPC (SECURITY DEFINER — bypasses RLS, checks auth.users)
+    const playerEmails = activePlayers
+      .map((p) => p.email?.toLowerCase())
+      .filter(Boolean) as string[];
+    if (playerEmails.length > 0) {
+      supabase.rpc('get_signed_up_emails', { check_emails: playerEmails }).then(({ data }: { data: string[] | null }) => {
+        if (!data) return;
+        setSignedUpEmails(new Set((data as string[]).map((e) => e.toLowerCase())));
+      });
+    }
+  }, [isAdmin, adminModal, activePlayers.length]); // re-fetch after granting/revoking or player changes
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
@@ -573,7 +579,7 @@ export default function PlayerManager() {
             const isCaptain = p.designation === 'captain';
             const isVC = p.designation === 'vice-captain';
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
-            const isSignedUp = isAdmin && p.user_id !== user?.id;
+            const isSignedUp = isAdmin && !!p.email && signedUpEmails.has(p.email.toLowerCase());
             const isSelf = !isAdmin && p.id === myPlayer?.id;
 
             return (
