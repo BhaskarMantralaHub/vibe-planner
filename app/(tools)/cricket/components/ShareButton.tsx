@@ -111,21 +111,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
 
-  const checkPage = (need = 12) => { if (y + need > H - 20) { doc.addPage(); addPageFooter(); y = 18; } };
+  const checkPage = (need = 12) => { if (y + need > H - 20) { doc.addPage(); y = 18; } };
   const pageCount = () => doc.getNumberOfPages();
-
-  // Page footer on every page
-  const addPageFooter = () => {
-    const pg = pageCount();
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...LGRAY);
-    doc.text(`${TEAM_NAME}  |  ${season.name}`, M, H - 8);
-    doc.text(`Page ${pg}`, W - M, H - 8, { align: 'right' });
-    // thin line above footer
-    doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.2);
-    doc.line(M, H - 12, W - M, H - 12);
-  };
 
   // ─── Rounded rect fill helper ───
   const fillRect = (x: number, ry: number, w: number, h: number, color: RGB, r = 2) => {

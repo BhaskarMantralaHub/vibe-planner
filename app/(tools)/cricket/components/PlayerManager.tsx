@@ -6,10 +6,10 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
-import { GiCricketBat, GiTennisBall, GiGloves, GiLightningTrio } from 'react-icons/gi';
-import { FaCrown, FaShieldAlt, FaEllipsisV } from 'react-icons/fa';
+import { GiTennisBall, GiGloves } from 'react-icons/gi';
+import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { MdEdit, MdDeleteOutline, MdSportsCricket } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight } from 'react-icons/md';
 
 /* ── Sorting: logged-in user first, then alphabetical by name ── */
 function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: string): number {
@@ -126,9 +126,9 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
 
 /* ── Role config ── */
 const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string; desc: string }> = {
-  batsman: { icon: <GiCricketBat size={15} />, label: 'Batsman', color: '#F59E0B', desc: 'Run scorer' },
+  batsman: { icon: <MdSportsCricket size={15} />, label: 'Batsman', color: '#F59E0B', desc: 'Run scorer' },
   bowler: { icon: <GiTennisBall size={14} />, label: 'Bowler', color: '#3B82F6', desc: 'Wicket taker' },
-  'all-rounder': { icon: <GiLightningTrio size={15} />, label: 'All-Rounder', color: '#D97706', desc: 'Bat & ball' },
+  'all-rounder': { icon: <><MdSportsCricket size={14} /><GiTennisBall size={12} /></>, label: 'All-Rounder', color: '#D97706', desc: 'Bat & ball' },
   keeper: { icon: <GiGloves size={15} />, label: 'Keeper', color: '#16A34A', desc: 'Behind stumps' },
 };
 
@@ -155,6 +155,8 @@ export default function PlayerManager() {
   const removedPlayers = players.filter((p) => !p.is_active);
   const [showRemoved, setShowRemoved] = useState(false);
 
+  const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
@@ -400,6 +402,12 @@ export default function PlayerManager() {
     setShowPlayerForm(true); setOpenMenu(null);
   };
 
+  const handleCopy = (value: string, fieldKey: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(fieldKey);
+    setTimeout(() => setCopiedField(null), 1500);
+  };
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -582,99 +590,220 @@ export default function PlayerManager() {
             const isSignedUp = isAdmin && !!p.email && signedUpEmails.has(p.email.toLowerCase());
             const isSelf = !isAdmin && p.id === myPlayer?.id;
 
+            const isExpanded = expandedPlayer === p.id;
+            const hasSkills = p.batting_style || p.bowling_style || p.shirt_size;
+            const hasContact = p.email || p.cricclub_id;
+            const hasDetails = hasSkills || hasContact;
+            const roleColor = rc?.color ?? '#F59E0B';
+            const borderColor = isExpanded ? roleColor + '40' : isCaptain ? '#D97706' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)';
+            const hasThickLeft = isCaptain || isVC || isPlayerAdmin;
+
             return (
-              <div key={p.id} className="relative rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
+              <div key={p.id}
+                className="rounded-2xl overflow-hidden transition-all duration-300"
                 style={{
-                  borderColor: isCaptain ? '#D97706' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)',
-                  borderLeftWidth: (isCaptain || isVC || isPlayerAdmin) ? '4px' : '1px',
+                  background: 'var(--surface)',
+                  borderTop: `1.5px solid ${borderColor}`,
+                  borderRight: `1.5px solid ${borderColor}`,
+                  borderBottom: `1.5px solid ${borderColor}`,
+                  borderLeft: `${hasThickLeft ? '4px' : '1.5px'} solid ${borderColor}`,
+                  boxShadow: isExpanded ? `0 8px 32px ${roleColor}15, 0 2px 8px rgba(0,0,0,0.08)` : 'none',
                 }}>
-                {/* Three-dot menu trigger (admin only) */}
-                {isAdmin && (
-                  <>
-                    <button
-                      ref={openMenu === p.id ? menuBtnRef : null}
-                      data-menu-id={p.id}
-                      onClick={() => setOpenMenu(openMenu === p.id ? null : p.id)}
-                      className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-                    >
-                      <FaEllipsisV size={14} />
-                    </button>
-
-                    {openMenu === p.id && (
-                      <PlayerCardMenu
-                        anchorRef={menuBtnRef}
-                        onEdit={() => handleEdit(p)}
-                        onToggleAdmin={() => handleAdminAccess(p)}
-                        onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
-                        onClose={() => setOpenMenu(null)}
-                      />
-                    )}
-                  </>
-                )}
-
-                {/* Self-edit button for signed-up player's own card */}
-                {isSelf && (
-                  <button
-                    onClick={() => handleEdit(p)}
-                    className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-                  >
-                    <MdEdit size={16} />
-                  </button>
-                )}
-
-                {/* Player info */}
-                <div className="flex items-center gap-2.5 sm:gap-3 pr-10">
-                  {/* Circular jersey badge — solid=signed up, dashed=pending */}
-                  <div className="relative flex-shrink-0">
-                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full font-extrabold text-[13px] sm:text-[14px]"
-                      style={{
-                        backgroundColor: `${rc?.color ?? '#F59E0B'}${isSignedUp ? '18' : '08'}`,
-                        color: isSignedUp ? (rc?.color ?? '#D97706') : `${rc?.color ?? '#D97706'}90`,
-                        border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${rc?.color ?? '#F59E0B'}${isSignedUp ? '50' : '35'}`,
-                      }}>
-                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
-                    </div>
-                    {/* Status dot: green pulse = signed up, gray = pending invite */}
-                    {isAdmin && (
-                      <span
-                        className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--surface)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
-                        title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
+                {/* Clickable header area */}
+                <div
+                  className="relative p-3 sm:p-3.5 cursor-pointer transition-colors hover:bg-[var(--hover-bg)]"
+                  onClick={() => hasDetails && setExpandedPlayer(isExpanded ? null : p.id)}
+                >
+                  {/* Three-dot menu trigger (admin only) */}
+                  {isAdmin && (
+                    <>
+                      <button
+                        ref={openMenu === p.id ? menuBtnRef : null}
+                        data-menu-id={p.id}
+                        onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === p.id ? null : p.id); }}
+                        className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
                       >
-                        {isSignedUp && (
-                          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {/* Line 1: Name + designation */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[14px] sm:text-[15px] font-bold text-[var(--text)] truncate">{p.name}</span>
-                      {isCaptain && (
-                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-extrabold tracking-wide" style={{ color: '#D97706' }}>
-                          <FaCrown size={9} /> C
-                        </span>
+                        <FaEllipsisV size={14} />
+                      </button>
+
+                      {openMenu === p.id && (
+                        <PlayerCardMenu
+                          anchorRef={menuBtnRef}
+                          onEdit={() => handleEdit(p)}
+                          onToggleAdmin={() => handleAdminAccess(p)}
+                          onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
+                          onClose={() => setOpenMenu(null)}
+                        />
                       )}
-                      {isVC && (
-                        <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-[10px] font-extrabold tracking-wide" style={{ color: '#6B7280' }}>
-                          <FaShieldAlt size={9} /> VC
+                    </>
+                  )}
+
+                  {/* Self-edit button */}
+                  {isSelf && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleEdit(p); }}
+                      className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
+                    >
+                      <MdEdit size={16} />
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-3 pr-10">
+                    {/* Jersey badge */}
+                    <div className="relative flex-shrink-0">
+                      <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
+                        style={{
+                          backgroundColor: `${roleColor}${isSignedUp ? '18' : '08'}`,
+                          color: isSignedUp ? roleColor : `${roleColor}90`,
+                          border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${roleColor}${isSignedUp ? '50' : '35'}`,
+                          boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                        }}>
+                        {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                      </div>
+                      {isAdmin && (
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--surface)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
+                          title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
+                        >
+                          {isSignedUp && (
+                            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
+                          )}
                         </span>
                       )}
                     </div>
-                    {/* Line 2: Role · Batting · Bowling · Size — dot-separated */}
-                    <p className="text-[12px] sm:text-[13px] text-[var(--muted)] mt-0.5 truncate">
-                      {[
-                        rc && <span key="role" style={{ color: rc.color, fontWeight: 600 }}>{rc.label}</span>,
-                        p.batting_style && <span key="bat">{p.batting_style === 'right' ? 'Right Hand' : 'Left Hand'} Bat</span>,
-                        p.bowling_style && <span key="bowl">{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>,
-                        p.shirt_size && <span key="size">Size {p.shirt_size}</span>,
-                        p.cricclub_id && <span key="cc" className="text-[var(--dim)]">CC: {p.cricclub_id}</span>,
-                      ].filter(Boolean).reduce<React.ReactNode[]>((acc, item, i) => {
-                        if (i > 0) acc.push(<span key={`dot-${i}`} className="text-[var(--border)] mx-1">&middot;</span>);
-                        acc.push(item);
-                        return acc;
-                      }, [])}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] truncate">{p.name}</span>
+                        {isCaptain && (
+                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: '#D97706', background: '#D9770612' }}>
+                            <FaCrown size={8} /> C
+                          </span>
+                        )}
+                        {isVC && (
+                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: '#6B7280', background: '#6B728012' }}>
+                            <FaShieldAlt size={8} /> VC
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {/* Role chip */}
+                        {rc && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                            style={{ color: roleColor, background: `${roleColor}12` }}>
+                            {rc.icon} {rc.label}
+                          </span>
+                        )}
+                        {p.batting_style && (
+                          <span className="text-[11px] text-[var(--muted)]">{p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
+                        )}
+                        {/* Chevron */}
+                        {hasDetails && (
+                          <MdChevronRight
+                            size={16}
+                            className="flex-shrink-0 text-[var(--muted)] transition-transform duration-300 ml-auto"
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Expanded Details ── */}
+                <div
+                  className="overflow-hidden transition-all duration-300 ease-out"
+                  style={{ maxHeight: isExpanded ? '300px' : '0px', opacity: isExpanded ? 1 : 0 }}
+                >
+                  <div className="px-3 sm:px-4 pb-3.5">
+                    {/* Divider with role-colored accent */}
+                    <div className="relative h-px mb-3">
+                      <div className="absolute inset-0" style={{ background: 'var(--border)', opacity: 0.5 }} />
+                      <div className="absolute left-0 top-0 h-full w-12 rounded-full" style={{ background: roleColor, opacity: 0.6 }} />
+                    </div>
+
+                    {/* Skills row — horizontal chips */}
+                    {hasSkills && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {p.batting_style && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
+                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            <MdSportsCricket size={14} style={{ color: roleColor }} />
+                            <span className="text-[var(--muted)]">Bat</span>
+                            <span className="font-semibold text-[var(--text)]">{p.batting_style === 'right' ? 'Right' : 'Left'}</span>
+                          </div>
+                        )}
+                        {p.bowling_style && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
+                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            <GiTennisBall size={13} style={{ color: roleColor }} />
+                            <span className="text-[var(--muted)]">Bowl</span>
+                            <span className="font-semibold text-[var(--text)]">{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>
+                          </div>
+                        )}
+                        {p.shirt_size && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
+                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            <FaTshirt size={12} style={{ color: roleColor }} />
+                            <span className="text-[var(--muted)]">Size</span>
+                            <span className="font-semibold text-[var(--text)]">{p.shirt_size}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Contact section — copyable fields */}
+                    {hasContact && (
+                      <div className="space-y-2">
+                        {p.email && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopy(p.email!, `email-${p.id}`); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
+                            style={{
+                              background: copiedField === `email-${p.id}` ? 'var(--green)' + '10' : 'var(--card)',
+                              border: `1.5px solid ${copiedField === `email-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
+                            }}
+                          >
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${roleColor}10` }}>
+                              <MdEmail size={16} style={{ color: roleColor }} />
+                            </div>
+                            <div className="flex-1 min-w-0 text-left">
+                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Email</span>
+                              <span className="block text-[13px] font-medium text-[var(--text)] truncate">{p.email}</span>
+                            </div>
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
+                              {copiedField === `email-${p.id}`
+                                ? <MdCheck size={16} style={{ color: 'var(--green)' }} />
+                                : <MdContentCopy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                              }
+                            </div>
+                          </button>
+                        )}
+                        {p.cricclub_id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopy(p.cricclub_id!, `cc-${p.id}`); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
+                            style={{
+                              background: copiedField === `cc-${p.id}` ? 'var(--green)' + '10' : 'var(--card)',
+                              border: `1.5px solid ${copiedField === `cc-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
+                            }}
+                          >
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${roleColor}10` }}>
+                              <MdBadge size={16} style={{ color: roleColor }} />
+                            </div>
+                            <div className="flex-1 min-w-0 text-left">
+                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">CricClub ID</span>
+                              <span className="block text-[13px] font-semibold text-[var(--text)] tracking-wide">{p.cricclub_id}</span>
+                            </div>
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
+                              {copiedField === `cc-${p.id}`
+                                ? <MdCheck size={16} style={{ color: 'var(--green)' }} />
+                                : <MdContentCopy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                              }
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
