@@ -95,12 +95,14 @@ function UserSection({ onClose }: { onClose: () => void }) {
 
   if (!isCloud || !user) return null;
 
-  const name = (user.user_metadata?.full_name as string) || user.email || '';
+  const name = (user.user_metadata?.full_name as string) || '';
+  const email = user.email || '';
 
   return (
     <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-[var(--border)]">
-      <div className="text-[13px] text-[var(--muted)] mb-3 truncate">
-        {name}
+      <div className="mb-3">
+        {name && <div className="text-[13px] font-medium text-[var(--text)] truncate">{name}</div>}
+        {email && <div className="text-[12px] text-[var(--muted)] truncate">{email}</div>}
       </div>
       <button
         onClick={() => { logout(); onClose(); }}
