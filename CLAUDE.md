@@ -100,7 +100,8 @@ Statuses: `spark`, `in_progress`, `scheduled`, `done`. Soft delete via `deleted_
 Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `label`, `owner_name`, `description`, `expiry_date`, `renewal_url`, `reminder_days` (integer array), `created_at`, `updated_at`.
 
 ### Cricket Tables
-Table `cricket_players`: `id`, `user_id`, `name`, `jersey_number`, `phone`, `is_active`, `created_at`, `updated_at`.
+Table `cricket_players`: `id`, `user_id`, `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `created_at`, `updated_at`.
+Storage bucket `player-photos`: Public bucket for player profile photos. Path: `{user_id}/{player_id}.jpg`. Only the player themselves can upload (RLS by `auth.uid()`).
 Table `cricket_seasons`: `id`, `user_id`, `name`, `year`, `season_type`, `share_token` (UUID for public URL), `is_active`, `created_at`, `updated_at`.
 Table `cricket_expenses`: `id`, `user_id`, `season_id`, `paid_by` (player FK), `category`, `description`, `amount` (NUMERIC), `expense_date`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.
 Table `cricket_expense_splits`: `id`, `expense_id`, `player_id`, `share_amount` (NUMERIC). Junction table for equal splits.

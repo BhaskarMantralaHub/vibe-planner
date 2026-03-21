@@ -9,7 +9,7 @@ import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/ty
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
 
 /* ── Sorting: logged-in user first, then alphabetical by name ── */
 function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: string): number {
@@ -142,6 +142,38 @@ function getJerseyColor(jerseyNumber: number | null, index: number): string {
 const battingIcon = () => <MdSportsCricket size={14} />;
 const bowlingIcon = () => <GiTennisBall size={13} />;
 
+/* ── Photo helpers ── */
+async function compressImage(file: File, maxSize = 400): Promise<Blob> {
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
+  await new Promise((resolve) => { img.onload = resolve; });
+  const canvas = document.createElement('canvas');
+  // Center-crop to square, then scale down
+  const side = Math.min(img.width, img.height);
+  const sx = (img.width - side) / 2;
+  const sy = (img.height - side) / 2;
+  const outSize = Math.min(maxSize, side);
+  canvas.width = outSize;
+  canvas.height = outSize;
+  canvas.getContext('2d')!.drawImage(img, sx, sy, side, side, 0, 0, outSize, outSize);
+  URL.revokeObjectURL(img.src);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.8));
+}
+
+async function uploadPlayerPhoto(file: File, userId: string, playerId: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  const compressed = await compressImage(file);
+  const path = `${userId}/${playerId}.jpg`;
+  const { error } = await supabase.storage.from('player-photos').upload(path, compressed, {
+    upsert: true, contentType: 'image/jpeg',
+  });
+  if (error) { console.error('[cricket] photo upload:', error); return null; }
+  const { data } = supabase.storage.from('player-photos').getPublicUrl(path);
+  // Append timestamp to bust cache after re-upload
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
 /* ── Main Component ── */
 export default function PlayerManager() {
   const { user } = useAuthStore();
@@ -210,6 +242,10 @@ export default function PlayerManager() {
   const [battingStyle, setBattingStyle] = useState(draft?.battingStyle ?? '');
   const [bowlingStyle, setBowlingStyle] = useState(draft?.bowlingStyle ?? '');
   const [designation, setDesignation] = useState(draft?.designation ?? '');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Restore modal open state + editing player after iOS Safari reload
   useEffect(() => {
@@ -236,6 +272,7 @@ export default function PlayerManager() {
   const resetForm = () => {
     setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setDesignation('');
+    setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(false);
     setEditingPlayer(null); setDesignationConflict(null);
     sessionStorage.removeItem(FORM_STORAGE_KEY);
   };
@@ -291,8 +328,10 @@ export default function PlayerManager() {
     };
   }, [showPlayerForm]);
 
-  const handleSubmit = () => {
-    if (!user || !isFormValid()) return;
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!user || !isFormValid() || submitting) return;
 
     // Check for duplicate name
     const duplicate = activePlayers.find(
@@ -314,8 +353,9 @@ export default function PlayerManager() {
       }
     }
     setFormError('');
+    setSubmitting(true);
 
-    const data = {
+    const data: Record<string, unknown> = {
       name: name.trim(), jersey_number: jersey ? Number(jersey) : null, phone: null,
       email: email.trim() || null, cricclub_id: cricclubId.trim() || null, shirt_size: shirtSize || null,
       player_role: (playerRole || null) as PlayerRole | null,
@@ -323,8 +363,37 @@ export default function PlayerManager() {
       bowling_style: (showBowling ? bowlingStyle || null : null) as BowlingStyle | null,
       designation: (designation || null) as 'captain' | 'vice-captain' | null,
     };
-    if (editingPlayer) updatePlayer(editingPlayer, data);
-    else addPlayer(user.id, data);
+
+    // Handle photo: upload new, or clear if removed
+    if (photoRemoved && !photoFile) {
+      data.photo_url = null;
+    }
+
+    if (editingPlayer) {
+      // Upload photo for existing player
+      if (photoFile) {
+        const url = await uploadPlayerPhoto(photoFile, user.id, editingPlayer);
+        if (url) data.photo_url = url;
+      }
+      updatePlayer(editingPlayer, data);
+    } else {
+      // New player: add first, then upload photo with the real ID
+      addPlayer(user.id, data as Parameters<typeof addPlayer>[1]);
+      if (photoFile) {
+        // Wait briefly for the server ID to come back, then upload
+        setTimeout(async () => {
+          const newPlayer = useCricketStore.getState().players.find(
+            (p) => p.name === name.trim() && p.is_active
+          );
+          if (newPlayer) {
+            const url = await uploadPlayerPhoto(photoFile, user.id, newPlayer.id);
+            if (url) updatePlayer(newPlayer.id, { photo_url: url });
+          }
+        }, 1500);
+      }
+    }
+
+    setSubmitting(false);
     resetForm(); setShowPlayerForm(false);
   };
 
@@ -399,6 +468,7 @@ export default function PlayerManager() {
     setEmail(p.email ?? ''); setCricclubId(p.cricclub_id ?? ''); setShirtSize(p.shirt_size ?? '');
     setPlayerRole(p.player_role ?? ''); setBattingStyle(p.batting_style ?? '');
     setBowlingStyle(p.bowling_style ?? ''); setDesignation(p.designation ?? '');
+    setPhotoFile(null); setPhotoPreview(p.photo_url ?? null); setPhotoRemoved(false);
     setShowPlayerForm(true); setOpenMenu(null);
   };
 
@@ -437,6 +507,57 @@ export default function PlayerManager() {
             </div>
 
             <div className="space-y-4">
+              {/* Photo upload — only for self-edit (signed-up player editing own card) */}
+              {(isSelfEditing || (isAdmin && editingPlayer)) && (
+                <div className="flex flex-col items-center gap-2">
+                  <div
+                    className="relative h-20 w-20 rounded-full overflow-hidden cursor-pointer group"
+                    onClick={() => photoInputRef.current?.click()}
+                    style={{
+                      background: photoPreview ? 'transparent' : 'var(--surface)',
+                      border: `2px dashed ${photoPreview ? 'transparent' : 'var(--border)'}`,
+                    }}
+                  >
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Player" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex flex-col items-center justify-center text-[var(--muted)]">
+                        <MdCameraAlt size={24} />
+                        <span className="text-[9px] font-semibold mt-0.5">Add Photo</span>
+                      </div>
+                    )}
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                      <MdCameraAlt size={20} className="text-white" />
+                    </div>
+                  </div>
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(true); }}
+                      className="text-[11px] text-[var(--red)] font-medium cursor-pointer hover:underline flex items-center gap-0.5"
+                    >
+                      <MdClose size={14} /> Remove photo
+                    </button>
+                  )}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(file));
+                        setPhotoRemoved(false);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-[1fr_72px] gap-2">
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
@@ -567,9 +688,9 @@ export default function PlayerManager() {
                   {formError}
                 </div>
               )}
-              <button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
+              <button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict || submitting}
                 className="w-full rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-3 text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
+                {submitting ? 'Saving...' : editingPlayer ? '✓ Update Player' : '＋ Add Player'}
               </button>
             </div>
           </div>
@@ -649,17 +770,29 @@ export default function PlayerManager() {
                   )}
 
                   <div className="flex items-center gap-3 pr-10">
-                    {/* Jersey badge */}
+                    {/* Jersey badge or photo */}
                     <div className="relative flex-shrink-0">
-                      <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
-                        style={{
-                          backgroundColor: `${roleColor}${isSignedUp ? '18' : '08'}`,
-                          color: isSignedUp ? roleColor : `${roleColor}90`,
-                          border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${roleColor}${isSignedUp ? '50' : '35'}`,
-                          boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
-                        }}>
-                        {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
-                      </div>
+                      {p.photo_url ? (
+                        <img
+                          src={p.photo_url}
+                          alt={p.name}
+                          className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300"
+                          style={{
+                            border: `2.5px solid ${roleColor}${isSignedUp ? '50' : '35'}`,
+                            boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
+                          style={{
+                            backgroundColor: `${roleColor}${isSignedUp ? '18' : '08'}`,
+                            color: isSignedUp ? roleColor : `${roleColor}90`,
+                            border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${roleColor}${isSignedUp ? '50' : '35'}`,
+                            boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                          }}>
+                          {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                        </div>
+                      )}
                       {isAdmin && (
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--surface)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}

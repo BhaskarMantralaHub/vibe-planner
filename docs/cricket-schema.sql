@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS cricket_players (
   shirt_size    TEXT,           -- 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL'
   email         TEXT,
   designation   TEXT,           -- 'captain' | 'vice-captain'
+  photo_url     TEXT,           -- Supabase Storage public URL (player-photos bucket)
   is_active     BOOLEAN DEFAULT true,
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now()
@@ -301,3 +302,26 @@ RETURNS TEXT[] AS $$
     WHERE LOWER(email) = ANY(SELECT LOWER(unnest(check_emails)))
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- ── Storage: player-photos bucket ─────────────────────────────
+-- WHY: Player photos stored in Supabase Storage. Bucket is public
+--      for read access. Only the player themselves can upload/edit/delete
+--      their own photo (matched by auth.uid() in the folder path).
+-- Bucket: player-photos (public, 2MB limit, image/jpeg + image/png + image/webp)
+-- Path pattern: {user_id}/{player_id}.jpg
+
+CREATE POLICY "Cricket users can view photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'player-photos' AND has_cricket_access());
+
+CREATE POLICY "Players can upload own photo"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "Players can update own photo"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "Players can delete own photo"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldername(name))[1] = auth.uid()::text);
