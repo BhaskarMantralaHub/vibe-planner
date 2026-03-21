@@ -118,13 +118,37 @@ function PendingApprovals() {
           .limit(1)
           .maybeSingle();
         if (latestSeason) {
-          await supabase.from('cricket_gallery').insert({
+          const { data: welcomePost } = await supabase.from('cricket_gallery').insert({
             user_id: user!.id,
             season_id: latestSeason.id,
             photo_url: '/cricket-logo.png',
             caption,
             posted_by: 'Sunrisers Manteca',
-          });
+          }).select('id').single();
+
+          // Notify all registered players about the new teammate
+          if (welcomePost) {
+            const { data: allPlayers } = await supabase
+              .from('cricket_players')
+              .select('user_id')
+              .eq('is_active', true);
+            if (allPlayers) {
+              // Unique user_ids, exclude the admin who approved
+              const recipientIds = [...new Set(allPlayers.map((pl: { user_id: string }) => pl.user_id))]
+                .filter((uid) => uid !== user!.id);
+              if (recipientIds.length > 0) {
+                await supabase.from('cricket_notifications').insert(
+                  recipientIds.map((uid) => ({
+                    user_id: uid,
+                    post_id: welcomePost.id,
+                    type: 'tag',
+                    message: `${playerName} joined the team!`,
+                    is_read: false,
+                  })),
+                );
+              }
+            }
+          }
         }
       }
     } finally {
