@@ -33,7 +33,7 @@
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND (is_admin = true OR access @> '{admin}')
   );
 $$ LANGUAGE sql SECURITY DEFINER;
 
