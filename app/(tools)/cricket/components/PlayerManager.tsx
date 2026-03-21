@@ -192,6 +192,7 @@ export default function PlayerManager() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ name: string; url: string } | null>(null);
   const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
   const [signedUpEmails, setSignedUpEmails] = useState<Set<string>>(new Set());
 
@@ -776,11 +777,12 @@ export default function PlayerManager() {
                         <img
                           src={p.photo_url}
                           alt={p.name}
-                          className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300"
+                          className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300 cursor-pointer"
                           style={{
                             border: `2.5px solid ${roleColor}${isSignedUp ? '50' : '35'}`,
                             boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
                           }}
+                          onClick={(e) => { e.stopPropagation(); setLightboxPhoto({ name: p.name, url: p.photo_url! }); }}
                         />
                       ) : (
                         <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
@@ -992,6 +994,30 @@ export default function PlayerManager() {
       )}
 
       {/* Admin access modal */}
+      {/* Photo lightbox */}
+      {lightboxPhoto && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white cursor-pointer"
+            onClick={() => setLightboxPhoto(null)}
+          >
+            <MdClose size={28} />
+          </button>
+          <img
+            src={lightboxPhoto.url}
+            alt={lightboxPhoto.name}
+            className="max-w-[80vw] max-h-[70vh] rounded-2xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="mt-3 text-white/90 text-[16px] font-semibold">{lightboxPhoto.name}</p>
+        </div>,
+        document.body,
+      )}
+
       {adminModal && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
