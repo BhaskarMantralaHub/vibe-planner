@@ -422,11 +422,13 @@ export default function GalleryPostCard({
 
         {showMenu && <PostMenu anchorRef={menuBtnRef} onEdit={() => setEditing(true)} onDelete={() => setShowDeleteConfirm(true)} onClose={() => setShowMenu(false)} />}
 
-        {/* Photo */}
-        <div className="w-full cursor-pointer" onClick={() => setFullscreen(true)}>
-          <img src={post.photo_url} alt={post.caption ?? 'Gallery photo'}
-            className="w-full object-cover" style={{ maxHeight: 340 }} loading="lazy" />
-        </div>
+        {/* Photo (skip for text-only posts) */}
+        {post.photo_url && (
+          <div className="w-full cursor-pointer" onClick={() => setFullscreen(true)}>
+            <img src={post.photo_url} alt={post.caption ?? 'Gallery photo'}
+              className="w-full object-cover" style={{ maxHeight: 340 }} loading="lazy" />
+          </div>
+        )}
 
         {/* Caption */}
         {editing ? (
@@ -541,7 +543,7 @@ export default function GalleryPostCard({
         </div>
       </div>
 
-      {fullscreen && <FullscreenViewer src={post.photo_url} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
+      {fullscreen && post.photo_url && <FullscreenViewer src={post.photo_url} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
       {showDeleteConfirm && <ConfirmDelete onConfirm={() => { deleteGalleryPost(post.id); setShowDeleteConfirm(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
 
       {/* Liked by popup */}

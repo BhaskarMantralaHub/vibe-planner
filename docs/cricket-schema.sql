@@ -200,9 +200,9 @@ BEGIN
     player_name
   ) || ' @' || player_name || ' @Everyone';
 
-  -- Create welcome post (owned by admin, posted by team name)
-  INSERT INTO cricket_gallery (user_id, season_id, photo_url, caption, posted_by)
-  VALUES (admin_uid, season_id, '/cricket-logo.png', caption, 'Sunrisers Manteca')
+  -- Create welcome post (text-only, owned by admin, posted by team name)
+  INSERT INTO cricket_gallery (user_id, season_id, caption, posted_by)
+  VALUES (admin_uid, season_id, caption, 'Sunrisers Manteca')
   RETURNING id INTO post_id;
 
   -- Notify all active players (except the new player)
@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS cricket_gallery (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   season_id     UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
   user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  photo_url     TEXT NOT NULL,
+  photo_url     TEXT,              -- NULL for text-only posts (e.g., welcome messages)
   caption       TEXT,
   posted_by     TEXT,              -- player name (denormalized for display)
   deleted_at    TIMESTAMPTZ,

@@ -300,6 +300,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     if (error) {
+      console.error('[auth] signup raw error:', error.message, error);
       set({ authError: sanitizeAuthError(error.message), syncing: false });
       return;
     }
