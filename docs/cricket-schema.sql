@@ -168,6 +168,7 @@ AS $$
 DECLARE
   season_id UUID;
   post_id UUID;
+  admin_uid UUID;
   welcome_messages TEXT[] := ARRAY[
     'Welcome to the squad, %s! Let''s make this season one for the books',
     '%s has joined the team! Another warrior in the dugout',
@@ -185,8 +186,13 @@ BEGIN
   -- Get latest season
   SELECT id INTO season_id FROM cricket_seasons
   ORDER BY year DESC, created_at DESC LIMIT 1;
-
   IF season_id IS NULL THEN RETURN; END IF;
+
+  -- Use an existing admin as the post owner (not the new user whose FK isn't committed yet)
+  SELECT id INTO admin_uid FROM profiles
+  WHERE is_admin = true OR access @> '{admin}'
+  ORDER BY created_at LIMIT 1;
+  IF admin_uid IS NULL THEN RETURN; END IF;
 
   -- Pick random welcome message
   caption := format(
@@ -194,9 +200,9 @@ BEGIN
     player_name
   ) || ' @' || player_name || ' @Everyone';
 
-  -- Create welcome post
+  -- Create welcome post (owned by admin, posted by team name)
   INSERT INTO cricket_gallery (user_id, season_id, photo_url, caption, posted_by)
-  VALUES (new_user_id, season_id, '/cricket-logo.png', caption, 'Sunrisers Manteca')
+  VALUES (admin_uid, season_id, '/cricket-logo.png', caption, 'Sunrisers Manteca')
   RETURNING id INTO post_id;
 
   -- Notify all active players (except the new player)
