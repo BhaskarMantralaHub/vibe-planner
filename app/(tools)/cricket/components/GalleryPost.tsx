@@ -132,9 +132,9 @@ function FullscreenViewer({ src, caption, players, onClose }: { src: string; cap
 }
 
 /* ── Three-dot menu ── */
-function PostMenu({ anchorRef, onEdit, onDelete, onClose }: {
+function PostMenu({ anchorRef, onEdit, onDelete, onClose, showEdit }: {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit: () => void; onDelete: () => void; onClose: () => void;
+  onEdit: () => void; onDelete: () => void; onClose: () => void; showEdit: boolean;
 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   useEffect(() => {
@@ -154,12 +154,16 @@ function PostMenu({ anchorRef, onEdit, onDelete, onClose }: {
       <div className="fixed inset-0 z-[99]" onClick={onClose} />
       <div className="fixed z-[100] w-[140px] rounded-xl overflow-hidden shadow-2xl"
         style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <button onClick={() => { onEdit(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--text)' }}>
-          <MdEdit size={15} style={{ color: 'var(--blue)' }} /> Edit Caption
-        </button>
-        <div className="border-t border-[var(--border)] my-0.5 mx-2" />
+        {showEdit && (
+          <>
+            <button onClick={() => { onEdit(); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+              style={{ color: 'var(--text)' }}>
+              <MdEdit size={15} style={{ color: 'var(--blue)' }} /> Edit Caption
+            </button>
+            <div className="border-t border-[var(--border)] my-0.5 mx-2" />
+          </>
+        )}
         <button onClick={() => { onDelete(); onClose(); }}
           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
           style={{ color: 'var(--red)' }}>
@@ -412,7 +416,7 @@ export default function GalleryPostCard({
             <p className="text-[14px] font-bold text-[var(--text)] truncate tracking-[-0.01em]">{post.posted_by}</p>
             <p className="text-[12px] text-[var(--dim)]">{timeAgo(post.created_at)}</p>
           </div>
-          {isOwn && !editing && (
+          {(isOwn || isAdmin) && !editing && (
             <button ref={menuBtnRef} onClick={() => setShowMenu(true)}
               className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer" title="More options">
               <MdMoreVert size={20} style={{ color: 'var(--muted)' }} />
@@ -420,7 +424,7 @@ export default function GalleryPostCard({
           )}
         </div>
 
-        {showMenu && <PostMenu anchorRef={menuBtnRef} onEdit={() => setEditing(true)} onDelete={() => setShowDeleteConfirm(true)} onClose={() => setShowMenu(false)} />}
+        {showMenu && <PostMenu anchorRef={menuBtnRef} onEdit={() => setEditing(true)} onDelete={() => setShowDeleteConfirm(true)} onClose={() => setShowMenu(false)} showEdit={isOwn} />}
 
         {/* Photo (skip for text-only posts) */}
         {post.photo_url && (
