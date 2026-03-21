@@ -154,6 +154,72 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS access text[] DEFAULT '{toolkit}';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS approved boolean DEFAULT true;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS player_meta JSONB DEFAULT NULL;
 
+-- ── Welcome post function (called by trigger + RPC) ─────────────
+-- Creates a welcome post in Moments and notifies all active players.
+-- Uses SECURITY DEFINER to bypass RLS (trigger context has no auth.uid).
+CREATE OR REPLACE FUNCTION post_welcome_message(
+  new_user_id UUID,
+  player_name TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  season_id UUID;
+  post_id UUID;
+  welcome_messages TEXT[] := ARRAY[
+    'Welcome to the squad, %s! Let''s make this season one for the books',
+    '%s has joined the team! Another warrior in the dugout',
+    'Big welcome to %s! The team just got stronger',
+    '%s is officially a Sunriser! Time to hit the ground running',
+    'Welcome aboard, %s! Can''t wait to see you on the field',
+    'The squad grows! %s joins the Sunrisers family',
+    '%s has entered the arena! Welcome to Sunrisers Manteca',
+    'New player alert! Welcome %s to the team',
+    '%s just leveled up our roster! Welcome to the squad',
+    'Say hello to our newest Sunriser — %s! Let''s go'
+  ];
+  caption TEXT;
+BEGIN
+  -- Get latest season
+  SELECT id INTO season_id FROM cricket_seasons
+  ORDER BY year DESC, created_at DESC LIMIT 1;
+
+  IF season_id IS NULL THEN RETURN; END IF;
+
+  -- Pick random welcome message
+  caption := format(
+    welcome_messages[1 + floor(random() * array_length(welcome_messages, 1))::int],
+    player_name
+  ) || ' @' || player_name || ' @Everyone';
+
+  -- Create welcome post
+  INSERT INTO cricket_gallery (user_id, season_id, photo_url, caption, posted_by)
+  VALUES (new_user_id, season_id, '/cricket-logo.png', caption, 'Sunrisers Manteca')
+  RETURNING id INTO post_id;
+
+  -- Notify all active players (except the new player)
+  INSERT INTO cricket_notifications (user_id, post_id, type, message, is_read)
+  SELECT DISTINCT cp.user_id, post_id, 'tag', player_name || ' joined the team!', false
+  FROM cricket_players cp
+  WHERE cp.is_active = true AND cp.user_id != new_user_id;
+END;
+$$;
+
+-- RPC wrapper so client-side can call it after manual approval
+CREATE OR REPLACE FUNCTION create_welcome_post(new_user_id UUID, player_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  PERFORM post_welcome_message(new_user_id, player_name);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION create_welcome_post(UUID, TEXT) TO authenticated;
+
 -- ── Handle new user trigger (reads access/approved/player meta) ──
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -211,6 +277,12 @@ BEGIN
         shirt_size = COALESCE(NEW.raw_user_meta_data->>'shirt_size', shirt_size),
         updated_at = now()
     WHERE lower(email) = lower(NEW.email) AND is_active = true;
+
+    -- Auto-post welcome message in Moments
+    PERFORM post_welcome_message(
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
+    );
   END IF;
 
   RETURN NEW;

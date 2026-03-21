@@ -8,7 +8,6 @@ import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
-import { getWelcomeCaption } from '@/app/(tools)/cricket/lib/welcome-messages';
 
 type PlayerMeta = {
   jersey_number?: number;
@@ -106,50 +105,13 @@ function PendingApprovals() {
       await supabase.from('profiles').update({ approved: true }).eq('id', p.id);
       setPending((prev) => prev.filter((u) => u.id !== p.id));
 
-      // Auto-post welcome message in Moments
+      // Auto-post welcome message in Moments via DB function
       if (access.includes('cricket')) {
         const playerName = p.full_name || p.email.split('@')[0];
-        const caption = getWelcomeCaption(playerName);
-        // Get latest season directly from DB (store may not be loaded)
-        const { data: latestSeason } = await supabase
-          .from('cricket_seasons')
-          .select('id')
-          .order('year', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (latestSeason) {
-          const { data: welcomePost } = await supabase.from('cricket_gallery').insert({
-            user_id: user!.id,
-            season_id: latestSeason.id,
-            photo_url: '/cricket-logo.png',
-            caption,
-            posted_by: 'Sunrisers Manteca',
-          }).select('id').single();
-
-          // Notify all registered players about the new teammate
-          if (welcomePost) {
-            const { data: allPlayers } = await supabase
-              .from('cricket_players')
-              .select('user_id')
-              .eq('is_active', true);
-            if (allPlayers) {
-              // Unique user_ids, exclude the admin who approved
-              const recipientIds = [...new Set(allPlayers.map((pl: { user_id: string }) => pl.user_id))]
-                .filter((uid) => uid !== user!.id);
-              if (recipientIds.length > 0) {
-                await supabase.from('cricket_notifications').insert(
-                  recipientIds.map((uid) => ({
-                    user_id: uid,
-                    post_id: welcomePost.id,
-                    type: 'tag',
-                    message: `${playerName} joined the team!`,
-                    is_read: false,
-                  })),
-                );
-              }
-            }
-          }
-        }
+        await supabase.rpc('create_welcome_post', {
+          new_user_id: p.id,
+          player_name: playerName,
+        });
       }
     } finally {
       setApproving(null);
