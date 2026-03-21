@@ -119,6 +119,7 @@ Storage bucket `gallery-photos`: Public bucket for team gallery photos. Path: `{
 RPC: `get_public_season_data(token UUID)` — SECURITY DEFINER function returning all season data as JSON for the public share page.
 RPC: `check_cricket_player_email(check_email TEXT)` — checks if a player exists with given email (for auto-approve on signup).
 RPC: `get_signed_up_emails(check_emails TEXT[])` — SECURITY DEFINER function returning lowercase emails from auth.users that match the input array (case-insensitive). Used by PlayerManager to show signup status dots.
+RPC: `create_welcome_post(new_user_id UUID, player_name TEXT)` — SECURITY DEFINER function that creates a welcome post in Moments + notifies all active players. Called by client on manual approval; also called internally by `handle_new_user` trigger for auto-approved players.
 
 Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 
