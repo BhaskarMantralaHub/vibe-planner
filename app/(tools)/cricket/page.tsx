@@ -19,7 +19,6 @@ import TossWidget from './components/TossWidget';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
 import Gallery from './components/Gallery';
-import NotificationBell from './components/NotificationBell';
 
 type View = 'players' | 'expenses' | 'fees' | 'charts' | 'gallery' | 'toss' | 'share';
 
@@ -159,6 +158,21 @@ function CricketDashboard() {
     window.history.replaceState(null, '', `#${view}`);
   };
 
+  // Listen for notification click → switch to gallery and scroll to post
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const postId = (e as CustomEvent).detail;
+      handleViewChange('gallery');
+      // Scroll to the post after view switches
+      setTimeout(() => {
+        const el = document.getElementById(`gallery-post-${postId}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    };
+    window.addEventListener('gallery-scroll-to', handler);
+    return () => window.removeEventListener('gallery-scroll-to', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard shortcuts: 1-6 to switch views
   useEffect(() => {
     if (!selectedSeasonId) return;
@@ -272,10 +286,7 @@ function CricketDashboard() {
                 {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--orange)]" size={22} />
               </h2>
             </div>
-            <div className="flex items-center gap-2">
-              <NotificationBell onNavigateToGallery={() => handleViewChange('gallery')} />
-              <SeasonSelector />
-            </div>
+            <SeasonSelector />
           </div>
         );
       })()}

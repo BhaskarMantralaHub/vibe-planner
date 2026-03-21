@@ -357,6 +357,7 @@ CREATE TABLE IF NOT EXISTS cricket_gallery_likes (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
   user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  liked_by      TEXT,               -- player name (denormalized for display)
   UNIQUE(post_id, user_id)
 );
 
@@ -397,6 +398,7 @@ ALTER TABLE cricket_notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can read own notifications" ON cricket_notifications FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY "Cricket users can create notifications" ON cricket_notifications FOR INSERT WITH CHECK (has_cricket_access());
 CREATE POLICY "Users can update own notifications" ON cricket_notifications FOR UPDATE USING (user_id = auth.uid());
+CREATE POLICY "Users can delete own notifications" ON cricket_notifications FOR DELETE USING (user_id = auth.uid());
 
 -- ── Storage: gallery-photos bucket ──────────────────────────────
 -- Public bucket, 5MB limit, image/* MIME types

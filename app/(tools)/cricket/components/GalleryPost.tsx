@@ -82,6 +82,12 @@ function RichText({ text, players }: { text: string; players: CricketPlayer[] })
   );
 }
 
+/* ── Resolve liker display name from the like record ── */
+function resolveLikerName(like: { user_id: string; liked_by: string | null }, currentUserId: string | undefined): string {
+  if (like.user_id === currentUserId) return 'You';
+  return like.liked_by ?? 'Admin';
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -356,6 +362,7 @@ export default function GalleryPostCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [showLikedBy, setShowLikedBy] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   const isOwn = user?.id === post.user_id;
@@ -366,7 +373,12 @@ export default function GalleryPostCard({
   const authorPlayer = players.find((p) => p.email && p.name === post.posted_by);
   const visibleComments = showAllComments ? comments : comments.slice(-2);
 
-  const handleLike = () => { if (user) toggleGalleryLike(post.id, user.id); };
+  // Resolve current user's player name via email (reliable, not user_id)
+  const myEmail = user?.email?.toLowerCase();
+  const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === myEmail);
+  const myName = myPlayer?.name ?? user?.user_metadata?.full_name ?? null;
+
+  const handleLike = () => { if (user) toggleGalleryLike(post.id, user.id, myName); };
 
   const handleComment = () => {
     if (!user || !commentText.trim()) return;
@@ -392,7 +404,7 @@ export default function GalleryPostCard({
 
   return (
     <>
-      <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)' }}>
+      <div id={`gallery-post-${post.id}`} className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)' }}>
         {/* Author header */}
         <div className="flex items-center gap-2.5 px-4 py-3">
           <Avatar player={authorPlayer} name={post.posted_by ?? 'U'} size={36} />
@@ -443,11 +455,20 @@ export default function GalleryPostCard({
             <MdChatBubbleOutline size={22} className="text-[var(--text)] group-hover:text-[var(--blue)] transition-colors" />
           </button>
         </div>
-        {/* Like count */}
+        {/* Like count — tap to see who liked */}
         {likeCount > 0 && (
-          <p className="px-4 text-[13px] font-bold text-[var(--text)] tracking-[-0.01em]">
-            {likeCount} {likeCount === 1 ? 'like' : 'likes'}
-          </p>
+          <button onClick={() => setShowLikedBy(true)}
+            className="px-4 text-[13px] font-bold text-[var(--text)] tracking-[-0.01em] cursor-pointer text-left">
+            {(() => {
+              const likerNames = likes
+                .map((l) => resolveLikerName(l, user?.id));
+              if (likerNames.length === 0) return `${likeCount} ${likeCount === 1 ? 'like' : 'likes'}`;
+              if (likerNames.length === 1 && likeCount === 1) return `Liked by ${likerNames[0]}`;
+              if (likerNames.length === 2 && likeCount === 2) return `Liked by ${likerNames[0]} and ${likerNames[1]}`;
+              if (likerNames.length >= 1) return `Liked by ${likerNames[0]} and ${likeCount - 1} others`;
+              return `${likeCount} ${likeCount === 1 ? 'like' : 'likes'}`;
+            })()}
+          </button>
         )}
 
         {/* Comments */}
@@ -522,6 +543,48 @@ export default function GalleryPostCard({
 
       {fullscreen && <FullscreenViewer src={post.photo_url} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
       {showDeleteConfirm && <ConfirmDelete onConfirm={() => { deleteGalleryPost(post.id); setShowDeleteConfirm(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
+
+      {/* Liked by popup */}
+      {showLikedBy && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowLikedBy(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full sm:max-w-xs rounded-t-2xl sm:rounded-2xl overflow-hidden"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle (mobile) */}
+            <div className="flex justify-center pt-2 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+              <h4 className="text-[15px] font-bold text-[var(--text)]">Likes</h4>
+              <button onClick={() => setShowLikedBy(false)} className="p-1 cursor-pointer rounded-lg hover:bg-[var(--hover-bg)]">
+                <MdClose size={20} style={{ color: 'var(--muted)' }} />
+              </button>
+            </div>
+            <div className="max-h-[300px] overflow-y-auto">
+              {likes.map((l) => {
+                const name = resolveLikerName(l, user?.id);
+                const lPlayer = l.liked_by ? players.find((p) => p.is_active && p.name === l.liked_by) : undefined;
+                return (
+                  <div key={l.id} className="flex items-center gap-3 px-4 py-3">
+                    <Avatar player={lPlayer} name={name} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-bold text-[var(--text)] truncate tracking-[-0.01em]">{name}</p>
+                      {lPlayer?.player_role && (
+                        <p className="text-[12px] text-[var(--dim)] capitalize">{lPlayer.player_role}</p>
+                      )}
+                    </div>
+                    <MdFavorite size={16} style={{ color: 'var(--red)' }} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

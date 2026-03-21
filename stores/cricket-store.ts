@@ -148,10 +148,11 @@ interface CricketState {
   addGalleryComment: (postId: string, userId: string, commentBy: string | null, text: string) => void;
   updateGalleryComment: (id: string, text: string) => void;
   deleteGalleryComment: (id: string) => void;
-  toggleGalleryLike: (postId: string, userId: string) => void;
+  toggleGalleryLike: (postId: string, userId: string, likerName?: string) => void;
   toggleCommentReaction: (commentId: string, userId: string, emoji: string) => void;
   createNotifications: (postId: string, recipientUserIds: string[], type: 'tag' | 'comment' | 'like', message: string) => void;
   markNotificationsRead: () => void;
+  clearNotifications: () => void;
 
   // UI
   setShowPlayerForm: (show: boolean) => void;
@@ -671,7 +672,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
   },
 
-  toggleGalleryLike: (postId, userId) => {
+  toggleGalleryLike: (postId, userId, likerName) => {
     const existing = get().galleryLikes.find((l) => l.post_id === postId && l.user_id === userId);
     if (existing) {
       set({ galleryLikes: get().galleryLikes.filter((l) => l.id !== existing.id) });
@@ -681,16 +682,27 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       }
     } else {
       const localId = genId();
-      const newLike: GalleryLike = { id: localId, post_id: postId, user_id: userId };
+      const displayName = likerName ?? null;
+      const newLike: GalleryLike = { id: localId, post_id: postId, user_id: userId, liked_by: displayName };
       set({ galleryLikes: [...get().galleryLikes, newLike] });
       if (isCloudMode()) {
         const supabase = getSupabaseClient();
-        supabase?.from('cricket_gallery_likes')
-          .insert({ post_id: postId, user_id: userId })
+        if (!supabase) return;
+        supabase.from('cricket_gallery_likes')
+          .insert({ post_id: postId, user_id: userId, liked_by: displayName })
           .select().single()
           .then(({ data: row }: { data: GalleryLike | null }) => {
             if (row) set({ galleryLikes: get().galleryLikes.map((l) => l.id === localId ? row : l) });
           });
+        // Notify post owner about the like (exclude self-like)
+        const post = get().gallery.find((p) => p.id === postId);
+        if (post && post.user_id !== userId) {
+          supabase.from('cricket_notifications')
+            .insert({ user_id: post.user_id, post_id: postId, type: 'like', message: `${displayName ?? 'Someone'} liked your photo`, is_read: false })
+            .then(({ error }: { error: unknown }) => {
+              if (error) console.error('[cricket] like notification failed:', error);
+            });
+        }
       }
     }
   },
@@ -742,6 +754,16 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         .update({ is_read: true })
         .in('id', unread.map((n) => n.id))
         .then(() => {});
+    }
+  },
+
+  clearNotifications: () => {
+    const ids = get().notifications.map((n) => n.id);
+    if (ids.length === 0) return;
+    set({ notifications: [] });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_notifications').delete().in('id', ids).then(() => {});
     }
   },
 

@@ -7,6 +7,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
+import { getWelcomeCaption } from '@/app/(tools)/cricket/lib/welcome-messages';
 
 type PlayerMeta = {
   jersey_number?: number;
@@ -103,6 +105,28 @@ function PendingApprovals() {
 
       await supabase.from('profiles').update({ approved: true }).eq('id', p.id);
       setPending((prev) => prev.filter((u) => u.id !== p.id));
+
+      // Auto-post welcome message in Moments
+      if (access.includes('cricket')) {
+        const playerName = p.full_name || p.email.split('@')[0];
+        const caption = getWelcomeCaption(playerName);
+        // Get latest season directly from DB (store may not be loaded)
+        const { data: latestSeason } = await supabase
+          .from('cricket_seasons')
+          .select('id')
+          .order('year', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latestSeason) {
+          await supabase.from('cricket_gallery').insert({
+            user_id: user!.id,
+            season_id: latestSeason.id,
+            photo_url: '/cricket-logo.png',
+            caption,
+            posted_by: 'Sunrisers Manteca',
+          });
+        }
+      }
     } finally {
       setApproving(null);
     }
@@ -259,6 +283,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <div className="flex items-center gap-1">
+          {isCricketContext && <NotificationBell />}
           <PendingApprovals />
           <ThemeToggle />
         </div>

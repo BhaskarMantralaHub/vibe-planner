@@ -126,6 +126,7 @@ export type GalleryLike = {
   id: string;
   post_id: string;
   user_id: string;
+  liked_by: string | null;
 };
 
 export type CommentReaction = {
