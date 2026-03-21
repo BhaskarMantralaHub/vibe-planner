@@ -5,7 +5,7 @@ import { AuthGate } from '@/components/AuthGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet } from 'react-icons/fa';
+import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
@@ -18,8 +18,10 @@ import MonthlyBar from './components/MonthlyBar';
 import TossWidget from './components/TossWidget';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
+import Gallery from './components/Gallery';
+import NotificationBell from './components/NotificationBell';
 
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'toss' | 'share';
+type View = 'players' | 'expenses' | 'fees' | 'charts' | 'gallery' | 'toss' | 'share';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -86,6 +88,7 @@ const VIEWS: { key: View; label: string; short: string; icon: React.ReactNode }[
   { key: 'fees', label: 'Fees & Sponsors', short: 'Fees', icon: <FaMoneyBillWave size={14} /> },
   { key: 'expenses', label: 'Expenses', short: 'Expenses', icon: <FaReceipt size={14} /> },
   { key: 'charts', label: 'Expense Charts', short: 'Charts', icon: <FaChartPie size={14} /> },
+  { key: 'gallery', label: 'Moments', short: 'Moments', icon: <FaCamera size={13} /> },
   { key: 'toss', label: 'Toss', short: 'Toss', icon: <MdSportsCricket size={15} /> },
   { key: 'share', label: 'Share', short: 'Share', icon: <FaShareAlt size={13} /> },
 ];
@@ -146,7 +149,7 @@ function CricketDashboard() {
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'toss', 'share'].includes(hash)) return hash;
+      if (['players', 'expenses', 'fees', 'charts', 'gallery', 'toss', 'share'].includes(hash)) return hash;
     }
     return 'players';
   });
@@ -163,7 +166,7 @@ function CricketDashboard() {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'toss', '6': 'share' };
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'toss', '7': 'share' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -269,7 +272,10 @@ function CricketDashboard() {
                 {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--orange)]" size={22} />
               </h2>
             </div>
-            <SeasonSelector />
+            <div className="flex items-center gap-2">
+              <NotificationBell onNavigateToGallery={() => handleViewChange('gallery')} />
+              <SeasonSelector />
+            </div>
           </div>
         );
       })()}
@@ -310,7 +316,7 @@ function CricketDashboard() {
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
-          {activeView !== 'toss' && activeView !== 'share' && activeView !== 'expenses' && (
+          {activeView !== 'toss' && activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -336,6 +342,7 @@ function CricketDashboard() {
                 <SponsorshipSection />
               </div>
             )}
+            {activeView === 'gallery' && <Gallery />}
             {activeView === 'toss' && <TossWidget />}
             {activeView === 'share' && <ShareButton />}
           </div>

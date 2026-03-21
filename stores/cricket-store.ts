@@ -7,6 +7,12 @@ import type {
   CricketSettlement,
   CricketSeasonFee,
   CricketSponsorship,
+  GalleryPost,
+  GalleryTag,
+  GalleryComment,
+  GalleryLike,
+  CommentReaction,
+  GalleryNotification,
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { computeSplitAmounts } from '@/app/(tools)/cricket/lib/utils';
@@ -77,6 +83,12 @@ interface CricketState {
   settlements: CricketSettlement[];
   fees: CricketSeasonFee[];
   sponsorships: CricketSponsorship[];
+  gallery: GalleryPost[];
+  galleryTags: GalleryTag[];
+  galleryComments: GalleryComment[];
+  galleryLikes: GalleryLike[];
+  commentReactions: CommentReaction[];
+  notifications: GalleryNotification[];
   loading: boolean;
   selectedSeasonId: string | null;
 
@@ -129,6 +141,18 @@ interface CricketState {
   deleteSponsorship: (id: string, deletedBy?: string) => void;
   restoreSponsorship: (id: string) => void;
 
+  // Gallery
+  addGalleryPost: (userId: string, seasonId: string, photoUrl: string, caption: string | null, postedBy: string | null, tagPlayerIds: string[]) => void;
+  updateGalleryPost: (id: string, caption: string | null, newTagPlayerIds: string[]) => void;
+  deleteGalleryPost: (id: string) => void;
+  addGalleryComment: (postId: string, userId: string, commentBy: string | null, text: string) => void;
+  updateGalleryComment: (id: string, text: string) => void;
+  deleteGalleryComment: (id: string) => void;
+  toggleGalleryLike: (postId: string, userId: string) => void;
+  toggleCommentReaction: (commentId: string, userId: string, emoji: string) => void;
+  createNotifications: (postId: string, recipientUserIds: string[], type: 'tag' | 'comment' | 'like', message: string) => void;
+  markNotificationsRead: () => void;
+
   // UI
   setShowPlayerForm: (show: boolean) => void;
   setShowExpenseForm: (show: boolean) => void;
@@ -144,6 +168,12 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   settlements: [],
   fees: [],
   sponsorships: [],
+  gallery: [],
+  galleryTags: [],
+  galleryComments: [],
+  galleryLikes: [],
+  commentReactions: [],
+  notifications: [],
   loading: true,
   selectedSeasonId: null,
 
@@ -160,7 +190,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       if (!supabase) { set({ loading: false }); return; }
 
       // Load ALL team data — not filtered by user_id (shared team data)
-      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes, sponsorsRes] = await Promise.all([
+      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes, sponsorsRes, galleryRes, galleryTagsRes, galleryCommentsRes, galleryLikesRes, commentReactionsRes, notificationsRes] = await Promise.all([
         supabase.from('cricket_players').select('*').order('created_at'),
         supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
         supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false }),
@@ -168,6 +198,12 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
         supabase.from('cricket_season_fees').select('*').order('created_at'),
         supabase.from('cricket_sponsorships').select('*').order('created_at'),
+        supabase.from('cricket_gallery').select('*').order('created_at', { ascending: false }),
+        supabase.from('cricket_gallery_tags').select('*'),
+        supabase.from('cricket_gallery_comments').select('*').order('created_at'),
+        supabase.from('cricket_gallery_likes').select('*'),
+        supabase.from('cricket_comment_reactions').select('*'),
+        supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
       ]);
 
       const players = (playersRes.data ?? []) as CricketPlayer[];
@@ -179,9 +215,15 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
       const fees = (feesRes.data ?? []) as CricketSeasonFee[];
       const sponsorships = (sponsorsRes.data ?? []) as CricketSponsorship[];
+      const gallery = (galleryRes.data ?? []) as GalleryPost[];
+      const galleryTags = (galleryTagsRes.data ?? []) as GalleryTag[];
+      const galleryComments = (galleryCommentsRes.data ?? []) as GalleryComment[];
+      const galleryLikes = (galleryLikesRes.data ?? []) as GalleryLike[];
+      const commentReactions = (commentReactionsRes.data ?? []) as CommentReaction[];
+      const notifications = (notificationsRes.data ?? []) as GalleryNotification[];
 
       const selectedSeasonId = pickCurrentSeason(seasons);
-      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, selectedSeasonId, loading: false });
+      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, loading: false });
     } else {
       const data = localLoad();
       const selectedSeasonId = pickCurrentSeason(data.seasons);
@@ -490,6 +532,216 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_sponsorships').update({ deleted_at: null, deleted_by: null }).eq('id', id).then(() => {});
+    }
+  },
+
+  // ── Gallery ─────────────────────────────────────────────────────────
+
+  addGalleryPost: (userId, seasonId, photoUrl, caption, postedBy, tagPlayerIds) => {
+    const localId = genId();
+    const now = new Date().toISOString();
+    const newPost: GalleryPost = {
+      id: localId, season_id: seasonId, user_id: userId,
+      photo_url: photoUrl, caption, posted_by: postedBy,
+      deleted_at: null, created_at: now,
+    };
+    const newTags: GalleryTag[] = tagPlayerIds.map((pid) => ({
+      id: genId(), post_id: localId, player_id: pid,
+    }));
+    set({ gallery: [newPost, ...get().gallery], galleryTags: [...get().galleryTags, ...newTags] });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      supabase.from('cricket_gallery')
+        .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrl, caption, posted_by: postedBy })
+        .select().single()
+        .then(({ data: row }: { data: GalleryPost | null }) => {
+          if (row) {
+            set({ gallery: get().gallery.map((p) => p.id === localId ? row : p) });
+            // Update tags with real post_id and insert
+            if (tagPlayerIds.length > 0) {
+              const tagRows = tagPlayerIds.map((pid) => ({ post_id: row.id, player_id: pid }));
+              supabase.from('cricket_gallery_tags').insert(tagRows).select()
+                .then(({ data: realTags }: { data: GalleryTag[] | null }) => {
+                  if (realTags) {
+                    const optimisticIds = new Set(newTags.map((t) => t.id));
+                    set({ galleryTags: [...get().galleryTags.filter((t) => !optimisticIds.has(t.id)), ...realTags] });
+                  }
+                });
+            }
+            // Send notifications to tagged players (exclude self)
+            const taggedUserIds = tagPlayerIds
+              .map((pid) => get().players.find((p) => p.id === pid))
+              .filter((p) => p?.user_id && p.user_id !== userId)
+              .map((p) => p!.user_id);
+            if (taggedUserIds.length > 0) {
+              const notifRows = taggedUserIds.map((uid) => ({
+                user_id: uid, post_id: row.id, type: 'tag', message: `${postedBy ?? 'Someone'} tagged you in a photo`, is_read: false,
+              }));
+              supabase.from('cricket_notifications').insert(notifRows).then(({ error }: { error: unknown }) => {
+                if (error) console.error('[cricket] notifications failed:', error);
+              });
+            }
+          }
+        });
+    }
+  },
+
+  updateGalleryPost: (id, caption, newTagPlayerIds) => {
+    // Update caption optimistically
+    set({ gallery: get().gallery.map((p) => p.id === id ? { ...p, caption } : p) });
+
+    // Reconcile tags: diff old vs new
+    const oldTags = get().galleryTags.filter((t) => t.post_id === id);
+    const oldPlayerIds = new Set(oldTags.map((t) => t.player_id));
+    const newPlayerIds = new Set(newTagPlayerIds);
+    const toAdd = newTagPlayerIds.filter((pid) => !oldPlayerIds.has(pid));
+    const toRemove = oldTags.filter((t) => !newPlayerIds.has(t.player_id));
+
+    // Optimistic: remove old, add new
+    const removedIds = new Set(toRemove.map((t) => t.id));
+    const addedTags: GalleryTag[] = toAdd.map((pid) => ({ id: genId(), post_id: id, player_id: pid }));
+    set({ galleryTags: [...get().galleryTags.filter((t) => !removedIds.has(t.id)), ...addedTags] });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      // Update caption
+      supabase.from('cricket_gallery').update({ caption }).eq('id', id).then(() => {});
+      // Remove old tags
+      if (toRemove.length > 0) {
+        supabase.from('cricket_gallery_tags').delete().in('id', toRemove.map((t) => t.id)).then(() => {});
+      }
+      // Add new tags
+      if (toAdd.length > 0) {
+        const tagRows = toAdd.map((pid) => ({ post_id: id, player_id: pid }));
+        supabase.from('cricket_gallery_tags').insert(tagRows).select()
+          .then(({ data: realTags }: { data: GalleryTag[] | null }) => {
+            if (realTags) {
+              const optimisticIds = new Set(addedTags.map((t) => t.id));
+              set({ galleryTags: [...get().galleryTags.filter((t) => !optimisticIds.has(t.id)), ...realTags] });
+            }
+          });
+      }
+    }
+  },
+
+  deleteGalleryPost: (id) => {
+    const now = new Date().toISOString();
+    set({ gallery: get().gallery.map((p) => p.id === id ? { ...p, deleted_at: now } : p) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_gallery').update({ deleted_at: now }).eq('id', id).then(() => {});
+    }
+  },
+
+  addGalleryComment: (postId, userId, commentBy, text) => {
+    const localId = genId();
+    const now = new Date().toISOString();
+    const newComment: GalleryComment = { id: localId, post_id: postId, user_id: userId, comment_by: commentBy, text, created_at: now };
+    set({ galleryComments: [...get().galleryComments, newComment] });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_gallery_comments')
+        .insert({ post_id: postId, user_id: userId, comment_by: commentBy, text })
+        .select().single()
+        .then(({ data: row }: { data: GalleryComment | null }) => {
+          if (row) set({ galleryComments: get().galleryComments.map((c) => c.id === localId ? row : c) });
+        });
+    }
+  },
+
+  updateGalleryComment: (id, text) => {
+    set({ galleryComments: get().galleryComments.map((c) => c.id === id ? { ...c, text } : c) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_gallery_comments').update({ text }).eq('id', id).then(({ error }: { error: unknown }) => {
+        if (error) console.error('[cricket] updateComment failed:', error);
+      });
+    }
+  },
+
+  deleteGalleryComment: (id) => {
+    set({ galleryComments: get().galleryComments.filter((c) => c.id !== id) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_gallery_comments').delete().eq('id', id).then(() => {});
+    }
+  },
+
+  toggleGalleryLike: (postId, userId) => {
+    const existing = get().galleryLikes.find((l) => l.post_id === postId && l.user_id === userId);
+    if (existing) {
+      set({ galleryLikes: get().galleryLikes.filter((l) => l.id !== existing.id) });
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        supabase?.from('cricket_gallery_likes').delete().eq('id', existing.id).then(() => {});
+      }
+    } else {
+      const localId = genId();
+      const newLike: GalleryLike = { id: localId, post_id: postId, user_id: userId };
+      set({ galleryLikes: [...get().galleryLikes, newLike] });
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        supabase?.from('cricket_gallery_likes')
+          .insert({ post_id: postId, user_id: userId })
+          .select().single()
+          .then(({ data: row }: { data: GalleryLike | null }) => {
+            if (row) set({ galleryLikes: get().galleryLikes.map((l) => l.id === localId ? row : l) });
+          });
+      }
+    }
+  },
+
+  toggleCommentReaction: (commentId, userId, emoji) => {
+    const existing = get().commentReactions.find((r) => r.comment_id === commentId && r.user_id === userId && r.emoji === emoji);
+    if (existing) {
+      set({ commentReactions: get().commentReactions.filter((r) => r.id !== existing.id) });
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        supabase?.from('cricket_comment_reactions').delete().eq('id', existing.id).then(() => {});
+      }
+    } else {
+      const localId = genId();
+      const newReaction: CommentReaction = { id: localId, comment_id: commentId, user_id: userId, emoji };
+      set({ commentReactions: [...get().commentReactions, newReaction] });
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        supabase?.from('cricket_comment_reactions')
+          .insert({ comment_id: commentId, user_id: userId, emoji })
+          .select().single()
+          .then(({ data: row, error }: { data: CommentReaction | null; error: unknown }) => {
+            if (error) console.error('[cricket] comment reaction failed:', error);
+            if (row) set({ commentReactions: get().commentReactions.map((r) => r.id === localId ? row : r) });
+          });
+      }
+    }
+  },
+
+  createNotifications: (postId, recipientUserIds, type, message) => {
+    if (!isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase || recipientUserIds.length === 0) return;
+    const rows = recipientUserIds.map((uid) => ({
+      user_id: uid, post_id: postId, type, message, is_read: false,
+    }));
+    supabase.from('cricket_notifications').insert(rows).then(({ error }: { error: unknown }) => {
+      if (error) console.error('[cricket] notifications insert failed:', error);
+    });
+  },
+
+  markNotificationsRead: () => {
+    const unread = get().notifications.filter((n) => !n.is_read);
+    if (unread.length === 0) return;
+    set({ notifications: get().notifications.map((n) => ({ ...n, is_read: true })) });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_notifications')
+        .update({ is_read: true })
+        .in('id', unread.map((n) => n.id))
+        .then(() => {});
     }
   },
 

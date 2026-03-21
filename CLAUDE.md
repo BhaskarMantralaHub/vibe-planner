@@ -108,6 +108,13 @@ Table `cricket_expense_splits`: `id`, `expense_id`, `player_id`, `share_amount` 
 Table `cricket_settlements`: `id`, `user_id`, `season_id`, `from_player`, `to_player`, `amount`, `settled_date`, `created_at`.
 Table `cricket_season_fees`: `id`, `season_id`, `player_id`, `amount_paid` (NUMERIC), `paid_date`, `marked_by` (TEXT), `created_at`. Tracks per-player season fee payments (full/partial).
 Table `cricket_sponsorships`: `id`, `season_id`, `sponsor_name`, `amount` (NUMERIC), `sponsored_date`, `notes`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.
+Table `cricket_gallery`: `id`, `season_id`, `user_id`, `photo_url`, `caption`, `posted_by` (TEXT), `deleted_at`, `created_at`.
+Table `cricket_gallery_tags`: `id`, `post_id` (FK gallery), `player_id` (FK players), UNIQUE(post_id, player_id).
+Table `cricket_gallery_comments`: `id`, `post_id` (FK gallery), `user_id`, `comment_by` (TEXT), `text`, `created_at`.
+Table `cricket_gallery_likes`: `id`, `post_id` (FK gallery), `user_id`, UNIQUE(post_id, user_id).
+Table `cricket_comment_reactions`: `id`, `comment_id` (FK gallery_comments), `user_id`, `emoji`, UNIQUE(comment_id, user_id, emoji).
+Table `cricket_notifications`: `id`, `user_id`, `post_id` (FK gallery), `type` (tag/comment/like), `message`, `is_read`, `created_at`. Each user reads only their own (RLS by user_id).
+Storage bucket `gallery-photos`: Public bucket for team gallery photos. Path: `{season_id}/{post_id}.jpg`. Any cricket user can upload.
 
 RPC: `get_public_season_data(token UUID)` — SECURITY DEFINER function returning all season data as JSON for the public share page.
 RPC: `check_cricket_player_email(check_email TEXT)` — checks if a player exists with given email (for auto-approve on signup).

@@ -303,6 +303,118 @@ RETURNS TEXT[] AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- ── Gallery (team photo feed per season) ─────────────────────
+
+CREATE TABLE IF NOT EXISTS cricket_gallery (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  season_id     UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  photo_url     TEXT NOT NULL,
+  caption       TEXT,
+  posted_by     TEXT,              -- player name (denormalized for display)
+  deleted_at    TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_gallery ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read gallery" ON cricket_gallery FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Cricket users can create posts" ON cricket_gallery FOR INSERT WITH CHECK (has_cricket_access());
+CREATE POLICY "Own user can soft-delete posts" ON cricket_gallery FOR UPDATE USING (has_cricket_access() AND user_id = auth.uid());
+
+-- Player tags on gallery posts
+CREATE TABLE IF NOT EXISTS cricket_gallery_tags (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
+  player_id     UUID NOT NULL REFERENCES cricket_players(id) ON DELETE CASCADE,
+  UNIQUE(post_id, player_id)
+);
+
+ALTER TABLE cricket_gallery_tags ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read tags" ON cricket_gallery_tags FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Cricket users can create tags" ON cricket_gallery_tags FOR INSERT WITH CHECK (has_cricket_access());
+
+-- Comments on gallery posts
+CREATE TABLE IF NOT EXISTS cricket_gallery_comments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  comment_by    TEXT,              -- player name (denormalized)
+  text          TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_gallery_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read comments" ON cricket_gallery_comments FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Cricket users can create comments" ON cricket_gallery_comments FOR INSERT WITH CHECK (has_cricket_access());
+CREATE POLICY "Own user can update comments" ON cricket_gallery_comments FOR UPDATE USING (has_cricket_access() AND user_id = auth.uid());
+CREATE POLICY "Own or admin can delete comments" ON cricket_gallery_comments FOR DELETE USING (has_cricket_access() AND (user_id = auth.uid() OR is_cricket_admin()));
+
+-- Likes on gallery posts
+CREATE TABLE IF NOT EXISTS cricket_gallery_likes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  UNIQUE(post_id, user_id)
+);
+
+ALTER TABLE cricket_gallery_likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read likes" ON cricket_gallery_likes FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Cricket users can create likes" ON cricket_gallery_likes FOR INSERT WITH CHECK (has_cricket_access());
+CREATE POLICY "Users can remove own likes" ON cricket_gallery_likes FOR DELETE USING (has_cricket_access() AND user_id = auth.uid());
+
+-- Emoji reactions on comments
+CREATE TABLE IF NOT EXISTS cricket_comment_reactions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  comment_id    UUID NOT NULL REFERENCES cricket_gallery_comments(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  emoji         TEXT NOT NULL,       -- emoji character e.g. '🔥', '😂', '❤️', '👏', '💯'
+  UNIQUE(comment_id, user_id, emoji)
+);
+
+ALTER TABLE cricket_comment_reactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read reactions" ON cricket_comment_reactions FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Cricket users can add reactions" ON cricket_comment_reactions FOR INSERT WITH CHECK (has_cricket_access());
+CREATE POLICY "Users can remove own reactions" ON cricket_comment_reactions FOR DELETE USING (has_cricket_access() AND user_id = auth.uid());
+
+-- Notifications for gallery activity (tags, comments, likes)
+CREATE TABLE IF NOT EXISTS cricket_notifications (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
+  type          TEXT NOT NULL,       -- 'tag' | 'comment' | 'like'
+  message       TEXT NOT NULL,
+  is_read       BOOLEAN DEFAULT false,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own notifications" ON cricket_notifications FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Cricket users can create notifications" ON cricket_notifications FOR INSERT WITH CHECK (has_cricket_access());
+CREATE POLICY "Users can update own notifications" ON cricket_notifications FOR UPDATE USING (user_id = auth.uid());
+
+-- ── Storage: gallery-photos bucket ──────────────────────────────
+-- Public bucket, 5MB limit, image/* MIME types
+-- Path pattern: {season_id}/{post_id}.jpg
+-- Any cricket user can upload (team-shared, not restricted by user_id path)
+
+CREATE POLICY "Cricket users can view gallery photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'gallery-photos' AND has_cricket_access());
+
+CREATE POLICY "Cricket users can upload gallery photos"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'gallery-photos' AND has_cricket_access());
+
+CREATE POLICY "Cricket users can delete gallery photos"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'gallery-photos' AND has_cricket_access());
+
 -- ── Storage: player-photos bucket ─────────────────────────────
 -- WHY: Player photos stored in Supabase Storage. Bucket is public
 --      for read access. Only the player themselves can upload/edit/delete

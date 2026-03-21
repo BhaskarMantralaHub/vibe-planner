@@ -96,6 +96,55 @@ export type CricketSponsorship = {
   updated_at: string;
 };
 
+export type GalleryPost = {
+  id: string;
+  season_id: string;
+  user_id: string;
+  photo_url: string;
+  caption: string | null;
+  posted_by: string | null;
+  deleted_at: string | null;
+  created_at: string;
+};
+
+export type GalleryTag = {
+  id: string;
+  post_id: string;
+  player_id: string;
+};
+
+export type GalleryComment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  comment_by: string | null;
+  text: string;
+  created_at: string;
+};
+
+export type GalleryLike = {
+  id: string;
+  post_id: string;
+  user_id: string;
+};
+
+export type CommentReaction = {
+  id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+};
+
+export type GalleryNotification = {
+  id: string;
+  user_id: string;
+  post_id: string;
+  type: 'tag' | 'comment' | 'like';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
 export type PlayerBalance = {
   player_id: string;
   player_name: string;
