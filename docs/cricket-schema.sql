@@ -183,9 +183,22 @@ DECLARE
   ];
   caption TEXT;
 BEGIN
-  -- Get latest season
+  -- Get current season (match month to season type, fall back to most recent)
   SELECT id INTO season_id FROM cricket_seasons
-  ORDER BY year DESC, created_at DESC LIMIT 1;
+  WHERE is_active = true
+  ORDER BY
+    CASE
+      WHEN season_type = (
+        CASE
+          WHEN EXTRACT(MONTH FROM now()) BETWEEN 3 AND 5 THEN 'spring'
+          WHEN EXTRACT(MONTH FROM now()) BETWEEN 6 AND 9 THEN 'summer'
+          ELSE 'fall'
+        END
+      ) AND year = EXTRACT(YEAR FROM now()) THEN 0
+      ELSE 1
+    END,
+    year DESC, created_at DESC
+  LIMIT 1;
   IF season_id IS NULL THEN RETURN; END IF;
 
   -- Use an existing admin as the post owner (not the new user whose FK isn't committed yet)
@@ -273,22 +286,30 @@ BEGIN
   -- Auto-approved cricket player: claim pre-added player record
   -- Links user_id and overwrites with player's own signup preferences
   IF raw_access = 'cricket' AND user_approved THEN
-    UPDATE cricket_players
-    SET user_id = NEW.id,
-        name = COALESCE(NEW.raw_user_meta_data->>'full_name', name),
-        jersey_number = COALESCE((NEW.raw_user_meta_data->>'jersey_number')::integer, jersey_number),
-        player_role = COALESCE(NEW.raw_user_meta_data->>'player_role', player_role),
-        batting_style = COALESCE(NEW.raw_user_meta_data->>'batting_style', batting_style),
-        bowling_style = COALESCE(NEW.raw_user_meta_data->>'bowling_style', bowling_style),
-        shirt_size = COALESCE(NEW.raw_user_meta_data->>'shirt_size', shirt_size),
-        updated_at = now()
-    WHERE lower(email) = lower(NEW.email) AND is_active = true;
+    BEGIN
+      UPDATE cricket_players
+      SET user_id = NEW.id,
+          name = COALESCE(NEW.raw_user_meta_data->>'full_name', name),
+          jersey_number = COALESCE((NEW.raw_user_meta_data->>'jersey_number')::integer, jersey_number),
+          player_role = COALESCE(NEW.raw_user_meta_data->>'player_role', player_role),
+          batting_style = COALESCE(NEW.raw_user_meta_data->>'batting_style', batting_style),
+          bowling_style = COALESCE(NEW.raw_user_meta_data->>'bowling_style', bowling_style),
+          shirt_size = COALESCE(NEW.raw_user_meta_data->>'shirt_size', shirt_size),
+          updated_at = now()
+      WHERE lower(email) = lower(NEW.email) AND is_active = true;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'handle_new_user: player link failed for %: %', NEW.email, SQLERRM;
+    END;
 
-    -- Auto-post welcome message in Moments
-    PERFORM post_welcome_message(
-      NEW.id,
-      COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
-    );
+    -- Auto-post welcome message in Moments (wrapped so signup never fails)
+    BEGIN
+      PERFORM post_welcome_message(
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
+      );
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'handle_new_user: welcome post failed for %: %', NEW.email, SQLERRM;
+    END;
   END IF;
 
   RETURN NEW;
@@ -398,7 +419,7 @@ ALTER TABLE cricket_gallery ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Cricket users can read gallery" ON cricket_gallery FOR SELECT USING (has_cricket_access());
 CREATE POLICY "Cricket users can create posts" ON cricket_gallery FOR INSERT WITH CHECK (has_cricket_access());
-CREATE POLICY "Own user can soft-delete posts" ON cricket_gallery FOR UPDATE USING (has_cricket_access() AND user_id = auth.uid());
+CREATE POLICY "Own or admin can soft-delete posts" ON cricket_gallery FOR UPDATE USING (has_cricket_access() AND (user_id = auth.uid() OR is_cricket_admin()));
 
 -- Player tags on gallery posts
 CREATE TABLE IF NOT EXISTS cricket_gallery_tags (
