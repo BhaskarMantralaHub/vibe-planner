@@ -1,30 +1,53 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'motion/react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
 import GalleryUpload from './GalleryUpload';
-import { MdCameraAlt, MdPhotoLibrary } from 'react-icons/md';
-import { FaHeart, FaComment } from 'react-icons/fa';
+import { Camera, Image as ImageIcon, Heart, MessageCircle, CheckCircle2, Plus } from 'lucide-react';
 
 function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <MdCameraAlt size={30} style={{ color: 'var(--muted)' }} />
-      </div>
-      <h3 className="text-[17px] font-bold text-[var(--text)] mb-1">No photos yet</h3>
-      <p className="text-[13px] text-[var(--muted)] text-center max-w-[240px] mb-5">
-        Share match highlights and team moments
-      </p>
-      <button
-        onClick={onUpload}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-[13px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
-        style={{ background: 'linear-gradient(to right, var(--orange), var(--red))' }}
+    <div className="flex flex-col items-center justify-center py-20 px-4">
+      <div
+        className="w-24 h-24 rounded-full flex items-center justify-center mb-6"
+        style={{
+          background: 'linear-gradient(135deg, rgba(217,119,6,0.12), rgba(239,68,68,0.08))',
+        }}
       >
-        <MdCameraAlt size={18} />
+        <Camera size={40} strokeWidth={1.5} style={{ color: 'var(--orange)' }} />
+      </div>
+      <h3 className="text-[20px] font-bold text-[var(--text)] mb-2">Share Team Moments</h3>
+      <p className="text-[14px] text-[var(--muted)] text-center max-w-[280px] mb-7 leading-relaxed">
+        Post match highlights, team celebrations, and behind-the-scenes moments
+      </p>
+      <motion.button
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        onClick={onUpload}
+        className="flex items-center gap-2 px-6 py-3 rounded-full text-white text-[14px] font-semibold cursor-pointer shadow-lg"
+        style={{
+          background: 'linear-gradient(135deg, var(--orange), var(--red))',
+          boxShadow: '0 4px 16px rgba(217,119,6,0.3)',
+        }}
+      >
+        <Camera size={18} />
         Post First Photo
-      </button>
+      </motion.button>
+    </div>
+  );
+}
+
+function StatItem({ icon, value, label }: { icon: React.ReactNode; value: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      {icon}
+      <div className="flex items-baseline gap-1">
+        <span className="text-[20px] font-bold text-[var(--text)] leading-none">{value}</span>
+        <span className="text-[12px] text-[var(--muted)] uppercase tracking-wider font-medium">{label}</span>
+      </div>
     </div>
   );
 }
@@ -32,6 +55,7 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
 export default function Gallery() {
   const { selectedSeasonId, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, players } = useCricketStore();
   const [showUpload, setShowUpload] = useState(false);
+  const [feedParent] = useAutoAnimate();
 
   const seasonPosts = gallery
     .filter((p) => p.season_id === selectedSeasonId && !p.deleted_at)
@@ -47,44 +71,44 @@ export default function Gallery() {
       ) : (
         <>
           {/* Stats banner */}
-          <div className="max-w-lg mx-auto mb-5">
-            <div
-              className="rounded-2xl px-5 py-4 flex items-center justify-between"
-              style={{
-                background: 'linear-gradient(135deg, rgba(217,119,6,0.08), rgba(239,68,68,0.06))',
-                border: '1px solid rgba(217,119,6,0.12)',
-              }}
-            >
+          <div className="max-w-lg mx-auto mb-6">
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-5">
-                <div className="flex items-center gap-1.5">
-                  <MdPhotoLibrary size={16} style={{ color: 'var(--orange)' }} />
-                  <span className="text-[13px] font-bold text-[var(--text)]">{seasonPosts.length}</span>
-                  <span className="text-[12px] text-[var(--muted)]">{seasonPosts.length === 1 ? 'post' : 'posts'}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <FaHeart size={12} style={{ color: 'var(--red)' }} />
-                  <span className="text-[13px] font-bold text-[var(--text)]">{totalLikes}</span>
-                  <span className="text-[12px] text-[var(--muted)]">{totalLikes === 1 ? 'like' : 'likes'}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <FaComment size={11} style={{ color: 'var(--blue)' }} />
-                  <span className="text-[13px] font-bold text-[var(--text)]">{totalComments}</span>
-                </div>
+                <StatItem
+                  icon={<ImageIcon size={14} style={{ color: 'var(--orange)' }} />}
+                  value={seasonPosts.length}
+                  label={seasonPosts.length === 1 ? 'post' : 'posts'}
+                />
+                <StatItem
+                  icon={<Heart size={14} fill="var(--red)" style={{ color: 'var(--red)' }} />}
+                  value={totalLikes}
+                  label={totalLikes === 1 ? 'like' : 'likes'}
+                />
+                <StatItem
+                  icon={<MessageCircle size={14} style={{ color: 'var(--blue)' }} />}
+                  value={totalComments}
+                  label={totalComments === 1 ? 'comment' : 'comments'}
+                />
               </div>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setShowUpload(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-[12px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, var(--orange), var(--red))' }}
+                className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 rounded-full text-white text-[13px] font-semibold cursor-pointer"
+                style={{
+                  background: 'linear-gradient(135deg, var(--orange), var(--red))',
+                  boxShadow: '0 2px 12px rgba(217,119,6,0.25)',
+                }}
               >
-                <MdCameraAlt size={15} />
-                Post
-              </button>
+                <Plus size={15} strokeWidth={2.5} />
+                New Post
+              </motion.button>
             </div>
           </div>
 
           {/* Feed */}
-          <div className="space-y-5 max-w-lg mx-auto">
-            {seasonPosts.map((post) => (
+          <div ref={feedParent} className="space-y-5 max-w-lg mx-auto">
+            {seasonPosts.map((post, index) => (
               <GalleryPostCard
                 key={post.id}
                 post={post}
@@ -93,28 +117,43 @@ export default function Gallery() {
                 likes={galleryLikes.filter((l) => l.post_id === post.id)}
                 reactions={commentReactions}
                 players={players}
+                index={index}
               />
             ))}
           </div>
 
-          {/* Subtle end-of-feed marker */}
-          <div className="max-w-lg mx-auto mt-8 mb-4 flex items-center gap-3">
-            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-            <span className="text-[11px] font-medium text-[var(--dim)]">You're all caught up</span>
-            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+          {/* End-of-feed — Instagram-style */}
+          <div className="max-w-lg mx-auto mt-10 mb-6 flex flex-col items-center gap-3">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))',
+              }}
+            >
+              <CheckCircle2 size={24} strokeWidth={1.5} style={{ color: 'var(--green)' }} />
+            </div>
+            <div className="text-center">
+              <p className="text-[13px] font-semibold text-[var(--text)]">You&apos;re all caught up</p>
+              <p className="text-[11px] text-[var(--dim)] mt-0.5">You&apos;ve seen all recent posts</p>
+            </div>
           </div>
         </>
       )}
 
       {/* FAB — Upload button (mobile) */}
       {seasonPosts.length > 0 && (
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setShowUpload(true)}
-          className="fixed bottom-6 right-6 z-40 sm:hidden flex items-center justify-center w-14 h-14 rounded-full text-white cursor-pointer shadow-lg hover:scale-105 transition-transform"
-          style={{ background: 'linear-gradient(135deg, var(--orange), var(--red))', boxShadow: '0 4px 20px rgba(217,119,6,0.4)' }}
+          className="fixed bottom-6 right-6 z-40 sm:hidden flex items-center justify-center w-14 h-14 rounded-full text-white cursor-pointer"
+          style={{
+            background: 'linear-gradient(135deg, var(--orange), var(--red))',
+            boxShadow: '0 4px 20px rgba(217,119,6,0.4)',
+          }}
         >
-          <MdCameraAlt size={24} />
-        </button>
+          <Camera size={24} />
+        </motion.button>
       )}
 
       <GalleryUpload open={showUpload} onClose={() => setShowUpload(false)} />

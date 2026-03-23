@@ -65,7 +65,7 @@ describe('Players', () => {
     const { players } = useCricketStore.getState();
     const added = players.find((p) => p.name === 'New Player');
     expect(added).toBeDefined();
-    expect(added!.user_id).toBe(PLAYER_USER_1.id);
+    expect(added!.user_id).toBeNull();
     expect(added!.jersey_number).toBe(42);
     expect(added!.phone).toBe('555-9999');
     expect(added!.player_role).toBe('bowler');

@@ -208,11 +208,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ userAccess: access, userApproved: profile?.approved !== false });
 
       // Link cricket player record to this user if they signed up with a pre-added email
-      if (data?.user && access.includes('cricket')) {
+      if (data?.user?.email && access.includes('cricket')) {
         supabase.from('cricket_players')
           .update({ user_id: data.user.id })
-          .eq('email', data.user.email ?? '')
+          .ilike('email', data.user.email.trim())
           .eq('is_active', true)
+          .is('user_id', null)
           .then(() => {});
       }
     }

@@ -237,8 +237,9 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   addPlayer: (userId, data) => {
     const now = new Date().toISOString();
     const localId = genId();
+    // user_id is null for admin-created players — linked later when the player signs up
     const newPlayer: CricketPlayer = {
-      id: localId, user_id: userId, ...data,
+      id: localId, user_id: null, ...data,
       player_role: data.player_role as CricketPlayer['player_role'],
       batting_style: data.batting_style as CricketPlayer['batting_style'],
       bowling_style: data.bowling_style as CricketPlayer['bowling_style'],
@@ -255,7 +256,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players')
         .insert({
-          user_id: userId, name: data.name, jersey_number: data.jersey_number,
+          name: data.name, jersey_number: data.jersey_number,
           phone: data.phone, player_role: data.player_role,
           batting_style: data.batting_style, bowling_style: data.bowling_style,
           cricclub_id: data.cricclub_id, shirt_size: data.shirt_size, email: data.email, designation: data.designation,

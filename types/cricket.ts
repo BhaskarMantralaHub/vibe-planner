@@ -6,7 +6,7 @@ export type BowlingStyle = 'pace' | 'medium' | 'spin' | '';
 
 export type CricketPlayer = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   name: string;
   jersey_number: number | null;
   phone: string | null;

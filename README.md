@@ -15,13 +15,19 @@ A personal productivity suite — fast, private, and self-hosted.
 | **ID Tracker** | Track US & India identity documents for family, expiry reminders, renewal links |
 | **Admin Dashboard** | User management, activity stats, enable/disable users, set limits |
 
+## Architecture
+
+![Architecture Diagram](./docs/architecture.png)
+
 ## Tech Stack
 
 - **Framework** — [Next.js 15](https://nextjs.org) (App Router, static export)
 - **Language** — TypeScript
 - **Styling** — [Tailwind CSS v4](https://tailwindcss.com) with CSS custom properties
 - **State** — [Zustand](https://zustand-demo.pmnd.rs)
-- **Icons** — [Lucide React](https://lucide.dev)
+- **Icons** — [Lucide React](https://lucide.dev), [React Icons](https://react-icons.github.io/react-icons/)
+- **Animations** — [Motion](https://motion.dev) (gestures, spring physics), [@formkit/auto-animate](https://auto-animate.formkit.com) (list transitions)
+- **Bottom Sheets** — [Vaul](https://vaul.emilkowal.ski) (iOS-style draggable drawers)
 - **Drag & Drop** — [@dnd-kit](https://dndkit.com)
 - **Auth & Database** — [Supabase](https://supabase.com) (PostgreSQL + Auth + RLS)
 - **Hosting** — [Cloudflare Pages](https://pages.cloudflare.com) (static export)

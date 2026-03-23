@@ -774,16 +774,26 @@ export default function PlayerManager() {
                     {/* Jersey badge or photo */}
                     <div className="relative flex-shrink-0">
                       {p.photo_url ? (
-                        <img
-                          src={p.photo_url}
-                          alt={p.name}
-                          className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300 cursor-pointer"
-                          style={{
-                            border: `2.5px solid ${roleColor}${isSignedUp ? '50' : '35'}`,
-                            boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
-                          }}
-                          onClick={(e) => { e.stopPropagation(); setLightboxPhoto({ name: p.name, url: p.photo_url! }); }}
-                        />
+                        <>
+                          <img
+                            src={p.photo_url}
+                            alt={p.name}
+                            className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300 cursor-pointer"
+                            style={{
+                              border: `2.5px solid ${roleColor}${isSignedUp ? '50' : '35'}`,
+                              boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                            }}
+                            onClick={(e) => { e.stopPropagation(); setLightboxPhoto({ name: p.name, url: p.photo_url! }); }}
+                          />
+                          {p.jersey_number && (
+                            <span
+                              className="absolute -bottom-1 -left-1 flex items-center justify-center rounded-full text-[9px] font-bold text-white"
+                              style={{ width: 22, height: 22, background: roleColor, border: '2px solid var(--surface)' }}
+                            >
+                              #{p.jersey_number}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
                           style={{

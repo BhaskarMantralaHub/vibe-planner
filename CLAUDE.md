@@ -30,22 +30,28 @@ The app supports multiple user roles with isolated experiences:
 ### Signup & Access Flows
 
 **Player pre-added by admin → signs up on cricket:**
-Admin adds player with email → player signs up on `/cricket` with same email → DB trigger auto-approves (email match in `cricket_players`) → links player record `user_id` → welcome post + notifications created → player confirms email → signs in.
+Admin adds player with email in `cricket_players` (`user_id: NULL`) → player signs up on `/cricket` with same email → `auth.users` record created → `profiles` record created with `access: {cricket}` → DB trigger `handle_new_user` checks `cricket_players` for email match → found → sets `profiles.approved: true`, links `cricket_players.user_id` → `create_welcome_post` RPC fires → welcome post + notifications created → player confirms email → signs in.
 
 **Player pre-added by admin → already has toolkit account:**
-Player tries signup on `/cricket` → email already registered → code checks `cricket_players` by email → match found → shows "You're on the team. Please sign in instead." → player signs in → `AuthGate` auto-approves, adds `cricket` to access, links player record, creates welcome post → page reloads into cricket dashboard.
+Player tries signup on `/cricket` → email already registered → code checks `cricket_players` by email → match found → shows "You're on the team. Please sign in instead." → player signs in → `AuthGate` auto-approves, adds `cricket` to `profiles.access`, links `cricket_players.user_id` (via `ilike` email match where `user_id IS NULL`), creates welcome post → page reloads into cricket dashboard.
+
+**Player linking on login (backup):**
+On every login for cricket users, `auth-store.ts` runs: `UPDATE cricket_players SET user_id = auth_user_id WHERE email ILIKE auth_email AND user_id IS NULL AND is_active = true`. This is a backup linking mechanism in case the DB trigger or AuthGate flow missed it.
 
 **Toolkit user tries cricket signup (not a player):**
 Player tries signup on `/cricket` → email already registered → code checks `cricket_players` → no match → auto-calls `request_cricket_access` RPC (adds `cricket` to access, sets `approved: false`) → shows "Pending Approval" screen → admin approves or rejects.
 
 **Random person signs up on cricket (no player record):**
 Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin sees in pending approvals bell:
-- **Approve**: sets `approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
+- **Approve**: sets `profiles.approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
 - **Reject (pure cricket signup)**: fully deletes from `auth.users` + `profiles` via `reject_user` RPC → can sign up again fresh.
 - **Reject (existing toolkit user)**: removes `cricket` from access array, restores `approved: true` → toolkit access preserved, cricket denied.
 
 **Toolkit user signs in on cricket (not a player, didn't try signup first):**
 Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves or rejects from bell icon.
+
+**IMPORTANT — AuthGate race condition guard:**
+`AuthGate` only renders `RequestAccess` after `userAccess` has loaded from the profile (i.e., `userAccess.length > 0`). Without this, a brief window where `user` exists but `userAccess` is still `[]` would cause `RequestAccess` to render for existing users, re-triggering auto-approve + duplicate welcome posts.
 
 ## Tech Stack
 
@@ -55,6 +61,9 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 - **State:** Zustand
 - **Charts:** recharts (SVG-based, for cricket expense breakdowns)
 - **Drag & Drop:** @dnd-kit/core
+- **Animations:** motion (framer-motion v11+), @formkit/auto-animate
+- **Bottom Sheets:** vaul (iOS-style draggable drawers)
+- **Icons:** lucide-react (Moments feed), react-icons (rest of app)
 - **Auth & Database:** Supabase (PostgreSQL + Auth + Row Level Security)
 - **Hosting:** Cloudflare Pages (static export, auto-deploys from `main`)
 - **Theme:** next-themes (dark/light, stored in localStorage as `vibe_theme`)
@@ -120,7 +129,7 @@ Statuses: `spark`, `in_progress`, `scheduled`, `done`. Soft delete via `deleted_
 Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `label`, `owner_name`, `description`, `expiry_date`, `renewal_url`, `reminder_days` (integer array), `created_at`, `updated_at`.
 
 ### Cricket Tables
-Table `cricket_players`: `id`, `user_id`, `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `created_at`, `updated_at`.
+Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `created_at`, `updated_at`.
 Storage bucket `player-photos`: Public bucket for player profile photos. Path: `{user_id}/{player_id}.jpg`. Only the player themselves can upload (RLS by `auth.uid()`).
 Table `cricket_seasons`: `id`, `user_id`, `name`, `year`, `season_type`, `share_token` (UUID for public URL), `is_active`, `created_at`, `updated_at`.
 Table `cricket_expenses`: `id`, `user_id`, `season_id`, `paid_by` (player FK), `category`, `description`, `amount` (NUMERIC), `expense_date`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.
@@ -136,6 +145,14 @@ Table `cricket_comment_reactions`: `id`, `comment_id` (FK gallery_comments), `us
 Table `cricket_notifications`: `id`, `user_id`, `post_id` (FK gallery), `type` (tag/comment/like), `message`, `is_read`, `created_at`. Each user reads only their own (RLS by user_id).
 Storage bucket `gallery-photos`: Public bucket for team gallery photos. Path: `{season_id}/{post_id}.jpg`. Any cricket user can upload.
 
+### Player `user_id` Linking — CRITICAL
+- `cricket_players.user_id` is **nullable**. Admin-created players start with `user_id: NULL`.
+- When a player signs up/logs in, their `auth.users.id` is linked to `cricket_players.user_id` via **case-insensitive email match** (`ILIKE`) where `user_id IS NULL`.
+- **Never set `user_id` to the admin's auth ID** when creating players — this was a past bug that caused wrong avatar/photo resolution across the app.
+- Linking happens in 3 places: (1) DB trigger `handle_new_user` on signup, (2) `AuthGate` auto-approve flow, (3) `auth-store.ts` login backup.
+- `user_id` is used to resolve player avatars in Moments (comments, likes, post headers). If `user_id` is wrong, the wrong photo shows.
+- The `comment_by` and `posted_by` TEXT fields store the display name at time of action — but avatar resolution uses `user_id` → `cricket_players` → `photo_url`, NOT name matching (names can be ambiguous, e.g. "Venkat Kittu" vs "Venkat Subbu").
+
 RPC: `get_public_season_data(token UUID)` — SECURITY DEFINER function returning all season data as JSON for the public share page.
 RPC: `check_cricket_player_email(check_email TEXT)` — checks if a player exists with given email (for auto-approve on signup).
 RPC: `get_signed_up_emails(check_emails TEXT[])` — SECURITY DEFINER function returning lowercase emails from auth.users that match the input array (case-insensitive). Used by PlayerManager to show signup status dots.
@@ -147,7 +164,8 @@ Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 
 - **Static export** (`output: 'export'`) — no server-side code at runtime
 - **All Supabase calls are client-side** via `@supabase/ssr` browser client
-- **Zustand stores** — `auth-store.ts` (auth state, login/signup/reset, role/access), `vibe-store.ts` (vibes CRUD, UI state), `id-tracker-store.ts` (ID documents CRUD), `cricket-store.ts` (players, seasons, expenses, splits, settlements)
+- **Zustand stores** — `auth-store.ts` (auth state, login/signup/reset, role/access), `vibe-store.ts` (vibes CRUD, UI state), `id-tracker-store.ts` (ID documents CRUD), `cricket-store.ts` (players, seasons, expenses, splits, settlements, gallery/moments)
+- **Moments feed** — Gallery/GalleryPost/GalleryUpload components use `motion/react` for animations (double-tap heart, post entrance), `vaul` for bottom sheet menus (post actions, comment actions, liked-by, confirm delete, upload), `@formkit/auto-animate` for comment list animations, `lucide-react` for icons
 - **Role-based access** — `profiles.access` array determines tool visibility; `RoleGate` component for route protection; `AuthGate` variant prop for themed login
 - **RLS enforced** — every query filters by `user_id`, server-side RLS as backup
 - **Soft delete** — `deleted_at` column, Recently Deleted UI with restore (vibes); `is_active` flag for cricket players

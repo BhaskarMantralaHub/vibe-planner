@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { Drawer } from 'vaul';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { MdClose, MdCameraAlt } from 'react-icons/md';
+import { X, Camera, Send } from 'lucide-react';
 import type { CricketPlayer } from '@/types/cricket';
 
 /* ── Compress for gallery: scale to max dimension, preserve aspect ratio ── */
@@ -224,112 +224,127 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
     return () => window.removeEventListener('keydown', handler, true);
   }, [open, mentionQuery]);
 
-  if (!open) return null;
-
   // Preview tagged players from current caption
-  const previewTags = extractTaggedIds(caption, players);
+  const previewTags = open ? extractTaggedIds(caption, players) : [];
   const taggedPlayers = previewTags.map((id) => activePlayers.find((p) => p.id === id)).filter(Boolean) as CricketPlayer[];
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleClose}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+  return (
+    <Drawer.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }} direction="bottom">
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Drawer.Content
+          className="fixed bottom-0 left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-2xl outline-none"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', borderBottom: 'none' }}
+          aria-describedby={undefined}
+        >
+          <Drawer.Title className="sr-only">New Post</Drawer.Title>
+          {/* Drag handle */}
+          <Drawer.Handle className="mt-3 mb-1" style={{ background: 'var(--border)' }} />
 
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-md rounded-2xl overflow-hidden"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <h3 className="text-[16px] font-bold text-[var(--text)]">New Post</h3>
-          <button onClick={handleClose} className="p-1 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer">
-            <MdClose size={20} style={{ color: 'var(--muted)' }} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Photo picker */}
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-          {preview ? (
-            <div className="relative">
-              <img src={preview} alt="Preview" className="w-full rounded-xl object-cover" style={{ maxHeight: 280 }} />
-              <button
-                onClick={() => { setFile(null); setPreview(null); fileRef.current!.value = ''; }}
-                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white cursor-pointer hover:bg-black/70"
-              >
-                <MdClose size={16} />
-              </button>
-            </div>
-          ) : (
+          {/* Header: Cancel / Title / Share */}
+          <div className="flex items-center justify-between px-5 py-3">
             <button
-              onClick={() => fileRef.current?.click()}
-              className="w-full flex flex-col items-center justify-center gap-2 py-10 rounded-xl border-2 border-dashed border-[var(--border)] cursor-pointer hover:border-[var(--orange)]/50 hover:bg-[var(--hover-bg)] transition-colors"
+              onClick={handleClose}
+              className="text-[14px] font-medium cursor-pointer min-w-[60px] text-left"
+              style={{ color: 'var(--muted)' }}
             >
-              <MdCameraAlt size={32} style={{ color: 'var(--muted)' }} />
-              <span className="text-[14px] text-[var(--muted)]">Tap to select photo</span>
+              Cancel
             </button>
-          )}
-
-          {/* Caption with @mention autocomplete */}
-          <div className="relative">
-            <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-1.5 block">
-              Caption
-            </label>
-            <textarea
-              ref={captionRef}
-              value={caption}
-              onChange={handleCaptionChange}
-              placeholder="Great match today! Use @ to tag players"
-              rows={2}
-              maxLength={500}
-              className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
-            />
-
-            {/* @mention dropdown */}
-            {mentionQuery !== null && (
-              <MentionDropdown
-                query={mentionQuery}
-                players={activePlayers}
-                onSelect={(p) => insertMention(p.name)}
-                onSelectAll={() => insertMention('Everyone')}
-                position={mentionPos}
-              />
-            )}
+            <Drawer.Title className="text-[16px] font-bold text-[var(--text)]">New Post</Drawer.Title>
+            <button
+              onClick={handlePost}
+              disabled={!file || uploading}
+              className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] justify-end"
+              style={{ color: 'var(--blue)' }}
+            >
+              <Send size={14} />
+              {uploading ? 'Posting...' : 'Share'}
+            </button>
           </div>
 
-          {/* Live preview of tagged players */}
-          {taggedPlayers.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--dim)] self-center mr-1">Tagged:</span>
-              {taggedPlayers.map((p) => (
-                <span
-                  key={p.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
-                  style={{ background: 'var(--hover-bg)', color: 'var(--blue)' }}
-                >
-                  @{p.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+          {/* Divider */}
+          <div className="h-px" style={{ background: 'var(--border)' }} />
 
-        {/* Post button */}
-        <div className="px-5 py-4 border-t border-[var(--border)]">
-          <button
-            onClick={handlePost}
-            disabled={!file || uploading}
-            className="w-full py-3 rounded-xl text-[14px] font-bold text-white cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(to right, var(--orange), var(--red))' }}
-          >
-            {uploading ? 'Posting...' : 'Post Photo'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          <div className="px-5 pb-6 pt-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Photo picker */}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            {preview ? (
+              <div className="relative rounded-2xl overflow-hidden">
+                <img src={preview} alt="Preview" className="w-full object-cover" style={{ maxHeight: 300 }} />
+                <button
+                  onClick={() => { setFile(null); setPreview(null); fileRef.current!.value = ''; }}
+                  className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white cursor-pointer hover:bg-black/70 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="w-full flex flex-col items-center justify-center gap-3 py-16 rounded-2xl cursor-pointer hover:opacity-80 transition-opacity"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(217,119,6,0.06), rgba(239,68,68,0.04))',
+                  border: '2px dashed var(--border)',
+                }}
+              >
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(217,119,6,0.15), rgba(239,68,68,0.1))',
+                  }}
+                >
+                  <Camera size={28} strokeWidth={1.5} style={{ color: 'var(--orange)' }} />
+                </div>
+                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to select a photo</span>
+              </button>
+            )}
+
+            {/* Caption with @mention autocomplete */}
+            <div className="relative">
+              <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-1.5 block">
+                Caption
+              </label>
+              <textarea
+                ref={captionRef}
+                value={caption}
+                onChange={handleCaptionChange}
+                placeholder="Great match today! Use @ to tag players"
+                rows={2}
+                maxLength={500}
+                className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              />
+
+              {/* @mention dropdown */}
+              {mentionQuery !== null && (
+                <MentionDropdown
+                  query={mentionQuery}
+                  players={activePlayers}
+                  onSelect={(p) => insertMention(p.name)}
+                  onSelectAll={() => insertMention('Everyone')}
+                  position={mentionPos}
+                />
+              )}
+            </div>
+
+            {/* Live preview of tagged players */}
+            {taggedPlayers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--dim)] self-center mr-1">Tagged:</span>
+                {taggedPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    style={{ background: 'var(--hover-bg)', color: 'var(--blue)' }}
+                  >
+                    @{p.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }

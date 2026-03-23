@@ -28,7 +28,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 -- ── Players ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cricket_players (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE,  -- nullable: NULL for admin-created players, linked on signup via email ILIKE match
   name          TEXT NOT NULL,
   jersey_number INTEGER,
   phone         TEXT,

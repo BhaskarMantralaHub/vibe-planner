@@ -39,7 +39,9 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
           .eq('is_active', true);
         // Update local state and reload
         useAuthStore.setState({ userAccess: newAccess, userApproved: true });
-        // Create welcome post
+        // Create welcome post (only reached for genuinely new cricket users —
+        // the race condition guard in AuthGate prevents existing users from
+        // reaching RequestAccess while profile is still loading)
         await supabase.rpc('create_welcome_post', {
           new_user_id: user.id,
           player_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player',
@@ -231,9 +233,23 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     return <>{children}</>;
   }
 
-  // User is logged in but doesn't have the required access for this variant
-  if (user && variant !== 'toolkit' && !useAuthStore.getState().userAccess.includes(variant) && !useAuthStore.getState().userAccess.includes('admin')) {
+  // User is logged in but doesn't have the required access for this variant.
+  // IMPORTANT: Only gate AFTER userAccess is loaded from the profile (non-empty).
+  // Without this guard, a race condition causes RequestAccess to render during
+  // the brief window where user exists but profile hasn't loaded yet (userAccess=[]),
+  // which re-triggers auto-approve + welcome post for existing users.
+  const currentAccess = useAuthStore.getState().userAccess;
+  if (user && variant !== 'toolkit' && currentAccess.length > 0 && !currentAccess.includes(variant) && !currentAccess.includes('admin')) {
     return <RequestAccess variant={variant} />;
+  }
+
+  // Profile still loading (user exists but access not yet fetched) — show spinner
+  if (user && variant !== 'toolkit' && currentAccess.length === 0) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+      </div>
+    );
   }
 
   if (user) {
