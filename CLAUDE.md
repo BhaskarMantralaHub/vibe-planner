@@ -36,7 +36,9 @@ Admin adds player with email → player signs up on `/cricket` with same email �
 Player tries signup on `/cricket` → fails ("account exists, try signing in") → signs in with toolkit credentials → `AuthGate` detects no cricket access → checks `cricket_players` by email → match found → auto-approves, adds `cricket` to access, links player record, creates welcome post → page reloads into cricket dashboard.
 
 **Random person signs up on cricket (no player record):**
-Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin approves from bell icon → `create_welcome_post` RPC fires → welcome post + notifications → player signs in.
+Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin sees in pending approvals bell:
+- **Approve**: sets `approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
+- **Reject**: sets `disabled: true, approved: false` → player sees "Account disabled" on next login attempt. Auth user remains in `auth.users` but is effectively blocked.
 
 **Toolkit user visits cricket (not a player):**
 Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves from bell icon.
