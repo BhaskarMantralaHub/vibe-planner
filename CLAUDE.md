@@ -160,6 +160,43 @@ Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 - Main branch auto-deploys to Cloudflare Pages — limited build quota
 - Commit convention: `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `chore:`
 
+## Testing — MANDATORY
+
+**ALWAYS update or add unit tests when changing code.** Tests live in `tests/unit/` and use Vitest.
+
+```bash
+npm test                # Run all tests with verbose output + JUnit report
+npm run test:watch      # Watch mode during development
+npm run test:coverage   # Tests + coverage report (text + HTML)
+npm run test:report     # Full report → open test-results/coverage/index.html
+npx next build          # Must pass before pushing
+```
+
+- **Console**: verbose pass/fail per test with logs
+- **JUnit XML**: `test-results/junit-report.xml` (CI-compatible)
+- **HTML Coverage**: `test-results/coverage/index.html` (open in browser)
+
+### Test Structure
+| File | Coverage |
+|------|----------|
+| `tests/unit/auth-helpers.test.ts` | `lib/auth.ts` — error sanitization, password validation, rate limiting |
+| `tests/unit/welcome-messages.test.ts` | Welcome message generation and @mention captions |
+| `tests/unit/cricket-store-core.test.ts` | Players, seasons, expenses, settlements, fees, sponsorships |
+| `tests/unit/cricket-store-gallery.test.ts` | Gallery posts, comments, likes, reactions, notifications |
+| `tests/unit/vibe-store.test.ts` | Vibe planner CRUD, timer, trash, views |
+| `tests/unit/id-tracker-store.test.ts` | ID document CRUD |
+
+### Mock Setup
+- Supabase client is mocked via `vi.mock('@/lib/supabase/client')` — stores run in local-only mode
+- Fixtures in `tests/mocks/fixtures.ts` — shared test data for all suites
+- Supabase query builder mock in `tests/mocks/supabase.ts`
+- Store state is reset in `beforeEach` using fixtures
+
+### Rules
+- Every new store action MUST have a corresponding test
+- Every bug fix SHOULD include a regression test
+- Run `npx vitest run && npx next build` before every push
+
 ## Security — MANDATORY Pre-Commit Checks
 
 **ALWAYS run this before every commit:**
