@@ -33,15 +33,18 @@ The app supports multiple user roles with isolated experiences:
 Admin adds player with email → player signs up on `/cricket` with same email → DB trigger auto-approves (email match in `cricket_players`) → links player record `user_id` → welcome post + notifications created → player confirms email → signs in.
 
 **Player pre-added by admin → already has toolkit account:**
-Player tries signup on `/cricket` → fails ("account exists, try signing in") → signs in with toolkit credentials → `AuthGate` detects no cricket access → checks `cricket_players` by email → match found → auto-approves, adds `cricket` to access, links player record, creates welcome post → page reloads into cricket dashboard.
+Player tries signup on `/cricket` → email already registered → code checks `cricket_players` by email → match found → shows "You're on the team. Please sign in instead." → player signs in → `AuthGate` auto-approves, adds `cricket` to access, links player record, creates welcome post → page reloads into cricket dashboard.
+
+**Toolkit user tries cricket signup (not a player):**
+Player tries signup on `/cricket` → email already registered → code checks `cricket_players` → no match → auto-calls `request_cricket_access` RPC (adds `cricket` to access, sets `approved: false`) → shows "Pending Approval" screen → admin approves or rejects.
 
 **Random person signs up on cricket (no player record):**
 Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin sees in pending approvals bell:
 - **Approve**: sets `approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
 - **Reject**: fully deletes user from `auth.users` and `profiles` via `reject_user` RPC → player can sign up again fresh. No disabled state, no blocked account.
 
-**Toolkit user visits cricket (not a player):**
-Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves from bell icon.
+**Toolkit user signs in on cricket (not a player, didn't try signup first):**
+Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves or rejects from bell icon.
 
 ## Tech Stack
 

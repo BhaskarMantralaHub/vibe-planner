@@ -301,6 +301,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (error) {
       console.error('[auth] signup raw error:', error.message, error);
+      const lower = error.message.toLowerCase();
+
+      // Handle "already registered" for cricket signup — check if player exists
+      if (lower.includes('user already registered') && access === 'cricket') {
+        const { data: isPlayer } = await supabase.rpc('check_cricket_player_email', { check_email: email });
+        if (isPlayer) {
+          set({ authError: 'You already have an account and are on the team. Please sign in instead.', syncing: false });
+        } else {
+          // No player record — auto-request cricket access for admin approval
+          await supabase.rpc('request_cricket_access', { check_email: email });
+          set({ syncing: false, authMode: 'pending-approval' });
+        }
+        return;
+      }
+
       set({ authError: sanitizeAuthError(error.message), syncing: false });
       return;
     }

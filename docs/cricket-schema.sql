@@ -330,6 +330,27 @@ $$;
 
 GRANT EXECUTE ON FUNCTION reject_user(UUID) TO authenticated;
 
+-- ── Request cricket access for existing user (callable by anon) ──
+-- Used when a toolkit user tries to sign up on cricket page.
+-- Adds 'cricket' to access array, sets approved=false for admin review.
+CREATE OR REPLACE FUNCTION request_cricket_access(check_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE profiles
+  SET access = array_append(access, 'cricket'),
+      approved = false
+  WHERE lower(email) = lower(check_email)
+    AND NOT (access @> '{cricket}');
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION request_cricket_access(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION request_cricket_access(TEXT) TO authenticated;
+
 -- ── Auto-approve: check if player email exists ───────────────
 CREATE OR REPLACE FUNCTION check_cricket_player_email(check_email TEXT)
 RETURNS BOOLEAN
