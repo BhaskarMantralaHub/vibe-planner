@@ -118,12 +118,21 @@ function PendingApprovals() {
     }
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (p: PendingUser) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    // Fully remove user so they can sign up again
-    await supabase.rpc('reject_user', { target_user_id: id });
-    setPending((prev) => prev.filter((p) => p.id !== id));
+    const access: string[] = p.access ?? [];
+    const hasOtherAccess = access.some((a) => a !== 'cricket');
+
+    if (hasOtherAccess) {
+      // Existing user (e.g., toolkit) requested cricket — just remove cricket access, restore approved
+      const newAccess = access.filter((a) => a !== 'cricket');
+      await supabase.from('profiles').update({ access: newAccess, approved: true }).eq('id', p.id);
+    } else {
+      // Pure cricket signup with no other access — fully delete so they can re-signup
+      await supabase.rpc('reject_user', { target_user_id: p.id });
+    }
+    setPending((prev) => prev.filter((u) => u.id !== p.id));
   };
 
   if (!isAdmin || pending.length === 0) return null;
@@ -211,7 +220,7 @@ function PendingApprovals() {
                         {approving === p.id ? 'Approving...' : 'Approve'}
                       </button>
                       <button
-                        onClick={() => handleReject(p.id)}
+                        onClick={() => handleReject(p)}
                         className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-[var(--red)] border border-[var(--red)]/30 cursor-pointer hover:bg-[var(--red)]/10 transition-all"
                       >
                         Reject

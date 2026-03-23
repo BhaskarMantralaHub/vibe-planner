@@ -41,7 +41,8 @@ Player tries signup on `/cricket` → email already registered → code checks `
 **Random person signs up on cricket (no player record):**
 Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin sees in pending approvals bell:
 - **Approve**: sets `approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
-- **Reject**: fully deletes user from `auth.users` and `profiles` via `reject_user` RPC → player can sign up again fresh. No disabled state, no blocked account.
+- **Reject (pure cricket signup)**: fully deletes from `auth.users` + `profiles` via `reject_user` RPC → can sign up again fresh.
+- **Reject (existing toolkit user)**: removes `cricket` from access array, restores `approved: true` → toolkit access preserved, cricket denied.
 
 **Toolkit user signs in on cricket (not a player, didn't try signup first):**
 Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves or rejects from bell icon.
