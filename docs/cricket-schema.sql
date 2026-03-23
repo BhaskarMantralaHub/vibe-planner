@@ -316,6 +316,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ── Reject user: fully removes from auth.users + profiles so they can re-signup ──
+CREATE OR REPLACE FUNCTION reject_user(target_user_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM profiles WHERE id = target_user_id;
+  DELETE FROM auth.users WHERE id = target_user_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION reject_user(UUID) TO authenticated;
+
 -- ── Auto-approve: check if player email exists ───────────────
 CREATE OR REPLACE FUNCTION check_cricket_player_email(check_email TEXT)
 RETURNS BOOLEAN

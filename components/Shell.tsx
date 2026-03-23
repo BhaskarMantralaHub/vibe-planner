@@ -121,8 +121,8 @@ function PendingApprovals() {
   const handleReject = async (id: string) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    // Disable the account instead of deleting
-    await supabase.from('profiles').update({ disabled: true, approved: false }).eq('id', id);
+    // Fully remove user so they can sign up again
+    await supabase.rpc('reject_user', { target_user_id: id });
     setPending((prev) => prev.filter((p) => p.id !== id));
   };
 
