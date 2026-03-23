@@ -142,7 +142,7 @@ interface CricketState {
   restoreSponsorship: (id: string) => void;
 
   // Gallery
-  addGalleryPost: (userId: string, seasonId: string, photoUrl: string, caption: string | null, postedBy: string | null, tagPlayerIds: string[]) => void;
+  addGalleryPost: (userId: string, seasonId: string, photoUrls: string[], caption: string | null, postedBy: string | null, tagPlayerIds: string[]) => void;
   updateGalleryPost: (id: string, caption: string | null, newTagPlayerIds: string[]) => void;
   deleteGalleryPost: (id: string) => void;
   addGalleryComment: (postId: string, userId: string, commentBy: string | null, text: string) => void;
@@ -539,12 +539,13 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Gallery ─────────────────────────────────────────────────────────
 
-  addGalleryPost: (userId, seasonId, photoUrl, caption, postedBy, tagPlayerIds) => {
+  addGalleryPost: (userId, seasonId, photoUrls, caption, postedBy, tagPlayerIds) => {
     const localId = genId();
     const now = new Date().toISOString();
     const newPost: GalleryPost = {
       id: localId, season_id: seasonId, user_id: userId,
-      photo_url: photoUrl, caption, posted_by: postedBy,
+      photo_url: photoUrls[0] ?? null, photo_urls: photoUrls.length > 0 ? photoUrls : null,
+      caption, posted_by: postedBy,
       deleted_at: null, created_at: now,
     };
     const newTags: GalleryTag[] = tagPlayerIds.map((pid) => ({
@@ -556,7 +557,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) return;
       supabase.from('cricket_gallery')
-        .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrl, caption, posted_by: postedBy })
+        .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls.length > 0 ? photoUrls : null, caption, posted_by: postedBy })
         .select().single()
         .then(({ data: row }: { data: GalleryPost | null }) => {
           if (row) {

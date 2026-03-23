@@ -443,7 +443,8 @@ CREATE TABLE IF NOT EXISTS cricket_gallery (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   season_id     UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
   user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  photo_url     TEXT,              -- NULL for text-only posts (e.g., welcome messages)
+  photo_url     TEXT,              -- first photo URL (backward compat); NULL for text-only posts
+  photo_urls    TEXT[],            -- multi-photo array; NULL for legacy single-photo or text-only
   caption       TEXT,
   posted_by     TEXT,              -- player name (denormalized for display)
   deleted_at    TIMESTAMPTZ,

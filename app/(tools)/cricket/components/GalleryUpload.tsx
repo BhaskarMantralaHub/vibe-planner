@@ -5,8 +5,10 @@ import { Drawer } from 'vaul';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { X, Camera, Send } from 'lucide-react';
+import { X, Camera, Send, Plus } from 'lucide-react';
 import type { CricketPlayer } from '@/types/cricket';
+
+const MAX_PHOTOS = 10;
 
 /* ── Compress for gallery: scale to max dimension, preserve aspect ratio ── */
 async function compressGalleryImage(file: File, maxDim = 800): Promise<Blob> {
@@ -108,8 +110,8 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   const fileRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   const [uploading, setUploading] = useState(false);
 
@@ -119,8 +121,9 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   const [mentionStart, setMentionStart] = useState(0);
 
   const reset = () => {
-    setFile(null);
-    setPreview(null);
+    previews.forEach((url) => URL.revokeObjectURL(url));
+    setFiles([]);
+    setPreviews([]);
     setCaption('');
     setUploading(false);
     setMentionQuery(null);
@@ -129,11 +132,20 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   const handleClose = () => { reset(); onClose(); };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    const url = URL.createObjectURL(f);
-    setPreview(url);
+    const selected = Array.from(e.target.files ?? []);
+    if (selected.length === 0) return;
+    const remaining = MAX_PHOTOS - files.length;
+    const toAdd = selected.slice(0, remaining);
+    const newPreviews = toAdd.map((f) => URL.createObjectURL(f));
+    setFiles((prev) => [...prev, ...toAdd]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    URL.revokeObjectURL(previews[index]);
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Detect @mention while typing
@@ -177,27 +189,29 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   };
 
   const handlePost = async () => {
-    if (!file || !user || !selectedSeasonId) return;
+    if (files.length === 0 || !user || !selectedSeasonId) return;
     setUploading(true);
 
     const supabase = getSupabaseClient();
     if (!supabase) { setUploading(false); return; }
 
     const postId = crypto.randomUUID();
-    const compressed = await compressGalleryImage(file);
-    const path = `${selectedSeasonId}/${postId}.jpg`;
+    const photoUrls: string[] = [];
 
-    const { error } = await supabase.storage.from('gallery-photos').upload(path, compressed, {
-      contentType: 'image/jpeg',
-    });
-    if (error) {
-      console.error('[gallery] upload failed:', error);
-      setUploading(false);
-      return;
+    for (let i = 0; i < files.length; i++) {
+      const compressed = await compressGalleryImage(files[i]);
+      const path = `${selectedSeasonId}/${postId}_${i}.jpg`;
+      const { error } = await supabase.storage.from('gallery-photos').upload(path, compressed, {
+        contentType: 'image/jpeg',
+      });
+      if (error) {
+        console.error('[gallery] upload failed:', error);
+        setUploading(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('gallery-photos').getPublicUrl(path);
+      photoUrls.push(`${urlData.publicUrl}?t=${Date.now()}`);
     }
-
-    const { data: urlData } = supabase.storage.from('gallery-photos').getPublicUrl(path);
-    const photoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
     // Find current user's player name
     const userEmail = user.email?.toLowerCase();
@@ -207,7 +221,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
     // Extract tagged player IDs from @mentions in caption
     const taggedIds = extractTaggedIds(caption, players);
 
-    addGalleryPost(user.id, selectedSeasonId, photoUrl, caption.trim() || null, postedBy, taggedIds);
+    addGalleryPost(user.id, selectedSeasonId, photoUrls, caption.trim() || null, postedBy, taggedIds);
     handleClose();
   };
 
@@ -253,7 +267,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
             <Drawer.Title className="text-[16px] font-bold text-[var(--text)]">New Post</Drawer.Title>
             <button
               onClick={handlePost}
-              disabled={!file || uploading}
+              disabled={files.length === 0 || uploading}
               className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] justify-end"
               style={{ color: 'var(--blue)' }}
             >
@@ -267,16 +281,39 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
 
           <div className="px-5 pb-6 pt-4 space-y-4 max-h-[70vh] overflow-y-auto">
             {/* Photo picker */}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            {preview ? (
-              <div className="relative rounded-2xl overflow-hidden">
-                <img src={preview} alt="Preview" className="w-full object-cover" style={{ maxHeight: 300 }} />
-                <button
-                  onClick={() => { setFile(null); setPreview(null); fileRef.current!.value = ''; }}
-                  className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white cursor-pointer hover:bg-black/70 transition-colors"
-                >
-                  <X size={16} />
-                </button>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+            {previews.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+                    Photos ({previews.length}/{MAX_PHOTOS})
+                  </span>
+                  {previews.length < MAX_PHOTOS && (
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="flex items-center gap-1 text-[12px] font-semibold cursor-pointer"
+                      style={{ color: 'var(--blue)' }}
+                    >
+                      <Plus size={14} /> Add more
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                  {previews.map((url, i) => (
+                    <div key={i} className="relative flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => removeFile(i)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white cursor-pointer hover:bg-black/80 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                      <span className="absolute bottom-1 left-1 text-[10px] font-bold text-white bg-black/50 rounded px-1">
+                        {i + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <button
@@ -295,7 +332,8 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
                 >
                   <Camera size={28} strokeWidth={1.5} style={{ color: 'var(--orange)' }} />
                 </div>
-                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to select a photo</span>
+                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to select photos</span>
+                <span className="text-[12px] text-[var(--dim)]">Up to {MAX_PHOTOS} photos per post</span>
               </button>
             )}
 

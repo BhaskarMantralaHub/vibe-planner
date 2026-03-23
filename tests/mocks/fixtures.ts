@@ -125,27 +125,27 @@ export const SPONSORSHIPS: CricketSponsorship[] = [
 export const GALLERY_POSTS: GalleryPost[] = [
   {
     id: 'post-1', season_id: 'season-spring-2026', user_id: PLAYER_USER_1.id,
-    photo_url: 'https://example.com/match1.jpg',
+    photo_url: 'https://example.com/match1.jpg', photo_urls: null,
     caption: 'Great match today! @Manigopal @Everyone #MatchDay',
     posted_by: 'Bhaskar Bachi', deleted_at: null,
     created_at: '2026-03-20T10:00:00Z',
   },
   {
     id: 'post-2', season_id: 'season-spring-2026', user_id: PLAYER_USER_2.id,
-    photo_url: 'https://example.com/practice.jpg',
+    photo_url: 'https://example.com/practice.jpg', photo_urls: null,
     caption: 'Practice session', posted_by: 'Manigopal', deleted_at: null,
     created_at: '2026-03-19T10:00:00Z',
   },
   {
     id: 'post-welcome', season_id: 'season-spring-2026', user_id: ADMIN_USER.id,
-    photo_url: null,
+    photo_url: null, photo_urls: null,
     caption: 'Welcome to the squad, Vikram! @Vikram @Everyone',
     posted_by: 'Sunrisers Manteca', deleted_at: null,
     created_at: '2026-03-21T10:00:00Z',
   },
   {
     id: 'post-deleted', season_id: 'season-spring-2026', user_id: PLAYER_USER_1.id,
-    photo_url: 'https://example.com/old.jpg',
+    photo_url: 'https://example.com/old.jpg', photo_urls: null,
     caption: 'Old post', posted_by: 'Bhaskar Bachi',
     deleted_at: '2026-03-21T00:00:00Z',
     created_at: '2026-03-18T10:00:00Z',

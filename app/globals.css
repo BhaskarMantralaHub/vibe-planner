@@ -218,5 +218,9 @@ code, pre, .font-mono {
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 * { scrollbar-width: thin; scrollbar-color: var(--dim) transparent; }
 
+/* ── Hide scrollbar utility (carousel, thumbnail strips) ── */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ── Selection ── */
 ::selection { background: var(--indigo); color: white; }

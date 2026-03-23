@@ -51,7 +51,7 @@ describe('addGalleryPost', () => {
     getState().addGalleryPost(
       PLAYER_USER_1.id,
       'season-spring-2026',
-      'https://example.com/new-photo.jpg',
+      ['https://example.com/new-photo.jpg'],
       'Test caption',
       'Bhaskar Bachi',
       [],
@@ -64,6 +64,7 @@ describe('addGalleryPost', () => {
     expect(newPost.user_id).toBe(PLAYER_USER_1.id);
     expect(newPost.season_id).toBe('season-spring-2026');
     expect(newPost.photo_url).toBe('https://example.com/new-photo.jpg');
+    expect(newPost.photo_urls).toEqual(['https://example.com/new-photo.jpg']);
     expect(newPost.caption).toBe('Test caption');
     expect(newPost.posted_by).toBe('Bhaskar Bachi');
     expect(newPost.deleted_at).toBeNull();
@@ -77,7 +78,7 @@ describe('addGalleryPost', () => {
     getState().addGalleryPost(
       PLAYER_USER_1.id,
       'season-spring-2026',
-      'https://example.com/tagged.jpg',
+      ['https://example.com/tagged.jpg'],
       'Tagged photo',
       'Bhaskar Bachi',
       ['p1', 'p2'],
@@ -96,7 +97,7 @@ describe('addGalleryPost', () => {
     getState().addGalleryPost(
       PLAYER_USER_1.id,
       'season-spring-2026',
-      'https://example.com/no-caption.jpg',
+      ['https://example.com/no-caption.jpg'],
       null,
       null,
       [],
@@ -404,7 +405,7 @@ describe('edge cases', () => {
     getState().addGalleryPost(
       PLAYER_USER_1.id,
       'season-spring-2026',
-      'https://example.com/triple.jpg',
+      ['https://example.com/triple.jpg'],
       'Three tags',
       'Bhaskar Bachi',
       ['p1', 'p2', 'p3'],
@@ -464,8 +465,8 @@ describe('edge cases', () => {
   });
 
   it('multiple posts can be added sequentially, each prepended', () => {
-    getState().addGalleryPost(PLAYER_USER_1.id, 'season-spring-2026', 'url1', 'First', null, []);
-    getState().addGalleryPost(PLAYER_USER_2.id, 'season-spring-2026', 'url2', 'Second', null, []);
+    getState().addGalleryPost(PLAYER_USER_1.id, 'season-spring-2026', ['url1'], 'First', null, []);
+    getState().addGalleryPost(PLAYER_USER_2.id, 'season-spring-2026', ['url2'], 'Second', null, []);
 
     const { gallery } = getState();
     // Most recent should be first

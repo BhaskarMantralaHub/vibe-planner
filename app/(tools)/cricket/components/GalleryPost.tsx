@@ -10,6 +10,13 @@ import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { Drawer } from 'vaul';
 
 
+/* ── Resolve photos from post (backward compat: photo_urls → photo_url fallback) ── */
+function getPostPhotos(post: GalleryPostType): string[] {
+  if (post.photo_urls && post.photo_urls.length > 0) return post.photo_urls;
+  if (post.photo_url) return [post.photo_url];
+  return [];
+}
+
 /* ── Extract @mentions from text → player IDs ── */
 function extractTaggedIds(text: string, players: CricketPlayer[]): string[] {
   const mentions = text.match(/@[\w\s]+/g);
@@ -152,21 +159,52 @@ function RingedAvatar({ player, name, size = 40 }: { player?: CricketPlayer | nu
   );
 }
 
-/* ── Fullscreen Viewer ── */
-function FullscreenViewer({ src, caption, players, onClose }: { src: string; caption: string | null; players: CricketPlayer[]; onClose: () => void }) {
+/* ── Fullscreen Viewer (supports multi-photo swipe) ── */
+function FullscreenViewer({ photos, initialIndex = 0, caption, players, onClose }: {
+  photos: string[]; initialIndex?: number; caption: string | null; players: CricketPlayer[]; onClose: () => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ left: initialIndex * (scrollRef.current?.clientWidth ?? 0), behavior: 'instant' as ScrollBehavior });
+  }, [initialIndex]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !el.clientWidth) return;
+    setCurrentIndex(Math.round(el.scrollLeft / el.clientWidth));
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" onClick={onClose}>
       <button className="absolute top-4 right-4 p-2 text-white/70 hover:text-white cursor-pointer z-10" onClick={onClose}>
         <X size={28} />
       </button>
-      <div className="max-w-full max-h-full p-4 flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-        <img src={src} alt="" className="max-w-full max-h-[80vh] object-contain rounded-lg" />
-        {caption && (
-          <p className="mt-3 text-white/80 text-[14px] text-center max-w-md">
+      {photos.length > 1 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/60 text-white text-[13px] font-semibold z-10">
+          {currentIndex + 1} / {photos.length}
+        </div>
+      )}
+      <div
+        ref={scrollRef}
+        className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+        onScroll={handleScroll}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {photos.map((url, i) => (
+          <div key={i} className="w-screen h-full flex-shrink-0 snap-center flex items-center justify-center p-4">
+            <img src={url} alt="" className="max-w-full max-h-[80vh] object-contain rounded-lg" />
+          </div>
+        ))}
+      </div>
+      {caption && (
+        <div className="px-4 pb-6 pt-2 text-center" onClick={(e) => e.stopPropagation()}>
+          <p className="text-white/80 text-[14px] max-w-md mx-auto">
             <RichText text={caption} players={players} />
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -601,6 +639,8 @@ export default function GalleryPostCard({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showDoubleTapHeart, setShowDoubleTapHeart] = useState(false);
   const lastTapTime = useRef(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [activePhoto, setActivePhoto] = useState(0);
   const [commentsParent] = useAutoAnimate();
 
   const isOwn = user?.id === post.user_id;
@@ -661,7 +701,8 @@ export default function GalleryPostCard({
   const actionedComment = commentActionId ? comments.find((c) => c.id === commentActionId) : null;
   const actionedCommentIsOwn = actionedComment?.user_id === user?.id;
 
-  const isTextOnly = !post.photo_url;
+  const photos = getPostPhotos(post);
+  const isTextOnly = photos.length === 0;
   const isWelcome = isTextOnly && isWelcomePost(post.caption);
 
   return (
@@ -701,43 +742,69 @@ export default function GalleryPostCard({
           showEdit={isOwn}
         />
 
-        {/* Photo — edge to edge, 4:5 aspect */}
-        {post.photo_url && (
+        {/* Photo carousel — edge to edge, 4:5 aspect */}
+        {photos.length > 0 && (
           <div
-            className="w-full relative cursor-pointer"
+            className="w-full relative"
             style={{ aspectRatio: '4/5' }}
-            onClick={(e) => {
-              // Only open fullscreen on single click (not double-tap)
-              if (Date.now() - lastTapTime.current > 300) {
-                // Delay to distinguish from double-tap
-                const clickTime = Date.now();
-                setTimeout(() => {
-                  if (lastTapTime.current < clickTime) setFullscreen(true);
-                }, 310);
-              }
-            }}
             onDoubleClick={(e) => {
               e.preventDefault();
               handleDoubleTap();
-              // Also register for the tap tracker
               lastTapTime.current = Date.now();
             }}
           >
-            {/* Pulse placeholder while loading */}
-            {!imgLoaded && (
-              <div
-                className="absolute inset-0 w-full h-full animate-pulse"
-                style={{ background: 'var(--surface)' }}
-              />
+            {/* Scrollable photo container */}
+            <div
+              ref={carouselRef}
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              onScroll={() => {
+                const el = carouselRef.current;
+                if (!el || !el.clientWidth) return;
+                setActivePhoto(Math.round(el.scrollLeft / el.clientWidth));
+              }}
+            >
+              {photos.map((url, i) => (
+                <div
+                  key={i}
+                  className="w-full h-full flex-shrink-0 snap-center relative cursor-pointer"
+                  onClick={() => {
+                    if (Date.now() - lastTapTime.current > 300) {
+                      const clickTime = Date.now();
+                      setTimeout(() => { if (lastTapTime.current < clickTime) setFullscreen(true); }, 310);
+                    }
+                  }}
+                >
+                  <img
+                    src={url}
+                    alt={post.caption ?? 'Gallery photo'}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+            {/* Photo count badge — top right, multi-photo only */}
+            {photos.length > 1 && (
+              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/60 text-white text-[12px] font-semibold pointer-events-none">
+                {activePhoto + 1}/{photos.length}
+              </div>
             )}
-            <img
-              src={post.photo_url}
-              alt={post.caption ?? 'Gallery photo'}
-              className="w-full h-full object-cover transition-opacity duration-500"
-              style={{ opacity: imgLoaded ? 1 : 0 }}
-              loading="lazy"
-              onLoad={() => setImgLoaded(true)}
-            />
+            {/* Dot indicators — bottom center, multi-photo only */}
+            {photos.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
+                {photos.map((_, i) => (
+                  <div
+                    key={i}
+                    className="rounded-full transition-all duration-200"
+                    style={{
+                      width: i === activePhoto ? 7 : 5,
+                      height: i === activePhoto ? 7 : 5,
+                      background: i === activePhoto ? 'white' : 'rgba(255,255,255,0.4)',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             {/* Bottom vignette */}
             <div
               className="absolute inset-0 pointer-events-none"
@@ -822,7 +889,7 @@ export default function GalleryPostCard({
         )}
 
         {/* Caption — photo posts only (text-only posts render caption above) */}
-        {!editing && post.caption && post.photo_url && (
+        {!editing && post.caption && photos.length > 0 && (
           <div className="px-4 pt-3">
             <p className="text-[15px] text-[var(--text)] leading-normal">
               <strong className="font-semibold">{post.posted_by}</strong>{' '}
@@ -970,7 +1037,7 @@ export default function GalleryPostCard({
         </div>
       </motion.div>
 
-      {fullscreen && post.photo_url && <FullscreenViewer src={post.photo_url} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
+      {fullscreen && photos.length > 0 && <FullscreenViewer photos={photos} initialIndex={activePhoto} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
 
       <ConfirmDeleteDrawer
         open={showDeleteConfirm}

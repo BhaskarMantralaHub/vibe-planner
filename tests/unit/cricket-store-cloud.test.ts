@@ -650,7 +650,7 @@ describe('Gallery Posts (cloud)', () => {
 
     useCricketStore.getState().addGalleryPost(
       PLAYER_USER_1.id, 'season-spring-2026',
-      'https://example.com/new.jpg', 'New post!', 'Bhaskar Bachi',
+      ['https://example.com/new.jpg'], 'New post!', 'Bhaskar Bachi',
       ['p2'], // tag Manigopal (has a different user_id)
     );
 
@@ -681,7 +681,7 @@ describe('Gallery Posts (cloud)', () => {
 
     useCricketStore.getState().addGalleryPost(
       PLAYER_USER_1.id, 'season-spring-2026',
-      'https://example.com/notags.jpg', 'No tags', 'Bhaskar', [],
+      ['https://example.com/notags.jpg'], 'No tags', 'Bhaskar', [],
     );
 
     await flush();
@@ -707,7 +707,7 @@ describe('Gallery Posts (cloud)', () => {
     // Tag p2 (PLAYER_USER_2), posting as PLAYER_USER_1
     useCricketStore.getState().addGalleryPost(
       PLAYER_USER_1.id, 'season-spring-2026',
-      'https://example.com/notif.jpg', 'Tagging!', 'Bhaskar Bachi',
+      ['https://example.com/notif.jpg'], 'Tagging!', 'Bhaskar Bachi',
       ['p2'],
     );
 

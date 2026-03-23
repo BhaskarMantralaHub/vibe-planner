@@ -101,6 +101,7 @@ export type GalleryPost = {
   season_id: string;
   user_id: string;
   photo_url: string | null;
+  photo_urls: string[] | null;
   caption: string | null;
   posted_by: string | null;
   deleted_at: string | null;
