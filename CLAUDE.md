@@ -27,6 +27,20 @@ The app supports multiple user roles with isolated experiences:
 - `AuthGate` accepts `variant` prop (`toolkit` | `cricket`) for themed login pages
 - Shell header and HamburgerMenu adapt branding based on URL path and user role
 
+### Signup & Access Flows
+
+**Player pre-added by admin → signs up on cricket:**
+Admin adds player with email → player signs up on `/cricket` with same email → DB trigger auto-approves (email match in `cricket_players`) → links player record `user_id` → welcome post + notifications created → player confirms email → signs in.
+
+**Player pre-added by admin → already has toolkit account:**
+Player tries signup on `/cricket` → fails ("account exists, try signing in") → signs in with toolkit credentials → `AuthGate` detects no cricket access → checks `cricket_players` by email → match found → auto-approves, adds `cricket` to access, links player record, creates welcome post → page reloads into cricket dashboard.
+
+**Random person signs up on cricket (no player record):**
+Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin approves from bell icon → `create_welcome_post` RPC fires → welcome post + notifications → player signs in.
+
+**Toolkit user visits cricket (not a player):**
+Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves from bell icon.
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router, static export)
