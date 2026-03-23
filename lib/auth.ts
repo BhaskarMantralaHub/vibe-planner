@@ -13,7 +13,7 @@ export function sanitizeAuthError(msg: string): string {
     return 'Please confirm your email before signing in.';
   }
   if (lower.includes('user already registered')) {
-    return 'An account with this email already exists.';
+    return 'An account with this email already exists. Try signing in instead.';
   }
   if (lower.includes('rate limit') || lower.includes('too many requests')) {
     return 'Too many attempts. Please wait a moment and try again.';

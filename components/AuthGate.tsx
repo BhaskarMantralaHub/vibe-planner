@@ -7,7 +7,83 @@ import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
 import { FaBullseye, FaStar } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 
+import { getSupabaseClient } from '@/lib/supabase/client';
+
 type AuthGateVariant = 'toolkit' | 'cricket';
+
+/* ── Request Access screen — shown when user is logged in but lacks access for this variant ── */
+function RequestAccess({ variant }: { variant: AuthGateVariant }) {
+  const { user, logout } = useAuthStore();
+  const [requested, setRequested] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+
+  const handleRequest = async () => {
+    if (!user) return;
+    setRequesting(true);
+    const supabase = getSupabaseClient();
+    if (!supabase) { setRequesting(false); return; }
+
+    // Add the variant to user's access array and set approved=false for admin review
+    const { userAccess } = useAuthStore.getState();
+    const newAccess = [...new Set([...userAccess, variant])];
+    await supabase.from('profiles').update({ access: newAccess, approved: false }).eq('id', user.id);
+    setRequested(true);
+    setRequesting(false);
+  };
+
+  const config = variant === 'cricket' ? {
+    title: 'Sunrisers Manteca',
+    subtitle: 'You need cricket access to view this page.',
+    buttonText: 'Request Cricket Access',
+    accentColor: 'var(--orange)',
+    gradient: 'from-[var(--orange)] to-[var(--red)]',
+  } : {
+    title: 'Access Required',
+    subtitle: 'You don\'t have access to this tool.',
+    buttonText: 'Request Access',
+    accentColor: 'var(--purple)',
+    gradient: 'from-[var(--purple)] to-[var(--indigo)]',
+  };
+
+  if (requested) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+          <div className="mb-4 text-4xl">✅</div>
+          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">Request Sent</h2>
+          <p className="mb-6 text-[15px] text-[var(--muted)]">
+            The team admin will review your request. You&apos;ll be able to access once approved.
+          </p>
+          <button onClick={logout}
+            className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+        <div className="mb-4 text-4xl">🏏</div>
+        <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
+        <p className="mb-2 text-[15px] text-[var(--muted)]">{config.subtitle}</p>
+        <p className="mb-6 text-[13px] text-[var(--dim)]">
+          Signed in as <span className="font-medium text-[var(--text)]">{user?.email}</span>
+        </p>
+        <button onClick={handleRequest} disabled={requesting}
+          className={`w-full cursor-pointer rounded-xl bg-gradient-to-r ${config.gradient} px-4 py-3 text-[15px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed mb-3`}>
+          {requesting ? 'Requesting...' : config.buttonText}
+        </button>
+        <button onClick={logout}
+          className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[13px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--border)]">
+          Sign out and use a different account
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ── Role icon + color config for signup chip buttons ── */
 const signupRoleConfig: Record<string, { icon: React.ReactNode; color: string }> = {
@@ -109,7 +185,16 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     );
   }
 
-  if (!isCloud || user) {
+  if (!isCloud) {
+    return <>{children}</>;
+  }
+
+  // User is logged in but doesn't have the required access for this variant
+  if (user && variant !== 'toolkit' && !useAuthStore.getState().userAccess.includes(variant) && !useAuthStore.getState().userAccess.includes('admin')) {
+    return <RequestAccess variant={variant} />;
+  }
+
+  if (user) {
     return <>{children}</>;
   }
 
