@@ -409,23 +409,80 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
 }
 
 /* ── Comment like ── */
-function CommentLike({ commentId, reactions, userId }: {
-  commentId: string; reactions: CommentReaction[]; userId: string | undefined;
+function CommentLike({ commentId, reactions, userId, players }: {
+  commentId: string; reactions: CommentReaction[]; userId: string | undefined; players: CricketPlayer[];
 }) {
   const { toggleCommentReaction } = useCricketStore();
+  const [showWho, setShowWho] = useState(false);
   const thumbs = reactions.filter((r) => r.comment_id === commentId && r.emoji === '👍');
   const count = thumbs.length;
   const hasOwn = thumbs.some((r) => r.user_id === userId);
+  const likers = thumbs.map((r) => ({
+    ...r,
+    player: players.find((p) => p.is_active && p.user_id === r.user_id),
+    name: r.user_id === userId ? 'You' : (players.find((p) => p.is_active && p.user_id === r.user_id)?.name ?? 'Player'),
+  }));
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.75 }}
-      onClick={() => userId && toggleCommentReaction(commentId, userId, '👍')}
-      className="inline-flex items-center gap-0.5 cursor-pointer"
-    >
-      <Heart size={12} fill={hasOwn ? 'var(--red)' : 'none'} style={{ color: hasOwn ? 'var(--red)' : 'var(--dim)' }} />
-      {count > 0 && <span className="text-[10px] font-medium" style={{ color: hasOwn ? 'var(--red)' : 'var(--dim)' }}>{count}</span>}
-    </motion.button>
+    <>
+      <span className="inline-flex items-center gap-1.5">
+        <motion.button
+          whileTap={{ scale: 0.75 }}
+          onClick={() => userId && toggleCommentReaction(commentId, userId, '👍')}
+          className="inline-flex items-center cursor-pointer"
+        >
+          <Heart size={12} fill={hasOwn ? 'var(--red)' : 'none'} style={{ color: hasOwn ? 'var(--red)' : 'var(--dim)' }} />
+        </motion.button>
+        {count > 0 && (
+          <button onClick={() => setShowWho(true)} className="inline-flex items-center gap-1 cursor-pointer">
+            <span className="flex -space-x-1.5">
+              {likers.slice(0, 3).map((l) => (
+                <span key={l.id} className="inline-block rounded-full ring-1 ring-[var(--card)]">
+                  {l.player?.photo_url ? (
+                    <img src={l.player.photo_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full text-[7px] font-bold text-white" style={{ background: 'var(--orange)' }}>
+                      {l.name[0]}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </span>
+            {count > 3 && <span className="text-[10px] font-medium" style={{ color: 'var(--dim)' }}>+{count - 3}</span>}
+          </button>
+        )}
+      </span>
+      <Drawer.Root open={showWho} onOpenChange={setShowWho}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-50 outline-none" aria-describedby={undefined}>
+            <Drawer.Title className="sr-only">Comment Likes</Drawer.Title>
+            <div className="rounded-t-2xl pb-6 pt-2" style={{ background: 'var(--card)' }}>
+              <div className="flex justify-center py-2">
+                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+              </div>
+              <div className="flex items-center justify-center px-4 py-3">
+                <h4 className="text-[16px] font-bold text-[var(--text)]">Likes</h4>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto">
+                {likers.map((l) => (
+                  <div key={l.id} className="flex items-center gap-3 px-4 py-3">
+                    <Avatar player={l.player} name={l.name} size={44} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-semibold text-[var(--text)] truncate">{l.name}</p>
+                      {l.player?.player_role && (
+                        <p className="text-[12px] text-[var(--dim)] capitalize">{l.player.player_role}</p>
+                      )}
+                    </div>
+                    <Heart size={16} fill="var(--red)" style={{ color: 'var(--red)' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+    </>
   );
 }
 
@@ -872,7 +929,7 @@ export default function GalleryPostCard({
                       </div>
                       <div className="flex items-center justify-between mt-1">
                         <span className="text-[12px] text-[var(--dim)]">{timeAgo(c.created_at)}</span>
-                        <CommentLike commentId={c.id} reactions={reactions} userId={user?.id} />
+                        <CommentLike commentId={c.id} reactions={reactions} userId={user?.id} players={players} />
                       </div>
                     </div>
                   </div>
