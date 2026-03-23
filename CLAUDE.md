@@ -137,7 +137,7 @@ Table `cricket_expense_splits`: `id`, `expense_id`, `player_id`, `share_amount` 
 Table `cricket_settlements`: `id`, `user_id`, `season_id`, `from_player`, `to_player`, `amount`, `settled_date`, `created_at`.
 Table `cricket_season_fees`: `id`, `season_id`, `player_id`, `amount_paid` (NUMERIC), `paid_date`, `marked_by` (TEXT), `created_at`. Tracks per-player season fee payments (full/partial).
 Table `cricket_sponsorships`: `id`, `season_id`, `sponsor_name`, `amount` (NUMERIC), `sponsored_date`, `notes`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.
-Table `cricket_gallery`: `id`, `season_id`, `user_id`, `photo_url`, `caption`, `posted_by` (TEXT), `deleted_at`, `created_at`.
+Table `cricket_gallery`: `id`, `season_id`, `user_id`, `photo_url` (first photo, backward compat), `photo_urls` (TEXT array, multi-photo), `caption`, `posted_by` (TEXT), `deleted_at`, `created_at`.
 Table `cricket_gallery_tags`: `id`, `post_id` (FK gallery), `player_id` (FK players), UNIQUE(post_id, player_id).
 Table `cricket_gallery_comments`: `id`, `post_id` (FK gallery), `user_id`, `comment_by` (TEXT), `text`, `created_at`.
 Table `cricket_gallery_likes`: `id`, `post_id` (FK gallery), `user_id`, UNIQUE(post_id, user_id).
