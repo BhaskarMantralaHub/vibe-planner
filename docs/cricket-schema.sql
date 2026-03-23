@@ -167,7 +167,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   season_id UUID;
-  post_id UUID;
+  v_post_id UUID;
   admin_uid UUID;
   welcome_messages TEXT[] := ARRAY[
     'Welcome to the squad, %s! Let''s make this season one for the books',
@@ -216,15 +216,15 @@ BEGIN
   -- Create welcome post (text-only, owned by admin, posted by team name)
   INSERT INTO cricket_gallery (user_id, season_id, caption, posted_by)
   VALUES (admin_uid, season_id, caption, 'Sunrisers Manteca')
-  RETURNING id INTO post_id;
+  RETURNING id INTO v_post_id;
 
   -- Notify all active players (except the new player)
   INSERT INTO cricket_notifications (user_id, post_id, type, message, is_read)
-  SELECT DISTINCT cp.user_id, post_id, 'tag', player_name || ' joined the team!', false
+  SELECT DISTINCT cp.user_id, v_post_id, 'tag', player_name || ' joined the team!', false
   FROM cricket_players cp
-  WHERE cp.is_active = true AND cp.user_id != new_user_id;
+  WHERE cp.is_active = true AND cp.user_id IS NOT NULL AND cp.user_id != new_user_id;
 END;
-$$;
+$$ SET search_path = public;
 
 -- RPC wrapper so client-side can call it after manual approval
 CREATE OR REPLACE FUNCTION create_welcome_post(new_user_id UUID, player_name TEXT)
@@ -314,7 +314,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ── Reject user: fully removes from auth.users + profiles so they can re-signup ──
 CREATE OR REPLACE FUNCTION reject_user(target_user_id UUID)
