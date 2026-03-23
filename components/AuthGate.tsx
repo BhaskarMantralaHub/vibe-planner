@@ -16,6 +16,40 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   const { user, logout } = useAuthStore();
   const [requested, setRequested] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Auto-approve if user's email matches a pre-added player record
+  useEffect(() => {
+    if (!user?.email || variant !== 'cricket') { setChecking(false); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) { setChecking(false); return; }
+
+    (async () => {
+      // Check if email exists in cricket_players (same as auto-approve logic)
+      const { data: isPlayer } = await supabase.rpc('check_cricket_player_email', { check_email: user.email });
+      if (isPlayer) {
+        // Auto-approve: add cricket access, keep approved=true, link player record
+        const { userAccess } = useAuthStore.getState();
+        const newAccess = [...new Set([...userAccess, 'cricket'])];
+        await supabase.from('profiles').update({ access: newAccess, approved: true }).eq('id', user.id);
+        // Link player record
+        await supabase.from('cricket_players')
+          .update({ user_id: user.id })
+          .ilike('email', user.email!.trim())
+          .eq('is_active', true);
+        // Update local state and reload
+        useAuthStore.setState({ userAccess: newAccess, userApproved: true });
+        // Create welcome post
+        await supabase.rpc('create_welcome_post', {
+          new_user_id: user.id,
+          player_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player',
+        });
+        window.location.reload();
+        return;
+      }
+      setChecking(false);
+    })();
+  }, [user, variant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRequest = async () => {
     if (!user) return;
@@ -44,6 +78,14 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     accentColor: 'var(--purple)',
     gradient: 'from-[var(--purple)] to-[var(--indigo)]',
   };
+
+  if (checking) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+      </div>
+    );
+  }
 
   if (requested) {
     return (
