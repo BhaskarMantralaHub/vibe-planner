@@ -1,0 +1,72 @@
+name: Daily Supabase Backup
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6 AM UTC (11 PM PT)
+  workflow_dispatch: # Manual trigger from GitHub Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export all tables as JSON
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          mkdir -p "backups/$DATE"
+
+          TABLES=(
+            "profiles"
+            "cricket_players"
+            "cricket_seasons"
+            "cricket_expenses"
+            "cricket_expense_splits"
+            "cricket_settlements"
+            "cricket_season_fees"
+            "cricket_sponsorships"
+            "cricket_gallery"
+            "cricket_gallery_tags"
+            "cricket_gallery_comments"
+            "cricket_gallery_likes"
+            "cricket_comment_reactions"
+            "cricket_notifications"
+            "vibes"
+            "id_documents"
+          )
+
+          for TABLE in "${TABLES[@]}"; do
+            echo "Backing up $TABLE..."
+            curl -s \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Accept: application/json" \
+              "$SUPABASE_URL/rest/v1/$TABLE?select=*" \
+              -o "backups/$DATE/$TABLE.json"
+
+            COUNT=$(jq length "backups/$DATE/$TABLE.json" 2>/dev/null || echo "?")
+            echo "  → $TABLE: $COUNT rows"
+          done
+
+          echo "$DATE" > backups/latest.txt
+          echo "Backup complete: $DATE"
+
+      - name: Push to backup repo
+        env:
+          BACKUP_TOKEN: ${{ secrets.VIBE_PLANNER_BACKUP }}
+        run: |
+          git config --global user.name "Backup Bot"
+          git config --global user.email "backup@noreply.github.com"
+
+          git clone "https://x-access-token:${BACKUP_TOKEN}@github.com/${{ github.repository_owner }}/vibe-planner-backups.git" backup-repo
+          cp -r backups/* backup-repo/
+
+          cd backup-repo
+
+          # Keep only last 30 days of backups
+          ls -d 20??-??-?? 2>/dev/null | sort | head -n -30 | xargs rm -rf 2>/dev/null || true
+
+          git add -A
+          git commit -m "backup: $(date +%Y-%m-%d)" || echo "No changes"
+          git push
