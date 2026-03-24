@@ -1,0 +1,109 @@
+name: Generate Restore SQL
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'Backup date to restore (YYYY-MM-DD), or "latest"'
+        required: true
+        default: 'latest'
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch backup and generate SQL
+        env:
+          BACKUP_TOKEN: ${{ secrets.VIBE_PLANNER_BACKUP }}
+        run: |
+          git clone "https://x-access-token:${BACKUP_TOKEN}@github.com/${{ github.repository_owner }}/vibe-planner-backups.git" backup-repo
+          cd backup-repo
+
+          DATE="${{ github.event.inputs.backup_date }}"
+          if [ "$DATE" = "latest" ]; then
+            DATE=$(cat latest.txt 2>/dev/null || ls -d 20??-??-?? | sort | tail -1)
+          fi
+
+          if [ ! -d "$DATE" ]; then
+            echo "❌ No backup found for $DATE"
+            exit 1
+          fi
+
+          echo "📦 Generating restore SQL from backup: $DATE"
+          echo ""
+
+          # Order matters — parent tables first (foreign key dependencies)
+          TABLES_ORDERED=(
+            "profiles"
+            "vibes"
+            "id_documents"
+            "cricket_players"
+            "cricket_seasons"
+            "cricket_expenses"
+            "cricket_expense_splits"
+            "cricket_settlements"
+            "cricket_season_fees"
+            "cricket_sponsorships"
+            "cricket_gallery"
+            "cricket_gallery_tags"
+            "cricket_gallery_comments"
+            "cricket_gallery_likes"
+            "cricket_comment_reactions"
+            "cricket_notifications"
+          )
+
+          OUTPUT="restore_${DATE}.sql"
+          cat > "$OUTPUT" <<'HEADER'
+          -- ============================================
+          -- RESTORE SCRIPT — AUTO-GENERATED
+          -- Paste this entire file into Supabase SQL Editor
+          -- ============================================
+          -- ⚠️  This will INSERT data. If tables already have data,
+          --     you may want to TRUNCATE first (uncomment below).
+          -- ============================================
+
+          HEADER
+
+          echo "" >> "$OUTPUT"
+          echo "-- Uncomment the next line to wipe existing data first:" >> "$OUTPUT"
+          echo "-- TRUNCATE cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, profiles CASCADE;" >> "$OUTPUT"
+          echo "" >> "$OUTPUT"
+
+          for TABLE in "${TABLES_ORDERED[@]}"; do
+            FILE="$DATE/$TABLE.json"
+            if [ ! -f "$FILE" ]; then
+              echo "-- ⚠️  $TABLE: no backup file found" >> "$OUTPUT"
+              continue
+            fi
+
+            ROW_COUNT=$(jq length "$FILE" 2>/dev/null || echo "0")
+            if [ "$ROW_COUNT" = "0" ] || [ "$ROW_COUNT" = "null" ]; then
+              echo "-- $TABLE: empty (0 rows)" >> "$OUTPUT"
+              echo "" >> "$OUTPUT"
+              continue
+            fi
+
+            echo "-- $TABLE: $ROW_COUNT rows" >> "$OUTPUT"
+            JSON_CONTENT=$(cat "$FILE" | jq -c '.')
+            cat >> "$OUTPUT" <<EOSQL
+          INSERT INTO $TABLE
+          SELECT * FROM json_populate_recordset(null::$TABLE, '${JSON_CONTENT}'::json)
+          ON CONFLICT DO NOTHING;
+
+          EOSQL
+
+            echo "  ✅ $TABLE: $ROW_COUNT rows"
+          done
+
+          echo ""
+          echo "============================================"
+          echo "Restore SQL generated: $OUTPUT"
+          echo "============================================"
+          cat "$OUTPUT"
+
+      - name: Upload SQL as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-sql
+          path: backup-repo/restore_*.sql
+          retention-days: 7
