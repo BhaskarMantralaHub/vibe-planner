@@ -223,6 +223,33 @@ npx next build          # Must pass before pushing
 - Every bug fix SHOULD include a regression test
 - Run `npx vitest run && npx next build` before every push
 
+## Backup & Disaster Recovery
+
+### Automated Backups
+- **GitHub Actions workflow** (`.github/workflows/backup.yml`) runs daily at 11 PM PT
+- Exports all 16 tables as JSON to private repo `vibe-planner-backups`
+- Keeps last 30 days, auto-deletes older backups
+- Can trigger manually: Actions → Daily Supabase Backup → Run workflow
+- Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VIBE_PLANNER_BACKUP` (GitHub PAT)
+
+### Restore Process (if Supabase project is lost)
+1. **Create new Supabase project** — note the new URL and keys
+2. **Restore schema** — run `docs/cricket-schema.sql` in Supabase SQL Editor (creates tables, RLS policies, RPCs, triggers)
+3. **Generate restore SQL** — Actions → Generate Restore SQL → Run workflow → enter date or "latest"
+4. **Download artifact** — download the `.sql` file from the workflow run
+5. **Restore data** — paste the SQL into Supabase SQL Editor and execute
+6. **Update credentials** — update `.env.local` with new `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+7. **Update GitHub secrets** — update `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in repo settings
+8. **Storage images** — NOT backed up. Player photos and gallery photos would need to be re-uploaded.
+
+### What's Backed Up vs Not
+
+| Backed up | Not backed up |
+|-----------|---------------|
+| All table data (JSON) | Storage bucket images |
+| Schema + RPCs + triggers (git) | Auth user passwords/sessions |
+| RLS policies (git) | Supabase project config |
+
 ## Security — MANDATORY Pre-Commit Checks
 
 **ALWAYS run this before every commit:**
