@@ -273,6 +273,8 @@ Before writing ANY UI code, check `components/ui/` for an existing shared compon
 - `Skeleton` — ALL loading placeholders
 - `EmptyState` — ALL empty data screens
 - `FilterDropdown` — ALL category filters with counts
+- `CapsuleTabs` — ALL primary tab navigation (expandable capsule with icon+text, gradient, animation)
+- `SegmentedControl` — ALL sub-view toggles (matching capsule design: gradient, rounded-full, glow)
 - `toast` (sonner) — ALL user feedback notifications
 
 **If a component doesn't exist for your need:** Create it in `components/ui/`, add to `index.ts` barrel export, document in this section, then use it.
