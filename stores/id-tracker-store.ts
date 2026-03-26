@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { IDDocument } from '@/types/id-tracker';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 const LOCAL_KEY = 'id_tracker_data';
 
@@ -121,6 +122,8 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
                 d.id === localId ? data : d,
               ),
             });
+          } else if (error) {
+            toast.error('Failed to save ID');
           }
         });
     } else {
@@ -145,8 +148,8 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
         .update(updates)
         .eq('id', id)
         .eq('user_id', doc.user_id)
-        .then(() => {
-          // Optimistic update already applied
+        .then(({ error }: { error: unknown }) => {
+          if (error) toast.error('Failed to update ID');
         });
     } else {
       localSave(get().documents);
@@ -160,7 +163,9 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('id_documents').delete().eq('id', id).then(() => {});
+      supabase?.from('id_documents').delete().eq('id', id).then(({ error }: { error: unknown }) => {
+        if (error) toast.error('Failed to delete ID');
+      });
     } else {
       localSave(get().documents);
     }
