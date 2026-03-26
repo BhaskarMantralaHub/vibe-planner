@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { STATUSES, STATUS_KEYS } from '../lib/constants';
 import type { Vibe, VibeStatus } from '@/types/vibe';
 import VibeCard from './VibeCard';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, Text } from '@/components/ui';
 
 function Column({ status, items }: { status: string; items: Vibe[] }) {
   const s = STATUSES[status];
@@ -23,8 +23,8 @@ function Column({ status, items }: { status: string; items: Vibe[] }) {
       {/* Column header */}
       <div className="flex items-center gap-2 mb-4 px-1">
         <span style={{ color: s.color }}>{s.icon}</span>
-        <span className="text-[15px] font-semibold text-[var(--text)]">{s.label}</span>
-        <span className="text-[13px] text-[var(--dim)] ml-auto">{items.length}</span>
+        <Text size="lg" weight="semibold">{s.label}</Text>
+        <Text size="sm" color="dim" className="ml-auto" tabular>{items.length}</Text>
       </div>
 
       {/* Cards */}
@@ -32,9 +32,9 @@ function Column({ status, items }: { status: string; items: Vibe[] }) {
         {items.length > 0 ? (
           items.map((vibe) => <VibeCard key={vibe.id} vibe={vibe} />)
         ) : (
-          <div className="text-center py-10 text-[15px] text-[var(--dim)]">
+          <Text as="div" size="lg" color="dim" align="center" className="py-10">
             Drop vibes here
-          </div>
+          </Text>
         )}
       </div>
     </div>

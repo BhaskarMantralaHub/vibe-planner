@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Text } from '@/components/ui/text';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { IDDocument, IDCountry } from '@/types/id-tracker';
@@ -144,7 +145,7 @@ function DeleteConfirm({ doc, onConfirm, onCancel }: { doc: IDDocument; onConfir
             </div>
           </div>
         </DialogHeader>
-        <p className="text-[13px]" style={{ color: 'var(--muted)' }}>This action cannot be undone.</p>
+        <Text as="p" size="sm" color="muted">This action cannot be undone.</Text>
         <DialogFooter className="mt-4">
           <Button variant="danger" className="flex-1" onClick={onConfirm}>
             Delete
@@ -183,12 +184,12 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold leading-snug" style={{ color: 'var(--text)' }}>{doc.label}</div>
+          <Text as="div" size="md" weight="semibold" className="leading-snug">{doc.label}</Text>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {doc.label !== (typeConfig?.label || doc.id_type) && (
-              <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              <Text size="xs" color="muted">
                 {typeConfig?.label || doc.id_type}
-              </span>
+              </Text>
             )}
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
               style={{ background: getPersonColor(owners.indexOf(doc.owner_name)), color: '#fff' }}>
@@ -213,7 +214,7 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
               </div>
             </div>
           ) : (
-            <span className="text-[11px] font-medium" style={{ color: 'var(--dim)' }}>No expiry</span>
+            <Text size="2xs" weight="medium" color="dim">No expiry</Text>
           )}
         </div>
 
@@ -245,14 +246,14 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
               <div className="mb-3 flex items-center gap-3 p-2.5 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <Calendar size={16} style={{ color: config.color }} />
                 <div className="flex-1">
-                  <div className="text-[14px] font-semibold" style={{ color: 'var(--text)' }}>
+                  <Text as="div" size="md" weight="semibold">
                     Expires {formatDate(doc.expiry_date)}
-                  </div>
-                  <div className="text-[12px] font-medium" style={{ color: config.color }}>
+                  </Text>
+                  <Text as="div" size="xs" weight="medium" style={{ color: config.color }}>
                     {daysLeft !== null && daysLeft < 0
                       ? `${formatDaysLeft(doc.expiry_date)} overdue`
                       : `${formatDaysLeft(doc.expiry_date)} remaining`}
-                  </div>
+                  </Text>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${urgency === 'expired' ? 'animate-pulse' : ''}`}
                   style={{ background: `color-mix(in srgb, ${config.color} 18%, transparent)`, color: config.color }}>
@@ -262,7 +263,7 @@ function IDCard({ doc, onEdit, onDelete, owners }: { doc: IDDocument; onEdit: ()
             )}
 
             {doc.description && (
-              <p className="text-[13px] mb-3" style={{ color: 'var(--muted)' }}>{doc.description}</p>
+              <Text as="p" size="sm" color="muted" className="mb-3">{doc.description}</Text>
             )}
 
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -406,9 +407,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-[18px] font-bold" style={{ color: 'var(--text)' }}>
+          <Text as="h2" size="xl" weight="bold" className="text-[18px]">
             {editDoc ? 'Edit ID' : 'Add New ID'}
-          </h2>
+          </Text>
           <button
             onClick={() => onClose()}
             className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--hover-bg)]"
@@ -420,9 +421,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
 
         {/* Belongs to — member picker */}
         <div className="mb-5">
-          <label className="block text-[13px] font-semibold mb-3" style={{ color: 'var(--text)' }}>
+          <Text as="label" size="sm" weight="semibold" className="block mb-3">
             Who does this ID belong to?
-          </label>
+          </Text>
 
           {/* First time — no members yet, show prominent input */}
           {(() => {
@@ -443,8 +444,8 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                   <User size={22} className="text-white" />
                 </div>
                 <div className="text-left">
-                  <div className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Add a family member</div>
-                  <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Tap to enter a name — e.g. John, Sarah, Mom</div>
+                  <Text as="div" size="lg" weight="semibold">Add a family member</Text>
+                  <Text as="div" size="sm" color="muted">Tap to enter a name — e.g. John, Sarah, Mom</Text>
                 </div>
               </button>
             ) : (
@@ -468,9 +469,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                         style={{ background: avatarColor }}>
                         {owner[0].toUpperCase()}
                       </div>
-                      <span className="text-[14px] font-medium" style={{ color: isActive ? 'var(--text)' : 'var(--muted)' }}>
+                      <Text size="md" weight="medium" color={isActive ? 'default' : 'muted'}>
                         {owner}
-                      </span>
+                      </Text>
                     </button>
                   );
                 })}
@@ -485,7 +486,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                     style={{ background: 'var(--border)' }}>
                     <Plus size={15} style={{ color: 'var(--muted)' }} />
                   </div>
-                  <span className="text-[14px] font-medium" style={{ color: 'var(--muted)' }}>Add person</span>
+                  <Text size="md" weight="medium" color="muted">Add person</Text>
                 </button>
               </div>
             );
@@ -584,7 +585,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
         {/* Form fields */}
         <div className="space-y-3 mb-5">
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--muted)' }}>Label</label>
+            <Text as="label" size="xs" weight="medium" color="muted" className="block mb-1.5">Label</Text>
             <input
               type="text"
               placeholder="e.g. My US Passport"
@@ -596,7 +597,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--muted)' }}>Description (optional)</label>
+            <Text as="label" size="xs" weight="medium" color="muted" className="block mb-1.5">Description (optional)</Text>
             <input
               type="text"
               placeholder="Notes about this ID..."
@@ -609,7 +610,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
 
           {showExpiry && (
             <div>
-              <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--muted)' }}>Expiry Date</label>
+              <Text as="label" size="xs" weight="medium" color="muted" className="block mb-1.5">Expiry Date</Text>
               <input
                 type="date"
                 value={expiryDate}
@@ -621,7 +622,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
           )}
 
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--muted)' }}>Renewal URL</label>
+            <Text as="label" size="xs" weight="medium" color="muted" className="block mb-1.5">Renewal URL</Text>
             <input
               type="url"
               placeholder="https://..."
@@ -633,7 +634,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--muted)' }}>Reminders</label>
+            <Text as="label" size="xs" weight="medium" color="muted" className="block mb-1.5">Reminders</Text>
             <div className="flex flex-wrap gap-2">
               {REMINDER_OPTIONS.map((opt) => {
                 const isActive = reminderDays.includes(opt.value);
@@ -658,9 +659,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
               <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl animate-[slideIn_0.15s]"
                 style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)' }}>
                 <Bell size={13} style={{ color: '#f59e0b' }} />
-                <span className="text-[12px] font-medium" style={{ color: '#f59e0b' }}>
+                <Text size="xs" weight="medium" style={{ color: '#f59e0b' }}>
                   Email reminders coming soon. Stay tuned!
-                </span>
+                </Text>
               </div>
             )}
           </div>
@@ -847,7 +848,7 @@ function IDTrackerContent() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <ShieldCheck size={22} style={{ color: 'var(--toolkit)' }} />
-            <h1 className="text-[20px] lg:text-[24px] font-bold" style={{ color: 'var(--text)' }}>ID Tracker</h1>
+            <Text as="h1" size="xl" weight="bold" className="lg:text-[24px]">ID Tracker</Text>
           </div>
           <div className="flex items-center gap-2">
             {expiringCount > 0 && (
@@ -892,8 +893,8 @@ function IDTrackerContent() {
           <Bell size={15} className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold" style={{ color: '#f59e0b' }}>Email reminders coming soon</div>
-          <div className="text-[12px]" style={{ color: 'var(--muted)' }}>We&apos;ll notify you before your IDs expire</div>
+          <Text as="div" size="sm" weight="semibold" style={{ color: '#f59e0b' }}>Email reminders coming soon</Text>
+          <Text as="div" size="xs" color="muted">We&apos;ll notify you before your IDs expire</Text>
         </div>
       </div>
 
@@ -913,8 +914,8 @@ function IDTrackerContent() {
               <User size={16} />
             </div>
             <div className="text-left">
-              <div className="text-[14px] font-semibold" style={{ color: 'var(--text)' }}>Everyone</div>
-              <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{documents.length} IDs</div>
+              <Text as="div" size="md" weight="semibold">Everyone</Text>
+              <Text as="div" size="2xs" color="muted">{documents.length} IDs</Text>
             </div>
           </button>
 
@@ -976,11 +977,11 @@ function IDTrackerContent() {
                   )}
                 </div>
                 <div className="text-left">
-                  <div className="text-[14px] font-semibold" style={{ color: 'var(--text)' }}>{owner}</div>
-                  <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>
-                    <span>{stats.total} IDs</span>
-                    {stats.expired > 0 && <span className="font-bold" style={{ color: 'var(--red)' }}>{stats.expired} expired</span>}
-                    {stats.expiring > 0 && <span className="font-bold" style={{ color: 'var(--orange)' }}>{stats.expiring} soon</span>}
+                  <Text as="div" size="md" weight="semibold">{owner}</Text>
+                  <div className="flex items-center gap-1.5">
+                    <Text size="2xs" color="muted">{stats.total} IDs</Text>
+                    {stats.expired > 0 && <Text size="2xs" weight="bold" color="danger">{stats.expired} expired</Text>}
+                    {stats.expiring > 0 && <Text size="2xs" weight="bold" className="text-[var(--orange)]">{stats.expiring} soon</Text>}
                   </div>
                 </div>
                 {/* Edit name — visible when selected */}
@@ -1002,11 +1003,11 @@ function IDTrackerContent() {
       {/* Filter label */}
       {(selectedOwner || urgencyFilter !== 'all') && (
         <div className="px-4 lg:px-6 pb-2 flex items-center gap-2">
-          <div className="text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
+          <Text size="sm" weight="medium" color="muted">
             Showing {displayedDocs.length}
             {urgencyFilter === 'expiring' ? ' expiring' : urgencyFilter === 'expired' ? ' expired' : ''} IDs
-            {selectedOwner && <> for <span style={{ color: 'var(--text)' }}>{selectedOwner}</span></>}
-          </div>
+            {selectedOwner && <> for <Text color="default">{selectedOwner}</Text></>}
+          </Text>
           {urgencyFilter !== 'all' && (
             <button onClick={() => setUrgencyFilter('all')}
               className="text-[12px] px-2 py-0.5 rounded-lg cursor-pointer" style={{ color: 'var(--blue)' }}>
@@ -1061,10 +1062,10 @@ function IDTrackerContent() {
                         style={{ background: 'rgba(96,165,250,0.15)', color: 'var(--blue)' }}>
                         US
                       </div>
-                      <span className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>United States</span>
-                      <span className="text-[12px] font-medium px-2 py-0.5 rounded-lg" style={{ background: 'var(--surface)', color: 'var(--muted)' }}>
+                      <Text size="lg" weight="semibold">United States</Text>
+                      <Text size="xs" weight="medium" color="muted" className="px-2 py-0.5 rounded-lg bg-[var(--surface)]">
                         {usDocs.length}
-                      </span>
+                      </Text>
                       {usDocs.some(d => getUrgency(d.expiry_date) === 'expired') && (
                         <span className="text-[11px] font-bold px-1.5 py-0.5 rounded animate-pulse"
                           style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}>
@@ -1094,10 +1095,10 @@ function IDTrackerContent() {
                         style={{ background: 'rgba(251,146,60,0.15)', color: 'var(--orange)' }}>
                         IN
                       </div>
-                      <span className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>India</span>
-                      <span className="text-[12px] font-medium px-2 py-0.5 rounded-lg" style={{ background: 'var(--surface)', color: 'var(--muted)' }}>
+                      <Text size="lg" weight="semibold">India</Text>
+                      <Text size="xs" weight="medium" color="muted" className="px-2 py-0.5 rounded-lg bg-[var(--surface)]">
                         {inDocs.length}
-                      </span>
+                      </Text>
                       {inDocs.some(d => getUrgency(d.expiry_date) === 'expired') && (
                         <span className="text-[11px] font-bold px-1.5 py-0.5 rounded animate-pulse"
                           style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}>

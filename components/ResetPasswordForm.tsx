@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthStore, RESET_FLAG_KEY } from '@/stores/auth-store';
-import { Button, Alert, Card, PasswordInput, MatchStatus, allRequirementsMet } from '@/components/ui';
+import { Button, Alert, Card, Text, PasswordInput, MatchStatus, allRequirementsMet } from '@/components/ui';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui';
 
 export function ResetPasswordForm() {
@@ -57,8 +57,8 @@ export function ResetPasswordForm() {
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <Card animate padding="lg" className="w-full max-w-sm text-center">
           <div className="mb-4 text-4xl">✅</div>
-          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">Password Updated</h2>
-          <p className="text-[15px] text-[var(--muted)]">You&apos;re all set. Your toolkit is loading...</p>
+          <Text as="h2" size="xl" weight="semibold" className="mb-2">Password Updated</Text>
+          <Text as="p" size="md" color="muted" className="text-[15px]">You&apos;re all set. Your toolkit is loading...</Text>
         </Card>
       </div>
     );
@@ -70,8 +70,8 @@ export function ResetPasswordForm() {
         <form onSubmit={handleSubmit} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 shadow-xl">
           <div className="mb-6 text-center">
             <div className="mb-3 text-3xl">🔑</div>
-            <h2 className="mb-1 text-[22px] font-bold text-[var(--text)]">Set New Password</h2>
-            <p className="text-[14px] text-[var(--muted)]">Choose a strong password for your account</p>
+            <Text as="h2" size="xl" weight="semibold" className="mb-1 text-[22px]">Set New Password</Text>
+            <Text as="p" size="md" color="muted">Choose a strong password for your account</Text>
           </div>
 
           {error && <Alert variant="error" className="mb-4">{error}</Alert>}
@@ -107,12 +107,12 @@ export function ResetPasswordForm() {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-[13px] text-[var(--muted)]">
+        <Text as="p" size="sm" color="muted" align="center" className="mt-4">
           Remember your password?{' '}
           <Button variant="link" size="sm" onClick={() => setShowConfirm(true)} className="text-[13px]">
             Back to login
           </Button>
-        </p>
+        </Text>
 
         {/* Leave confirmation dialog */}
         <Dialog open={showConfirm} onOpenChange={setShowConfirm}>

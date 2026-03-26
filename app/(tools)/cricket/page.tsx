@@ -6,10 +6,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
-import { MdSportsCricket } from 'react-icons/md';
+import { MdSportsCricket, MdSportsScore } from 'react-icons/md';
+import { GiCoinflip } from 'react-icons/gi';
+import { PiCricketFill } from 'react-icons/pi';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Text } from '@/components/ui';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
@@ -22,8 +25,9 @@ import TossWidget from './components/TossWidget';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
 import Gallery from './components/Gallery';
+import MatchSchedule from './components/MatchSchedule';
 
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'gallery' | 'toss' | 'share';
+type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'gallery' | 'matches' | 'toss' | 'share';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -74,69 +78,150 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
         <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
             <span style={{ color: s.color }}>{s.icon}</span>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{s.label}</span>
+            <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">{s.label}</Text>
           </div>
-          <p className="text-[22px] sm:text-[26px] font-extrabold leading-none tabular-nums" style={{ color: s.color }}>
+          <Text as="p" size="2xl" weight="bold" tabular className="sm:text-[26px] leading-none" style={{ color: s.color }}>
             {s.value}
-          </p>
+          </Text>
         </div>
       ))}
     </div>
   );
 }
 
-const VIEWS: { key: View; label: string; short: string; icon: React.ReactNode }[] = [
-  { key: 'players', label: 'Players', short: 'Players', icon: <FaUsers size={14} /> },
-  { key: 'fees', label: 'Fees & Sponsors', short: 'Fees', icon: <FaMoneyBillWave size={14} /> },
-  { key: 'expenses', label: 'Expenses', short: 'Expenses', icon: <FaReceipt size={14} /> },
-  { key: 'charts', label: 'Expense Charts', short: 'Charts', icon: <FaChartPie size={14} /> },
-  { key: 'gallery', label: 'Moments', short: 'Moments', icon: <FaCamera size={13} /> },
-  { key: 'toss', label: 'Toss', short: 'Toss', icon: <MdSportsCricket size={15} /> },
-  { key: 'share', label: 'Share', short: 'Share', icon: <FaShareAlt size={13} /> },
+/* ── 5-Tab Navigation with Segmented Sub-views ── */
+type Tab = 'players' | 'finances' | 'matches' | 'moments' | 'more';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'players', label: 'Players' },
+  { key: 'finances', label: 'Finances' },
+  { key: 'matches', label: 'Matches' },
+  { key: 'moments', label: 'Moments' },
+  { key: 'more', label: '...' },
 ];
 
-function ViewTabs({ active, onChange, playerCount, expenseCount }: {
-  active: View;
-  onChange: (v: View) => void;
-  playerCount: number;
-  expenseCount: number;
+// Maps View → parent Tab
+function viewToTab(view: View): Tab {
+  if (view === 'players' || view === 'fees') return 'players';
+  if (view === 'expenses' || view === 'charts' || view === 'sponsors') return 'finances';
+  if (view === 'matches' || view === 'toss') return 'matches';
+  if (view === 'gallery') return 'moments';
+  return 'more';
+}
+
+// Default sub-view for each tab
+function tabToView(tab: Tab): View {
+  if (tab === 'players') return 'players';
+  if (tab === 'finances') return 'expenses';
+  if (tab === 'matches') return 'matches';
+  if (tab === 'moments') return 'gallery';
+  return 'share';
+}
+
+/* ── Segmented Control ── */
+function SegmentedControl({ options, active, onChange }: {
+  options: { key: string; label: string }[];
+  active: string;
+  onChange: (key: string) => void;
 }) {
-  const getBadge = (key: View) => {
+  return (
+    <div className="flex rounded-xl bg-[var(--surface)] border border-[var(--border)] p-1 mb-4">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={`flex-1 py-2 rounded-lg text-[13px] font-semibold cursor-pointer transition-all ${
+            active === o.key
+              ? 'bg-[var(--cricket)] text-white shadow-sm'
+              : 'text-[var(--muted)] hover:text-[var(--text)]'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── More Menu (bottom sheet) ── */
+function MoreMenu({ open, onClose, onSelect }: {
+  open: boolean; onClose: () => void; onSelect: (view: View) => void;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl p-5 pb-8 animate-[slideUp_0.2s]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <div className="flex justify-center mb-4">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+        </div>
+        <div className="space-y-1">
+          <button onClick={() => { onSelect('share'); onClose(); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            <FaShareAlt size={16} className="text-[var(--cricket)]" />
+            <div className="text-left">
+              <Text as="p" size="md" weight="semibold">Share</Text>
+              <Text as="p" size="2xs" color="dim">Export PDF & share dues</Text>
+            </div>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Capsule Tab Bar — active expands with icon+text, inactive shows icon only ── */
+const TAB_ICONS: Record<Tab, React.ReactNode> = {
+  players: <FaUsers size={16} />,
+  finances: <FaReceipt size={16} />,
+  matches: <PiCricketFill size={18} />,
+  moments: <FaCamera size={15} />,
+  more: <FaShareAlt size={14} />,
+};
+
+function TabBar({ active, onChange, playerCount, expenseCount }: {
+  active: Tab; onChange: (tab: Tab) => void;
+  playerCount: number; expenseCount: number;
+}) {
+  const getBadge = (key: Tab) => {
     if (key === 'players') return playerCount;
-    if (key === 'expenses') return expenseCount;
+    if (key === 'finances') return expenseCount;
     return 0;
   };
 
   return (
-    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-      {VIEWS.map((v) => {
-        const isActive = active === v.key;
-        const badge = getBadge(v.key);
+    <div className="flex items-center gap-1.5 rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-1.5">
+      {TABS.map((t) => {
+        const isActive = active === t.key;
+        const badge = getBadge(t.key);
         return (
           <button
-            key={v.key}
-            onClick={() => onChange(v.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-medium cursor-pointer transition-all ${
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={`relative flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 ${
               isActive
-                ? 'bg-[var(--cricket)] text-white font-bold border border-[var(--cricket)]'
-                : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--cricket)]/30'
+                ? 'gap-2 px-4 py-2.5 text-[12px] font-bold text-white'
+                : 'w-11 py-2.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)]'
             }`}
-            style={isActive ? { boxShadow: '0 2px 12px var(--cricket-glow)' } : undefined}
+            style={isActive ? {
+              background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+              boxShadow: '0 0 16px var(--cricket-glow)',
+            } : undefined}
           >
-            <span className={isActive ? 'text-white' : ''}>{v.icon}</span>
-            <span className="hidden sm:inline">{v.label}</span>
-            <span className="sm:hidden">{v.short}</span>
-            {badge > 0 && (
+            {TAB_ICONS[t.key]}
+            {isActive && <span>{t.label}</span>}
+            {badge > 0 && !isActive && (
               <span
-                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${
-                  isActive
-                    ? 'text-[var(--cricket-accent)] shadow-sm'
-                    : 'text-[var(--muted)]'
-                }`}
-                style={isActive
-                  ? { background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }
-                  : { background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }
-                }
+                className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
+                style={{ background: 'var(--cricket)' }}
+              >
+                {badge}
+              </span>
+            )}
+            {badge > 0 && isActive && (
+              <span
+                className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full leading-none"
+                style={{ background: 'rgba(255,255,255,0.25)', color: 'white' }}
               >
                 {badge}
               </span>
@@ -157,10 +242,12 @@ function CricketDashboard() {
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'gallery', 'toss', 'share'].includes(hash)) return hash;
+      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'gallery', 'matches', 'toss', 'share'].includes(hash)) return hash;
     }
     return 'players';
   });
+  const [showMore, setShowMore] = useState(false);
+  const activeTab = viewToTab(activeView);
 
   const handleViewChange = (view: View) => {
     setActiveView(view);
@@ -189,7 +276,7 @@ function CricketDashboard() {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'toss', '7': 'share' };
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'matches', '7': 'toss', '8': 'share' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -316,9 +403,9 @@ function CricketDashboard() {
         return (
           <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="text-[20px] sm:text-[24px] font-bold text-[var(--text)] tracking-tight">
+              <Text as="h2" size="xl" weight="bold" tracking="tight" className="sm:text-[24px]">
                 {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--cricket)]" size={22} />
-              </h2>
+              </Text>
             </div>
             <SeasonSelector />
           </div>
@@ -335,15 +422,44 @@ function CricketDashboard() {
         </div>
       ) : (
         <>
-          {/* View tabs */}
+          {/* Tab bar */}
           <div className="mb-4">
-            <ViewTabs
-              active={activeView}
-              onChange={handleViewChange}
+            <TabBar
+              active={activeTab}
+              onChange={(tab) => {
+                if (tab === 'more') { setShowMore(true); return; }
+                handleViewChange(tabToView(tab));
+              }}
               playerCount={activePlayers.length}
               expenseCount={seasonExpensesList.length}
             />
           </div>
+
+          {/* Segmented controls for tabs with sub-views */}
+          {activeTab === 'players' && (
+            <SegmentedControl
+              options={[{ key: 'players', label: 'Roster' }, { key: 'fees', label: 'Season Fees' }]}
+              active={activeView}
+              onChange={(key) => handleViewChange(key as View)}
+            />
+          )}
+          {activeTab === 'finances' && (
+            <SegmentedControl
+              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'charts', label: 'Charts' }, { key: 'sponsors', label: 'Sponsors' }]}
+              active={activeView}
+              onChange={(key) => handleViewChange(key as View)}
+            />
+          )}
+          {activeTab === 'matches' && (
+            <SegmentedControl
+              options={[{ key: 'matches', label: 'Schedule' }, { key: 'toss', label: 'Toss' }]}
+              active={activeView}
+              onChange={(key) => handleViewChange(key as View)}
+            />
+          )}
+
+          {/* More menu */}
+          <MoreMenu open={showMore} onClose={() => setShowMore(false)} onSelect={handleViewChange} />
 
           {/* Action buttons */}
           {isAdmin && activeView === 'expenses' && (
@@ -358,13 +474,13 @@ function CricketDashboard() {
                 + Add Expense
               </Button>
               {activePlayers.length === 0 && (
-                <p className="text-[13px] text-[var(--muted)]">Add players first</p>
+                <Text as="p" size="sm" color="muted">Add players first</Text>
               )}
             </div>
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
-          {activeView !== 'toss' && activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && (
+          {activeView !== 'toss' && activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && activeView !== 'matches' && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -384,13 +500,10 @@ function CricketDashboard() {
                 <MonthlyBar />
               </div>
             )}
-            {activeView === 'fees' && (
-              <div className="space-y-5">
-                <FeeTracker />
-                <SponsorshipSection />
-              </div>
-            )}
+            {activeView === 'fees' && <FeeTracker />}
+            {activeView === 'sponsors' && <SponsorshipSection />}
             {activeView === 'gallery' && <Gallery />}
+            {activeView === 'matches' && <MatchSchedule />}
             {activeView === 'toss' && <TossWidget />}
             {activeView === 'share' && <ShareButton />}
           </div>
@@ -402,9 +515,9 @@ function CricketDashboard() {
 
       {/* Footer */}
       <footer className="mt-16 mb-8 text-center">
-        <p className="text-[11px] text-[var(--dim)] tracking-wide">
-          &copy; Designed by <span className="font-semibold text-[var(--muted)]">Bhaskar Mantrala</span>
-        </p>
+        <Text as="p" size="2xs" color="dim" tracking="wide">
+          &copy; Designed by <Text weight="semibold" color="muted">Bhaskar Mantrala</Text>
+        </Text>
       </footer>
     </div>
   );

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, Text } from '@/components/ui';
 import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
@@ -130,9 +130,9 @@ export default function SponsorshipSection() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FaHandshake size={18} style={{ color: 'var(--cricket)' }} />
-          <h3 className="text-[16px] font-bold text-[var(--text)]">Sponsorships</h3>
+          <Text as="h3" size="lg" weight="bold">Sponsorships</Text>
           {totalSponsorship > 0 && (
-            <span className="text-[13px] font-bold text-[var(--green)]">{formatCurrency(totalSponsorship)}</span>
+            <Text size="sm" weight="bold" color="success">{formatCurrency(totalSponsorship)}</Text>
           )}
         </div>
         {isAdmin && (
@@ -147,26 +147,26 @@ export default function SponsorshipSection() {
       {isAdmin && showForm && (
         <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-3">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Sponsor Name *</label>
+            <Text as="label" size="2xs" weight="semibold" color="muted" uppercase tracking="wide" className="mb-1 block">Sponsor Name *</Text>
             <input value={name} onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Company or person name" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Amount ($) *</label>
+              <Text as="label" size="2xs" weight="semibold" color="muted" uppercase tracking="wide" className="mb-1 block">Amount ($) *</Text>
               <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="0.00" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Date</label>
+              <Text as="label" size="2xs" weight="semibold" color="muted" uppercase tracking="wide" className="mb-1 block">Date</Text>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
                 className="w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Notes</label>
+            <Text as="label" size="2xs" weight="semibold" color="muted" uppercase tracking="wide" className="mb-1 block">Notes</Text>
             <input value={notes} onChange={(e) => setNotes(e.target.value)}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Optional" />
@@ -217,15 +217,15 @@ export default function SponsorshipSection() {
                   <FaHandshake size={16} style={{ color: 'var(--cricket-accent)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>
-                  <p className="text-[11px] text-[var(--muted)]">
+                  <Text as="p" size="sm" weight="semibold" truncate className="sm:text-[14px]">{s.sponsor_name}</Text>
+                  <Text as="p" size="2xs" color="muted">
                     {formatDate(s.sponsored_date)}
                     {s.notes && <> &middot; {s.notes}</>}
-                  </p>
+                  </Text>
                 </div>
-                <span className="text-[14px] sm:text-[15px] font-extrabold text-[var(--green)] flex-shrink-0">
+                <Text size="md" weight="bold" color="success" className="sm:text-[15px] flex-shrink-0">
                   +{formatCurrency(Number(s.amount))}
-                </span>
+                </Text>
               </div>
 
               {/* Audit footer */}
@@ -255,21 +255,21 @@ export default function SponsorshipSection() {
         <div className="mt-4 rounded-2xl border border-[var(--red)]/20 overflow-hidden">
           <button onClick={() => setShowDeleted(!showDeleted)}
             className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-            <span className="text-[13px] font-semibold text-[var(--red)]">Deleted ({deletedSponsors.length})</span>
-            <span className="text-[var(--muted)] text-[12px]">{showDeleted ? '▲' : '▼'}</span>
+            <Text size="sm" weight="semibold" color="danger">Deleted ({deletedSponsors.length})</Text>
+            <Text size="xs" color="muted">{showDeleted ? '▲' : '▼'}</Text>
           </button>
           {showDeleted && (
             <div className="px-3 pb-3 space-y-2">
               {deletedSponsors.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>
-                    <p className="text-[11px] text-[var(--muted)]">
+                    <Text as="p" size="sm" weight="semibold" truncate>{s.sponsor_name}</Text>
+                    <Text as="p" size="2xs" color="muted">
                       {formatDate(s.sponsored_date)}
-                      {s.deleted_by && <> &middot; Deleted by <span className="font-bold text-[var(--text)]">{s.deleted_by}</span></>}
-                    </p>
+                      {s.deleted_by && <> &middot; Deleted by <Text weight="bold">{s.deleted_by}</Text></>}
+                    </Text>
                   </div>
-                  <span className="text-[13px] font-bold text-[var(--text)] flex-shrink-0">{formatCurrency(Number(s.amount))}</span>
+                  <Text size="sm" weight="bold" className="flex-shrink-0">{formatCurrency(Number(s.amount))}</Text>
                   <button onClick={() => restoreSponsorship(s.id)}
                     className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
                     style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}>

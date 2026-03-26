@@ -9,6 +9,7 @@ import {
   Activity, CheckCircle, Zap, BarChart3
 } from 'lucide-react';
 import { AuthGate } from '@/components/AuthGate';
+import { Text } from '@/components/ui';
 
 interface Profile {
   id: string;
@@ -160,8 +161,8 @@ function AdminContent() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
-          <h2 className="text-[20px] font-bold text-[var(--text)] mb-2">Access Denied</h2>
-          <p className="text-[15px] text-[var(--muted)]">Admin access required.</p>
+          <Text as="h2" size="xl" weight="bold" className="mb-2">Access Denied</Text>
+          <Text as="p" size="lg" color="muted">Admin access required.</Text>
         </div>
       </div>
     );
@@ -217,8 +218,8 @@ function AdminContent() {
     <div className="max-w-3xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-[24px] lg:text-[30px] font-bold text-[var(--text)] mb-1">Admin Dashboard</h1>
-        <p className="text-[15px] text-[var(--muted)]">User management & activity overview</p>
+        <Text as="h1" size="2xl" weight="bold" className="lg:text-[30px] mb-1">Admin Dashboard</Text>
+        <Text as="p" size="lg" color="muted">User management & activity overview</Text>
       </div>
 
       {/* Stats cards */}
@@ -233,10 +234,10 @@ function AdminContent() {
       <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-[13px] text-[var(--muted)] mb-1">User Capacity</div>
+            <Text as="div" size="sm" color="muted" className="mb-1">User Capacity</Text>
             <div className="flex items-baseline gap-1">
-              <span className="text-[28px] font-bold" style={{ color: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)' }}>{totalUsers}</span>
-              <span className="text-[16px] text-[var(--dim)]">/ {maxUsers}</span>
+              <Text size="2xl" weight="bold" tabular className="text-[28px]" style={{ color: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)' }}>{totalUsers}</Text>
+              <Text size="lg" color="dim">/ {maxUsers}</Text>
             </div>
           </div>
 
@@ -278,9 +279,9 @@ function AdminContent() {
             }}
           />
         </div>
-        <div className="flex justify-between mt-2 text-[11px] text-[var(--dim)]">
-          <span>{maxUsers - totalUsers} slots remaining</span>
-          <span>{Math.round((totalUsers / maxUsers) * 100)}% used</span>
+        <div className="flex justify-between mt-2">
+          <Text size="2xs" color="dim">{maxUsers - totalUsers} slots remaining</Text>
+          <Text size="2xs" color="dim">{Math.round((totalUsers / maxUsers) * 100)}% used</Text>
         </div>
       </div>
 
@@ -289,7 +290,7 @@ function AdminContent() {
         const recent = [...profiles].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3);
         return (
           <div className="mb-8">
-            <h2 className="text-[16px] font-semibold text-[var(--muted)] mb-3">Recently Joined</h2>
+            <Text as="h2" size="lg" weight="semibold" color="muted" className="mb-3">Recently Joined</Text>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {recent.map((p) => {
                 const userStat = stats.find(s => s.user_id === p.id);
@@ -303,22 +304,22 @@ function AdminContent() {
                         {(p.full_name || p.email || '?')[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[15px] font-medium text-[var(--text)] truncate">{p.full_name || 'No name'}</div>
-                        <div className="text-[12px] text-[var(--dim)]">{timeAgo(p.created_at)}</div>
+                        <Text as="div" size="lg" weight="medium" truncate>{p.full_name || 'No name'}</Text>
+                        <Text as="div" size="xs" color="dim">{timeAgo(p.created_at)}</Text>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-center">
                       <div className="flex-1">
-                        <div className="text-[18px] font-bold text-[var(--blue)]">{userStat?.active || 0}</div>
-                        <div className="text-[10px] text-[var(--dim)]">Active</div>
+                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px] text-[var(--blue)]">{userStat?.active || 0}</Text>
+                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Active</Text>
                       </div>
                       <div className="flex-1">
-                        <div className="text-[18px] font-bold text-[var(--green)]">{userStat?.done || 0}</div>
-                        <div className="text-[10px] text-[var(--dim)]">Done</div>
+                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px] text-[var(--green)]">{userStat?.done || 0}</Text>
+                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Done</Text>
                       </div>
                       <div className="flex-1">
-                        <div className="text-[18px] font-bold text-[var(--muted)]">{userStat?.total || 0}</div>
-                        <div className="text-[10px] text-[var(--dim)]">Total</div>
+                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px]" color="muted">{userStat?.total || 0}</Text>
+                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Total</Text>
                       </div>
                     </div>
                   </div>
@@ -331,7 +332,7 @@ function AdminContent() {
 
       {/* Users list */}
       <div className="mb-6">
-        <h2 className="text-[18px] font-semibold text-[var(--text)] mb-3">Enrolled Users</h2>
+        <Text as="h2" size="xl" weight="semibold" className="text-[18px] mb-3">Enrolled Users</Text>
 
         {/* Search */}
         <div className="relative mb-4">
@@ -378,7 +379,7 @@ function AdminContent() {
                   <Icon size={18} style={{ color: f.color }} />
                   <span className="text-[22px] font-bold" style={{ color: isActive ? f.color : 'var(--text)' }}>{f.count}</span>
                 </div>
-                <div className="text-[11px] text-[var(--muted)] font-medium">{f.label}</div>
+                <Text as="div" size="2xs" weight="medium" color="muted">{f.label}</Text>
               </button>
             );
           })}
@@ -401,7 +402,7 @@ function AdminContent() {
             <>
         <div className="space-y-3">
           {paginated.length === 0 ? (
-            <div className="text-center py-8 text-[15px] text-[var(--dim)]">No users found</div>
+            <Text as="div" size="lg" color="dim" align="center" className="py-8">No users found</Text>
           ) : paginated.map((profile) => {
             const userStats = stats.find(s => s.user_id === profile.id);
             const flags = getSuspiciousFlags(profile);
@@ -425,9 +426,9 @@ function AdminContent() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[16px] font-medium text-[var(--text)] truncate">
+                    <Text size="lg" weight="medium" truncate>
                       {profile.full_name || 'No name'}
-                    </span>
+                    </Text>
                     {profile.email === SUPER_ADMIN ? (
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white font-semibold shrink-0">
                         SUPER ADMIN
@@ -443,10 +444,10 @@ function AdminContent() {
                       </span>
                     )}
                   </div>
-                  <div className="text-[13px] text-[var(--muted)] truncate">{profile.email}</div>
-                  <div className="text-[12px] text-[var(--dim)] mt-0.5">
+                  <Text as="div" size="sm" color="muted" truncate>{profile.email}</Text>
+                  <Text as="div" size="xs" color="dim" className="mt-0.5">
                     Joined {fmtDate(profile.created_at)} · {timeAgo(profile.created_at)}
-                  </div>
+                  </Text>
                   {flags.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1 mt-1">
                       {flags.map((flag) => (
@@ -493,7 +494,7 @@ function AdminContent() {
                       <MiniStat label="Total" value={userStats.total} color="var(--muted)" />
                     </>
                   ) : (
-                    <span className="text-[13px] text-[var(--dim)]">No activity</span>
+                    <Text size="sm" color="dim">No activity</Text>
                   )}
                 </div>
 
@@ -519,9 +520,9 @@ function AdminContent() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
-                  <span className="text-[13px] text-[var(--muted)]">
+                  <Text size="sm" color="muted">
                     Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)} of {filtered.length}
-                  </span>
+                  </Text>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -566,12 +567,12 @@ function StatCard({ label, value, subtext, color, icon: Icon }: { label: string;
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-2">
         <Icon size={16} className="text-[var(--muted)]" />
-        <span className="text-[13px] text-[var(--muted)]">{label}</span>
+        <Text size="sm" color="muted">{label}</Text>
       </div>
-      <div className="text-[28px] font-bold" style={{ color }}>
+      <Text as="div" size="2xl" weight="bold" tabular className="text-[28px]" style={{ color }}>
         {value}
-        {subtext && <span className="text-[14px] font-normal text-[var(--dim)]"> {subtext}</span>}
-      </div>
+        {subtext && <Text size="md" color="dim"> {subtext}</Text>}
+      </Text>
     </div>
   );
 }
@@ -579,8 +580,8 @@ function StatCard({ label, value, subtext, color, icon: Icon }: { label: string;
 function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="text-center">
-      <div className="text-[16px] font-bold" style={{ color }}>{value}</div>
-      <div className="text-[10px] text-[var(--dim)]">{label}</div>
+      <Text as="div" size="lg" weight="bold" tabular style={{ color }}>{value}</Text>
+      <Text as="div" size="2xs" color="dim" className="text-[10px]">{label}</Text>
     </div>
   );
 }

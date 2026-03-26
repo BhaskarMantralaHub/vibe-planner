@@ -5,6 +5,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
 import { Alert } from '@/components/ui/alert';
+import { Text } from '@/components/ui';
 import { toast } from 'sonner';
 
 function useIsAdmin() {
@@ -75,7 +76,7 @@ export default function SeasonSelector() {
           className="group flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-full text-[14px] font-semibold cursor-pointer transition-all bg-[var(--card)] border border-[var(--border)] hover:border-[var(--cricket)]/40 hover:shadow-sm text-[var(--text)]"
         >
           <span className="text-[16px]">{activeIcon}</span>
-          <span className="font-bold">{selectedSeason?.name ?? 'No seasons'}</span>
+          <Text weight="bold">{selectedSeason?.name ?? 'No seasons'}</Text>
           <span className={`flex items-center justify-center h-5 w-5 rounded-full bg-[var(--hover-bg)] group-hover:bg-[var(--cricket)]/10 text-[var(--muted)] text-[9px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
         </button>
         {showDropdown && sortedSeasons.length > 0 && (

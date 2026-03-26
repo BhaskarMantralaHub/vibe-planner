@@ -8,7 +8,7 @@ import { CATEGORIES } from '../lib/constants';
 import type { Vibe } from '@/types/vibe';
 import { todayStr, getGreeting } from '../lib/utils';
 import { Filter, X } from 'lucide-react';
-import { Button, Badge } from '@/components/ui';
+import { Button, Badge, Text } from '@/components/ui';
 
 export default function Header() {
   const {
@@ -63,20 +63,20 @@ export default function Header() {
       {/* Stats — compact on mobile */}
       <div className="flex items-center gap-2 lg:gap-3 mb-3 overflow-hidden" data-testid="stats-row">
         <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
-          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Vibes</div>
-          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--toolkit)]">{total}</div>
+          <Text as="div" size="2xs" color="muted" className="lg:text-[13px]">Vibes</Text>
+          <Text as="div" size="xl" weight="bold" color="accent" tabular className="lg:text-[22px]">{total}</Text>
         </div>
         <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
-          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Active</div>
-          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--blue)]">{inProgress}</div>
+          <Text as="div" size="2xs" color="muted" className="lg:text-[13px]">Active</Text>
+          <Text as="div" size="xl" weight="bold" tabular className="lg:text-[22px] text-[var(--blue)]">{inProgress}</Text>
         </div>
         <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
-          <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Today</div>
-          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--green)]">
+          <Text as="div" size="2xs" color="muted" className="lg:text-[13px]">Today</Text>
+          <Text as="div" size="xl" weight="bold" color="success" tabular className="lg:text-[22px]">
             {todayDone}
-            <span className="text-[12px] font-normal text-[var(--dim)]"> done</span>
-          </div>
-          {todayDue > 0 && <div className="text-[11px] font-semibold text-[var(--orange)]">{todayDue} due</div>}
+            <Text size="xs" color="dim"> done</Text>
+          </Text>
+          {todayDue > 0 && <Text as="div" size="2xs" weight="semibold" className="text-[var(--orange)]">{todayDue} due</Text>}
         </div>
 
         {!cloud && (
@@ -144,8 +144,8 @@ function CategoryFilter({ items, filter, setFilter }: { items: Vibe[]; filter: s
         className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium cursor-pointer transition-all bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--muted)] text-[var(--text)]"
       >
         <Filter size={15} className="text-[var(--toolkit)]" />
-        <span>{activeLabel}</span>
-        <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--toolkit)]/15 text-[var(--toolkit)]">{activeCount}</span>
+        <Text size="md" weight="medium">{activeLabel}</Text>
+        <Text size="xs" weight="bold" color="accent" className="px-1.5 py-0.5 rounded-md bg-[var(--toolkit)]/15">{activeCount}</Text>
         {filter && (
           <span
             onClick={(e) => { e.stopPropagation(); setFilter(''); setOpen(false); }}
@@ -174,10 +174,10 @@ function CategoryFilter({ items, filter, setFilter }: { items: Vibe[]; filter: s
                       : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
-                  <span>{cat.label}</span>
-                  <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded-md ${
+                  <Text size="md" weight="medium">{cat.label}</Text>
+                  <Text size="xs" weight="bold" className={`px-1.5 py-0.5 rounded-md ${
                     isActive ? 'bg-[var(--toolkit)]/20 text-[var(--toolkit)]' : 'bg-[var(--border)] text-[var(--dim)]'
-                  }`}>{count}</span>
+                  }`}>{count}</Text>
                 </button>
               );
             })}

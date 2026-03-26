@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
-import { EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Button } from '@/components/ui';
+import { EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Button, Text } from '@/components/ui';
 import { FaCheckCircle, FaExclamationCircle, FaTimesCircle } from 'react-icons/fa';
 import { MdEdit, MdUndo } from 'react-icons/md';
 import { toast } from 'sonner';
@@ -119,7 +119,7 @@ export default function FeeTracker() {
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
         {/* Fee amount header */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[17px] sm:text-[18px] font-bold text-[var(--text)] tracking-tight">Season Fee</h3>
+          <Text as="h3" size="lg" weight="bold" tracking="tight" className="sm:text-[18px]">Season Fee</Text>
           {isAdmin && !editingFee ? (
             <button onClick={() => { setFeeInput(String(feeAmount)); setEditingFee(true); }}
               className="flex items-center gap-1.5 text-[15px] sm:text-[16px] font-extrabold text-[var(--cricket)] cursor-pointer hover:opacity-80 transition-opacity">
@@ -211,9 +211,9 @@ export default function FeeTracker() {
       ) : (
       <div className="space-y-2">
         {sortedPlayers.length === 0 && (
-          <p className="text-center text-[13px] text-[var(--muted)] py-6">
+          <Text as="p" size="sm" color="muted" align="center" className="py-6">
             No {filter} players
-          </p>
+          </Text>
         )}
         {sortedPlayers.map((p) => {
           const fee = feeMap[p.id];
@@ -247,27 +247,27 @@ export default function FeeTracker() {
 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
-                  <span className="text-[14px] sm:text-[15px] font-bold text-[var(--text)] truncate block">{p.name}</span>
+                  <Text size="md" weight="bold" truncate className="sm:text-[15px] block">{p.name}</Text>
                   {fee?.paid_date ? (
-                    <p className="text-[11px] sm:text-[12px] text-[var(--muted)] mt-0.5 truncate">
-                      <span className="font-semibold" style={{ color: statusColor }}>{isPaid ? 'Paid' : 'Partial'}</span>
+                    <Text as="p" size="2xs" color="muted" className="sm:text-[12px] mt-0.5 truncate">
+                      <Text weight="semibold" style={{ color: statusColor }}>{isPaid ? 'Paid' : 'Partial'}</Text>
                       {' '}{new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       {fee.marked_by && (
                         <> <span className="text-[var(--border)]">&middot;</span> by {fee.marked_by}</>
                       )}
-                    </p>
+                    </Text>
                   ) : (
-                    <p className="text-[11px] sm:text-[12px] text-[var(--dim)] mt-0.5">Not paid</p>
+                    <Text as="p" size="2xs" color="dim" className="sm:text-[12px] mt-0.5">Not paid</Text>
                   )}
                 </div>
 
                 {/* Amount — hero number */}
                 <div className="flex-shrink-0 text-right">
-                  <span className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: statusColor }}>
+                  <Text size="lg" weight="bold" tabular className="sm:text-[18px]" style={{ color: statusColor }}>
                     {formatCurrency(paid)}
-                  </span>
+                  </Text>
                   {isPartial && (
-                    <span className="block text-[10px] font-medium text-[var(--dim)] tabular-nums">of {formatCurrency(feeAmount)}</span>
+                    <Text as="p" size="2xs" weight="medium" color="dim" tabular className="text-[10px]">of {formatCurrency(feeAmount)}</Text>
                   )}
                 </div>
 

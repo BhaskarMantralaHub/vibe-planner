@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import type { Vibe } from '@/types/vibe';
 import { useVibeStore } from '@/stores/vibe-store';
 import { STATUSES, STATUS_KEYS, CATEGORIES } from '../lib/constants';
+import { Text } from '@/components/ui';
 
 interface CardMenuProps {
   vibe: Vibe;
@@ -117,7 +118,7 @@ export default function CardMenu({ vibe, onClose }: CardMenuProps) {
 
       <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl">
         <span>📅</span>
-        <span className="text-[15px] text-[var(--muted)]">Due</span>
+        <Text size="lg" color="muted">Due</Text>
         <input type="date" value={vibe.due_date || ''}
           onChange={(e) => { const val = e.target.value || null; updateItem(vibe.id, { due_date: val, status: val && vibe.status === 'spark' ? 'scheduled' : vibe.status }); close(); }}
           className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[14px] text-[var(--text)] outline-none" />

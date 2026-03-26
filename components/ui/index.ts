@@ -44,4 +44,7 @@ export { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClos
 
 export { FilterDropdown } from './filter-dropdown';
 
+export { Text, textVariants } from './text';
+export type { TextProps } from './text';
+
 export { Toaster } from './toast';

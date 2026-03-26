@@ -12,7 +12,7 @@ const CATEGORY_ICONS: Record<string, IconType> = {
   FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
 };
 import { formatCurrency, formatDate } from '../lib/utils';
-import { EmptyState, FilterDropdown } from '@/components/ui';
+import { EmptyState, FilterDropdown, Text } from '@/components/ui';
 import { FaExclamationTriangle, FaCheckCircle, FaWallet, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
 import { createPortal } from 'react-dom';
@@ -197,10 +197,10 @@ export default function ExpenseList() {
             {/* Hero: Balance */}
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)] mb-1">Pool Balance</p>
-                <p className="text-[32px] sm:text-[40px] font-extrabold leading-none tracking-tight tabular-nums" style={{ color: balanceColor }}>
+                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-1">Pool Balance</Text>
+                <Text as="p" size="2xl" weight="bold" tabular tracking="tight" className="sm:text-[40px] leading-none" style={{ color: balanceColor }}>
                   {isLow ? '-' : ''}{formatCurrency(Math.abs(poolBalance))}
-                </p>
+                </Text>
               </div>
               <div className="flex-shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center"
                 style={{ backgroundColor: `${balanceColor}12`, border: `2px solid ${balanceColor}25` }}>
@@ -211,23 +211,23 @@ export default function ExpenseList() {
             {/* Money in / out breakdown */}
             <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
               <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#05966910' }}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Fees</p>
-                <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#059669' }}>{formatCurrency(totalFees)}</p>
+                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">Fees</Text>
+                <Text as="p" size="lg" weight="bold" tabular className="sm:text-[18px]" style={{ color: '#059669' }}>{formatCurrency(totalFees)}</Text>
               </div>
               {totalSponsorship > 0 ? (
                 <div className="rounded-xl p-2.5 sm:p-3" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, transparent)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Sponsors</p>
-                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: 'var(--cricket-accent)' }}>{formatCurrency(totalSponsorship)}</p>
+                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">Sponsors</Text>
+                  <Text as="p" size="lg" weight="bold" tabular className="sm:text-[18px]" style={{ color: 'var(--cricket-accent)' }}>{formatCurrency(totalSponsorship)}</Text>
                 </div>
               ) : (
                 <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#3B82F610' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Collected</p>
-                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#3B82F6' }}>{formatCurrency(totalCollected)}</p>
+                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">Collected</Text>
+                  <Text as="p" size="lg" weight="bold" tabular className="sm:text-[18px]" style={{ color: '#3B82F6' }}>{formatCurrency(totalCollected)}</Text>
                 </div>
               )}
               <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#EF444410' }}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Spent</p>
-                <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#EF4444' }}>{formatCurrency(totalSpent)}</p>
+                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">Spent</Text>
+                <Text as="p" size="lg" weight="bold" tabular className="sm:text-[18px]" style={{ color: '#EF4444' }}>{formatCurrency(totalSpent)}</Text>
               </div>
             </div>
 
@@ -286,11 +286,11 @@ export default function ExpenseList() {
       {/* Expense list */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 overflow-hidden min-w-0">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-[16px] sm:text-[18px] font-bold text-[var(--text)]">
-            Expenses <span className="text-[var(--muted)] font-normal text-[14px]">({seasonExpenses.length})</span>
-          </h3>
+          <Text as="h3" size="lg" weight="bold" className="sm:text-[18px]">
+            Expenses <Text color="muted" weight="normal" size="md">({seasonExpenses.length})</Text>
+          </Text>
           {seasonExpenses.length > 0 && (
-            <span className="text-[15px] font-extrabold text-[var(--red)]">-{formatCurrency(totalSpent)}</span>
+            <Text size="md" weight="bold" color="danger" className="text-[15px]">-{formatCurrency(totalSpent)}</Text>
           )}
         </div>
 
@@ -373,19 +373,19 @@ export default function ExpenseList() {
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[14px] sm:text-[15px] font-semibold text-[var(--text)] truncate">
+                          <Text as="p" size="md" weight="semibold" truncate className="sm:text-[15px]">
                             {e.description || cfg.label}
-                          </p>
-                          <p className="text-[12px] text-[var(--muted)] mt-0.5">
+                          </Text>
+                          <Text as="p" size="xs" color="muted" className="mt-0.5">
                             {formatDate(e.expense_date)}
-                          </p>
+                          </Text>
                         </div>
 
                         {/* Amount */}
                         <div className="flex-shrink-0 text-right">
-                          <p className="text-[16px] sm:text-[18px] font-extrabold text-[var(--text)]">
+                          <Text as="p" size="lg" weight="bold" className="sm:text-[18px]">
                             {formatCurrency(Number(e.amount))}
-                          </p>
+                          </Text>
                         </div>
                       </div>
 
@@ -426,10 +426,10 @@ export default function ExpenseList() {
             onClick={() => setShowDeleted(!showDeleted)}
             className="w-full flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
           >
-            <span className="text-[14px] font-semibold text-[var(--red)]">
+            <Text size="md" weight="semibold" color="danger">
               Recently Deleted ({deletedExpenses.length})
-            </span>
-            <span className="text-[var(--muted)] text-[12px]">{showDeleted ? '▲' : '▼'}</span>
+            </Text>
+            <Text size="xs" color="muted">{showDeleted ? '▲' : '▼'}</Text>
           </button>
 
           {showDeleted && (
@@ -445,13 +445,13 @@ export default function ExpenseList() {
                       {Icon && <Icon size={16} style={{ color: cfg.color }} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[var(--text)] truncate">{e.description || cfg.label}</p>
-                      <p className="text-[11px] text-[var(--muted)]">
-                        <span className="font-semibold">{formatDate(e.expense_date)}</span>
-                        {e.deleted_by && <> &middot; Deleted by <span className="font-bold text-[var(--text)]">{e.deleted_by}</span></>}
-                      </p>
+                      <Text as="p" size="sm" weight="semibold" truncate>{e.description || cfg.label}</Text>
+                      <Text as="p" size="2xs" color="muted">
+                        <Text weight="semibold">{formatDate(e.expense_date)}</Text>
+                        {e.deleted_by && <> &middot; Deleted by <Text weight="bold">{e.deleted_by}</Text></>}
+                      </Text>
                     </div>
-                    <span className="text-[14px] font-extrabold text-[var(--text)] flex-shrink-0">{formatCurrency(Number(e.amount))}</span>
+                    <Text size="md" weight="bold" className="flex-shrink-0">{formatCurrency(Number(e.amount))}</Text>
                     <button
                       onClick={() => restoreExpense(e.id)}
                       className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Save, X, Trash2, FileText } from 'lucide-react';
+import { Text } from '@/components/ui';
 
 interface CardNotesProps {
   notes: string;
@@ -47,7 +48,7 @@ export default function CardNotes({ notes, onSave, onDelete, onClose }: CardNote
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <FileText size={16} className="text-[var(--orange)]" />
-          <span className="text-[14px] font-semibold text-[var(--text)]">Notes</span>
+          <Text size="md" weight="semibold">Notes</Text>
         </div>
         <button
           onClick={onClose}

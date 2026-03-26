@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
 import { ResetPasswordForm } from '@/components/ResetPasswordForm';
-import { Button } from '@/components/ui';
+import { Button, Text } from '@/components/ui';
 import { toast } from 'sonner';
 
 type PlayerMeta = {
@@ -163,8 +163,8 @@ function PendingApprovals() {
           <div className="fixed inset-0 z-40" onClick={() => setShowPopup(false)} />
           <div className="absolute right-0 top-full mt-2 z-50 w-[340px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl animate-[scaleIn_0.15s]">
             <div className="p-4 border-b border-[var(--border)]">
-              <h3 className="text-[14px] font-semibold text-[var(--text)]">Pending Approvals</h3>
-              <p className="text-[12px] text-[var(--muted)]">{pending.length} cricket signup{pending.length !== 1 ? 's' : ''} awaiting approval</p>
+              <Text as="h3" size="md" weight="semibold">Pending Approvals</Text>
+              <Text as="p" size="xs" color="muted">{pending.length} cricket signup{pending.length !== 1 ? 's' : ''} awaiting approval</Text>
             </div>
             <div className="max-h-[400px] overflow-y-auto">
               {pending.map((p) => {
@@ -177,8 +177,8 @@ function PendingApprovals() {
                         {(p.full_name || p.email || '?')[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium text-[var(--text)] truncate">{p.full_name || 'No name'}</div>
-                        <div className="text-[11px] text-[var(--muted)] truncate">{p.email}</div>
+                        <Text as="div" size="sm" weight="medium" truncate>{p.full_name || 'No name'}</Text>
+                        <Text as="div" size="2xs" color="muted" truncate>{p.email}</Text>
                       </div>
                     </div>
                     {/* Player meta info */}
@@ -274,14 +274,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {isCricketContext ? (
             <>
               <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
-              <span className="bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-lg font-bold tracking-tight text-transparent">
+              <Text size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-transparent">
                 Sunrisers Manteca
-              </span>
+              </Text>
             </>
           ) : (
-            <h1 className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
+            <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
               Viber&apos;s Toolkit
-            </h1>
+            </Text>
           )}
         </Link>
 

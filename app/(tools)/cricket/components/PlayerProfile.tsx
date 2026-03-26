@@ -8,6 +8,7 @@ import { MdSportsCricket, MdEmail, MdBadge, MdContentCopy } from 'react-icons/md
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaTshirt } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
+import { Text } from '@/components/ui';
 import { toast } from 'sonner';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -142,9 +143,9 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           </div>
 
           {joinYear && (
-            <p className="mt-2 text-[12px] text-[var(--muted)]">
+            <Text as="p" size="xs" color="muted" className="mt-2">
               Player since {joinYear}
-            </p>
+            </Text>
           )}
         </div>
 
@@ -199,8 +200,8 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                     <MdEmail size={16} style={{ color: roleColor }} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Email</span>
-                    <span className="block text-[13px] font-medium text-[var(--text)] truncate">{player.email}</span>
+                    <Text as="span" size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="block text-[10px]">Email</Text>
+                    <Text as="span" size="sm" weight="medium" truncate className="block">{player.email}</Text>
                   </div>
                   <CopyButton text={player.email} label="Email" />
                 </div>
@@ -211,8 +212,8 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                     <MdBadge size={16} style={{ color: roleColor }} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">CricClub ID</span>
-                    <span className="block text-[13px] font-semibold text-[var(--text)] tracking-wide">{player.cricclub_id}</span>
+                    <Text as="span" size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="block text-[10px]">CricClub ID</Text>
+                    <Text as="span" size="sm" weight="semibold" tracking="wide" className="block">{player.cricclub_id}</Text>
                   </div>
                   <CopyButton text={player.cricclub_id} label="CricClub ID" />
                 </div>
@@ -223,9 +224,9 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           {/* ── Gallery / Tagged Posts ── */}
           {taggedPosts.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">
+              <Text as="h4" size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mb-2">
                 Tagged in Moments
-              </h4>
+              </Text>
               <div className="grid grid-cols-4 gap-1.5">
                 {taggedPosts.map((post) => {
                   const thumbUrl = post.photo_urls?.[0] ?? post.photo_url;
@@ -250,9 +251,9 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           {/* ── Season Fees ── */}
           {currentSeason && feeStatus && (
             <div>
-              <h4 className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">
+              <Text as="h4" size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mb-2">
                 Season Fee &mdash; {currentSeason.name}
-              </h4>
+              </Text>
               <div
                 className={cn(
                   'flex items-center justify-between px-3 py-2.5 rounded-xl border',

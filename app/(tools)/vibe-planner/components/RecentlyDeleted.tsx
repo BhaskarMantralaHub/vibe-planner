@@ -2,7 +2,7 @@
 
 import { useVibeStore } from '@/stores/vibe-store';
 import { fmtDate } from '../lib/utils';
-import { Button, Badge } from '@/components/ui';
+import { Button, Badge, Text } from '@/components/ui';
 
 export default function RecentlyDeleted() {
   const { items, showTrash, setShowTrash, restoreItem, permanentlyDelete, clearTrash } = useVibeStore();
@@ -28,7 +28,7 @@ export default function RecentlyDeleted() {
         className="flex items-center gap-3 text-[17px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer mb-4 py-2"
       >
         <span className="text-xl">🗑</span>
-        <span className="font-medium">Recently Deleted</span>
+        <Text weight="medium">Recently Deleted</Text>
         <Badge variant="muted" size="md">
           {trashed.length}
         </Badge>
@@ -44,21 +44,21 @@ export default function RecentlyDeleted() {
                 className="bg-[var(--surface)] rounded-2xl p-4"
               >
                 <div className="flex items-start gap-3 mb-2">
-                  <span className="flex-1 text-[16px] text-[var(--muted)] line-through leading-relaxed">
+                  <Text size="lg" color="muted" className="flex-1 line-through leading-relaxed">
                     {vibe.text}
-                  </span>
+                  </Text>
                 </div>
 
                 {/* Dates */}
-                <div className="flex flex-wrap items-center gap-3 mb-2 text-[13px] text-[var(--dim)]">
+                <div className="flex flex-wrap items-center gap-3 mb-2">
                   {vibe.deleted_at && (
-                    <span>🗑 Deleted {formatAgo(vibe.deleted_at)}</span>
+                    <Text size="sm" color="dim">🗑 Deleted {formatAgo(vibe.deleted_at)}</Text>
                   )}
                   {vibe.completed_at && (
-                    <span>✓ Completed {fmtDate(vibe.completed_at.split('T')[0])}</span>
+                    <Text size="sm" color="dim">✓ Completed {fmtDate(vibe.completed_at.split('T')[0])}</Text>
                   )}
                   {vibe.due_date && (
-                    <span>📅 Due {fmtDate(vibe.due_date)}</span>
+                    <Text size="sm" color="dim">📅 Due {fmtDate(vibe.due_date)}</Text>
                   )}
                 </div>
 

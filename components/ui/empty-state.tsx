@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { Button, type ButtonProps } from './button';
+import { Text } from './text';
 
 interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   icon?: React.ReactNode;
@@ -19,9 +20,9 @@ function EmptyState({ icon, title, description, action, brand, className, ...pro
   return (
     <div className={cn('flex flex-col items-center justify-center py-16 px-4 text-center', className)} {...props}>
       {icon && <div className="mb-4 text-4xl">{icon}</div>}
-      <h3 className="mb-1 text-[16px] font-semibold text-[var(--text)]">{title}</h3>
+      <Text as="h3" size="lg" weight="semibold" className="mb-1">{title}</Text>
       {description && (
-        <p className="mb-5 max-w-xs text-[13px] leading-relaxed text-[var(--muted)]">{description}</p>
+        <Text as="p" size="sm" color="muted" className="mb-5 max-w-xs leading-relaxed">{description}</Text>
       )}
       {action && (
         <Button variant={action.variant ?? 'primary'} size="md" brand={brand} onClick={action.onClick}>

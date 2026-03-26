@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { tools } from '@/lib/nav';
 import { useAuthStore } from '@/stores/auth-store';
+import { Text } from '@/components/ui';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -53,11 +54,11 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="bg-gradient-to-r from-[var(--toolkit)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
+            <Text as="h2" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] to-[var(--blue)] bg-clip-text text-transparent">
               {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
                 ? 'Sunrisers Manteca'
                 : "Viber\u0027s Toolkit"}
-            </h2>
+            </Text>
             <button
               onClick={onClose}
               className="cursor-pointer rounded-lg p-1 text-[var(--muted)] transition-colors hover:text-[var(--text)]"
@@ -76,12 +77,12 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
               <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
                 <span className="mt-0.5 flex-shrink-0 text-[var(--toolkit)]">{tool.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[15px] font-medium text-[var(--text)]">
+                  <Text size="md" weight="medium" className="text-[15px]">
                     {tool.name}
-                  </span>
-                  <p className="mt-0.5 text-[13px] text-[var(--muted)]">
+                  </Text>
+                  <Text as="p" size="sm" color="muted" className="mt-0.5">
                     {tool.description}
-                  </p>
+                  </Text>
                 </div>
               </div>
             </Link>
@@ -106,8 +107,8 @@ function UserSection({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex-shrink-0 p-6 border-t border-[var(--border)]">
       <div className="mb-3">
-        {name && <div className="text-[13px] font-medium text-[var(--text)] truncate">{name}</div>}
-        {email && <div className="text-[12px] text-[var(--muted)] truncate">{email}</div>}
+        {name && <Text as="div" size="sm" weight="medium" truncate>{name}</Text>}
+        {email && <Text as="div" size="xs" color="muted" truncate>{email}</Text>}
       </div>
       <button
         onClick={() => { logout(); onClose(); }}

@@ -190,6 +190,7 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 | `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
 | `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
 | `FilterDropdown` | `filter-dropdown.tsx` | Category filter with counts, brand-aware (toolkit/cricket) |
+| `Text` | `text.tsx` | `size` (2xs/xs/sm/md/lg/xl/2xl), `weight`, `color`, `tracking`, `uppercase`, `truncate`, `tabular`, `as` (span/p/h1-h4/label) |
 | `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
 
 ### Usage
@@ -216,6 +217,7 @@ Components auto-detect brand from `BrandProvider`. Cricket pages use orange, too
 3. **Use CVA for new variants** — define in the component file, export the variants function
 4. **Use Radix Dialog** for modals — never hand-roll overlay + panel + close button
 5. **Use `toast()`** for user feedback — every create/update/delete action should confirm success or report failure
+6. **Use `<Text>`** for ALL text elements — never use raw `text-[Xpx]` Tailwind classes. The Text component enforces the 7-size type scale (2xs/xs/sm/md/lg/xl/2xl) and prevents typography inconsistency.
 6. **Use shared `Drawer`** for bottom sheets — never use raw `vaul` directly. The shared Drawer handles iOS Safari keyboard, scroll-to-dismiss, and viewport issues automatically via `useKeyboardHeight` hook.
 7. **Viewport zoom is disabled** (`maximumScale: 1, userScalable: false` in `app/layout.tsx`) — appropriate for web app, prevents accidental pinch-zoom on iOS
 
@@ -251,6 +253,29 @@ This applies especially to:
 - Cross-platform rendering differences
 - Animation/positioning bugs (dialog repositioning, drawer conflicts)
 - Auth flow edge cases
+
+## Shared Components — MANDATORY Check
+
+Before writing ANY UI code, check `components/ui/` for an existing shared component. NEVER duplicate what already exists.
+
+**Available shared components** (always use these instead of inline Tailwind):
+- `Text` — ALL text elements (headings, body, labels, captions)
+- `Button` — ALL buttons (primary, secondary, danger, ghost, link)
+- `Input` — ALL form inputs (with label, error, brand focus)
+- `PasswordInput` — Password fields (eye toggle + requirements)
+- `Alert` — ALL error/success/warning banners
+- `Card` — ALL bordered card containers
+- `Badge` — ALL status pills/tags
+- `Label` — ALL form labels (regular + uppercase)
+- `Dialog` — ALL centered modals
+- `Drawer` — ALL bottom sheets
+- `Spinner` — ALL loading indicators
+- `Skeleton` — ALL loading placeholders
+- `EmptyState` — ALL empty data screens
+- `FilterDropdown` — ALL category filters with counts
+- `toast` (sonner) — ALL user feedback notifications
+
+**If a component doesn't exist for your need:** Create it in `components/ui/`, add to `index.ts` barrel export, document in this section, then use it.
 
 ## QA Before Presenting to User — MANDATORY
 

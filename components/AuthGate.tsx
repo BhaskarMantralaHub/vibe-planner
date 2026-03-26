@@ -9,7 +9,7 @@ import { MdSportsCricket } from 'react-icons/md';
 
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { validatePassword } from '@/lib/auth';
-import { PasswordInput, passwordRequirements, allRequirementsMet, Spinner } from '@/components/ui';
+import { PasswordInput, passwordRequirements, allRequirementsMet, Spinner, Text } from '@/components/ui';
 
 type AuthGateVariant = 'toolkit' | 'cricket';
 
@@ -96,10 +96,10 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
           <div className="mb-4 text-4xl">✅</div>
-          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">Request Sent</h2>
-          <p className="mb-6 text-[15px] text-[var(--muted)]">
+          <Text as="h2" size="xl" weight="semibold" className="mb-2">Request Sent</Text>
+          <Text as="p" size="md" color="muted" className="mb-6 text-[15px]">
             The team admin will review your request. You&apos;ll be able to access once approved.
-          </p>
+          </Text>
           <button onClick={logout}
             className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]">
             Sign Out
@@ -113,11 +113,11 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     <div className="flex min-h-[60vh] items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
         <div className="mb-4 text-4xl">🏏</div>
-        <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
-        <p className="mb-2 text-[15px] text-[var(--muted)]">{config.subtitle}</p>
-        <p className="mb-6 text-[13px] text-[var(--dim)]">
-          Signed in as <span className="font-medium text-[var(--text)]">{user?.email}</span>
-        </p>
+        <Text as="h2" size="xl" weight="semibold" className="mb-2">{config.title}</Text>
+        <Text as="p" size="md" color="muted" className="mb-2 text-[15px]">{config.subtitle}</Text>
+        <Text as="p" size="sm" color="dim" className="mb-6">
+          Signed in as <Text weight="medium">{user?.email}</Text>
+        </Text>
         <button onClick={handleRequest} disabled={requesting}
           className={`w-full cursor-pointer rounded-xl bg-gradient-to-r ${config.gradient} px-4 py-3 text-[15px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed mb-3`}>
           {requesting ? 'Requesting...' : config.buttonText}
@@ -269,8 +269,8 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
           <div className="mb-4 text-4xl">{config.icon}</div>
-          <h2 className="mb-2 text-xl font-bold text-[var(--text)]">{config.title}</h2>
-          <p className="mb-6 text-[15px] text-[var(--muted)]">{config.message}</p>
+          <Text as="h2" size="xl" weight="semibold" className="mb-2">{config.title}</Text>
+          <Text as="p" size="md" color="muted" className="mb-6 text-[15px]">{config.message}</Text>
           <button
             onClick={() => setAuthMode('login')}
             className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
@@ -288,18 +288,18 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="animate-slide-in w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 shadow-xl">
           <div className="mb-6 text-center">
-            <h2 className="mb-1 text-[22px] font-bold text-[var(--text)]">Reset Password</h2>
-            <p className="text-[14px] text-[var(--muted)]">Enter your email and we&apos;ll send a reset link</p>
+            <Text as="h2" size="xl" weight="semibold" className="mb-1 text-[22px]">Reset Password</Text>
+            <Text as="p" size="md" color="muted">Enter your email and we&apos;ll send a reset link</Text>
           </div>
 
           {authError && (
-            <div className="mb-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2.5 text-[14px] text-[var(--red)]">
-              {authError}
+            <div className="mb-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2.5">
+              <Text size="md" color="danger">{authError}</Text>
             </div>
           )}
 
           <div className="mb-5">
-            <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Email</label>
+            <Text as="label" size="sm" weight="medium" color="muted" className="mb-1 block">Email</Text>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
@@ -317,7 +317,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             Send Reset Link
           </button>
 
-          <p className="mt-4 text-center text-[13px] text-[var(--muted)]">
+          <Text as="p" size="sm" color="muted" align="center" className="mt-4">
             Remember your password?{' '}
             <button
               onClick={() => { setAuthMode('login'); clearError(); setEmail(''); }}
@@ -326,7 +326,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             >
               Log in
             </button>
-          </p>
+          </Text>
         </div>
       </div>
     );
@@ -380,18 +380,18 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 alt={v.heroAlt}
                 className="w-full rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
               />
-              <h1 className={`text-[18px] lg:text-[32px] font-bold text-center bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
+              <Text as="h1" size="lg" weight="semibold" align="center" className={`text-[18px] lg:text-[32px] bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
                 {v.tagline}
-              </h1>
-              <p className="text-[12px] lg:text-[16px] text-[var(--muted)] text-center leading-relaxed hidden lg:block">
+              </Text>
+              <Text as="p" size="xs" color="muted" align="center" className="lg:text-[16px] leading-relaxed hidden lg:block">
                 {v.subtitle}
-              </p>
+              </Text>
               {/* Feature pills — desktop only */}
               <div className="hidden lg:flex items-center justify-center gap-2 mt-5">
                 {v.pills.map((f) => (
-                  <span key={f} className="text-[13px] px-4 py-1.5 rounded-full border border-[var(--border)] text-[var(--muted)]">
+                  <Text key={f} size="sm" color="muted" className="px-4 py-1.5 rounded-full border border-[var(--border)]">
                     {f}
-                  </span>
+                  </Text>
                 ))}
               </div>
             </div>
@@ -404,23 +404,23 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               className=""
             >
               <div className="mb-4 lg:mb-8 text-center">
-                <h2 className="mb-1 text-[20px] lg:text-[26px] font-bold text-[var(--text)]">
+                <Text as="h2" size="xl" weight="semibold" className="mb-1 text-[20px] lg:text-[26px]">
                   {isLogin ? v.loginTitle : v.signupTitle}
-                </h2>
-                <p className="text-[14px] lg:text-[16px] text-[var(--muted)]">
+                </Text>
+                <Text as="p" size="md" color="muted" className="lg:text-[16px]">
                   {isLogin ? v.loginSubtitle : v.signupSubtitle}
-                </p>
+                </Text>
               </div>
 
               {authError && (
-                <div className="mb-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2.5 text-[14px] text-[var(--red)]">
-                  {authError}
+                <div className="mb-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2.5">
+                  <Text size="md" color="danger">{authError}</Text>
                 </div>
               )}
 
               {!isLogin && (
                 <div className="mb-3">
-                  <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Name</label>
+                  <Text as="label" size="sm" weight="medium" color="muted" className="mb-1 block">Name</Text>
                   <input
                     type="text" value={name} onChange={(e) => setName(e.target.value)}
                     className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
@@ -430,7 +430,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               )}
 
               <div className="mb-3">
-                <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Email</label>
+                <Text as="label" size="sm" weight="medium" color="muted" className="mb-1 block">Email</Text>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
@@ -453,11 +453,11 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               {/* ── Cricket player fields (signup only) ── */}
               {isCricketSignup && (
                 <div className="mb-5 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Player Info</p>
+                  <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wide">Player Info</Text>
 
                   {/* Jersey Number */}
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted)]">Jersey Number</label>
+                    <Text as="label" size="xs" weight="medium" color="muted" className="mb-1 block">Jersey Number</Text>
                     <input
                       type="number" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)}
                       className={`w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none ${v.focusColor} transition-all`}
@@ -467,7 +467,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
 
                   {/* Role (required) */}
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Role *</label>
+                    <Text as="label" size="xs" weight="medium" color="muted" className="mb-1.5 block">Role *</Text>
                     <div className="flex flex-wrap gap-1.5">
                       {PLAYER_ROLES.map((r) => {
                         const rc = signupRoleConfig[r.key];
@@ -488,7 +488,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                     <div className={`grid gap-3 ${showBatting && showBowling ? 'grid-cols-2' : 'grid-cols-1'}`}>
                       {showBatting && (
                         <div>
-                          <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Batting *</label>
+                          <Text as="label" size="xs" weight="medium" color="muted" className="mb-1.5 block">Batting *</Text>
                           <div className="flex flex-col gap-1.5">
                             {BATTING_STYLES.map((s) => {
                               const selected = battingStyle === s.key;
@@ -505,7 +505,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                       )}
                       {showBowling && (
                         <div>
-                          <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Bowling *</label>
+                          <Text as="label" size="xs" weight="medium" color="muted" className="mb-1.5 block">Bowling *</Text>
                           <div className="flex flex-col gap-1.5">
                             {BOWLING_STYLES.map((s) => {
                               const selected = bowlingStyle === s.key;
@@ -525,7 +525,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
 
                   {/* Shirt Size */}
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-[var(--muted)]">Shirt Size</label>
+                    <Text as="label" size="xs" weight="medium" color="muted" className="mb-1.5 block">Shirt Size</Text>
                     <div className="flex flex-wrap gap-1.5">
                       {SHIRT_SIZES.map((s) => {
                         const selected = shirtSize === s.key;
@@ -565,7 +565,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 </p>
               )}
 
-              <p className="mt-3 text-center text-[13px] text-[var(--muted)]">
+              <Text as="p" size="sm" color="muted" align="center" className="mt-3">
                 {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
                 <button
                   type="button"
@@ -575,7 +575,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 >
                   {isLogin ? 'Sign up' : 'Log in'}
                 </button>
-              </p>
+              </Text>
             </form>
               </div>
             </div>

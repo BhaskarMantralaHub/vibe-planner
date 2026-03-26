@@ -12,6 +12,7 @@ import CardMenu from './CardMenu';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Briefcase, Home, Palette, BookOpen, Heart, Calendar, CheckCircle } from 'lucide-react';
+import { Text } from '@/components/ui';
 
 function useIsMobile() {
   if (typeof window === 'undefined') return false;
@@ -130,9 +131,9 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           {vibe.status === 'done' && vibe.completed_at ? (
             <div className="flex items-center gap-1.5 mt-2">
               <CheckCircle size={14} className="text-[var(--green)]" />
-              <span className="text-[13px] font-semibold text-[var(--green)]">
+              <Text size="sm" weight="semibold" color="success">
                 Completed {fmtDate(vibe.completed_at.split('T')[0])}
-              </span>
+              </Text>
             </div>
           ) : (
             vibe.due_date && <DueDateDisplay dueDate={vibe.due_date} vibeId={vibe.id} vibeStatus={vibe.status} />
@@ -143,18 +144,18 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {vibe.category && <CategoryBadge category={vibe.category} vibeId={vibe.id} />}
               {vibe.time_spent > 0 && (
-                <span className="text-[13px] px-2.5 py-0.5 rounded-lg bg-[var(--blue)]/10 text-[var(--blue)]">
+                <Text size="sm" className="px-2.5 py-0.5 rounded-lg bg-[var(--blue)]/10 text-[var(--blue)]">
                   ⏱ {fmtTime(vibe.time_spent)}
-                </span>
+                </Text>
               )}
             </div>
           )}
 
           {/* Timestamp */}
-          <div className="mt-2.5 text-[14px] font-medium text-[var(--blue)] text-right">
+          <Text as="div" size="md" weight="medium" align="right" className="mt-2.5 text-[var(--blue)]">
             Added {fmtDate(vibe.created_at.split('T')[0])}
             {vibe.updated_at && vibe.updated_at.split('T')[0] !== vibe.created_at.split('T')[0] && ' · edited'}
-          </div>
+          </Text>
         </div>
 
         {/* Menu button — prominent on mobile */}
@@ -211,8 +212,8 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
               </ReactMarkdown>
             </div>
             <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[var(--border)]">
-              <span className="text-[11px] text-[var(--muted)] font-medium">📝 Notes</span>
-              <span className="text-[11px] text-[var(--blue)] font-medium opacity-0 group-hover/notes:opacity-100 transition-opacity">Tap to edit</span>
+              <Text size="2xs" weight="medium" color="muted">📝 Notes</Text>
+              <Text size="2xs" weight="medium" className="text-[var(--blue)] opacity-0 group-hover/notes:opacity-100 transition-opacity">Tap to edit</Text>
             </div>
           </div>
         </div>
@@ -236,9 +237,9 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           className="mt-3 pt-3 border-t border-[var(--border)] animate-[slideIn_0.15s] cursor-pointer"
           onClick={(e) => { e.stopPropagation(); setExpandedNotes(vibe.id); }}
         >
-          <p className="text-[15px] text-[var(--dim)] italic">
+          <Text as="p" size="lg" color="dim" className="italic">
             Tap to add a note...
-          </p>
+          </Text>
         </div>
       )}
 

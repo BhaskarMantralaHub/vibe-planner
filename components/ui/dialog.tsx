@@ -2,6 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
+import { textVariants } from './text';
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -87,7 +88,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       ref={ref}
-      className={cn('text-[18px] font-bold text-[var(--text)]', className)}
+      className={cn(textVariants({ size: 'lg', weight: 'bold' }), 'text-[18px]', className)}
       {...props}
     />
   );
@@ -101,7 +102,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       ref={ref}
-      className={cn('mt-1 text-[14px] text-[var(--muted)]', className)}
+      className={cn(textVariants({ size: 'md', color: 'muted' }), 'mt-1', className)}
       {...props}
     />
   );

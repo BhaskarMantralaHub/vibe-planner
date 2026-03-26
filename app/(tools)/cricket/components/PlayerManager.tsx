@@ -13,7 +13,7 @@ import { compressPlayerImage } from '../lib/image';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, Text } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import PlayerProfile from './PlayerProfile';
@@ -480,9 +480,9 @@ export default function PlayerManager() {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-[15px] sm:text-[16px] font-semibold text-[var(--text)] min-w-0 truncate">
-          Players <span className="text-[var(--muted)] font-normal">({activePlayers.length})</span>
-        </h3>
+        <Text as="h3" size="md" weight="semibold" truncate className="sm:text-[16px] min-w-0">
+          Players <Text color="muted" weight="normal">({activePlayers.length})</Text>
+        </Text>
         {isAdmin && (
           <Button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
             variant="primary" brand="cricket" size="sm" className="flex-shrink-0 whitespace-nowrap">
@@ -501,7 +501,7 @@ export default function PlayerManager() {
           <div className="fixed inset-x-3 top-[3%] bottom-[3%] z-50 mx-auto max-w-md overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
             style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-[18px] font-bold text-[var(--text)]">{editingPlayer ? 'Edit Player' : 'Add Player'}</h3>
+              <Text as="h3" size="lg" weight="bold" className="text-[18px]">{editingPlayer ? 'Edit Player' : 'Add Player'}</Text>
               <button onClick={() => { resetForm(); setShowPlayerForm(false); }} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer text-lg">✕</button>
             </div>
 
@@ -818,10 +818,11 @@ export default function PlayerManager() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] truncate hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                        <Text
+                          size="md" weight="bold" truncate
+                          className="sm:text-[16px] hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); setProfilePlayer(p); }}
-                        >{p.name}</span>
+                        >{p.name}</Text>
                         {isCaptain && (
                           <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 7%, transparent)' }}>
                             <FaCrown size={8} /> C
@@ -965,8 +966,8 @@ export default function PlayerManager() {
         <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
           <button onClick={() => setShowRemoved(!showRemoved)}
             className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-            <span className="text-[13px] font-semibold text-[var(--muted)]">Past Players ({removedPlayers.length})</span>
-            <span className="text-[var(--muted)] text-[12px]">{showRemoved ? '▲' : '▼'}</span>
+            <Text size="sm" weight="semibold" color="muted">Past Players ({removedPlayers.length})</Text>
+            <Text size="xs" color="muted">{showRemoved ? '▲' : '▼'}</Text>
           </button>
           {showRemoved && (
             <div className="px-3 pb-3 space-y-2">
@@ -979,8 +980,9 @@ export default function PlayerManager() {
                       {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[var(--muted)] truncate hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
-                        onClick={() => setProfilePlayer(p)}>{p.name}</p>
+                      <Text as="p" size="sm" weight="semibold" color="muted" truncate
+                        className="hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                        onClick={() => setProfilePlayer(p)}>{p.name}</Text>
                       {rc && (
                         <span className="text-[10px] text-[var(--dim)]">{rc.label}</span>
                       )}
@@ -1027,7 +1029,7 @@ export default function PlayerManager() {
             className="max-w-[80vw] max-h-[70vh] rounded-2xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
-          <p className="mt-3 text-white/90 text-[16px] font-semibold">{lightboxPhoto.name}</p>
+          <Text as="p" size="lg" weight="semibold" color="white" className="mt-3 opacity-90">{lightboxPhoto.name}</Text>
         </div>,
         document.body,
       )}
