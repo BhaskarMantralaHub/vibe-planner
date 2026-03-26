@@ -520,14 +520,15 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(useAuthStore.getState().authError).toBe('Password must contain at least one number.');
     });
 
-    it('updatePassword succeeds and clears needsPasswordReset', async () => {
+    it('updatePassword succeeds and keeps needsPasswordReset for success transition', async () => {
       useAuthStore.setState({ needsPasswordReset: true });
       mockUpdateUser.mockResolvedValue({ data: {}, error: null });
 
       const result = await useAuthStore.getState().updatePassword('NewPass1!');
 
       expect(result).toBe(true);
-      expect(useAuthStore.getState().needsPasswordReset).toBe(false);
+      // needsPasswordReset stays true — ResetPasswordForm clears it after showing success message
+      expect(useAuthStore.getState().needsPasswordReset).toBe(true);
       expect(useAuthStore.getState().authError).toBe('');
     });
 
@@ -730,7 +731,7 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(mockSignUp).not.toHaveBeenCalled();
     });
 
-    it('logout resets all auth state', () => {
+    it('logout resets all auth state', async () => {
       useAuthStore.setState({
         user: { id: 'u1', email: 'test@example.com' } as any,
         userAccess: ['toolkit', 'admin'],
@@ -738,7 +739,7 @@ describe('Signup & Access Flows (Integration)', () => {
         authError: 'some error',
       });
 
-      useAuthStore.getState().logout();
+      await useAuthStore.getState().logout();
 
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();

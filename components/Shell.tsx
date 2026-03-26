@@ -8,6 +8,7 @@ import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
+import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 
 type PlayerMeta = {
   jersey_number?: number;
@@ -239,13 +240,13 @@ function PendingApprovals() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, isCloud, userAccess } = useAuthStore();
+  const { user, isCloud, userAccess, needsPasswordReset } = useAuthStore();
   const pathname = usePathname();
 
   const isCricketContext = pathname.startsWith('/cricket')
     || (userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin'));
 
-  const showNav = !isCloud || !!user;
+  const showNav = (!isCloud || !!user) && !needsPasswordReset;
 
   return (
     <>
@@ -286,7 +287,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {showNav && <HamburgerMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <main className="overflow-x-hidden">{children}</main>
+      <main className="overflow-x-hidden">{needsPasswordReset ? <ResetPasswordForm /> : children}</main>
     </>
   );
 }

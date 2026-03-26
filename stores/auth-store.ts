@@ -39,6 +39,35 @@ interface AuthState {
   hasAccess: (role: string) => boolean;
 }
 
+export const RESET_FLAG_KEY = 'vibe_needs_password_reset';
+const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+const readResetFlag = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const raw = sessionStorage.getItem(RESET_FLAG_KEY);
+  if (!raw) return false;
+  try {
+    const { ts } = JSON.parse(raw);
+    if (Date.now() - ts > RESET_TTL_MS) {
+      sessionStorage.removeItem(RESET_FLAG_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    sessionStorage.removeItem(RESET_FLAG_KEY);
+    return false;
+  }
+};
+
+const setNeedsReset = (value: boolean) => {
+  if (value) {
+    sessionStorage.setItem(RESET_FLAG_KEY, JSON.stringify({ ts: Date.now() }));
+  } else {
+    sessionStorage.removeItem(RESET_FLAG_KEY);
+  }
+  return { needsPasswordReset: value };
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
@@ -46,7 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   authError: '',
   syncing: false,
   isCloud: false,
-  needsPasswordReset: false,
+  needsPasswordReset: readResetFlag(),
   userAccess: [],
   userApproved: true,
 
@@ -105,7 +134,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         checkProfileAndSetUser(session);
       });
 
-      supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          set(setNeedsReset(true));
+          if (session?.user) {
+            checkProfileAndSetUser(session);
+          }
+          return;
+        }
         if (session?.user) {
           checkProfileAndSetUser(session);
         } else {
@@ -114,16 +150,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     };
 
-    const handleResetResult = (error: Error | null) => {
+    const handleResetResult = async (error: Error | null) => {
       window.history.replaceState({}, '', window.location.pathname);
       if (!error) {
-        set({ needsPasswordReset: true });
+        set(setNeedsReset(true));
       } else {
-        console.warn('[auth] password reset verification failed:', error.message);
-        set({
-          authError:
-            'This password reset link is invalid or has expired. Please request a new one using "Forgot password?" below.',
-        });
+        // Token already consumed but session may still exist from first click
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // User clicked the link before, got a session, but never reset — show reset form
+          set(setNeedsReset(true));
+        } else {
+          console.warn('[auth] password reset verification failed:', error.message);
+          set({
+            authError:
+              'This password reset link is invalid or has expired. Please request a new one using "Forgot password?" below.',
+          });
+        }
       }
       setupAuthListener();
     };
@@ -151,7 +194,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
 
-    set({ needsPasswordReset: false, authError: '' });
+    // Keep needsPasswordReset true — ResetPasswordForm will clear it after showing success
+    set({ authError: '' });
     return true;
   },
 
@@ -350,10 +394,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ authMode: 'reset-sent', syncing: false });
   },
 
-  logout: () => {
+  logout: async () => {
+    // Sign out FIRST — must complete before state clears, otherwise AuthGate
+    // remounts, calls init() → getSession() finds the still-active session → re-authenticates
     const supabase = getSupabaseClient();
-    supabase?.auth.signOut();
-    set({ user: null, authMode: 'login', authError: '', userAccess: [], userApproved: true });
+    await supabase?.auth.signOut();
+    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userApproved: true });
   },
 
   hasAccess: (role: string) => {

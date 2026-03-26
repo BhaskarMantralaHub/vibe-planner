@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useVibeStore } from '@/stores/vibe-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/AuthGate';
-import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 import { LocalBanner } from '@/components/LocalBanner';
 import Header from './components/Header';
 import Board from './components/Board';
@@ -45,12 +44,6 @@ function VibePlannerContent() {
 }
 
 export default function VibePlannerPage() {
-  const { needsPasswordReset } = useAuthStore();
-
-  if (needsPasswordReset) {
-    return <ResetPasswordForm />;
-  }
-
   return (
     <AuthGate>
       <VibePlannerContent />
