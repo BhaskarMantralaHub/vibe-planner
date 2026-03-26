@@ -281,7 +281,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
           {/* Divider */}
           <div className="h-px" style={{ background: 'var(--border)' }} />
 
-          <div className="px-5 pb-6 pt-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div className="px-5 pb-6 pt-4 space-y-4 max-h-[70dvh] overflow-y-auto">
             {/* Photo picker */}
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
             {previews.length > 0 ? (
@@ -351,7 +351,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
                 placeholder="Great match today! Use @ to tag players"
                 rows={2}
                 maxLength={500}
-                className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none overflow-y-auto"
+                className="w-full rounded-xl px-3 py-2.5 text-[16px] resize-none overflow-y-auto"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '120px' }}
               />
 
