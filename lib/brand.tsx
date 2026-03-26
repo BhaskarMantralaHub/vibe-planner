@@ -1,0 +1,43 @@
+'use client';
+
+import { createContext, useContext, type ReactNode } from 'react';
+
+type Brand = 'toolkit' | 'cricket';
+
+interface BrandConfig {
+  brand: Brand;
+  name: string;
+  gradient: string;
+  focusRing: string;
+  accentVar: string;
+}
+
+const BRANDS: Record<Brand, BrandConfig> = {
+  toolkit: {
+    brand: 'toolkit',
+    name: "Viber's Toolkit",
+    gradient: 'from-[var(--purple)] to-[var(--indigo)]',
+    focusRing: 'focus-visible:ring-[var(--purple)]/40',
+    accentVar: '--purple',
+  },
+  cricket: {
+    brand: 'cricket',
+    name: 'Sunrisers Manteca',
+    gradient: 'from-[var(--orange)] to-[var(--red)]',
+    focusRing: 'focus-visible:ring-[var(--orange)]/40',
+    accentVar: '--orange',
+  },
+};
+
+const BrandContext = createContext<BrandConfig>(BRANDS.toolkit);
+
+export function BrandProvider({ brand, children }: { brand: Brand; children: ReactNode }) {
+  return <BrandContext.Provider value={BRANDS[brand]}>{children}</BrandContext.Provider>;
+}
+
+export function useBrand() {
+  return useContext(BrandContext);
+}
+
+export { BRANDS };
+export type { Brand, BrandConfig };
