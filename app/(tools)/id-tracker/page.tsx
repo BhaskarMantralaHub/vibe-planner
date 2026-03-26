@@ -7,9 +7,9 @@ import { useIDTrackerStore } from '@/stores/id-tracker-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/AuthGate';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Alert } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { IDDocument, IDCountry } from '@/types/id-tracker';
@@ -798,9 +798,44 @@ function IDTrackerContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <Spinner size="lg" className="mb-3" />
-        <span className="text-[14px] font-medium" style={{ color: 'var(--muted)' }}>Loading your IDs...</span>
+      <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+        {/* Skeleton header */}
+        <div className="px-4 lg:px-6 pt-4 pb-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="w-[22px] h-[22px] rounded-md" />
+              <Skeleton className="w-[120px] h-[24px] rounded-md" />
+            </div>
+            <Skeleton className="w-[80px] h-[32px] rounded-lg" />
+          </div>
+        </div>
+        {/* Skeleton person filter chips */}
+        <div className="px-4 lg:px-6 mb-4">
+          <div className="flex gap-2">
+            <Skeleton className="w-[90px] h-[36px] rounded-full" />
+            <Skeleton className="w-[80px] h-[36px] rounded-full" />
+          </div>
+        </div>
+        {/* Skeleton ID cards */}
+        <div className="px-4 lg:px-6 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-[var(--border)] p-3 flex items-center gap-2.5"
+              style={{ background: 'var(--surface)' }}
+            >
+              <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <Skeleton className="w-[60%] h-[14px] rounded" />
+                <Skeleton className="w-[40%] h-[12px] rounded" />
+              </div>
+              <div className="w-[90px] space-y-1.5">
+                <Skeleton className="w-full h-[12px] rounded" />
+                <Skeleton className="w-full h-[6px] rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -986,13 +1021,25 @@ function IDTrackerContent() {
       {!loading && documents.length === 0 && (
         <div className="px-4 lg:px-6 pb-8">
           <EmptyState
-            icon="🛡️"
+            icon={<ShieldCheck size={36} style={{ color: 'var(--purple)' }} />}
             title="No IDs tracked yet"
-            description="Add your first ID document to start tracking expiry dates and renewals."
+            description="Keep all your passports, driver licenses, and other identity documents in one place. Never miss an expiry date again."
+            brand="toolkit"
             action={{
-              label: 'Add your first ID',
+              label: '+ Add ID',
               onClick: () => { store.setEditingDoc(null); store.setShowForm(true); },
             }}
+          />
+        </div>
+      )}
+
+      {/* Filtered empty state — documents exist but filters hide all */}
+      {!loading && documents.length > 0 && displayedDocs.length === 0 && (
+        <div className="px-4 lg:px-6 pb-8">
+          <EmptyState
+            icon={<FileText size={36} style={{ color: 'var(--muted)' }} />}
+            title="No matching IDs"
+            description="Try changing the person or urgency filter to see more results."
           />
         </div>
       )}

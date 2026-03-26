@@ -5,7 +5,8 @@ import { useVibeStore } from '@/stores/vibe-store';
 import { getWeekDates, todayStr } from '../lib/utils';
 import type { Vibe } from '@/types/vibe';
 import VibeCard from './VibeCard';
-import { Button } from '@/components/ui';
+import { Button, EmptyState } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth-store';
 
 function DayColumn({ date, items }: { date: string; items: Vibe[] }) {
   const { isOver, setNodeRef } = useDroppable({ id: date });
@@ -44,7 +45,8 @@ function DayColumn({ date, items }: { date: string; items: Vibe[] }) {
 }
 
 export default function Timeline() {
-  const { items: allItems, weekOffset, filter, setWeekOffset, updateItem, setDragId } = useVibeStore();
+  const { items: allItems, weekOffset, filter, setWeekOffset, updateItem, setDragId, addItem } = useVibeStore();
+  const { user } = useAuthStore();
   const items = allItems.filter((i) => !i.deleted_at);
 
   const sensors = useSensors(
@@ -86,6 +88,22 @@ export default function Timeline() {
     updateItem(vibeId, updates);
   };
 
+  if (filtered.length === 0) {
+    return (
+      <EmptyState
+        icon="📅"
+        title={filter ? 'No vibes in this category' : 'No vibes yet'}
+        description={filter ? 'Try clearing the filter or add a new vibe.' : 'Add vibes and schedule them to see your week at a glance.'}
+        action={{
+          label: '+ Add a Vibe',
+          onClick: () => addItem(user?.id ?? ''),
+        }}
+      />
+    );
+  }
+
+  const weekVibes = weekDates.flatMap((date) => filtered.filter((i) => i.due_date === date));
+
   return (
     <div className="p-4">
       {/* Week navigation */}
@@ -124,6 +142,13 @@ export default function Timeline() {
             />
           ))}
         </div>
+
+        {/* Empty week hint */}
+        {weekVibes.length === 0 && unscheduled.length === 0 && (
+          <p className="text-center text-[14px] text-[var(--dim)] mt-6">
+            Nothing scheduled this week. Drag vibes onto a day to plan ahead.
+          </p>
+        )}
 
         {/* Unscheduled vibes — drag these onto days */}
         {unscheduled.length > 0 && (

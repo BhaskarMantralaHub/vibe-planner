@@ -2,9 +2,11 @@
 
 import { DndContext, DragEndEvent, DragStartEvent, useDroppable, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useVibeStore } from '@/stores/vibe-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { STATUSES, STATUS_KEYS } from '../lib/constants';
 import type { Vibe, VibeStatus } from '@/types/vibe';
 import VibeCard from './VibeCard';
+import { EmptyState } from '@/components/ui';
 
 function Column({ status, items }: { status: string; items: Vibe[] }) {
   const s = STATUSES[status];
@@ -40,7 +42,8 @@ function Column({ status, items }: { status: string; items: Vibe[] }) {
 }
 
 export default function Board() {
-  const { items: allItems, filter, setDragId, updateItem } = useVibeStore();
+  const { items: allItems, filter, setDragId, updateItem, addItem } = useVibeStore();
+  const { user } = useAuthStore();
   const items = allItems.filter((i) => !i.deleted_at);
 
   const sensors = useSensors(
@@ -68,6 +71,20 @@ export default function Board() {
       updateItem(vibeId, { status: newStatus });
     }
   };
+
+  if (filtered.length === 0) {
+    return (
+      <EmptyState
+        icon="✨"
+        title={filter ? 'No vibes in this category' : 'No vibes yet'}
+        description={filter ? 'Try clearing the filter or add a new vibe.' : 'Tap the + button to capture your first spark.'}
+        action={{
+          label: '+ Add a Vibe',
+          onClick: () => addItem(user?.id ?? ''),
+        }}
+      />
+    );
+  }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
