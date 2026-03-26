@@ -118,30 +118,6 @@ function tabToView(tab: Tab): View {
   return 'share';
 }
 
-/* ── Segmented Control ── */
-function SegmentedControl({ options, active, onChange }: {
-  options: { key: string; label: string }[];
-  active: string;
-  onChange: (key: string) => void;
-}) {
-  return (
-    <div className="flex rounded-xl bg-[var(--surface)] border border-[var(--border)] p-1 mb-4">
-      {options.map((o) => (
-        <button
-          key={o.key}
-          onClick={() => onChange(o.key)}
-          className={`flex-1 py-2 rounded-lg text-[13px] font-semibold cursor-pointer transition-all ${
-            active === o.key
-              ? 'bg-[var(--cricket)] text-white shadow-sm'
-              : 'text-[var(--muted)] hover:text-[var(--text)]'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /* ── More Menu (bottom sheet) ── */
 function MoreMenu({ open, onClose, onSelect }: {
@@ -170,68 +146,17 @@ function MoreMenu({ open, onClose, onSelect }: {
   );
 }
 
-/* ── Capsule Tab Bar — active expands with icon+text, inactive shows icon only ── */
-const TAB_ICONS: Record<Tab, React.ReactNode> = {
-  players: <FaUsers size={16} />,
-  finances: <FaReceipt size={16} />,
-  matches: <PiCricketFill size={18} />,
-  moments: <FaCamera size={15} />,
-  more: <FaShareAlt size={14} />,
-};
+/* ── Tab config using shared CapsuleTabs ── */
+import { CapsuleTabs, SegmentedControl } from '@/components/ui';
+import type { CapsuleTab } from '@/components/ui';
 
-function TabBar({ active, onChange, playerCount, expenseCount }: {
-  active: Tab; onChange: (tab: Tab) => void;
-  playerCount: number; expenseCount: number;
-}) {
-  const getBadge = (key: Tab) => {
-    if (key === 'players') return playerCount;
-    if (key === 'finances') return expenseCount;
-    return 0;
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-1.5">
-      {TABS.map((t) => {
-        const isActive = active === t.key;
-        const badge = getBadge(t.key);
-        return (
-          <button
-            key={t.key}
-            onClick={() => onChange(t.key)}
-            className={`relative flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 ${
-              isActive
-                ? 'gap-2 px-4 py-2.5 text-[12px] font-bold text-white'
-                : 'w-11 py-2.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)]'
-            }`}
-            style={isActive ? {
-              background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-              boxShadow: '0 0 16px var(--cricket-glow)',
-            } : undefined}
-          >
-            {TAB_ICONS[t.key]}
-            {isActive && <span>{t.label}</span>}
-            {badge > 0 && !isActive && (
-              <span
-                className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
-                style={{ background: 'var(--cricket)' }}
-              >
-                {badge}
-              </span>
-            )}
-            {badge > 0 && isActive && (
-              <span
-                className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full leading-none"
-                style={{ background: 'rgba(255,255,255,0.25)', color: 'white' }}
-              >
-                {badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const CAPSULE_TABS: CapsuleTab[] = [
+  { key: 'players', label: 'Players', icon: <FaUsers size={16} /> },
+  { key: 'finances', label: 'Finances', icon: <FaReceipt size={16} /> },
+  { key: 'matches', label: 'Matches', icon: <PiCricketFill size={18} /> },
+  { key: 'moments', label: 'Moments', icon: <FaCamera size={15} /> },
+  { key: 'more', label: '...', icon: <FaShareAlt size={14} /> },
+];
 
 function CricketDashboard() {
   const { user } = useAuthStore();
@@ -424,14 +349,16 @@ function CricketDashboard() {
         <>
           {/* Tab bar */}
           <div className="mb-4">
-            <TabBar
+            <CapsuleTabs
+              tabs={CAPSULE_TABS.map((t) => ({
+                ...t,
+                badge: t.key === 'players' ? activePlayers.length : t.key === 'finances' ? seasonExpensesList.length : undefined,
+              }))}
               active={activeTab}
               onChange={(tab) => {
                 if (tab === 'more') { setShowMore(true); return; }
-                handleViewChange(tabToView(tab));
+                handleViewChange(tabToView(tab as Tab));
               }}
-              playerCount={activePlayers.length}
-              expenseCount={seasonExpensesList.length}
             />
           </div>
 
@@ -441,6 +368,7 @@ function CricketDashboard() {
               options={[{ key: 'players', label: 'Roster' }, { key: 'fees', label: 'Season Fees' }]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
+              className="mb-4"
             />
           )}
           {activeTab === 'finances' && (
@@ -448,6 +376,7 @@ function CricketDashboard() {
               options={[{ key: 'expenses', label: 'Expenses' }, { key: 'charts', label: 'Charts' }, { key: 'sponsors', label: 'Sponsors' }]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
+              className="mb-4"
             />
           )}
           {activeTab === 'matches' && (
@@ -455,6 +384,7 @@ function CricketDashboard() {
               options={[{ key: 'matches', label: 'Schedule' }, { key: 'toss', label: 'Toss' }]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
+              className="mb-4"
             />
           )}
 
@@ -491,7 +421,7 @@ function CricketDashboard() {
           )}
 
           {/* Content */}
-          <div className="min-w-0">
+          <div key={activeView} className="min-w-0 animate-fade-in">
             {activeView === 'players' && <PlayerManager />}
             {activeView === 'expenses' && <ExpenseList />}
             {activeView === 'charts' && (

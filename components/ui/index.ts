@@ -44,6 +44,12 @@ export { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClos
 
 export { FilterDropdown } from './filter-dropdown';
 
+export { CapsuleTabs } from './capsule-tabs';
+export type { CapsuleTab, CapsuleTabsProps } from './capsule-tabs';
+
+export { SegmentedControl } from './segmented-control';
+export type { SegmentOption, SegmentedControlProps } from './segmented-control';
+
 export { Text, textVariants } from './text';
 export type { TextProps } from './text';
 

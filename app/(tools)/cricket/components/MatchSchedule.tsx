@@ -23,7 +23,7 @@ export interface Match {
   match_date: string;
   match_time: string;
   venue: string;
-  match_type: 'league' | 'friendly' | 'tournament' | 'playoff';
+  match_type: 'league' | 'practice';
   overs: number;
   status: 'upcoming' | 'completed';
   notes?: string;
@@ -37,77 +37,11 @@ export interface Match {
 }
 
 /* ── Mock Data ── */
-const MOCK_MATCHES: Match[] = [
-  {
-    id: '1',
-    opponent: 'Chennai Warriors',
-    match_date: '2026-04-12',
-    match_time: '10:00',
-    venue: 'Cloverleaf Park',
-    match_type: 'league',
-    overs: 20,
-    status: 'upcoming',
-    notes: 'Wear blue jersey',
-  },
-  {
-    id: '2',
-    opponent: 'Bay Area CC',
-    match_date: '2026-04-19',
-    match_time: '09:00',
-    venue: 'Shadow Cliffs',
-    match_type: 'tournament',
-    overs: 20,
-    status: 'upcoming',
-    notes: 'Semi-final round',
-  },
-  {
-    id: '3',
-    opponent: 'Valley Kings',
-    match_date: '2026-03-22',
-    match_time: '10:00',
-    venue: 'Woodward Park',
-    match_type: 'league',
-    overs: 20,
-    status: 'completed',
-    result: 'won',
-    team_score: '185/4',
-    team_overs: '19.2',
-    opponent_score: '170/10',
-    opponent_overs: '20',
-    result_summary: 'Won by 15 runs',
-    performers: [
-      { rank: 1, name: 'Ravi Kumar', stat: '72 runs (48 balls)', type: 'batting' },
-      { rank: 2, name: 'Arun Patel', stat: '3/24 (4 ov)', type: 'bowling' },
-      { rank: 3, name: 'Kiran Reddy', stat: '2 catches, 1 runout', type: 'fielding' },
-    ],
-  },
-  {
-    id: '4',
-    opponent: 'Delta CC',
-    match_date: '2026-03-15',
-    match_time: '09:30',
-    venue: 'Central Park',
-    match_type: 'friendly',
-    overs: 20,
-    status: 'completed',
-    result: 'lost',
-    team_score: '120/10',
-    team_overs: '18.3',
-    opponent_score: '121/3',
-    opponent_overs: '15.1',
-    result_summary: 'Lost by 7 wickets',
-    performers: [
-      { rank: 1, name: 'Venkat S', stat: '35(28)', type: 'batting' },
-    ],
-  },
-];
 
 /* ── Match Type Badge Config ── */
 const MATCH_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   league: { label: 'League', color: '#3B82F6' },
-  friendly: { label: 'Friendly', color: '#8B5CF6' },
-  tournament: { label: 'Tournament', color: '#F59E0B' },
-  playoff: { label: 'Playoff', color: '#EF4444' },
+  practice: { label: 'Practice', color: '#16A34A' },
 };
 
 /* ── Performer Type Config ── */

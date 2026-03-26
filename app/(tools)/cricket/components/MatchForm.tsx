@@ -9,9 +9,7 @@ import type { Match } from './MatchSchedule';
 /* ── Match Type Options ── */
 const MATCH_TYPES = [
   { key: 'league', label: 'League', color: '#3B82F6' },
-  { key: 'friendly', label: 'Friendly', color: '#8B5CF6' },
-  { key: 'tournament', label: 'Tournament', color: '#F59E0B' },
-  { key: 'playoff', label: 'Playoff', color: '#EF4444' },
+  { key: 'practice', label: 'Practice', color: '#16A34A' },
 ] as const;
 
 type MatchType = (typeof MATCH_TYPES)[number]['key'];
