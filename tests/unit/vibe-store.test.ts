@@ -38,7 +38,6 @@ const USER_ID = 'user-123';
 function resetStore() {
   useVibeStore.setState({
     items: [],
-    view: 'board',
     newText: '',
     weekOffset: 0,
     filter: '',
@@ -368,15 +367,6 @@ describe('vibe-store', () => {
   // ─── Simple setters ──────────────────────────────────────────────
 
   describe('simple setters', () => {
-    it('setView changes view', () => {
-      useVibeStore.getState().setView('timeline');
-      expect(useVibeStore.getState().view).toBe('timeline');
-      useVibeStore.getState().setView('list');
-      expect(useVibeStore.getState().view).toBe('list');
-      useVibeStore.getState().setView('board');
-      expect(useVibeStore.getState().view).toBe('board');
-    });
-
     it('setNewText changes newText', () => {
       useVibeStore.getState().setNewText('hello');
       expect(useVibeStore.getState().newText).toBe('hello');

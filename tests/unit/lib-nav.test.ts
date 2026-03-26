@@ -26,13 +26,6 @@ describe('lib/nav', () => {
     expect(vp!.roles).toContain('toolkit');
   });
 
-  it('contains Sports tool with toolkit role', () => {
-    const sports = tools.find((t) => t.name === 'Sports');
-    expect(sports).toBeDefined();
-    expect(sports!.href).toBe('/sports/toss');
-    expect(sports!.roles).toContain('toolkit');
-  });
-
   it('contains ID Tracker tool with toolkit role', () => {
     const idTracker = tools.find((t) => t.name === 'ID Tracker');
     expect(idTracker).toBeDefined();

@@ -9,6 +9,7 @@ import { MdSportsCricket } from 'react-icons/md';
 import type { IconType } from 'react-icons';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
 const CATEGORY_ICONS: Record<string, IconType> = {
@@ -66,6 +67,8 @@ export default function ExpenseForm() {
     };
   }, [showExpenseForm]);
 
+  const [formError, setFormError] = useState('');
+
   if (!showExpenseForm) return null;
 
   const resetAndClose = () => {
@@ -73,18 +76,30 @@ export default function ExpenseForm() {
     setDescription('');
     setAmount('');
     setDate(new Date().toISOString().split('T')[0]);
+    setFormError('');
     setShowExpenseForm(false);
     sessionStorage.removeItem(EXPENSE_FORM_KEY);
   };
 
   const handleSubmit = () => {
-    if (!user || !selectedSeasonId || !amount) return;
+    if (!user || !selectedSeasonId) return;
+
+    const parsed = parseFloat(amount);
+    if (!amount || isNaN(parsed) || parsed <= 0) {
+      setFormError('Enter an amount greater than $0.');
+      return;
+    }
+    if (!category) {
+      setFormError('Pick a category before adding.');
+      return;
+    }
+    setFormError('');
 
     const userName = (user.user_metadata?.full_name as string) || user.email || '';
     addExpense(user.id, selectedSeasonId, {
       category,
       description: description.trim(),
-      amount: parseFloat(amount),
+      amount: parsed,
       expense_date: date,
     }, userName);
 
@@ -161,10 +176,12 @@ export default function ExpenseForm() {
           </div>
         </div>
 
+        {/* Validation error */}
+        {formError && <Alert variant="error" className="mb-3 text-[13px]">{formError}</Alert>}
+
         {/* Submit */}
         <Button
           onClick={handleSubmit}
-          disabled={!amount}
           variant="primary"
           brand="cricket"
           size="lg"

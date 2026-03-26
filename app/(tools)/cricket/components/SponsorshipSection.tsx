@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui';
 import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
 function SponsorMenu({ anchorRef, onEdit, onDelete, onClose }: {
@@ -86,10 +87,22 @@ export default function SponsorshipSection() {
     }
   }, [name, amount, date, notes, editingId, showForm]);
 
-  const resetForm = () => { setName(''); setAmount(''); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setEditingId(null); sessionStorage.removeItem(SPONSOR_FORM_KEY); };
+  const [formError, setFormError] = useState('');
+
+  const resetForm = () => { setName(''); setAmount(''); setDate(new Date().toISOString().split('T')[0]); setNotes(''); setEditingId(null); setFormError(''); sessionStorage.removeItem(SPONSOR_FORM_KEY); };
 
   const handleSubmit = () => {
-    if (!selectedSeasonId || !name.trim() || !amount) return;
+    if (!selectedSeasonId) return;
+    if (!name.trim()) {
+      setFormError('Enter a sponsor name.');
+      return;
+    }
+    const parsed = parseFloat(amount);
+    if (!amount || isNaN(parsed) || parsed <= 0) {
+      setFormError('Enter an amount greater than $0.');
+      return;
+    }
+    setFormError('');
     if (editingId) {
       updateSponsorship(editingId, {
         sponsor_name: name.trim(), amount: parseFloat(amount),
@@ -158,7 +171,8 @@ export default function SponsorshipSection() {
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Optional" />
           </div>
-          <Button onClick={handleSubmit} disabled={!name.trim() || !amount}
+          {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
+          <Button onClick={handleSubmit}
             variant="primary" brand="cricket" size="md" fullWidth>
             {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
           </Button>

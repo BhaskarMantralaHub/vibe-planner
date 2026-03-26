@@ -21,6 +21,7 @@ export default function SeasonSelector() {
   const [newYear, setNewYear] = useState(new Date().getFullYear());
   const [newType, setNewType] = useState('summer');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const yearInputRef = useRef<HTMLInputElement>(null);
 
   const seasonOrder: Record<string, number> = { spring: 0, summer: 1, fall: 2 };
   const sortedSeasons = [...seasons].sort((a, b) => {
@@ -51,7 +52,9 @@ export default function SeasonSelector() {
     // Check for duplicate season
     const duplicate = seasons.find((s) => s.name.toLowerCase() === newName.toLowerCase());
     if (duplicate) {
-      setCreateError(`"${newName}" already exists.`);
+      setCreateError(`${newName} already exists. Try a different season type or year.`);
+      yearInputRef.current?.focus();
+      yearInputRef.current?.select();
       return;
     }
     setCreateError('');
@@ -134,6 +137,7 @@ export default function SeasonSelector() {
             })}
           </div>
           <input
+            ref={yearInputRef}
             type="number"
             value={newYear}
             onChange={(e) => setNewYear(Number(e.target.value))}

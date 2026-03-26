@@ -123,7 +123,7 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
               ),
             });
           } else if (error) {
-            toast.error('Failed to save ID');
+            toast.error('Couldn\'t save ID. Check your connection and try again.');
           }
         });
     } else {
@@ -149,7 +149,7 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
         .eq('id', id)
         .eq('user_id', doc.user_id)
         .then(({ error }: { error: unknown }) => {
-          if (error) toast.error('Failed to update ID');
+          if (error) toast.error('Couldn\'t update ID. Check your connection and try again.');
         });
     } else {
       localSave(get().documents);
@@ -164,7 +164,7 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('id_documents').delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) toast.error('Failed to delete ID');
+        if (error) toast.error('Couldn\'t delete ID. Check your connection and try again.');
       });
     } else {
       localSave(get().documents);

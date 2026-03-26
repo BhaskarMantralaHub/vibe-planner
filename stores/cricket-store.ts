@@ -307,7 +307,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketPlayer | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addPlayer failed:', error); toast.error('Failed to add player'); }
+          if (error) { console.error('[cricket] addPlayer failed:', error); toast.error('Couldn\'t add player. Check your connection and try again.'); }
           if (row) { set({ players: get().players.map((p) => p.id === localId ? row : p) }); toast.success('Player added'); }
         });
     } else {
@@ -320,7 +320,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players').update(updates).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] updatePlayer failed:', error); toast.error('Failed to update player'); }
+        if (error) { console.error('[cricket] updatePlayer failed:', error); toast.error('Couldn\'t save changes. Check your connection and try again.'); }
         else toast.success('Player updated');
       });
     } else {
@@ -333,7 +333,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players').update({ is_active: false, designation: null }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] removePlayer failed:', error); toast.error('Failed to remove player'); }
+        if (error) { console.error('[cricket] removePlayer failed:', error); toast.error('Couldn\'t remove player. Check your connection and try again.'); }
         else toast.success('Player removed');
       });
     } else {
@@ -346,7 +346,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players').update({ is_active: true, designation: null }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] restorePlayer failed:', error); toast.error('Failed to restore player'); }
+        if (error) { console.error('[cricket] restorePlayer failed:', error); toast.error('Couldn\'t restore player. Check your connection and try again.'); }
         else toast.success('Player restored');
       });
     } else {
@@ -421,7 +421,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addExpense failed:', error); toast.error('Failed to add expense'); }
+          if (error) { console.error('[cricket] addExpense failed:', error); toast.error('Couldn\'t save expense. Check your connection and try again.'); }
           if (row) { set({ expenses: get().expenses.map((e) => e.id === expenseId ? row : e) }); toast.success('Expense added'); }
         });
     } else {
@@ -435,7 +435,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_expenses').update(merged).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] updateExpense failed:', error); toast.error('Failed to update expense'); }
+        if (error) { console.error('[cricket] updateExpense failed:', error); toast.error('Couldn\'t update expense. Check your connection and try again.'); }
         else toast.success('Expense updated');
       });
     }
@@ -449,7 +449,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] deleteExpense failed:', error); toast.error('Failed to delete expense'); }
+        if (error) { console.error('[cricket] deleteExpense failed:', error); toast.error('Couldn\'t delete expense. Check your connection and try again.'); }
         else toast.success('Expense deleted');
       });
     } else {
@@ -485,7 +485,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         .insert({ user_id: userId, season_id: seasonId, ...data })
         .select().single()
         .then(({ data: row, error }: { data: CricketSettlement | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addSettlement failed:', error); toast.error('Failed to add settlement'); }
+          if (error) { console.error('[cricket] addSettlement failed:', error); toast.error('Couldn\'t save settlement. Check your connection and try again.'); }
           if (row) { set({ settlements: get().settlements.map((s) => s.id === localId ? row : s) }); toast.success('Settlement recorded'); }
         });
     } else {
@@ -498,7 +498,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_settlements').delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] deleteSettlement failed:', error); toast.error('Failed to delete settlement'); }
+        if (error) { console.error('[cricket] deleteSettlement failed:', error); toast.error('Couldn\'t delete settlement. Check your connection and try again.'); }
         else toast.success('Settlement deleted');
       });
     } else {
@@ -620,7 +620,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls.length > 0 ? photoUrls : null, caption, posted_by: postedBy })
         .select().single()
         .then(({ data: row, error }: { data: GalleryPost | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addGalleryPost failed:', error); toast.error('Failed to create post'); }
+          if (error) { console.error('[cricket] addGalleryPost failed:', error); toast.error('Couldn\'t create post. Check your connection and try again.'); }
           if (row) {
             set({ gallery: get().gallery.map((p) => p.id === localId ? row : p) });
             toast.success('Post created');
@@ -698,7 +698,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_gallery').update({ deleted_at: now }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] deleteGalleryPost failed:', error); toast.error('Failed to delete post'); }
+        if (error) { console.error('[cricket] deleteGalleryPost failed:', error); toast.error('Couldn\'t delete post. Check your connection and try again.'); }
         else toast.success('Post deleted');
       });
     }
@@ -716,7 +716,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         .insert({ post_id: postId, user_id: userId, comment_by: commentBy, text })
         .select().single()
         .then(({ data: row, error }: { data: GalleryComment | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addGalleryComment failed:', error); toast.error('Failed to add comment'); }
+          if (error) { console.error('[cricket] addGalleryComment failed:', error); toast.error('Couldn\'t post comment. Check your connection and try again.'); }
           if (row) set({ galleryComments: get().galleryComments.map((c) => c.id === localId ? row : c) });
         });
     }
@@ -737,7 +737,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_gallery_comments').delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] deleteGalleryComment failed:', error); toast.error('Failed to delete comment'); }
+        if (error) { console.error('[cricket] deleteGalleryComment failed:', error); toast.error('Couldn\'t delete comment. Check your connection and try again.'); }
       });
     }
   },

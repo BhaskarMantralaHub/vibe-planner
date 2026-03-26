@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 
 interface VibeState {
   items: Vibe[];
-  view: 'board' | 'timeline' | 'list';
   newText: string;
   weekOffset: number;
   filter: string;
@@ -37,7 +36,6 @@ interface VibeState {
   permanentlyDelete: (id: string) => void;
   clearTrash: () => void;
   setShowTrash: (show: boolean) => void;
-  setView: (view: 'board' | 'timeline' | 'list') => void;
   setNewText: (text: string) => void;
   setWeekOffset: (offset: number) => void;
   setFilter: (filter: string) => void;
@@ -52,7 +50,6 @@ interface VibeState {
 
 export const useVibeStore = create<VibeState>((set, get) => ({
   items: [],
-  view: 'board',
   showTrash: false,
 
   activeItems: () => get().items.filter((i) => !i.deleted_at),
@@ -156,7 +153,7 @@ export const useVibeStore = create<VibeState>((set, get) => ({
               ),
             });
           } else if (error) {
-            toast.error('Failed to save vibe');
+            toast.error('Couldn\'t save vibe. Check your connection and try again.');
           }
         });
     } else {
@@ -214,7 +211,7 @@ export const useVibeStore = create<VibeState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('vibes').update({ deleted_at: now }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) toast.error('Failed to delete');
+        if (error) toast.error('Couldn\'t delete. Check your connection and try again.');
         else toast('Moved to trash', { action: { label: 'Undo', onClick: () => get().restoreItem(id) } });
       });
     } else {
@@ -231,7 +228,7 @@ export const useVibeStore = create<VibeState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('vibes').update({ deleted_at: null, status: 'spark' }).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) toast.error('Failed to restore');
+        if (error) toast.error('Couldn\'t restore. Check your connection and try again.');
         else toast.success('Vibe restored');
       });
     } else {
@@ -245,7 +242,7 @@ export const useVibeStore = create<VibeState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('vibes').delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) toast.error('Failed to delete permanently');
+        if (error) toast.error('Couldn\'t delete permanently. Check your connection and try again.');
       });
     } else {
       localSave(get().items);
@@ -260,7 +257,7 @@ export const useVibeStore = create<VibeState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       ids.forEach((id) => supabase?.from('vibes').delete().eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) toast.error('Failed to empty trash');
+        if (error) toast.error('Couldn\'t empty trash. Check your connection and try again.');
       }));
       toast.success('Trash emptied');
     } else {
@@ -270,7 +267,6 @@ export const useVibeStore = create<VibeState>((set, get) => ({
 
   setShowTrash: (showTrash: boolean) => set({ showTrash }),
 
-  setView: (view) => set({ view }),
   setNewText: (newText) => set({ newText }),
   setWeekOffset: (weekOffset) => set({ weekOffset }),
   setFilter: (filter) => set({ filter }),

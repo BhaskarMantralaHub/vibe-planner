@@ -78,7 +78,6 @@ const fixtureVibes: Vibe[] = [
 function resetStore() {
   useVibeStore.setState({
     items: [],
-    view: 'board',
     newText: '',
     weekOffset: 0,
     filter: '',
