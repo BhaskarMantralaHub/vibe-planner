@@ -208,7 +208,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
         supabase.from('cricket_season_fees').select('*').order('created_at'),
         supabase.from('cricket_sponsorships').select('*').order('created_at'),
-        supabase.from('cricket_gallery').select('*').order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE),
+        supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE),
         supabase.from('cricket_gallery_tags').select('*'),
         supabase.from('cricket_gallery_comments').select('*').order('created_at'),
         supabase.from('cricket_gallery_likes').select('*'),

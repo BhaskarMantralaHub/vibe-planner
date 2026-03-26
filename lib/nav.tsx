@@ -1,4 +1,4 @@
-import { MdDashboard, MdSportsCricket, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings } from 'react-icons/md';
+import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings } from 'react-icons/md';
 
 export type Tool = {
   name: string;

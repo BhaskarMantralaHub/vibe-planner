@@ -6,7 +6,6 @@ Viber's Toolkit — a personal productivity suite hosted on Cloudflare Pages. Tw
 
 ### Tools
 - **Vibe Planner** — Kanban board + timeline for tasks/ideas (toolkit users)
-- **Sports — Coin Toss** — 3D cricket coin toss with sound effects (toolkit users)
 - **ID Tracker** — Track identity documents (US + India) for family members, with expiry reminders (toolkit users)
 - **Sunrisers HQ** — Expense tracking, dues, settlements for Sunrisers Manteca cricket team (cricket users)
 - **Admin Dashboard** — User management, pending approvals, activity stats (admin only)
@@ -82,10 +81,8 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │   └── (tools)/
 │       ├── vibe-planner/           # Vibe Planner tool
 │       │   ├── page.tsx
-│       │   ├── components/         # Board, Timeline, VibeCard, Header, etc.
+│       │   ├── components/         # Board, VibeCard, Header, etc.
 │       │   └── lib/                # constants, utils
-│       ├── sports/toss/            # Cricket coin toss tool
-│       │   └── page.tsx
 │       ├── id-tracker/            # ID Tracker tool
 │       │   ├── page.tsx
 │       │   └── lib/               # constants (ID types), utils (urgency helpers)
