@@ -98,8 +98,14 @@ describe('validatePassword', () => {
     );
   });
 
+  it('rejects passwords without a special character', () => {
+    expect(validatePassword('Abcdefg1')).toBe(
+      'Password must contain at least one special character.'
+    );
+  });
+
   it('returns null for a valid password', () => {
-    expect(validatePassword('Abcdefg1')).toBeNull();
+    expect(validatePassword('Abcdefg1!')).toBeNull();
   });
 
   it('returns null for a strong password with special characters', () => {

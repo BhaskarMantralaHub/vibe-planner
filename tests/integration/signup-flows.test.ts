@@ -67,7 +67,7 @@ import { useAuthStore } from '@/stores/auth-store';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const VALID_PASSWORD = 'Abcdefg1';
+const VALID_PASSWORD = 'Abcdefg1!';
 const VALID_NAME = 'Test Player';
 
 /** Reset store and all mocks before each test */
