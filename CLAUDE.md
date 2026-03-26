@@ -173,7 +173,8 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 - **Radix UI** — Accessible primitives (Dialog with focus trap, keyboard nav, ARIA)
 - **sonner** — Toast notifications with theme integration
 - **cn()** (`lib/utils.ts`) — Class merging via clsx + tailwind-merge
-- **BrandProvider** (`lib/brand.tsx`) — React context for toolkit (purple) / cricket (orange) theming
+- **BrandProvider** (`lib/brand.tsx`) — React context for toolkit (purple) / cricket (sky blue/navy) theming
+- **Cricket theme** is configurable via 4 CSS variables in `globals.css`: `--cricket`, `--cricket-accent`, `--cricket-hover`, `--cricket-glow` — change these to rebrand the entire cricket app
 
 ### Components
 | Component | File | Key Props |
