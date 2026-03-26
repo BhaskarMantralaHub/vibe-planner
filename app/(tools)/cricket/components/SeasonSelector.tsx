@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
+import { Alert } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 function useIsAdmin() {
   const { userAccess } = useAuthStore();
@@ -54,6 +56,7 @@ export default function SeasonSelector() {
     }
     setCreateError('');
     addSeason(user.id, { name: newName, year: newYear, season_type: newType });
+    toast.success(`Season "${newName}" created`);
     setShowCreate(false);
   };
 
@@ -145,7 +148,7 @@ export default function SeasonSelector() {
             Cancel
           </button>
           {createError && (
-            <span className="text-[12px] text-[var(--red)] w-full">{createError}</span>
+            <Alert variant="error" className="w-full text-[12px]">{createError}</Alert>
           )}
         </div>
       ) : null}

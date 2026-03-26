@@ -5,6 +5,7 @@ import { useVibeStore } from '@/stores/vibe-store';
 import { getWeekDates, todayStr } from '../lib/utils';
 import type { Vibe } from '@/types/vibe';
 import VibeCard from './VibeCard';
+import { Button } from '@/components/ui';
 
 function DayColumn({ date, items }: { date: string; items: Vibe[] }) {
   const { isOver, setNodeRef } = useDroppable({ id: date });
@@ -89,21 +90,23 @@ export default function Timeline() {
     <div className="p-4">
       {/* Week navigation */}
       <div className="flex items-center justify-center gap-4 mb-4">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setWeekOffset(weekOffset - 1)}
-          className="text-[var(--muted)] hover:text-[var(--text)] text-sm px-2 py-1 rounded-md hover:bg-[var(--hover-bg)] transition-colors"
         >
           ← Prev
-        </button>
+        </Button>
         <span className="text-sm font-semibold text-[var(--text)] min-w-[100px] text-center">
           {weekLabel}
         </span>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setWeekOffset(weekOffset + 1)}
-          className="text-[var(--muted)] hover:text-[var(--text)] text-sm px-2 py-1 rounded-md hover:bg-[var(--hover-bg)] transition-colors"
         >
           Next →
-        </button>
+        </Button>
       </div>
 
       {/* Day columns */}

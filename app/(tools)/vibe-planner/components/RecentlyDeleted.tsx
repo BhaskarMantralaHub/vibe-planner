@@ -2,6 +2,7 @@
 
 import { useVibeStore } from '@/stores/vibe-store';
 import { fmtDate } from '../lib/utils';
+import { Button, Badge } from '@/components/ui';
 
 export default function RecentlyDeleted() {
   const { items, showTrash, setShowTrash, restoreItem, permanentlyDelete, clearTrash } = useVibeStore();
@@ -28,9 +29,9 @@ export default function RecentlyDeleted() {
       >
         <span className="text-xl">🗑</span>
         <span className="font-medium">Recently Deleted</span>
-        <span className="text-[14px] bg-[var(--surface)] px-2.5 py-1 rounded-xl font-medium">
+        <Badge variant="muted" size="md">
           {trashed.length}
-        </span>
+        </Badge>
         <span className="text-[14px] ml-1">{showTrash ? '▼' : '▶'}</span>
       </button>
 
@@ -63,30 +64,35 @@ export default function RecentlyDeleted() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[var(--blue)] hover:bg-[var(--blue)]/10 hover:text-[var(--blue)]"
                     onClick={() => restoreItem(vibe.id)}
-                    className="px-3 py-1.5 rounded-lg text-[13px] font-medium text-[var(--blue)] hover:bg-[var(--blue)]/10 transition-colors cursor-pointer"
                   >
                     ↩ Restore
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="danger-outline"
+                    size="sm"
                     onClick={() => permanentlyDelete(vibe.id)}
-                    className="px-3 py-1.5 rounded-lg text-[13px] text-[var(--red)] hover:bg-[var(--red)]/10 transition-colors cursor-pointer"
                   >
                     ✕ Remove
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
 
           {trashed.length > 1 && (
-            <button
+            <Button
+              variant="danger-outline"
+              size="sm"
+              className="mt-1"
               onClick={clearTrash}
-              className="text-[13px] text-[var(--red)] hover:opacity-70 transition-opacity cursor-pointer mt-1"
             >
               Empty Trash
-            </button>
+            </Button>
           )}
         </div>
       )}

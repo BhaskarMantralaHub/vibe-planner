@@ -10,6 +10,10 @@ import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
+import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { toast } from 'sonner';
 
 /* ── Sorting: logged-in user first, then alphabetical by name ── */
 function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: string): number {
@@ -109,14 +113,12 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
           </div>
         </div>
         <div className="flex gap-2 justify-end">
-          <button onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+          <Button onClick={onCancel} variant="secondary" size="sm">
             Cancel
-          </button>
-          <button onClick={onConfirm}
-            className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90 transition-all">
+          </Button>
+          <Button onClick={onConfirm} variant="danger" size="sm">
             Remove
-          </button>
+          </Button>
         </div>
       </div>
     </div>,
@@ -395,6 +397,7 @@ export default function PlayerManager() {
     }
 
     setSubmitting(false);
+    toast.success(editingPlayer ? 'Player updated' : 'Player added');
     resetForm(); setShowPlayerForm(false);
   };
 
@@ -486,10 +489,10 @@ export default function PlayerManager() {
           Players <span className="text-[var(--muted)] font-normal">({activePlayers.length})</span>
         </h3>
         {isAdmin && (
-          <button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
-            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-all flex-shrink-0 whitespace-nowrap">
+          <Button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
+            variant="primary" brand="cricket" size="sm" className="flex-shrink-0 whitespace-nowrap">
             {showPlayerForm ? '✕ Close' : '＋ Add Player'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -684,15 +687,11 @@ export default function PlayerManager() {
                   )}
                 </div>
               )}
-              {formError && (
-                <div className="rounded-lg border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2 text-[13px] text-[var(--red)]">
-                  {formError}
-                </div>
-              )}
-              <button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict || submitting}
-                className="w-full rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-3 text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                {submitting ? 'Saving...' : editingPlayer ? '✓ Update Player' : '＋ Add Player'}
-              </button>
+              <Alert variant="error">{formError}</Alert>
+              <Button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
+                variant="primary" brand="cricket" size="lg" fullWidth loading={submitting}>
+                {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
+              </Button>
             </div>
           </div>
         </>,
@@ -1051,7 +1050,7 @@ export default function PlayerManager() {
 
             {adminModal.status === 'loading' && (
               <div className="flex justify-center py-4">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--purple)] border-t-transparent" />
+                <Spinner size="md" color="var(--purple)" />
               </div>
             )}
 
@@ -1069,46 +1068,41 @@ export default function PlayerManager() {
 
             {adminModal.status === 'has-admin' && (
               <>
-                <div className="rounded-xl bg-[var(--green)]/10 border border-[var(--green)]/20 p-3 mb-4">
+                <Alert variant="success" className="mb-4">
                   <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.name}</b> already has admin access.</p>
-                </div>
+                </Alert>
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setAdminModal(null)}
-                    className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                  <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
                     Close
-                  </button>
-                  <button onClick={revokeAdmin}
-                    className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">
+                  </Button>
+                  <Button onClick={revokeAdmin} variant="danger" size="sm">
                     Revoke Admin
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
 
             {adminModal.status === 'can-grant' && (
               <>
-                <div className="rounded-xl bg-[var(--purple)]/10 border border-[var(--purple)]/20 p-3 mb-4">
+                <Alert variant="info" className="mb-4">
                   <p className="text-[13px] text-[var(--text)]">Grant admin access to <b>{adminModal.player.name}</b>? They will be able to manage players, expenses, and seasons.</p>
-                </div>
+                </Alert>
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setAdminModal(null)}
-                    className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                  <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
                     Cancel
-                  </button>
-                  <button onClick={grantAdmin}
-                    className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--purple)] text-white cursor-pointer hover:opacity-90">
+                  </Button>
+                  <Button onClick={grantAdmin} size="sm" className="bg-[var(--purple)] text-white hover:opacity-90">
                     Grant Admin
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
 
             {(adminModal.status === 'no-email' || adminModal.status === 'no-account') && (
               <div className="flex justify-end">
-                <button onClick={() => setAdminModal(null)}
-                  className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+                <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
                   Close
-                </button>
+                </Button>
               </div>
             )}
           </div>

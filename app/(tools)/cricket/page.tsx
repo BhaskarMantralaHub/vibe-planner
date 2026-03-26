@@ -7,6 +7,9 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { EmptyState } from '@/components/ui/empty-state';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
@@ -230,7 +233,7 @@ function CricketDashboard() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+        <Spinner size="lg" brand="cricket" />
       </div>
     );
   }
@@ -293,10 +296,11 @@ function CricketDashboard() {
 
       {!selectedSeasonId ? (
         <div className="flex min-h-[40vh] items-center justify-center">
-          <div className="text-center">
-            <div className="mb-3 text-4xl">🏏</div>
-            <p className="text-[var(--muted)]">Create your first season to get started</p>
-          </div>
+          <EmptyState
+            icon="🏏"
+            title="No seasons yet"
+            description="Create your first season to get started"
+          />
         </div>
       ) : (
         <>
@@ -313,13 +317,15 @@ function CricketDashboard() {
           {/* Action buttons */}
           {isAdmin && activeView === 'expenses' && (
             <div className="mb-4 flex items-center gap-2">
-              <button
+              <Button
                 onClick={() => setShowExpenseForm(true)}
                 disabled={activePlayers.length === 0}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-2.5 text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                brand="cricket"
+                size="md"
               >
                 + Add Expense
-              </button>
+              </Button>
               {activePlayers.length === 0 && (
                 <p className="text-[13px] text-[var(--muted)]">Add players first</p>
               )}

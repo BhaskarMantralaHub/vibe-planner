@@ -6,14 +6,14 @@ import { cn } from '@/lib/utils';
 import { useBrand } from '@/lib/brand';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer select-none transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.96] active:brightness-95',
   {
     variants: {
       variant: {
         primary: '',
-        secondary: 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--hover-bg)]',
-        danger: 'bg-[var(--red)] text-white hover:brightness-110',
-        'danger-outline': 'border border-[var(--red)]/30 text-[var(--red)] hover:bg-[var(--red)]/10',
+        secondary: 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--hover-bg)] hover:border-[var(--muted)]/30',
+        danger: 'bg-[var(--red)] text-white hover:brightness-110 hover:-translate-y-[1px] shadow-md hover:shadow-lg',
+        'danger-outline': 'border border-[var(--red)]/30 text-[var(--red)] hover:bg-[var(--red)]/10 hover:border-[var(--red)]/50',
         ghost: 'text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
         link: 'text-[var(--purple)] underline-offset-4 hover:underline p-0 h-auto',
       },
@@ -35,9 +35,9 @@ const buttonVariants = cva(
     },
     compoundVariants: [
       // Primary + toolkit = purple gradient
-      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] text-white shadow-lg hover:opacity-90 hover:shadow-xl' },
+      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Primary + cricket = orange gradient
-      { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--orange)] to-[var(--red)] text-white shadow-lg hover:opacity-90 hover:shadow-xl' },
+      { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--orange)] to-[var(--red)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Link + cricket = orange
       { variant: 'link', brand: 'cricket', class: 'text-[var(--orange)]' },
       // Ghost + icon = round

@@ -6,6 +6,12 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useIDTrackerStore } from '@/stores/id-tracker-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/AuthGate';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Alert } from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import type { IDDocument, IDCountry } from '@/types/id-tracker';
 import { ID_TYPES, DEFAULT_REMINDER_DAYS, REMINDER_OPTIONS } from './lib/constants';
 import type { IDTypeConfig } from './lib/constants';
@@ -124,46 +130,31 @@ function CardMenu({ anchorRef, onEdit, onDelete, onClose }: {
 
 /* ── Delete Confirmation ── */
 function DeleteConfirm({ doc, onConfirm, onCancel }: { doc: IDDocument; onConfirm: () => void; onCancel: () => void }) {
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
-      onClick={onCancel}
-    >
-      <div
-        className="w-[360px] rounded-2xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
-            <Trash2 size={20} style={{ color: 'var(--red)' }} />
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="max-w-[360px]" showClose={false}>
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
+              <Trash2 size={20} style={{ color: 'var(--red)' }} />
+            </div>
+            <div>
+              <DialogTitle className="text-[16px]">Delete ID?</DialogTitle>
+              <DialogDescription>{doc.label}</DialogDescription>
+            </div>
           </div>
-          <div>
-            <h3 className="text-[16px] font-bold" style={{ color: 'var(--text)' }}>Delete ID?</h3>
-            <p className="text-[13px]" style={{ color: 'var(--muted)' }}>{doc.label}</p>
-          </div>
-        </div>
-        <p className="text-[13px] mb-5" style={{ color: 'var(--muted)' }}>This action cannot be undone.</p>
-        <div className="flex gap-2">
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-xl text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--red)' }}
-          >
+        </DialogHeader>
+        <p className="text-[13px]" style={{ color: 'var(--muted)' }}>This action cannot be undone.</p>
+        <DialogFooter className="mt-4">
+          <Button variant="danger" className="flex-1" onClick={onConfirm}>
             Delete
-          </button>
-          <button
-            onClick={onCancel}
-            className="px-5 py-2.5 rounded-xl text-[14px] font-medium border transition-colors hover:bg-[var(--hover-bg)]"
-            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
-          >
+          </Button>
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -384,8 +375,10 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
 
     if (editDoc) {
       store.updateDocument(editDoc.id, docData);
+      toast.success('ID updated');
     } else {
       store.addDocument(userId, docData);
+      toast.success('ID added');
     }
 
     onClose(selectedOwner.trim());
@@ -675,38 +668,35 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
 
         {/* Missing fields hint */}
         {!canSave && (
-          <div className="flex flex-wrap gap-2 mb-3 p-3 rounded-xl" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.2)' }}>
-            <AlertTriangle size={14} style={{ color: 'var(--orange)' }} className="mt-0.5 shrink-0" />
-            <div className="text-[13px] font-medium" style={{ color: 'var(--orange)' }}>
-              Please fill in: {[
-                !selectedOwner.trim() && 'Person name',
-                !selectedTypeKey && 'ID type',
-                !label.trim() && 'Label',
-                needsExpiry && !expiryDate && 'Expiry date',
-              ].filter(Boolean).join(', ')}
-            </div>
-          </div>
+          <Alert variant="warning" className="mb-3 flex flex-wrap gap-2 text-[13px] font-medium">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            Please fill in: {[
+              !selectedOwner.trim() && 'Person name',
+              !selectedTypeKey && 'ID type',
+              !label.trim() && 'Label',
+              needsExpiry && !expiryDate && 'Expiry date',
+            ].filter(Boolean).join(', ')}
+          </Alert>
         )}
 
         {/* Footer */}
         <div className="flex gap-2">
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={handleSave}
             disabled={!canSave}
-            className={`flex-1 py-3 rounded-xl text-[14px] font-semibold text-white transition-all ${
-              canSave ? 'hover:opacity-90 hover:shadow-lg cursor-pointer' : 'opacity-40 cursor-not-allowed'
-            }`}
-            style={{ background: 'linear-gradient(135deg, var(--purple), var(--accent))' }}
           >
             {editDoc ? 'Update' : 'Save ID'}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
             onClick={() => onClose()}
-            className="px-5 py-3 rounded-xl text-[14px] font-medium border transition-colors hover:bg-[var(--hover-bg)] cursor-pointer"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             Cancel
-          </button>
+          </Button>
         </div>
       </div>
     </div>,
@@ -789,6 +779,7 @@ function IDTrackerContent() {
   function confirmDelete() {
     if (deleteTarget) {
       store.deleteDocument(deleteTarget.id);
+      toast.success('ID deleted');
       setDeleteTarget(null);
     }
   }
@@ -808,7 +799,7 @@ function IDTrackerContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent mb-3" style={{ borderColor: 'var(--purple)', borderTopColor: 'transparent' }} />
+        <Spinner size="lg" className="mb-3" />
         <span className="text-[14px] font-medium" style={{ color: 'var(--muted)' }}>Loading your IDs...</span>
       </div>
     );
@@ -846,14 +837,14 @@ function IDTrackerContent() {
                 <XCircle size={13} />{expiredCount}
               </button>
             )}
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => { store.setEditingDoc(null); store.setShowForm(true); }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all"
-              style={{ background: 'linear-gradient(135deg, var(--purple), var(--accent))' }}
             >
               <Plus size={14} />
               Add ID
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -994,21 +985,15 @@ function IDTrackerContent() {
       {/* Empty state */}
       {!loading && documents.length === 0 && (
         <div className="px-4 lg:px-6 pb-8">
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ShieldCheck size={48} style={{ color: 'var(--dim)' }} className="mb-4" />
-            <h3 className="text-[18px] font-bold mb-2" style={{ color: 'var(--text)' }}>No IDs tracked yet</h3>
-            <p className="text-[14px] mb-6" style={{ color: 'var(--muted)' }}>
-              Add your first ID document to start tracking expiry dates and renewals.
-            </p>
-            <button
-              onClick={() => { store.setEditingDoc(null); store.setShowForm(true); }}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[14px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all"
-              style={{ background: 'linear-gradient(135deg, var(--purple), var(--accent))' }}
-            >
-              <Plus size={16} />
-              Add your first ID
-            </button>
-          </div>
+          <EmptyState
+            icon="🛡️"
+            title="No IDs tracked yet"
+            description="Add your first ID document to start tracking expiry dates and renewals."
+            action={{
+              label: 'Add your first ID',
+              onClick: () => { store.setEditingDoc(null); store.setShowForm(true); },
+            }}
+          />
         </div>
       )}
 

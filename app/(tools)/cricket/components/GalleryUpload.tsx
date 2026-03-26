@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { X, Camera, Send, Plus } from 'lucide-react';
 import type { CricketPlayer } from '@/types/cricket';
+import { toast } from 'sonner';
 
 const MAX_PHOTOS = 10;
 
@@ -222,6 +223,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
     const taggedIds = extractTaggedIds(caption, players);
 
     addGalleryPost(user.id, selectedSeasonId, photoUrls, caption.trim() || null, postedBy, taggedIds);
+    toast.success('Post shared');
     handleClose();
   };
 

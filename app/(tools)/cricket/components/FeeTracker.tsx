@@ -6,6 +6,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
 import { FaCheckCircle, FaExclamationCircle, FaTimesCircle } from 'react-icons/fa';
 import { MdEdit, MdUndo } from 'react-icons/md';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function FeeTracker() {
   const { userAccess, user } = useAuthStore();
@@ -42,6 +44,7 @@ export default function FeeTracker() {
   const handleMarkPaid = (playerId: string) => {
     if (!selectedSeasonId) return;
     recordFee(selectedSeasonId, playerId, feeAmount, adminName);
+    toast.success('Fee marked as paid');
   };
 
   const handleUndo = (playerId: string) => {
@@ -52,6 +55,7 @@ export default function FeeTracker() {
   const handlePartialSubmit = () => {
     if (!selectedSeasonId || !payingPlayer || !payAmount) return;
     recordFee(selectedSeasonId, payingPlayer, parseFloat(payAmount), adminName);
+    toast.success('Partial payment recorded');
     setPayingPlayer(null);
     setPayAmount('');
   };

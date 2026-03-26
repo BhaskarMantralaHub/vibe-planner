@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 function SponsorMenu({ anchorRef, onEdit, onDelete, onClose }: {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
@@ -92,11 +94,13 @@ export default function SponsorshipSection() {
         sponsor_name: name.trim(), amount: parseFloat(amount),
         sponsored_date: date, notes: notes.trim() || null,
       }, adminName);
+      toast.success('Sponsorship updated');
     } else {
       addSponsorship(selectedSeasonId, {
         sponsor_name: name.trim(), amount: parseFloat(amount),
         sponsored_date: date, notes: notes.trim() || null,
       }, adminName);
+      toast.success('Sponsorship added');
     }
     resetForm(); setShowForm(false);
   };
@@ -118,11 +122,10 @@ export default function SponsorshipSection() {
           )}
         </div>
         {isAdmin && (
-          <button onClick={() => { resetForm(); setShowForm(!showForm); }}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[13px] font-medium cursor-pointer transition-all flex-shrink-0 whitespace-nowrap"
-            style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706' }}>
+          <Button onClick={() => { resetForm(); setShowForm(!showForm); }}
+            variant="primary" brand="cricket" size="sm" className="flex-shrink-0 whitespace-nowrap">
             {showForm ? '✕ Close' : '+ Add'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -154,11 +157,10 @@ export default function SponsorshipSection() {
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
               placeholder="Optional" />
           </div>
-          <button onClick={handleSubmit} disabled={!name.trim() || !amount}
-            className="w-full rounded-xl py-2.5 text-[13px] font-bold text-white cursor-pointer active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', border: '1.5px solid #D97706' }}>
+          <Button onClick={handleSubmit} disabled={!name.trim() || !amount}
+            variant="primary" brand="cricket" size="md" fullWidth>
             {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
-          </button>
+          </Button>
         </div>
       )}
 

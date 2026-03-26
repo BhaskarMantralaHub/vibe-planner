@@ -7,6 +7,9 @@ import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
 import { FaTshirt, FaTrophy, FaUtensils, FaBox } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import type { IconType } from 'react-icons';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 const CATEGORY_ICONS: Record<string, IconType> = {
   FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
@@ -85,6 +88,7 @@ export default function ExpenseForm() {
       expense_date: date,
     }, userName);
 
+    toast.success('Expense added');
     resetAndClose();
   };
 
@@ -102,7 +106,7 @@ export default function ExpenseForm() {
 
         {/* Category */}
         <div className="mb-4">
-          <label className="mb-2 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Category</label>
+          <Label uppercase className="mb-2 block">Category</Label>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {EXPENSE_CATEGORIES.map((c) => {
               const active = category === c.key;
@@ -130,7 +134,7 @@ export default function ExpenseForm() {
 
         {/* Description */}
         <div className="mb-4">
-          <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Description</label>
+          <Label uppercase className="mb-1.5 block">Description</Label>
           <input
             value={description} onChange={(e) => setDescription(e.target.value)}
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
@@ -141,7 +145,7 @@ export default function ExpenseForm() {
         {/* Amount + Date */}
         <div className="mb-5 grid grid-cols-[1fr_140px] gap-3">
           <div>
-            <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Amount ($)</label>
+            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
             <input
               type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
@@ -149,7 +153,7 @@ export default function ExpenseForm() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Date</label>
+            <Label uppercase className="mb-1.5 block">Date</Label>
             <input
               type="date" value={date} onChange={(e) => setDate(e.target.value)}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
@@ -158,14 +162,16 @@ export default function ExpenseForm() {
         </div>
 
         {/* Submit */}
-        <button
+        <Button
           onClick={handleSubmit}
           disabled={!amount}
-          className="w-full rounded-xl px-4 py-3 text-[14px] font-bold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-          style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', border: '1.5px solid #D97706', boxShadow: '0 2px 8px rgba(245,158,11,0.25)' }}
+          variant="primary"
+          brand="cricket"
+          size="lg"
+          fullWidth
         >
           Add Expense
-        </button>
+        </Button>
       </div>
     </>
   );

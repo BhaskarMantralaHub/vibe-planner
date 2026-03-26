@@ -9,6 +9,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
 import { ResetPasswordForm } from '@/components/ResetPasswordForm';
+import { Button } from '@/components/ui';
+import { toast } from 'sonner';
 
 type PlayerMeta = {
   jersey_number?: number;
@@ -114,6 +116,7 @@ function PendingApprovals() {
           player_name: playerName,
         });
       }
+      toast.success(`${p.full_name || 'User'} approved`);
     } finally {
       setApproving(null);
     }
@@ -134,6 +137,7 @@ function PendingApprovals() {
       await supabase.rpc('reject_user', { target_user_id: p.id });
     }
     setPending((prev) => prev.filter((u) => u.id !== p.id));
+    toast('Signup rejected');
   };
 
   if (!isAdmin || pending.length === 0) return null;
@@ -213,19 +217,22 @@ function PendingApprovals() {
                       </div>
                     )}
                     <div className="flex gap-2 mt-2 ml-12">
-                      <button
+                      <Button
                         onClick={() => handleApprove(p)}
-                        disabled={approving === p.id}
-                        className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-white bg-[var(--green)] cursor-pointer hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        loading={approving === p.id}
+                        size="sm"
+                        className="flex-1 bg-[var(--green)] text-white hover:brightness-110"
                       >
-                        {approving === p.id ? 'Approving...' : 'Approve'}
-                      </button>
-                      <button
+                        Approve
+                      </Button>
+                      <Button
+                        variant="danger-outline"
+                        size="sm"
                         onClick={() => handleReject(p)}
-                        className="flex-1 rounded-lg py-1.5 text-[12px] font-medium text-[var(--red)] border border-[var(--red)]/30 cursor-pointer hover:bg-[var(--red)]/10 transition-all"
+                        className="flex-1"
                       >
                         Reject
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const SETTLE_FORM_KEY = 'cricket_settle_form_draft';
 
@@ -50,6 +52,7 @@ export default function SettleUpModal() {
       amount: parseFloat(amount),
       settled_date: date,
     });
+    toast.success('Settlement recorded');
     resetAndClose();
   };
 
@@ -106,13 +109,16 @@ export default function SettleUpModal() {
           </div>
         </div>
 
-        <button
+        <Button
           onClick={handleSubmit}
           disabled={!fromPlayer || !toPlayer || !amount || fromPlayer === toPlayer}
-          className="w-full rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--red)] px-4 py-3 text-[15px] font-semibold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          variant="primary"
+          brand="cricket"
+          size="lg"
+          fullWidth
         >
           Record Settlement
-        </button>
+        </Button>
       </div>
     </>
   );

@@ -9,6 +9,7 @@ import type { Vibe } from '@/types/vibe';
 import { todayStr, getGreeting } from '../lib/utils';
 import { Filter, X } from 'lucide-react';
 import ViewTabs from './ViewTabs';
+import { Button, Badge } from '@/components/ui';
 
 export default function Header() {
   const {
@@ -90,9 +91,9 @@ export default function Header() {
         </div>
 
         {!cloud && (
-          <span className="text-[11px] text-[var(--dim)] px-2 py-1 rounded-lg bg-[var(--surface)] shrink-0">
+          <Badge variant="muted" size="sm" className="shrink-0">
             Local
-          </span>
+          </Badge>
         )}
       </div>
     </div>
@@ -110,13 +111,15 @@ export default function Header() {
           data-testid="new-vibe-input"
         />
 
-        <button
+        <Button
           onClick={handleAdd}
-          className="bg-[var(--indigo)] text-white rounded-2xl px-5 py-3 text-[14px] lg:text-[15px] font-medium hover:opacity-90 transition-opacity shrink-0 shadow-sm cursor-pointer"
+          variant="primary"
+          size="lg"
+          className="rounded-2xl shrink-0"
           data-testid="add-vibe-button"
         >
           + Add
-        </button>
+        </Button>
 
         {/* Category filter — inline on desktop */}
         <div className="hidden lg:block">
