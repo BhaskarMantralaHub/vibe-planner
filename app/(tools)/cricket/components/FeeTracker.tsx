@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
+import { EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Button } from '@/components/ui';
 import { FaCheckCircle, FaExclamationCircle, FaTimesCircle } from 'react-icons/fa';
 import { MdEdit, MdUndo } from 'react-icons/md';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 export default function FeeTracker() {
@@ -23,6 +23,7 @@ export default function FeeTracker() {
   const [feeInput, setFeeInput] = useState(String(feeAmount));
   const [payingPlayer, setPayingPlayer] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [undoPlayer, setUndoPlayer] = useState<{ id: string; name: string } | null>(null);
 
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
@@ -47,9 +48,14 @@ export default function FeeTracker() {
     toast.success('Fee marked as paid');
   };
 
-  const handleUndo = (playerId: string) => {
-    const fee = feeMap[playerId];
-    if (fee) deleteFee(fee.id);
+  const confirmUndo = () => {
+    if (!undoPlayer) return;
+    const fee = feeMap[undoPlayer.id];
+    if (fee) {
+      deleteFee(fee.id);
+      toast.success(`Payment reverted for ${undoPlayer.name}`);
+    }
+    setUndoPlayer(null);
   };
 
   const handlePartialSubmit = () => {
@@ -130,6 +136,13 @@ export default function FeeTracker() {
       </div>
 
       {/* Player fee cards */}
+      {activePlayers.length === 0 ? (
+        <EmptyState
+          icon="🏏"
+          title="No players yet"
+          description="Add players to the roster to start tracking fees"
+        />
+      ) : (
       <div className="space-y-2">
         {activePlayers.map((p) => {
           const fee = feeMap[p.id];
@@ -191,7 +204,7 @@ export default function FeeTracker() {
                 {isAdmin && (
                   <div className="flex gap-1 flex-shrink-0">
                     {(isPaid || isPartial) ? (
-                      <button onClick={() => handleUndo(p.id)}
+                      <button onClick={() => setUndoPlayer({ id: p.id, name: p.name })}
                         className="h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg cursor-pointer bg-[var(--red)]/10 text-[var(--red)] hover:bg-[var(--red)]/20 transition-colors"
                         title="Undo payment">
                         <MdUndo size={15} />
@@ -238,6 +251,26 @@ export default function FeeTracker() {
           );
         })}
       </div>
+      )}
+
+      {/* Undo payment confirmation */}
+      <Dialog open={!!undoPlayer} onOpenChange={(open) => { if (!open) setUndoPlayer(null); }}>
+        <DialogContent showClose={false} className="max-w-xs text-center">
+          <div className="mb-3 text-2xl">&#9888;&#65039;</div>
+          <DialogTitle className="text-center">Revert payment?</DialogTitle>
+          <DialogDescription className="text-center">
+            This will remove the fee payment record for <strong>{undoPlayer?.name}</strong>. They will show as unpaid.
+          </DialogDescription>
+          <DialogFooter className="mt-5">
+            <Button variant="secondary" size="lg" fullWidth onClick={() => setUndoPlayer(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="lg" fullWidth onClick={confirmUndo}>
+              Revert
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

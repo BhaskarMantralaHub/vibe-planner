@@ -8,7 +8,7 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
@@ -238,8 +238,33 @@ function CricketDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Spinner size="lg" brand="cricket" />
+      <div className="relative min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8">
+        {/* Greeting + season selector skeleton */}
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <Skeleton className="h-8 w-48 rounded-lg" />
+          <Skeleton className="h-10 w-40 rounded-full" />
+        </div>
+
+        {/* Tab bar skeleton */}
+        <div className="flex gap-2 mb-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-20 rounded-xl" />
+          ))}
+        </div>
+
+        {/* Stats grid skeleton */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+
+        {/* Content card placeholders */}
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }

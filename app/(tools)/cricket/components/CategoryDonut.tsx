@@ -4,13 +4,22 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getCategoryBreakdown, formatCurrency } from '../lib/utils';
 import { getCategoryConfig } from '../lib/constants';
+import { EmptyState } from '@/components/ui';
 
 export default function CategoryDonut() {
   const { expenses, selectedSeasonId } = useCricketStore();
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
   const breakdown = getCategoryBreakdown(seasonExpenses);
 
-  if (breakdown.length === 0) return null;
+  if (breakdown.length === 0) return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden min-w-0">
+      <EmptyState
+        icon="🍩"
+        title="No spending data"
+        description="Expense breakdown will appear here once expenses are added"
+      />
+    </div>
+  );
 
   const data = breakdown.map((b) => ({
     name: getCategoryConfig(b.category).label,

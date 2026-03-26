@@ -18,8 +18,13 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
       if (e.key === 'Escape') onClose();
     }
     if (isOpen) {
+      // Lock body scroll when menu is open
+      document.body.style.overflow = 'hidden';
       document.addEventListener('keydown', handleKey);
-      return () => document.removeEventListener('keydown', handleKey);
+      return () => {
+        document.body.style.overflow = '';
+        document.removeEventListener('keydown', handleKey);
+      };
     }
   }, [isOpen, onClose]);
 
@@ -41,36 +46,36 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
       {/* Panel */}
       <div
-        className={`fixed top-0 left-0 z-50 h-full w-72 bg-[var(--card)] p-6 shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 z-50 h-full w-72 bg-[var(--card)] shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="bg-gradient-to-r from-[var(--purple)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
-            {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
-              ? 'Sunrisers Manteca'
-              : "Viber\u0027s Toolkit"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="cursor-pointer rounded-lg p-1 text-[var(--muted)] transition-colors hover:text-[var(--text)]"
-            aria-label="Close menu"
-          >
-            ✕
-          </button>
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="bg-gradient-to-r from-[var(--purple)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
+              {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
+                ? 'Sunrisers Manteca'
+                : "Viber\u0027s Toolkit"}
+            </h2>
+            <button
+              onClick={onClose}
+              className="cursor-pointer rounded-lg p-1 text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-4 h-px bg-[var(--border)]" />
         </div>
 
-        {/* Divider */}
-        <div className="mb-4 h-px bg-[var(--border)]" />
-
-        {/* Tools */}
-        <nav className="flex flex-col gap-1">
+        {/* Tools — scrollable */}
+        <nav className="flex-1 overflow-y-auto overscroll-contain px-6 flex flex-col gap-1">
           {visibleTools.map((tool) => (
             <Link key={tool.name} href={tool.href} onClick={onClose}>
               <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-                <span className="mt-0.5 text-xl">{tool.icon}</span>
-                <div className="flex-1">
+                <span className="mt-0.5 text-xl flex-shrink-0">{tool.icon}</span>
+                <div className="flex-1 min-w-0">
                   <span className="text-[15px] font-medium text-[var(--text)]">
                     {tool.name}
                   </span>
@@ -99,7 +104,7 @@ function UserSection({ onClose }: { onClose: () => void }) {
   const email = user.email || '';
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-[var(--border)]">
+    <div className="flex-shrink-0 p-6 border-t border-[var(--border)]">
       <div className="mb-3">
         {name && <div className="text-[13px] font-medium text-[var(--text)] truncate">{name}</div>}
         {email && <div className="text-[12px] text-[var(--muted)] truncate">{email}</div>}

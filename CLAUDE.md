@@ -252,6 +252,17 @@ This applies especially to:
 - Animation/positioning bugs (dialog repositioning, drawer conflicts)
 - Auth flow edge cases
 
+## QA Before Presenting to User — MANDATORY
+
+Before presenting ANY code change to the user for review:
+1. **Run tests** — `npx vitest run` must pass
+2. **Run build** — `npx next build` must pass with zero errors
+3. **Verify on localhost** — Mentally trace through the change on desktop AND mobile viewports
+4. **Check edge cases** — What happens when the data is empty? What about dark/light mode? What about iOS Safari?
+5. **Test the interaction** — If it's a modal, does it open AND close properly? If it's a button, does clicking it work? If it's a form, does submit + cancel both work?
+
+Never present a half-tested change. The user should not be finding basic bugs like "modal doesn't close" or "wrong brand color".
+
 ## Testing — MANDATORY
 
 **ALWAYS update or add unit tests when changing code.** Tests live in `tests/unit/` and use Vitest.

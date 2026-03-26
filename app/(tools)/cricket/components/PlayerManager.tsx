@@ -12,8 +12,10 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
+import PlayerProfile from './PlayerProfile';
 
 /* ── Sorting: logged-in user first, then alphabetical by name ── */
 function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: string): number {
@@ -200,6 +202,7 @@ export default function PlayerManager() {
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<{ name: string; url: string } | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<CricketPlayer | null>(null);
   const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
   const [signedUpEmails, setSignedUpEmails] = useState<Set<string>>(new Set());
 
@@ -485,6 +488,8 @@ export default function PlayerManager() {
     navigator.clipboard.writeText(value);
     setCopiedField(fieldKey);
     setTimeout(() => setCopiedField(null), 1500);
+    const label = fieldKey.startsWith('email') ? 'Email' : fieldKey.startsWith('cc') ? 'CricClub ID' : 'Value';
+    toast.success(`${label} copied`);
   };
 
   return (
@@ -705,7 +710,13 @@ export default function PlayerManager() {
 
       {/* ── Player List ── */}
       {activePlayers.length === 0 ? (
-        <p className="text-[14px] text-[var(--muted)] text-center py-8">No players yet</p>
+        <EmptyState
+          icon="🏏"
+          title="No players yet"
+          description="Build your squad by adding team members"
+          brand="cricket"
+          action={isAdmin ? { label: '+ Add Player', onClick: () => setShowPlayerForm(true) } : undefined}
+        />
       ) : (
         <div className="space-y-2">
           {activePlayers.map((p) => {
@@ -822,7 +833,10 @@ export default function PlayerManager() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] truncate">{p.name}</span>
+                        <span
+                          className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] truncate hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); setProfilePlayer(p); }}
+                        >{p.name}</span>
                         {isCaptain && (
                           <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 7%, transparent)' }}>
                             <FaCrown size={8} /> C
@@ -980,7 +994,8 @@ export default function PlayerManager() {
                       {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[var(--muted)] truncate">{p.name}</p>
+                      <p className="text-[13px] font-semibold text-[var(--muted)] truncate hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                        onClick={() => setProfilePlayer(p)}>{p.name}</p>
                       {rc && (
                         <span className="text-[10px] text-[var(--dim)]">{rc.label}</span>
                       )}
@@ -1055,7 +1070,7 @@ export default function PlayerManager() {
 
             {adminModal.status === 'loading' && (
               <div className="flex justify-center py-4">
-                <Spinner size="md" color="var(--purple)" />
+                <Spinner size="md" brand="cricket" />
               </div>
             )}
 
@@ -1113,6 +1128,15 @@ export default function PlayerManager() {
           </div>
         </div>,
         document.body,
+      )}
+
+      {/* Player profile dialog */}
+      {profilePlayer && (
+        <PlayerProfile
+          player={profilePlayer}
+          open={!!profilePlayer}
+          onOpenChange={(open) => { if (!open) setProfilePlayer(null); }}
+        />
       )}
     </div>
   );

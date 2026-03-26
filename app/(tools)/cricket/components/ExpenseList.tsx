@@ -12,6 +12,7 @@ const CATEGORY_ICONS: Record<string, IconType> = {
   FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
 };
 import { formatCurrency, formatDate } from '../lib/utils';
+import { EmptyState } from '@/components/ui';
 import { FaExclamationTriangle, FaCheckCircle, FaWallet, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
 import { createPortal } from 'react-dom';
@@ -293,7 +294,13 @@ export default function ExpenseList() {
         </div>
 
         {seasonExpenses.length === 0 ? (
-          <p className="text-[14px] text-[var(--muted)] text-center py-6">No expenses yet this season.</p>
+          <EmptyState
+            icon="💸"
+            title="No expenses yet"
+            description="Track team spending by adding your first expense"
+            brand="cricket"
+            action={isAdmin ? { label: '+ Add Expense', onClick: () => setShowExpenseForm(true) } : undefined}
+          />
         ) : (
           <div className="space-y-2">
             {seasonExpenses.map((e) => {

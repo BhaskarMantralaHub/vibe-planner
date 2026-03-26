@@ -3,13 +3,22 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getMonthlySpending, formatCurrency } from '../lib/utils';
+import { EmptyState } from '@/components/ui';
 
 export default function MonthlyBar() {
   const { expenses, selectedSeasonId } = useCricketStore();
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
   const data = getMonthlySpending(seasonExpenses);
 
-  if (data.length === 0) return null;
+  if (data.length === 0) return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden min-w-0">
+      <EmptyState
+        icon="📊"
+        title="No monthly data"
+        description="Monthly spending trends will show up here as expenses are logged"
+      />
+    </div>
+  );
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">

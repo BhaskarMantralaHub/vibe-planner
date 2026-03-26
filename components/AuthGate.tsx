@@ -9,7 +9,7 @@ import { MdSportsCricket } from 'react-icons/md';
 
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { validatePassword } from '@/lib/auth';
-import { PasswordInput, passwordRequirements, allRequirementsMet } from '@/components/ui';
+import { PasswordInput, passwordRequirements, allRequirementsMet, Spinner } from '@/components/ui';
 
 type AuthGateVariant = 'toolkit' | 'cricket';
 
@@ -226,7 +226,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--purple)] border-t-transparent" />
+        <Spinner size="lg" brand={variant} />
       </div>
     );
   }

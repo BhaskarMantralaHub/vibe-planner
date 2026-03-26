@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
+import { EmptyState } from '@/components/ui';
 import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
@@ -138,7 +139,7 @@ export default function SponsorshipSection() {
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Company or person name" />
           </div>
-          <div className="grid grid-cols-[1fr_130px] gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Amount ($) *</label>
               <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
@@ -148,7 +149,7 @@ export default function SponsorshipSection() {
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Date</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
+                className="w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
             </div>
           </div>
           <div>
@@ -166,7 +167,13 @@ export default function SponsorshipSection() {
 
       {/* Active List */}
       {activeSponsors.length === 0 ? (
-        <p className="text-[13px] text-[var(--muted)] text-center py-4">No sponsorships yet this season.</p>
+        <EmptyState
+          icon={<FaHandshake size={36} style={{ color: 'var(--cricket)' }} />}
+          title="No sponsors yet"
+          description="Add team sponsors to track contributions"
+          brand="cricket"
+          action={isAdmin ? { label: '+ Add Sponsor', onClick: () => { resetForm(); setShowForm(true); } } : undefined}
+        />
       ) : (
         <div className="space-y-2">
           {activeSponsors.map((s) => (

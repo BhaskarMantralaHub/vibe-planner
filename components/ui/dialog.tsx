@@ -42,6 +42,8 @@ function DialogContent({
         className="fixed inset-0 z-50 flex items-center justify-center px-4"
         {...props}
       >
+        {/* Invisible close trigger — clicking the area outside the panel closes the dialog */}
+        <DialogPrimitive.Close className="absolute inset-0 cursor-default" aria-label="Close dialog" />
         <div
           className={cn(
             'relative w-full max-w-md',

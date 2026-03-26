@@ -4,9 +4,10 @@ import { cn } from '@/lib/utils';
 import { Button, type ButtonProps } from './button';
 
 interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
-  icon?: string;
+  icon?: React.ReactNode;
   title: string;
   description?: string;
+  brand?: 'toolkit' | 'cricket';
   action?: {
     label: string;
     onClick: () => void;
@@ -14,7 +15,7 @@ interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   };
 }
 
-function EmptyState({ icon, title, description, action, className, ...props }: EmptyStateProps) {
+function EmptyState({ icon, title, description, action, brand, className, ...props }: EmptyStateProps) {
   return (
     <div className={cn('flex flex-col items-center justify-center py-16 px-4 text-center', className)} {...props}>
       {icon && <div className="mb-4 text-4xl">{icon}</div>}
@@ -23,7 +24,7 @@ function EmptyState({ icon, title, description, action, className, ...props }: E
         <p className="mb-5 max-w-xs text-[13px] leading-relaxed text-[var(--muted)]">{description}</p>
       )}
       {action && (
-        <Button variant={action.variant ?? 'primary'} size="md" onClick={action.onClick}>
+        <Button variant={action.variant ?? 'primary'} size="md" brand={brand} onClick={action.onClick}>
           {action.label}
         </Button>
       )}
