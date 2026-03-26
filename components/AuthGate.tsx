@@ -160,7 +160,7 @@ const VARIANT_CONFIG = {
     access: 'toolkit',
   },
   cricket: {
-    heroImage: '/cricket-hero.png',
+    heroImage: '/cricket-hero.png?v=2',
     heroAlt: 'Sunrisers Manteca',
     tagline: 'Sunrisers Manteca Cricket',
     subtitle: 'Team expenses, dues, and more — all in one place.',
