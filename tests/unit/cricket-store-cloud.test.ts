@@ -79,6 +79,9 @@ function resetStore() {
     commentReactions: structuredClone(COMMENT_REACTIONS),
     notifications: structuredClone(NOTIFICATIONS),
     loading: false,
+    loadingMoreGallery: false,
+    hasMoreGallery: false,
+    galleryOffset: 0,
     selectedSeasonId: SEASONS[0].id,
     showPlayerForm: false,
     showExpenseForm: false,
@@ -158,6 +161,9 @@ describe('loadAll (cloud)', () => {
     expect(state.commentReactions).toEqual(COMMENT_REACTIONS);
     expect(state.notifications).toEqual(NOTIFICATIONS);
     expect(state.selectedSeasonId).toBeTruthy();
+    // Gallery posts < GALLERY_PAGE_SIZE (20) → hasMoreGallery false
+    expect(state.hasMoreGallery).toBe(false);
+    expect(state.galleryOffset).toBe(GALLERY_POSTS.length);
   });
 
   it('queries the correct 13 tables', async () => {
@@ -255,6 +261,88 @@ describe('loadAll (cloud)', () => {
     await useCricketStore.getState().loadAll(ADMIN_USER.id);
     // Should pick a season (Spring 2026 is the current-year season)
     expect(useCricketStore.getState().selectedSeasonId).toBeTruthy();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// loadMoreGallery — cloud mode
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('loadMoreGallery (cloud)', () => {
+  it('fetches next page and appends to gallery', async () => {
+    // Start with 3 posts loaded, pretend there are more
+    useCricketStore.setState({ hasMoreGallery: true, galleryOffset: 3 });
+
+    const nextPage = [
+      { id: 'post-page2-1', season_id: 'season-spring-2026', user_id: 'u1', photo_url: 'x.jpg', photo_urls: null, caption: 'Page 2', posted_by: 'Test', deleted_at: null, created_at: '2026-03-18T10:00:00Z' },
+    ];
+    const builder = createChainableQuery(nextPage);
+    mockClient.from = vi.fn().mockImplementation((t: string) => {
+      if (t === 'cricket_gallery') return builder;
+      return createChainableQuery();
+    });
+
+    await useCricketStore.getState().loadMoreGallery();
+
+    const state = useCricketStore.getState();
+    // Should append to existing gallery
+    expect(state.gallery.length).toBe(GALLERY_POSTS.length + 1);
+    expect(state.gallery[state.gallery.length - 1].id).toBe('post-page2-1');
+    // 1 result < 20 page size → no more
+    expect(state.hasMoreGallery).toBe(false);
+    expect(state.galleryOffset).toBe(4);
+    expect(state.loadingMoreGallery).toBe(false);
+  });
+
+  it('does nothing when hasMoreGallery is false', async () => {
+    useCricketStore.setState({ hasMoreGallery: false, galleryOffset: 3 });
+    mockClient.from = vi.fn();
+
+    await useCricketStore.getState().loadMoreGallery();
+
+    // Should not call supabase at all
+    expect(mockClient.from).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when already loading more', async () => {
+    useCricketStore.setState({ hasMoreGallery: true, loadingMoreGallery: true, galleryOffset: 3 });
+    mockClient.from = vi.fn();
+
+    await useCricketStore.getState().loadMoreGallery();
+
+    expect(mockClient.from).not.toHaveBeenCalled();
+  });
+
+  it('handles error gracefully', async () => {
+    useCricketStore.setState({ hasMoreGallery: true, galleryOffset: 3 });
+
+    const builder = createChainableQuery(null, 'fetch error');
+    mockClient.from = vi.fn().mockReturnValue(builder);
+
+    await useCricketStore.getState().loadMoreGallery();
+
+    const state = useCricketStore.getState();
+    expect(state.loadingMoreGallery).toBe(false);
+    // Gallery unchanged
+    expect(state.gallery).toEqual(GALLERY_POSTS);
+  });
+
+  it('sets hasMoreGallery true when page is full (20 results)', async () => {
+    useCricketStore.setState({ hasMoreGallery: true, galleryOffset: 20 });
+
+    // Generate exactly 20 posts to simulate a full page
+    const fullPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `post-bulk-${i}`, season_id: 'season-spring-2026', user_id: 'u1',
+      photo_url: `img${i}.jpg`, photo_urls: null, caption: `Post ${i}`,
+      posted_by: 'Test', deleted_at: null, created_at: `2026-03-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+    }));
+    mockClient.from = vi.fn().mockReturnValue(createChainableQuery(fullPage));
+
+    await useCricketStore.getState().loadMoreGallery();
+
+    const state = useCricketStore.getState();
+    expect(state.hasMoreGallery).toBe(true);
+    expect(state.galleryOffset).toBe(40);
   });
 });
 

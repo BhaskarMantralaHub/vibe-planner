@@ -19,6 +19,7 @@ export default function FeeTracker() {
   const season = seasons.find((s) => s.id === selectedSeasonId);
   const feeAmount = season?.fee_amount ?? 60;
 
+  const [filter, setFilter] = useState<'all' | 'unpaid' | 'partial' | 'paid'>('all');
   const [editingFee, setEditingFee] = useState(false);
   const [feeInput, setFeeInput] = useState(String(feeAmount));
   const [payingPlayer, setPayingPlayer] = useState<string | null>(null);
@@ -34,6 +35,52 @@ export default function FeeTracker() {
   const partialCount = seasonFees.filter((f) => Number(f.amount_paid) > 0 && Number(f.amount_paid) < feeAmount).length;
   const unpaidCount = activePlayers.length - paidCount - partialCount;
   const progressPct = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+  // Classify each player's payment status
+  const classifyPlayer = (playerId: string) => {
+    const fee = feeMap[playerId];
+    const paid = fee ? Number(fee.amount_paid) : 0;
+    if (paid >= feeAmount) return 'paid';
+    if (paid > 0) return 'partial';
+    return 'unpaid';
+  };
+
+  // Filter players based on active filter
+  const filteredPlayers = activePlayers.filter((p) => {
+    if (filter === 'all') return true;
+    return classifyPlayer(p.id) === filter;
+  });
+
+  // Sort players based on active filter
+  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+    const statusA = classifyPlayer(a.id);
+    const statusB = classifyPlayer(b.id);
+
+    if (filter === 'all') {
+      const order = { unpaid: 0, partial: 1, paid: 2 };
+      if (order[statusA] !== order[statusB]) return order[statusA] - order[statusB];
+      return a.name.localeCompare(b.name);
+    }
+    if (filter === 'unpaid') {
+      return a.name.localeCompare(b.name);
+    }
+    if (filter === 'partial') {
+      const paidA = feeMap[a.id] ? Number(feeMap[a.id].amount_paid) : 0;
+      const paidB = feeMap[b.id] ? Number(feeMap[b.id].amount_paid) : 0;
+      return paidA - paidB;
+    }
+    // paid: most recent payment date first
+    const dateA = feeMap[a.id]?.paid_date ?? '';
+    const dateB = feeMap[b.id]?.paid_date ?? '';
+    return dateB.localeCompare(dateA);
+  });
+
+  const filterOptions = [
+    { key: 'all' as const, label: 'All', count: activePlayers.length },
+    { key: 'unpaid' as const, label: 'Unpaid', count: unpaidCount },
+    { key: 'partial' as const, label: 'Partial', count: partialCount },
+    { key: 'paid' as const, label: 'Paid', count: paidCount },
+  ];
 
   const saveFeeAmount = () => {
     const val = parseFloat(feeInput);
@@ -135,6 +182,25 @@ export default function FeeTracker() {
         </div>
       </div>
 
+      {/* Filter chips */}
+      {activePlayers.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {filterOptions.map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setFilter(opt.key)}
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all cursor-pointer ${
+                filter === opt.key
+                  ? 'bg-[var(--cricket)] text-white'
+                  : 'bg-transparent border border-[var(--border)] text-[var(--muted)] hover:border-[var(--cricket)]/30'
+              }`}
+            >
+              {opt.label} {opt.count}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Player fee cards */}
       {activePlayers.length === 0 ? (
         <EmptyState
@@ -144,7 +210,12 @@ export default function FeeTracker() {
         />
       ) : (
       <div className="space-y-2">
-        {activePlayers.map((p) => {
+        {sortedPlayers.length === 0 && (
+          <p className="text-center text-[13px] text-[var(--muted)] py-6">
+            No {filter} players
+          </p>
+        )}
+        {sortedPlayers.map((p) => {
           const fee = feeMap[p.id];
           const paid = fee ? Number(fee.amount_paid) : 0;
           const isPaid = paid >= feeAmount;

@@ -7,7 +7,8 @@ import type { GalleryPost as GalleryPostType, GalleryTag, GalleryComment, Galler
 import { Heart, MessageCircle, MoreHorizontal, Send, X, Pencil, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
-import { Drawer } from 'vaul';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
+import { extractTaggedIds } from '../lib/mentions';
 
 
 /* ── Resolve photos from post (backward compat: photo_urls → photo_url fallback) ── */
@@ -15,20 +16,6 @@ function getPostPhotos(post: GalleryPostType): string[] {
   if (post.photo_urls && post.photo_urls.length > 0) return post.photo_urls;
   if (post.photo_url) return [post.photo_url];
   return [];
-}
-
-/* ── Extract @mentions from text → player IDs ── */
-function extractTaggedIds(text: string, players: CricketPlayer[]): string[] {
-  const mentions = text.match(/@[\w\s]+/g);
-  if (!mentions) return [];
-  const ids: string[] = [];
-  for (const mention of mentions) {
-    const name = mention.slice(1).trim().toLowerCase();
-    if (name === 'all' || name === 'everyone') return players.filter((p) => p.is_active).map((p) => p.id);
-    const player = players.find((p) => p.is_active && p.name.toLowerCase() === name);
-    if (player && !ids.includes(player.id)) ids.push(player.id);
-  }
-  return ids;
 }
 
 /* ── Render text with @mentions and #hashtags highlighted ── */
@@ -209,195 +196,167 @@ function FullscreenViewer({ photos, initialIndex = 0, caption, players, onClose 
   );
 }
 
-/* ── Post actions drawer (vaul bottom sheet) ── */
+/* ── Post actions drawer (shared Drawer) ── */
 function PostActionsDrawer({ open, onOpenChange, onEdit, onDelete, showEdit }: {
   open: boolean; onOpenChange: (open: boolean) => void;
   onEdit: () => void; onDelete: () => void; showEdit: boolean;
 }) {
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-[99] bg-black/50 backdrop-blur-sm" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[100] outline-none" aria-describedby={undefined}>
-          <Drawer.Title className="sr-only">Actions</Drawer.Title>
-          <div className="rounded-t-2xl px-4 pb-6 pt-2" style={{ background: 'var(--card)' }}>
-            <div className="flex justify-center py-2 mb-2">
-              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-            </div>
-            <div className="space-y-1">
-              {showEdit && (
-                <button
-                  onClick={() => { onEdit(); onOpenChange(false); }}
-                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-                >
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                    <Pencil size={18} style={{ color: 'var(--blue)' }} />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit caption</p>
-                    <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Modify your message</p>
-                  </div>
-                </button>
-              )}
-              <button
-                onClick={() => { onDelete(); onOpenChange(false); }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                  <Trash2 size={18} style={{ color: 'var(--red)' }} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[15px] font-semibold" style={{ color: 'var(--red)' }}>Delete post</p>
-                  <p className="text-[12px]" style={{ color: 'var(--dim)' }}>This can&apos;t be undone</p>
-                </div>
-              </button>
-            </div>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerHandle />
+      <DrawerTitle>Actions</DrawerTitle>
+      <DrawerBody className="px-4 pb-6 pt-2">
+        <div className="space-y-1">
+          {showEdit && (
             <button
-              onClick={() => onOpenChange(false)}
-              className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
-              style={{ background: 'var(--surface)', color: 'var(--text)' }}
+              onClick={() => { onEdit(); onOpenChange(false); }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
             >
-              Cancel
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
+                <Pencil size={18} style={{ color: 'var(--blue)' }} />
+              </div>
+              <div className="text-left">
+                <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit caption</p>
+                <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Modify your message</p>
+              </div>
             </button>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+          )}
+          <button
+            onClick={() => { onDelete(); onOpenChange(false); }}
+            className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+              <Trash2 size={18} style={{ color: 'var(--red)' }} />
+            </div>
+            <div className="text-left">
+              <p className="text-[15px] font-semibold" style={{ color: 'var(--red)' }}>Delete post</p>
+              <p className="text-[12px]" style={{ color: 'var(--dim)' }}>This can&apos;t be undone</p>
+            </div>
+          </button>
+        </div>
+        <button
+          onClick={() => onOpenChange(false)}
+          className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
+          style={{ background: 'var(--surface)', color: 'var(--text)' }}
+        >
+          Cancel
+        </button>
+      </DrawerBody>
+    </Drawer>
   );
 }
 
-/* ── Comment actions drawer (vaul bottom sheet) ── */
+/* ── Comment actions drawer (shared Drawer) ── */
 function CommentActionsDrawer({ open, onOpenChange, onEdit, onDelete, showEdit }: {
   open: boolean; onOpenChange: (open: boolean) => void;
   onEdit: () => void; onDelete: () => void; showEdit: boolean;
 }) {
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-[99] bg-black/50 backdrop-blur-sm" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[100] outline-none" aria-describedby={undefined}>
-          <Drawer.Title className="sr-only">Actions</Drawer.Title>
-          <div className="rounded-t-2xl px-4 pb-6 pt-2" style={{ background: 'var(--card)' }}>
-            <div className="flex justify-center py-2 mb-2">
-              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-            </div>
-            <div className="space-y-1">
-              {showEdit && (
-                <button
-                  onClick={() => { onEdit(); onOpenChange(false); }}
-                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-                >
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                    <Pencil size={18} style={{ color: 'var(--blue)' }} />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit comment</p>
-                    <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Change the comment text</p>
-                  </div>
-                </button>
-              )}
-              <button
-                onClick={() => { onDelete(); onOpenChange(false); }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                  <Trash2 size={18} style={{ color: 'var(--red)' }} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[15px] font-semibold" style={{ color: 'var(--red)' }}>Delete comment</p>
-                  <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Permanently remove this comment</p>
-                </div>
-              </button>
-            </div>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerHandle />
+      <DrawerTitle>Actions</DrawerTitle>
+      <DrawerBody className="px-4 pb-6 pt-2">
+        <div className="space-y-1">
+          {showEdit && (
             <button
-              onClick={() => onOpenChange(false)}
-              className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
-              style={{ background: 'var(--surface)', color: 'var(--text)' }}
+              onClick={() => { onEdit(); onOpenChange(false); }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
             >
-              Cancel
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
+                <Pencil size={18} style={{ color: 'var(--blue)' }} />
+              </div>
+              <div className="text-left">
+                <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit comment</p>
+                <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Change the comment text</p>
+              </div>
             </button>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+          )}
+          <button
+            onClick={() => { onDelete(); onOpenChange(false); }}
+            className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+              <Trash2 size={18} style={{ color: 'var(--red)' }} />
+            </div>
+            <div className="text-left">
+              <p className="text-[15px] font-semibold" style={{ color: 'var(--red)' }}>Delete comment</p>
+              <p className="text-[12px]" style={{ color: 'var(--dim)' }}>Permanently remove this comment</p>
+            </div>
+          </button>
+        </div>
+        <button
+          onClick={() => onOpenChange(false)}
+          className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
+          style={{ background: 'var(--surface)', color: 'var(--text)' }}
+        >
+          Cancel
+        </button>
+      </DrawerBody>
+    </Drawer>
   );
 }
 
-/* ── Confirm delete drawer (vaul bottom sheet styled as alert) ── */
+/* ── Confirm delete drawer (shared Drawer styled as alert) ── */
 function ConfirmDeleteDrawer({ open, onOpenChange, onConfirm }: {
   open: boolean; onOpenChange: (open: boolean) => void; onConfirm: () => void;
 }) {
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 z-50 outline-none" aria-describedby={undefined}>
-          <Drawer.Title className="sr-only">Confirm delete</Drawer.Title>
-          <div className="rounded-t-2xl px-5 pb-6 pt-2 text-center" style={{ background: 'var(--card)' }}>
-            <div className="flex justify-center py-2 mb-3">
-              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-            </div>
-            <p className="text-[16px] font-bold text-[var(--text)] mb-1">Delete this post?</p>
-            <p className="text-[13px] text-[var(--muted)] mb-5">This action cannot be undone. The post and all its comments will be permanently removed.</p>
-            <div className="flex gap-3">
-              <button onClick={() => onOpenChange(false)}
-                className="flex-1 py-3 rounded-xl text-[14px] font-semibold cursor-pointer"
-                style={{ background: 'var(--surface)', color: 'var(--text)' }}>
-                Cancel
-              </button>
-              <button onClick={() => { onConfirm(); onOpenChange(false); }}
-                className="flex-1 py-3 rounded-xl text-[14px] font-bold text-white cursor-pointer"
-                style={{ background: 'var(--red)' }}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerHandle />
+      <DrawerTitle>Confirm delete</DrawerTitle>
+      <DrawerBody className="px-5 pb-6 pt-2 text-center">
+        <p className="text-[16px] font-bold text-[var(--text)] mb-1">Delete this post?</p>
+        <p className="text-[13px] text-[var(--muted)] mb-5">This action cannot be undone. The post and all its comments will be permanently removed.</p>
+        <div className="flex gap-3">
+          <button onClick={() => onOpenChange(false)}
+            className="flex-1 py-3 rounded-xl text-[14px] font-semibold cursor-pointer"
+            style={{ background: 'var(--surface)', color: 'var(--text)' }}>
+            Cancel
+          </button>
+          <button onClick={() => { onConfirm(); onOpenChange(false); }}
+            className="flex-1 py-3 rounded-xl text-[14px] font-bold text-white cursor-pointer"
+            style={{ background: 'var(--red)' }}>
+            Delete
+          </button>
+        </div>
+      </DrawerBody>
+    </Drawer>
   );
 }
 
-/* ── Liked-by drawer (vaul bottom sheet) ── */
+/* ── Liked-by drawer (shared Drawer) ── */
 function LikedByDrawer({ open, onOpenChange, likes, players, userId }: {
   open: boolean; onOpenChange: (open: boolean) => void;
   likes: GalleryLike[]; players: CricketPlayer[]; userId: string | undefined;
 }) {
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 z-50 outline-none" aria-describedby={undefined}>
-          <Drawer.Title className="sr-only">Likes</Drawer.Title>
-          <div className="rounded-t-2xl pb-6 pt-2" style={{ background: 'var(--card)' }}>
-            <div className="flex justify-center py-2">
-              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-            </div>
-            <div className="flex items-center justify-center px-4 py-3">
-              <h4 className="text-[16px] font-bold text-[var(--text)]">Likes</h4>
-            </div>
-            <div className="max-h-[300px] overflow-y-auto">
-              {likes.map((l) => {
-                const name = resolveLikerName(l, userId);
-                const lPlayer = l.liked_by ? players.find((p) => p.is_active && p.name === l.liked_by) : undefined;
-                return (
-                  <div key={l.id} className="flex items-center gap-3 px-4 py-3">
-                    <Avatar player={lPlayer} name={name} size={44} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[15px] font-semibold text-[var(--text)] truncate">{name}</p>
-                      {lPlayer?.player_role && (
-                        <p className="text-[12px] text-[var(--dim)] capitalize">{lPlayer.player_role}</p>
-                      )}
-                    </div>
-                    <Heart size={16} fill="var(--red)" style={{ color: 'var(--red)' }} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerHandle />
+      <DrawerTitle>Likes</DrawerTitle>
+      <DrawerBody className="pb-6 pt-2 px-0">
+        <div className="flex items-center justify-center px-4 py-3">
+          <h4 className="text-[16px] font-bold text-[var(--text)]">Likes</h4>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto">
+          {likes.map((l) => {
+            const name = resolveLikerName(l, userId);
+            const lPlayer = l.liked_by ? players.find((p) => p.is_active && p.name === l.liked_by) : undefined;
+            return (
+              <div key={l.id} className="flex items-center gap-3 px-4 py-3">
+                <Avatar player={lPlayer} name={name} size={44} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-[var(--text)] truncate">{name}</p>
+                  {lPlayer?.player_role && (
+                    <p className="text-[12px] text-[var(--dim)] capitalize">{lPlayer.player_role}</p>
+                  )}
+                </div>
+                <Heart size={16} fill="var(--red)" style={{ color: 'var(--red)' }} />
+              </div>
+            );
+          })}
+        </div>
+      </DrawerBody>
+    </Drawer>
   );
 }
 
@@ -490,36 +449,29 @@ function CommentLike({ commentId, reactions, userId, players }: {
           </button>
         )}
       </span>
-      <Drawer.Root open={showWho} onOpenChange={setShowWho}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-50 outline-none" aria-describedby={undefined}>
-            <Drawer.Title className="sr-only">Comment Likes</Drawer.Title>
-            <div className="rounded-t-2xl pb-6 pt-2" style={{ background: 'var(--card)' }}>
-              <div className="flex justify-center py-2">
-                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+      <Drawer open={showWho} onOpenChange={setShowWho}>
+        <DrawerHandle />
+        <DrawerTitle>Comment Likes</DrawerTitle>
+        <DrawerBody className="pb-6 pt-2 px-0">
+          <div className="flex items-center justify-center px-4 py-3">
+            <h4 className="text-[16px] font-bold text-[var(--text)]">Likes</h4>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            {likers.map((l) => (
+              <div key={l.id} className="flex items-center gap-3 px-4 py-3">
+                <Avatar player={l.player} name={l.name} size={44} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-[var(--text)] truncate">{l.name}</p>
+                  {l.player?.player_role && (
+                    <p className="text-[12px] text-[var(--dim)] capitalize">{l.player.player_role}</p>
+                  )}
+                </div>
+                <Heart size={16} fill="var(--red)" style={{ color: 'var(--red)' }} />
               </div>
-              <div className="flex items-center justify-center px-4 py-3">
-                <h4 className="text-[16px] font-bold text-[var(--text)]">Likes</h4>
-              </div>
-              <div className="max-h-[300px] overflow-y-auto">
-                {likers.map((l) => (
-                  <div key={l.id} className="flex items-center gap-3 px-4 py-3">
-                    <Avatar player={l.player} name={l.name} size={44} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[15px] font-semibold text-[var(--text)] truncate">{l.name}</p>
-                      {l.player?.player_role && (
-                        <p className="text-[12px] text-[var(--dim)] capitalize">{l.player.player_role}</p>
-                      )}
-                    </div>
-                    <Heart size={16} fill="var(--red)" style={{ color: 'var(--red)' }} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+            ))}
+          </div>
+        </DrawerBody>
+      </Drawer>
     </>
   );
 }

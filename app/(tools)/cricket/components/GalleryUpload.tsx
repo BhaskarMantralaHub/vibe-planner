@@ -8,44 +8,10 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { X, Camera, Send, Plus } from 'lucide-react';
 import type { CricketPlayer } from '@/types/cricket';
 import { toast } from 'sonner';
+import { compressGalleryImage } from '../lib/image';
+import { extractTaggedIds } from '../lib/mentions';
 
 const MAX_PHOTOS = 10;
-
-/* ── Compress for gallery: scale to max dimension, preserve aspect ratio ── */
-async function compressGalleryImage(file: File, maxDim = 800): Promise<Blob> {
-  const img = document.createElement('img');
-  img.src = URL.createObjectURL(file);
-  await new Promise((resolve) => { img.onload = resolve; });
-  let w = img.width;
-  let h = img.height;
-  if (w > maxDim || h > maxDim) {
-    const ratio = Math.min(maxDim / w, maxDim / h);
-    w = Math.round(w * ratio);
-    h = Math.round(h * ratio);
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-  URL.revokeObjectURL(img.src);
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.8));
-}
-
-/* ── Extract @mentions from text → player IDs ── */
-function extractTaggedIds(text: string, players: CricketPlayer[]): string[] {
-  const mentions = text.match(/@[\w\s]+/g);
-  if (!mentions) return [];
-  const ids: string[] = [];
-  for (const mention of mentions) {
-    const name = mention.slice(1).trim().toLowerCase();
-    if (name === 'all' || name === 'everyone') {
-      return players.filter((p) => p.is_active).map((p) => p.id);
-    }
-    const player = players.find((p) => p.is_active && p.name.toLowerCase() === name);
-    if (player && !ids.includes(player.id)) ids.push(player.id);
-  }
-  return ids;
-}
 
 /* ── @Mention Autocomplete ── */
 function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {

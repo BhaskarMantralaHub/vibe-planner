@@ -9,6 +9,7 @@ import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/ty
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { compressPlayerImage } from '../lib/image';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -152,27 +153,11 @@ const battingIcon = () => <MdSportsCricket size={14} />;
 const bowlingIcon = () => <GiTennisBall size={13} />;
 
 /* ── Photo helpers ── */
-async function compressImage(file: File, maxSize = 400): Promise<Blob> {
-  const img = document.createElement('img');
-  img.src = URL.createObjectURL(file);
-  await new Promise((resolve) => { img.onload = resolve; });
-  const canvas = document.createElement('canvas');
-  // Center-crop to square, then scale down
-  const side = Math.min(img.width, img.height);
-  const sx = (img.width - side) / 2;
-  const sy = (img.height - side) / 2;
-  const outSize = Math.min(maxSize, side);
-  canvas.width = outSize;
-  canvas.height = outSize;
-  canvas.getContext('2d')!.drawImage(img, sx, sy, side, side, 0, 0, outSize, outSize);
-  URL.revokeObjectURL(img.src);
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.8));
-}
 
 async function uploadPlayerPhoto(file: File, userId: string, playerId: string): Promise<string | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
-  const compressed = await compressImage(file);
+  const compressed = await compressPlayerImage(file);
   const path = `${userId}/${playerId}.jpg`;
   const { error } = await supabase.storage.from('player-photos').upload(path, compressed, {
     upsert: true, contentType: 'image/jpeg',

@@ -6,7 +6,7 @@ import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
 import GalleryUpload from './GalleryUpload';
-import { Camera, Image as ImageIcon, Heart, MessageCircle, CheckCircle2, Plus } from 'lucide-react';
+import { Camera, Image as ImageIcon, Heart, MessageCircle, CheckCircle2, Plus, Loader2 } from 'lucide-react';
 
 function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
@@ -53,7 +53,7 @@ function StatItem({ icon, value, label }: { icon: React.ReactNode; value: number
 }
 
 export default function Gallery() {
-  const { selectedSeasonId, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, players } = useCricketStore();
+  const { selectedSeasonId, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, players, hasMoreGallery, loadingMoreGallery, loadMoreGallery } = useCricketStore();
   const [showUpload, setShowUpload] = useState(false);
   const [feedParent] = useAutoAnimate();
 
@@ -122,21 +122,45 @@ export default function Gallery() {
             ))}
           </div>
 
-          {/* End-of-feed — Instagram-style */}
-          <div className="max-w-lg mx-auto mt-10 mb-6 flex flex-col items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))',
-              }}
-            >
-              <CheckCircle2 size={24} strokeWidth={1.5} style={{ color: 'var(--green)' }} />
+          {/* Load more / End-of-feed */}
+          {hasMoreGallery ? (
+            <div className="max-w-lg mx-auto mt-8 mb-6 flex justify-center">
+              <button
+                onClick={loadMoreGallery}
+                disabled={loadingMoreGallery}
+                className="w-full py-3 rounded-xl text-[13px] font-semibold cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{
+                  background: 'var(--surface)',
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {loadingMoreGallery ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 size={14} className="animate-spin" />
+                    Loading...
+                  </span>
+                ) : (
+                  'Load more posts'
+                )}
+              </button>
             </div>
-            <div className="text-center">
-              <p className="text-[13px] font-semibold text-[var(--text)]">You&apos;re all caught up</p>
-              <p className="text-[11px] text-[var(--dim)] mt-0.5">You&apos;ve seen all recent posts</p>
+          ) : (
+            <div className="max-w-lg mx-auto mt-10 mb-6 flex flex-col items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))',
+                }}
+              >
+                <CheckCircle2 size={24} strokeWidth={1.5} style={{ color: 'var(--green)' }} />
+              </div>
+              <div className="text-center">
+                <p className="text-[13px] font-semibold text-[var(--text)]">You&apos;re all caught up</p>
+                <p className="text-[11px] text-[var(--dim)] mt-0.5">You&apos;ve seen all recent posts</p>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
