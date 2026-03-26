@@ -9,30 +9,7 @@ import { MdSportsCricket } from 'react-icons/md';
 
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { validatePassword } from '@/lib/auth';
-
-/* ── Eye icon SVG ── */
-function EyeIcon({ open }: { open: boolean }) {
-  return open ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
-  );
-}
-
-/* ── Password requirements ── */
-const passwordRequirements = [
-  { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
-  { label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
-  { label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
-  { label: 'One number', test: (p: string) => /[0-9]/.test(p) },
-  { label: 'One special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
-];
+import { PasswordInput, passwordRequirements, allRequirementsMet } from '@/components/ui';
 
 type AuthGateVariant = 'toolkit' | 'cricket';
 
@@ -211,7 +188,6 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   // Cricket player fields
   const [jerseyNumber, setJerseyNumber] = useState('');
@@ -463,48 +439,16 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               </div>
 
               <div className={isCricketSignup ? 'mb-3' : (!isLogin && password.length > 0 ? 'mb-2' : 'mb-5')}>
-                <label className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Password</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 pr-11 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] ${v.focusColor} transition-all`}
-                    placeholder="••••••••" autoComplete={isLogin ? 'current-password' : 'new-password'}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[var(--dim)] hover:text-[var(--muted)] transition-colors"
-                  >
-                    <EyeIcon open={showPassword} />
-                  </button>
-                </div>
+                <PasswordInput
+                  label="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  showRequirements={!isLogin}
+                  brand={variant}
+                />
               </div>
-
-              {/* Password requirements (signup only) */}
-              {!isLogin && password.length > 0 && (
-                <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--dim)]">Password must have</p>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-                    {passwordRequirements.map((r) => {
-                      const met = r.test(password);
-                      return (
-                        <div key={r.label} className="flex items-center gap-1.5">
-                          <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
-                            met
-                              ? 'bg-[var(--green)] text-white'
-                              : 'border border-[var(--border)] text-[var(--dim)]'
-                          }`}>
-                            {met ? '✓' : ''}
-                          </span>
-                          <span className={`text-[12px] ${met ? 'text-[var(--text)] font-medium' : 'text-[var(--muted)]'}`}>
-                            {r.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* ── Cricket player fields (signup only) ── */}
               {isCricketSignup && (
@@ -599,7 +543,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               )}
 
               <button
-                type="submit" disabled={syncing || (!isLogin && !passwordRequirements.every((r) => r.test(password)))}
+                type="submit" disabled={syncing || (!isLogin && !allRequirementsMet(password))}
                 className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${v.buttonGradient} px-4 py-3 text-[16px] font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {syncing && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
@@ -625,7 +569,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
                 <button
                   type="button"
-                  onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); clearError(); setEmail(''); setPassword(''); setName(''); setShowPassword(false); resetPlayerFields(); }}
+                  onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); clearError(); setEmail(''); setPassword(''); setName(''); resetPlayerFields(); }}
                   className="cursor-pointer font-medium hover:underline"
                   style={{ color: v.accentColor }}
                 >

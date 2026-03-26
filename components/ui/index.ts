@@ -37,4 +37,7 @@ export {
   DialogDescription,
 } from './dialog';
 
+export { PasswordInput, RequirementsChecklist, MatchStatus, passwordRequirements, allRequirementsMet } from './password-input';
+export type { PasswordInputProps } from './password-input';
+
 export { Toaster } from './toast';
