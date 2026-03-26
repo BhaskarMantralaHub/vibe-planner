@@ -164,7 +164,7 @@ function FullscreenViewer({ photos, initialIndex = 0, caption, players, onClose 
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90 overflow-hidden" onClick={onClose}>
       <button className="absolute top-4 right-4 p-2 text-white/70 hover:text-white cursor-pointer z-10" onClick={onClose}>
         <X size={28} />
       </button>
@@ -175,7 +175,7 @@ function FullscreenViewer({ photos, initialIndex = 0, caption, players, onClose 
       )}
       <div
         ref={scrollRef}
-        className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+        className="flex-1 flex overflow-x-auto snap-x snap-mandatory scrollbar-hide touch-pan-x overscroll-contain"
         onScroll={handleScroll}
         onClick={(e) => e.stopPropagation()}
       >
@@ -697,8 +697,8 @@ export default function GalleryPostCard({
         {/* Photo carousel — edge to edge, 4:5 aspect */}
         {photos.length > 0 && (
           <div
-            className="w-full relative"
-            style={{ aspectRatio: '4/5', maxHeight: '70vh' }}
+            className="w-full relative overscroll-contain"
+            style={{ aspectRatio: '4/5', maxHeight: '70vh', touchAction: photos.length > 1 ? 'pan-x pan-y' : 'pan-y' }}
             onDoubleClick={(e) => {
               e.preventDefault();
               handleDoubleTap();
@@ -708,7 +708,7 @@ export default function GalleryPostCard({
             {/* Scrollable photo container */}
             <div
               ref={carouselRef}
-              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide touch-pan-x"
               onScroll={() => {
                 const el = carouselRef.current;
                 if (!el || !el.clientWidth) return;
