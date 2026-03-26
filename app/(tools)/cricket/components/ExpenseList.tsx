@@ -273,7 +273,7 @@ export default function ExpenseList() {
                 style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
                 <FaCheckCircle size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
                 <p className="text-[13px] text-[var(--text)]">
-                  <span className="font-bold" style={{ color: 'var(--cricket)' }}>{formatCurrency(poolBalance)}</span> remaining — covers current season maintenance &amp; rolls over if funds are left.
+                  <span className="font-bold" style={{ color: 'var(--cricket)' }}>{formatCurrency(poolBalance)}</span>{' '}in the pool — any surplus rolls over to next season.
                 </p>
               </div>
             )}
@@ -308,7 +308,7 @@ export default function ExpenseList() {
                       <button
                         ref={openMenu === e.id ? menuBtnRef : null}
                         onClick={() => setOpenMenu(openMenu === e.id ? null : e.id)}
-                        className="absolute top-2.5 right-2.5 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                        className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
                         <FaEllipsisV size={12} />
                       </button>
 

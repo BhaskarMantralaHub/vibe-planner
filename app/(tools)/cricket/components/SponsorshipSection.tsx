@@ -178,7 +178,7 @@ export default function SponsorshipSection() {
                 <>
                   <button ref={openMenu === s.id ? menuBtnRef : null}
                     onClick={() => setOpenMenu(openMenu === s.id ? null : s.id)}
-                    className="absolute top-2.5 right-2.5 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                    className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
                     <FaEllipsisV size={12} />
                   </button>
                   {openMenu === s.id && (

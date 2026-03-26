@@ -263,7 +263,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   } else if (poolBalance > 0 && totalCollected > 0) {
     fillRect(M, y, TW, 10, [240, 253, 244], 2);
     text(
-      `${formatCurrency(poolBalance)} remaining — covers season maintenance & rolls over if funds are left`,
+      `${formatCurrency(poolBalance)} in the pool — any surplus rolls over to next season`,
       W / 2, y + 6.5, { size: 8.5, color: GREEN, align: 'center' }
     );
     y += 14;

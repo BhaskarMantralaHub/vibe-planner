@@ -80,10 +80,10 @@
   --card-hover-shadow: 0 12px 30px rgba(108, 99, 255, 0.15);
 
   /* Cricket team theme — change these to rebrand the entire cricket app */
-  --cricket: #2A8FC2;
-  --cricket-accent: #163B5E;
-  --cricket-hover: #2480B0;
-  --cricket-glow: rgba(42, 143, 194, 0.20);
+  --cricket: #1A75A8;
+  --cricket-accent: #0E5B86;
+  --cricket-hover: #156490;
+  --cricket-glow: rgba(26, 117, 168, 0.20);
 
   /* Status card gradients — soft pastels */
   --spark-from: #F0EDFF;
