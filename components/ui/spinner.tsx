@@ -17,7 +17,7 @@ const sizes = {
 
 const brandColors = {
   toolkit: 'border-[var(--purple)]',
-  cricket: 'border-[var(--orange)]',
+  cricket: 'border-[var(--cricket)]',
 };
 
 function Spinner({ size = 'md', brand: brandProp, color, className, ...props }: SpinnerProps) {

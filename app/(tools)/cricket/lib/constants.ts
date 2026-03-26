@@ -12,7 +12,7 @@ export type CategoryConfig = {
 export const EXPENSE_CATEGORIES: CategoryConfig[] = [
   { key: 'ground', label: 'Jerseys', iconName: 'FaTshirt', color: '#16A34A', bgColor: '#DCFCE7', borderColor: '#16A34A' },
   { key: 'equipment', label: 'Cricket Kit', iconName: 'MdSportsCricket', color: '#3B82F6', bgColor: '#DBEAFE', borderColor: '#3B82F6' },
-  { key: 'tournament', label: 'Tournament', iconName: 'FaTrophy', color: '#F59E0B', bgColor: '#FEF3C7', borderColor: '#F59E0B' },
+  { key: 'tournament', label: 'Tournament', iconName: 'FaTrophy', color: '#2A8FC2', bgColor: '#DBEEF9', borderColor: '#2A8FC2' },
   { key: 'food', label: 'Food & Drinks', iconName: 'FaUtensils', color: '#EF4444', bgColor: '#FEF2F2', borderColor: '#EF4444' },
   { key: 'other', label: 'Other', iconName: 'FaBox', color: '#6B7280', bgColor: '#F3F4F6', borderColor: '#6B7280' },
 ];

@@ -127,14 +127,14 @@ function InlineEditForm({ expense, onSave, onCancel }: {
         })}
       </div>
       <input value={desc} onChange={(e) => setDesc(e.target.value)}
-        className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
         placeholder="Description" />
       <div className="flex gap-2">
         <input type="number" step="0.01" value={amt} onChange={(e) => setAmt(e.target.value)}
-          className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+          className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
           placeholder="Amount" />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors" />
+          className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
       </div>
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel}
@@ -144,7 +144,7 @@ function InlineEditForm({ expense, onSave, onCancel }: {
         <button onClick={() => onSave({ category: cat, description: desc, amount: parseFloat(amt), expense_date: date })}
           disabled={!amt}
           className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)' }}>
+          style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}>
           Save
         </button>
       </div>
@@ -213,9 +213,9 @@ export default function ExpenseList() {
                 <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#059669' }}>{formatCurrency(totalFees)}</p>
               </div>
               {totalSponsorship > 0 ? (
-                <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#F59E0B10' }}>
+                <div className="rounded-xl p-2.5 sm:p-3" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, transparent)' }}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-0.5">Sponsors</p>
-                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: '#D97706' }}>{formatCurrency(totalSponsorship)}</p>
+                  <p className="text-[16px] sm:text-[18px] font-extrabold tabular-nums" style={{ color: 'var(--cricket-accent)' }}>{formatCurrency(totalSponsorship)}</p>
                 </div>
               ) : (
                 <div className="rounded-xl p-2.5 sm:p-3" style={{ background: '#3B82F610' }}>
@@ -245,7 +245,7 @@ export default function ExpenseList() {
                   <div className="h-full transition-all duration-700" style={{ width: `${feesPct}%`, background: 'linear-gradient(90deg, #059669, #10B981)' }} />
                   {/* Sponsors portion */}
                   {totalSponsorship > 0 && (
-                    <div className="h-full transition-all duration-700" style={{ width: `${100 - feesPct}%`, background: 'linear-gradient(90deg, #D97706, #F59E0B)' }} />
+                    <div className="h-full transition-all duration-700" style={{ width: `${100 - feesPct}%`, background: 'linear-gradient(90deg, var(--cricket-accent), var(--cricket))' }} />
                   )}
                   {/* Spent overlay hatching */}
                   <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 pointer-events-none"
@@ -263,7 +263,7 @@ export default function ExpenseList() {
                 style={{ background: '#EF44440A', border: '1.5px solid #EF444425' }}>
                 <FaExclamationTriangle size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
                 <p className="text-[13px] leading-relaxed text-[var(--text)]">
-                  Short <span className="font-extrabold" style={{ color: '#EF4444' }}>{formatCurrency(Math.abs(poolBalance))}</span> — collect <span className="font-extrabold" style={{ color: '#D97706' }}>{formatCurrency(perPerson)}</span>/player to cover it.
+                  Short <span className="font-extrabold" style={{ color: '#EF4444' }}>{formatCurrency(Math.abs(poolBalance))}</span> — collect <span className="font-extrabold" style={{ color: 'var(--cricket-accent)' }}>{formatCurrency(perPerson)}</span>/player to cover it.
                 </p>
               </div>
             )}

@@ -40,7 +40,7 @@ export default function MonthlyBar() {
                 color: 'var(--text)',
               }}
             />
-            <Bar dataKey="total" fill="var(--orange)" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="total" fill="var(--cricket)" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

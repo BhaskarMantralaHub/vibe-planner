@@ -23,9 +23,9 @@ const BRANDS: Record<Brand, BrandConfig> = {
   cricket: {
     brand: 'cricket',
     name: 'Sunrisers Manteca',
-    gradient: 'from-[var(--orange)] to-[var(--red)]',
-    focusRing: 'focus-visible:ring-[var(--orange)]/40',
-    accentVar: '--orange',
+    gradient: 'from-[var(--cricket)] to-[var(--cricket-accent)]',
+    focusRing: 'focus-visible:ring-[var(--cricket)]/40',
+    accentVar: '--cricket',
   },
 };
 

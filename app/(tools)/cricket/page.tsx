@@ -65,7 +65,7 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
     { label: 'Total Spent', value: formatCurrency(animSpent), color: 'var(--red)', icon: <FaReceipt size={16} /> },
     { label: 'Fees Paid', value: `${animPaid} of ${feesTotal}`, color: feeColor, icon: <FaMoneyBillWave size={16} /> },
     { label: 'Pool Balance', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(animPool)}`, color: poolBalance < 0 ? 'var(--red)' : 'var(--green)', icon: <FaWallet size={16} /> },
-    { label: 'Players', value: String(animPlayers), color: 'var(--orange)', icon: <MdSportsCricket size={18} /> },
+    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <MdSportsCricket size={18} /> },
   ];
 
   return (
@@ -118,10 +118,10 @@ function ViewTabs({ active, onChange, playerCount, expenseCount }: {
             onClick={() => onChange(v.key)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-medium cursor-pointer transition-all ${
               isActive
-                ? 'bg-[var(--orange)] text-white font-bold border border-[var(--orange)]'
-                : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--orange)]/30'
+                ? 'bg-[var(--cricket)] text-white font-bold border border-[var(--cricket)]'
+                : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--cricket)]/30'
             }`}
-            style={isActive ? { boxShadow: '0 2px 12px rgba(217,119,6,0.3)' } : undefined}
+            style={isActive ? { boxShadow: '0 2px 12px var(--cricket-glow)' } : undefined}
           >
             <span className={isActive ? 'text-white/90' : ''}>{v.icon}</span>
             <span className="hidden sm:inline">{v.label}</span>
@@ -243,11 +243,11 @@ function CricketDashboard() {
       {/* Ambient background blobs — cricket warm tones */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className="absolute -top-[20%] -right-[10%] h-[500px] w-[500px] rounded-full opacity-[0.07] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, #F59E0B, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, var(--cricket), transparent 70%)' }} />
         <div className="absolute top-[30%] -left-[15%] h-[400px] w-[400px] rounded-full opacity-[0.05] blur-[90px]"
-          style={{ background: 'radial-gradient(circle, #EF4444, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
         <div className="absolute -bottom-[10%] right-[20%] h-[450px] w-[450px] rounded-full opacity-[0.06] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, #D97706, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
       </div>
 
       {/* Header — greeting + pulse */}
@@ -286,7 +286,7 @@ function CricketDashboard() {
           <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
             <div>
               <h2 className="text-[20px] sm:text-[24px] font-bold text-[var(--text)] tracking-tight">
-                {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--orange)]" size={22} />
+                {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--cricket)]" size={22} />
               </h2>
             </div>
             <SeasonSelector />

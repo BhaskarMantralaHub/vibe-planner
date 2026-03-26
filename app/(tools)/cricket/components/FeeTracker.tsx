@@ -69,7 +69,7 @@ export default function FeeTracker() {
           <h3 className="text-[17px] sm:text-[18px] font-bold text-[var(--text)] tracking-tight">Season Fee</h3>
           {isAdmin && !editingFee ? (
             <button onClick={() => { setFeeInput(String(feeAmount)); setEditingFee(true); }}
-              className="flex items-center gap-1.5 text-[15px] sm:text-[16px] font-extrabold text-[var(--orange)] cursor-pointer hover:opacity-80 transition-opacity">
+              className="flex items-center gap-1.5 text-[15px] sm:text-[16px] font-extrabold text-[var(--cricket)] cursor-pointer hover:opacity-80 transition-opacity">
               {formatCurrency(feeAmount)}<span className="text-[12px] font-semibold text-[var(--muted)]">/player</span> <MdEdit size={14} className="text-[var(--muted)]" />
             </button>
           ) : isAdmin && editingFee ? (
@@ -82,7 +82,7 @@ export default function FeeTracker() {
               <button onClick={() => setEditingFee(false)} className="text-[12px] text-[var(--muted)] cursor-pointer">Cancel</button>
             </div>
           ) : (
-            <span className="text-[15px] sm:text-[16px] font-extrabold text-[var(--orange)]">{formatCurrency(feeAmount)}<span className="text-[12px] font-semibold text-[var(--muted)]">/player</span></span>
+            <span className="text-[15px] sm:text-[16px] font-extrabold text-[var(--cricket)]">{formatCurrency(feeAmount)}<span className="text-[12px] font-semibold text-[var(--muted)]">/player</span></span>
           )}
         </div>
 
@@ -95,7 +95,7 @@ export default function FeeTracker() {
                 background: progressPct >= 100
                   ? 'linear-gradient(90deg, #059669, #10B981)'
                   : progressPct >= 50
-                    ? 'linear-gradient(90deg, #D97706, #F59E0B)'
+                    ? 'linear-gradient(90deg, var(--cricket-accent), var(--cricket))'
                     : 'linear-gradient(90deg, #DC2626, #EF4444)',
               }} />
           </div>
@@ -118,7 +118,7 @@ export default function FeeTracker() {
               <FaCheckCircle size={10} /> {paidCount}
             </span>
             {partialCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5" style={{ background: '#D9770615', color: '#D97706' }}>
+              <span className="inline-flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5" style={{ background: 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)', color: 'var(--cricket-accent)' }}>
                 <FaExclamationCircle size={10} /> {partialCount}
               </span>
             )}
@@ -136,11 +136,11 @@ export default function FeeTracker() {
           const paid = fee ? Number(fee.amount_paid) : 0;
           const isPaid = paid >= feeAmount;
           const isPartial = paid > 0 && paid < feeAmount;
-          const statusColor = isPaid ? '#059669' : isPartial ? '#D97706' : '#EF4444';
+          const statusColor = isPaid ? '#059669' : isPartial ? 'var(--cricket-accent)' : '#EF4444';
 
           return (
             <div key={p.id} className="rounded-xl border bg-[var(--surface)] p-2.5 sm:p-3 min-w-0 overflow-hidden"
-              style={{ borderColor: isPaid ? '#05966940' : isPartial ? '#D9770640' : 'var(--border)', borderLeftWidth: isPaid || isPartial ? '4px' : '1px' }}>
+              style={{ borderColor: isPaid ? '#05966940' : isPartial ? 'color-mix(in srgb, var(--cricket-accent) 25%, transparent)' : 'var(--border)', borderLeftWidth: isPaid || isPartial ? '4px' : '1px' }}>
               <div className="flex items-center gap-2.5 sm:gap-3">
                 {/* Circular jersey badge with status ring */}
                 <div className="flex-shrink-0 relative">
@@ -205,7 +205,7 @@ export default function FeeTracker() {
                         </button>
                         <button onClick={() => { setPayingPlayer(p.id); setPayAmount(''); }}
                           className="rounded-full px-3 sm:px-4 py-1.5 text-[11px] sm:text-[12px] font-bold tracking-wide uppercase cursor-pointer whitespace-nowrap transition-all active:scale-95"
-                          style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706', boxShadow: '0 2px 8px rgba(245,158,11,0.25)' }}>
+                          style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))', color: '#fff', border: '1.5px solid var(--cricket-accent)', boxShadow: '0 2px 8px var(--cricket-glow)' }}>
                           Partial
                         </button>
                       </>
@@ -220,7 +220,7 @@ export default function FeeTracker() {
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-semibold text-[var(--muted)]">$</span>
                     <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] font-semibold text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                      className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] font-semibold text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                       placeholder="Amount" autoFocus />
                     <button onClick={handlePartialSubmit} disabled={!payAmount}
                       className="flex-shrink-0 rounded-lg px-3 py-2 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"

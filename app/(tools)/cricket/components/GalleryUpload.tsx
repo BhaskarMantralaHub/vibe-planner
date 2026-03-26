@@ -73,9 +73,9 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
           <button
             onMouseDown={(e) => { e.preventDefault(); onSelectAll(); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors font-semibold"
-            style={{ color: 'var(--orange)' }}
+            style={{ color: 'var(--cricket)' }}
           >
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--orange)' }}>
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--cricket)' }}>
               @
             </div>
             Everyone
@@ -93,7 +93,7 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
           {p.photo_url ? (
             <img src={p.photo_url} alt="" className="w-6 h-6 rounded-full object-cover" />
           ) : (
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--orange)' }}>
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--cricket)' }}>
               {p.name[0]}
             </div>
           )}
@@ -322,17 +322,17 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
                 onClick={() => fileRef.current?.click()}
                 className="w-full flex flex-col items-center justify-center gap-3 py-16 rounded-2xl cursor-pointer hover:opacity-80 transition-opacity"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(217,119,6,0.06), rgba(239,68,68,0.04))',
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), color-mix(in srgb, var(--cricket-accent) 4%, transparent))',
                   border: '2px dashed var(--border)',
                 }}
               >
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(217,119,6,0.15), rgba(239,68,68,0.1))',
+                    background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 15%, transparent), color-mix(in srgb, var(--cricket-accent) 10%, transparent))',
                   }}
                 >
-                  <Camera size={28} strokeWidth={1.5} style={{ color: 'var(--orange)' }} />
+                  <Camera size={28} strokeWidth={1.5} style={{ color: 'var(--cricket)' }} />
                 </div>
                 <span className="text-[14px] font-medium text-[var(--muted)]">Tap to select photos</span>
                 <span className="text-[12px] text-[var(--dim)]">Up to {MAX_PHOTOS} photos per post</span>

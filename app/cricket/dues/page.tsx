@@ -20,7 +20,7 @@ export default function PublicDuesPage() {
       <div className="w-full max-w-md text-center">
         {/* Cricket branding */}
         <div className="mb-6">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FBBF24] to-[#F87171] text-3xl">
+          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--cricket)] to-[var(--cricket-accent)] text-3xl">
             🏏
           </div>
         </div>

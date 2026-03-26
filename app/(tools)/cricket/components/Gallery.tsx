@@ -14,10 +14,10 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
       <div
         className="w-24 h-24 rounded-full flex items-center justify-center mb-6"
         style={{
-          background: 'linear-gradient(135deg, rgba(217,119,6,0.12), rgba(239,68,68,0.08))',
+          background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 12%, transparent), color-mix(in srgb, var(--cricket-accent) 8%, transparent))',
         }}
       >
-        <Camera size={40} strokeWidth={1.5} style={{ color: 'var(--orange)' }} />
+        <Camera size={40} strokeWidth={1.5} style={{ color: 'var(--cricket)' }} />
       </div>
       <h3 className="text-[20px] font-bold text-[var(--text)] mb-2">Share Team Moments</h3>
       <p className="text-[14px] text-[var(--muted)] text-center max-w-[280px] mb-7 leading-relaxed">
@@ -29,8 +29,8 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
         onClick={onUpload}
         className="flex items-center gap-2 px-6 py-3 rounded-full text-white text-[14px] font-semibold cursor-pointer shadow-lg"
         style={{
-          background: 'linear-gradient(135deg, var(--orange), var(--red))',
-          boxShadow: '0 4px 16px rgba(217,119,6,0.3)',
+          background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+          boxShadow: '0 4px 16px var(--cricket-glow)',
         }}
       >
         <Camera size={18} />
@@ -75,7 +75,7 @@ export default function Gallery() {
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-5">
                 <StatItem
-                  icon={<ImageIcon size={14} style={{ color: 'var(--orange)' }} />}
+                  icon={<ImageIcon size={14} style={{ color: 'var(--cricket)' }} />}
                   value={seasonPosts.length}
                   label={seasonPosts.length === 1 ? 'post' : 'posts'}
                 />
@@ -96,8 +96,8 @@ export default function Gallery() {
                 onClick={() => setShowUpload(true)}
                 className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 rounded-full text-white text-[13px] font-semibold cursor-pointer"
                 style={{
-                  background: 'linear-gradient(135deg, var(--orange), var(--red))',
-                  boxShadow: '0 2px 12px rgba(217,119,6,0.25)',
+                  background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+                  boxShadow: '0 2px 12px var(--cricket-glow)',
                 }}
               >
                 <Plus size={15} strokeWidth={2.5} />
@@ -148,8 +148,8 @@ export default function Gallery() {
           onClick={() => setShowUpload(true)}
           className="fixed bottom-6 right-6 z-40 sm:hidden flex items-center justify-center w-14 h-14 rounded-full text-white cursor-pointer"
           style={{
-            background: 'linear-gradient(135deg, var(--orange), var(--red))',
-            boxShadow: '0 4px 20px rgba(217,119,6,0.4)',
+            background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+            boxShadow: '0 4px 20px var(--cricket-glow)',
           }}
         >
           <Camera size={24} />

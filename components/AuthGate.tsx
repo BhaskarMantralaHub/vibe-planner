@@ -73,8 +73,8 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     title: 'Sunrisers Manteca',
     subtitle: 'You need cricket access to view this page.',
     buttonText: 'Request Cricket Access',
-    accentColor: 'var(--orange)',
-    gradient: 'from-[var(--orange)] to-[var(--red)]',
+    accentColor: 'var(--cricket)',
+    gradient: 'from-[var(--cricket)] to-[var(--cricket-accent)]',
   } : {
     title: 'Access Required',
     subtitle: 'You don\'t have access to this tool.',
@@ -86,7 +86,7 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   if (checking) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cricket)] border-t-transparent" />
       </div>
     );
   }
@@ -133,9 +133,9 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
 
 /* ── Role icon + color config for signup chip buttons ── */
 const signupRoleConfig: Record<string, { icon: React.ReactNode; color: string }> = {
-  batsman: { icon: <GiCricketBat size={13} />, color: '#F59E0B' },
+  batsman: { icon: <GiCricketBat size={13} />, color: 'var(--cricket)' },
   bowler: { icon: <FaBullseye size={12} />, color: '#3B82F6' },
-  'all-rounder': { icon: <FaStar size={12} />, color: '#D97706' },
+  'all-rounder': { icon: <FaStar size={12} />, color: 'var(--cricket-accent)' },
   keeper: { icon: <GiBaseballGlove size={13} />, color: '#16A34A' },
 };
 
@@ -169,13 +169,13 @@ const VARIANT_CONFIG = {
     loginSubtitle: 'Log in to your team',
     signupTitle: 'Join the Team',
     signupSubtitle: 'Create your account',
-    gradient: 'from-[var(--orange)] to-[var(--red)]',
-    buttonGradient: 'from-[var(--orange)] to-[var(--red)]',
-    focusColor: 'focus:border-[var(--orange)] focus:ring-[var(--orange)]/30',
-    orbColor1: 'var(--orange)',
-    orbColor2: 'var(--red)',
-    shadowColor: 'rgba(251, 191, 36, 0.15)',
-    accentColor: 'var(--orange)',
+    gradient: 'from-[var(--cricket)] to-[var(--cricket-accent)]',
+    buttonGradient: 'from-[var(--cricket)] to-[var(--cricket-accent)]',
+    focusColor: 'focus:border-[var(--cricket)] focus:ring-[var(--cricket)]/30',
+    orbColor1: 'var(--cricket)',
+    orbColor2: 'var(--cricket-accent)',
+    shadowColor: 'var(--cricket-glow)',
+    accentColor: 'var(--cricket)',
     access: 'cricket',
   },
 };
@@ -249,7 +249,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   if (user && variant !== 'toolkit' && currentAccess.length === 0) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--orange)] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cricket)] border-t-transparent" />
       </div>
     );
   }
@@ -475,7 +475,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                         return (
                           <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
                             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium cursor-pointer transition-all border"
-                            style={{ backgroundColor: selected ? rc?.color ?? 'var(--orange)' : 'transparent', borderColor: selected ? rc?.color ?? 'var(--orange)' : 'var(--border)', color: selected ? 'white' : 'var(--text)' }}>
+                            style={{ backgroundColor: selected ? rc?.color ?? 'var(--cricket)' : 'transparent', borderColor: selected ? rc?.color ?? 'var(--cricket)' : 'var(--border)', color: selected ? 'white' : 'var(--text)' }}>
                             {rc?.icon} {r.label}
                           </button>
                         );

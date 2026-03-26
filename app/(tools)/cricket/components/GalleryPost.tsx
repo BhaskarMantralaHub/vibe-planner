@@ -110,7 +110,7 @@ function Avatar({ player, name, size = 32 }: { player?: CricketPlayer | null; na
   }
   return (
     <div className="rounded-full flex items-center justify-center font-bold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: 'var(--orange)' }}>
+      style={{ width: size, height: size, fontSize: size * 0.38, background: 'var(--cricket)' }}>
       {name[0]?.toUpperCase() ?? '?'}
     </div>
   );
@@ -125,7 +125,7 @@ function RingedAvatar({ player, name, size = 40 }: { player?: CricketPlayer | nu
       {/* Gradient ring */}
       <div
         className="absolute inset-0 rounded-full"
-        style={{ background: 'linear-gradient(135deg, #FF6B35, #F7C948)' }}
+        style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}
       />
       {/* White/card gap */}
       <div
@@ -147,7 +147,7 @@ function RingedAvatar({ player, name, size = 40 }: { player?: CricketPlayer | nu
             width: 20, height: 20,
             bottom: -2, right: -2,
             fontSize: 10,
-            background: 'var(--orange)',
+            background: 'var(--cricket)',
             border: '2px solid var(--card)',
             lineHeight: 1,
           }}
@@ -424,8 +424,8 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
         <>
           <button onMouseDown={(e) => { e.preventDefault(); onSelectAll(); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left cursor-pointer hover:bg-[var(--hover-bg)] font-semibold"
-            style={{ color: 'var(--orange)' }}>
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--orange)' }}>@</div>
+            style={{ color: 'var(--cricket)' }}>
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--cricket)' }}>@</div>
             Everyone
           </button>
           {filtered.length > 0 && <div className="mx-2" style={{ borderTop: '1px solid var(--border)' }} />}
@@ -437,7 +437,7 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
           style={{ color: 'var(--text)' }}>
           {p.photo_url
             ? <img src={p.photo_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-            : <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--orange)' }}>{p.name[0]}</div>
+            : <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--cricket)' }}>{p.name[0]}</div>
           }
           {p.name}
         </button>
@@ -479,7 +479,7 @@ function CommentLike({ commentId, reactions, userId, players }: {
                   {l.player?.photo_url ? (
                     <img src={l.player.photo_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                   ) : (
-                    <span className="flex items-center justify-center w-4 h-4 rounded-full text-[7px] font-bold text-white" style={{ background: 'var(--orange)' }}>
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full text-[7px] font-bold text-white" style={{ background: 'var(--cricket)' }}>
                       {l.name[0]}
                     </span>
                   )}
@@ -595,7 +595,7 @@ function CaptionEditor({ initialCaption, players, onSave, onCancel }: {
         </p>
         <div className="flex gap-1.5">
           <button onClick={onCancel} className="px-2.5 py-1 rounded-lg text-[12px] font-medium cursor-pointer hover:bg-[var(--hover-bg)]" style={{ color: 'var(--muted)' }}>Cancel</button>
-          <button onClick={() => onSave(text.trim())} className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-white cursor-pointer" style={{ background: 'var(--orange)' }}>Save</button>
+          <button onClick={() => onSave(text.trim())} className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-white cursor-pointer" style={{ background: 'var(--cricket)' }}>Save</button>
         </div>
       </div>
     </div>
@@ -834,8 +834,8 @@ export default function GalleryPostCard({
             className="relative mx-4 rounded-2xl overflow-hidden"
             style={{
               borderLeft: '4px solid transparent',
-              borderImage: 'linear-gradient(to bottom, var(--orange), var(--red)) 1',
-              background: 'rgba(255,107,53,0.04)',
+              borderImage: 'linear-gradient(to bottom, var(--cricket), var(--cricket-accent)) 1',
+              background: 'color-mix(in srgb, var(--cricket) 4%, transparent)',
             }}
           >
             <div className="px-4 py-4">
@@ -844,7 +844,7 @@ export default function GalleryPostCard({
                 <div className="mb-3">
                   <span
                     className="inline-block rounded-full text-[11px] font-semibold uppercase tracking-wider px-3 py-1 text-white"
-                    style={{ background: 'linear-gradient(135deg, #FF6B35, #F7C948)' }}
+                    style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}
                   >
                     Welcome
                   </span>
@@ -966,11 +966,11 @@ export default function GalleryPostCard({
                       }}
                       autoFocus maxLength={300}
                       className="w-full text-[13px] rounded-lg px-3 py-2 outline-none"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--orange)', color: 'var(--text)' }} />
+                      style={{ background: 'var(--surface)', border: '1px solid var(--cricket)', color: 'var(--text)' }} />
                     <div className="flex items-center gap-2 mt-1.5">
                       <button onClick={() => { if (editCommentText.trim()) { updateGalleryComment(c.id, editCommentText.trim()); setEditingCommentId(null); } }}
                         className="px-3 py-1 rounded-lg text-[11px] font-semibold text-white cursor-pointer"
-                        style={{ background: 'var(--orange)' }}>Save</button>
+                        style={{ background: 'var(--cricket)' }}>Save</button>
                       <button onClick={() => setEditingCommentId(null)}
                         className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--muted)' }}>Cancel</button>
                     </div>

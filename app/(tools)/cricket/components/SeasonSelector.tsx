@@ -69,11 +69,11 @@ export default function SeasonSelector() {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="group flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-full text-[14px] font-semibold cursor-pointer transition-all bg-[var(--card)] border border-[var(--border)] hover:border-[var(--orange)]/40 hover:shadow-sm text-[var(--text)]"
+          className="group flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-full text-[14px] font-semibold cursor-pointer transition-all bg-[var(--card)] border border-[var(--border)] hover:border-[var(--cricket)]/40 hover:shadow-sm text-[var(--text)]"
         >
           <span className="text-[16px]">{activeIcon}</span>
           <span className="font-bold">{selectedSeason?.name ?? 'No seasons'}</span>
-          <span className={`flex items-center justify-center h-5 w-5 rounded-full bg-[var(--hover-bg)] group-hover:bg-[var(--orange)]/10 text-[var(--muted)] text-[9px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
+          <span className={`flex items-center justify-center h-5 w-5 rounded-full bg-[var(--hover-bg)] group-hover:bg-[var(--cricket)]/10 text-[var(--muted)] text-[9px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
         </button>
         {showDropdown && sortedSeasons.length > 0 && (
           <div className="absolute left-0 top-full mt-1.5 z-[60] w-max min-w-[180px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1.5 animate-slide-in">
@@ -86,13 +86,13 @@ export default function SeasonSelector() {
                   onClick={() => { setSelectedSeason(s.id); setShowDropdown(false); }}
                   className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] cursor-pointer transition-colors ${
                     isActive
-                      ? 'text-[var(--orange)] bg-[var(--orange)]/5 font-bold'
+                      ? 'text-[var(--cricket)] bg-[var(--cricket)]/5 font-bold'
                       : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
                   <span className="text-[15px]">{icon}</span>
                   <span className="flex-1 text-left">{s.name}</span>
-                  {isActive && <span className="h-2 w-2 rounded-full bg-[var(--orange)]" />}
+                  {isActive && <span className="h-2 w-2 rounded-full bg-[var(--cricket)]" />}
                 </button>
               );
             })}
@@ -104,7 +104,7 @@ export default function SeasonSelector() {
       {isAdmin && !showCreate ? (
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center justify-center h-9 w-9 rounded-full border border-dashed border-[var(--orange)]/40 text-[var(--orange)] cursor-pointer hover:bg-[var(--orange)]/10 hover:border-[var(--orange)] transition-all active:scale-95"
+          className="flex items-center justify-center h-9 w-9 rounded-full border border-dashed border-[var(--cricket)]/40 text-[var(--cricket)] cursor-pointer hover:bg-[var(--cricket)]/10 hover:border-[var(--cricket)] transition-all active:scale-95"
           title="New Season"
         >
           <span className="text-[18px] font-light leading-none">+</span>
@@ -123,8 +123,8 @@ export default function SeasonSelector() {
                   disabled={exists}
                   className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium cursor-pointer transition-all border disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{
-                    backgroundColor: newType === t.key && !exists ? 'var(--orange)' : 'transparent',
-                    borderColor: newType === t.key && !exists ? 'var(--orange)' : 'var(--border)',
+                    backgroundColor: newType === t.key && !exists ? 'var(--cricket)' : 'transparent',
+                    borderColor: newType === t.key && !exists ? 'var(--cricket)' : 'var(--border)',
                     color: newType === t.key && !exists ? 'white' : 'var(--muted)',
                   }}
                 >
@@ -137,11 +137,11 @@ export default function SeasonSelector() {
             type="number"
             value={newYear}
             onChange={(e) => setNewYear(Number(e.target.value))}
-            className="w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-[13px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+            className="w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-[13px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
           />
           <button onClick={handleCreate}
             disabled={seasons.some((s) => s.season_type === newType && s.year === newYear)}
-            className="rounded-full bg-[var(--orange)] px-3.5 py-1.5 text-[12px] font-bold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+            className="rounded-full bg-[var(--cricket)] px-3.5 py-1.5 text-[12px] font-bold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
             Create
           </button>
           <button onClick={() => { setShowCreate(false); setCreateError(''); }} className="text-[13px] text-[var(--muted)] cursor-pointer hover:text-[var(--text)]">

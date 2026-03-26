@@ -173,7 +173,7 @@ function PendingApprovals() {
                   <div key={p.id} className="p-3 border-b border-[var(--border)]/50 last:border-b-0">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, var(--orange), var(--red))' }}>
+                        style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
                         {(p.full_name || p.email || '?')[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -186,13 +186,13 @@ function PendingApprovals() {
                       <div className="flex flex-wrap gap-1.5 mt-2 ml-12">
                         {meta.jersey_number != null && (
                           <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: '#F59E0B20', color: '#D97706' }}>
+                            style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket-accent)' }}>
                             #{meta.jersey_number}
                           </span>
                         )}
                         {meta.player_role && (
                           <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ background: '#F59E0B15', color: '#D97706' }}>
+                            style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)', color: 'var(--cricket-accent)' }}>
                             {ROLE_LABELS[meta.player_role] ?? meta.player_role}
                           </span>
                         )}
@@ -274,7 +274,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {isCricketContext ? (
             <>
               <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
-              <span className="bg-gradient-to-r from-[var(--orange)] to-[var(--red)] bg-clip-text text-lg font-bold tracking-tight text-transparent">
+              <span className="bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-lg font-bold tracking-tight text-transparent">
                 Sunrisers Manteca
               </span>
             </>

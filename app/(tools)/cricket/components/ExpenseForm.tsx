@@ -137,7 +137,7 @@ export default function ExpenseForm() {
           <Label uppercase className="mb-1.5 block">Description</Label>
           <input
             value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
             placeholder="Ground booking, balls, etc."
           />
         </div>
@@ -148,7 +148,7 @@ export default function ExpenseForm() {
             <Label uppercase className="mb-1.5 block">Amount ($)</Label>
             <input
               type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="0.00"
             />
           </div>
@@ -156,7 +156,7 @@ export default function ExpenseForm() {
             <Label uppercase className="mb-1.5 block">Date</Label>
             <input
               type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
             />
           </div>
         </div>

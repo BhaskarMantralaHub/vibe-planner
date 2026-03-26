@@ -128,17 +128,22 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
 
 /* ── Role config ── */
 const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string; desc: string }> = {
-  batsman: { icon: <MdSportsCricket size={15} />, label: 'Batsman', color: '#F59E0B', desc: 'Run scorer' },
+  batsman: { icon: <MdSportsCricket size={15} />, label: 'Batsman', color: 'var(--cricket)', desc: 'Run scorer' },
   bowler: { icon: <GiTennisBall size={14} />, label: 'Bowler', color: '#3B82F6', desc: 'Wicket taker' },
-  'all-rounder': { icon: <><MdSportsCricket size={14} /><GiTennisBall size={12} /></>, label: 'All-Rounder', color: '#D97706', desc: 'Bat & ball' },
+  'all-rounder': { icon: <><MdSportsCricket size={14} /><GiTennisBall size={12} /></>, label: 'All-Rounder', color: 'var(--cricket-accent)', desc: 'Bat & ball' },
   keeper: { icon: <GiGloves size={15} />, label: 'Keeper', color: '#16A34A', desc: 'Behind stumps' },
 };
 
-const JERSEY_COLORS = ['#F59E0B', '#3B82F6', '#16A34A', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#F97316'];
+const JERSEY_COLORS = ['var(--cricket)', '#3B82F6', '#16A34A', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#F97316'];
 
 function getJerseyColor(jerseyNumber: number | null, index: number): string {
   if (jerseyNumber) return JERSEY_COLORS[jerseyNumber % JERSEY_COLORS.length];
   return JERSEY_COLORS[index % JERSEY_COLORS.length];
+}
+
+/// Mix a color with transparent at a given percentage (works with CSS variables and hex)
+function colorAlpha(color: string, pct: number): string {
+  return `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 }
 
 const battingIcon = () => <MdSportsCricket size={14} />;
@@ -566,26 +571,26 @@ export default function PlayerManager() {
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
                   <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); }}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                     placeholder="Player name" />
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>
                   <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors text-center"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors text-center"
                     placeholder="#" />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                   placeholder="player@email.com" />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
                 <input value={cricclubId} onChange={(e) => setCricclubId(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                   placeholder="Optional" />
               </div>
               {/* Designation (admin only) */}
@@ -594,20 +599,20 @@ export default function PlayerManager() {
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleDesignation('captain')}
                     className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                    style={{ backgroundColor: designation === 'captain' ? '#D97706' : 'transparent', borderColor: designation === 'captain' ? '#D97706' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
+                    style={{ backgroundColor: designation === 'captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
                     <FaCrown size={13} /> Captain
                   </button>
                   <button type="button" onClick={() => handleDesignation('vice-captain')}
                     className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                    style={{ backgroundColor: designation === 'vice-captain' ? '#D97706' : 'transparent', borderColor: designation === 'vice-captain' ? '#D97706' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
+                    style={{ backgroundColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
                     <FaShieldAlt size={12} /> Vice Captain
                   </button>
                 </div>
                 {designationConflict && (
-                  <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--orange)]/5 border border-[var(--orange)]/20">
+                  <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--cricket)]/5 border border-[var(--cricket)]/20">
                     <span className="text-[12px] text-[var(--text)] flex-1"><b>{designationConflict.existingName}</b> is currently {designationConflict.value === 'captain' ? 'Captain' : 'Vice Captain'}. Reassign?</span>
                     <button onClick={() => setDesignationConflict(null)} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">No</button>
-                    <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--orange)] cursor-pointer hover:opacity-90">Yes</button>
+                    <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--cricket)] cursor-pointer hover:opacity-90">Yes</button>
                   </div>
                 )}
               </div>}
@@ -618,7 +623,7 @@ export default function PlayerManager() {
                   {SHIRT_SIZES.map((s) => (
                     <button key={s.key} type="button" onClick={() => setShirtSize(shirtSize === s.key ? '' : s.key)}
                       className="h-8 w-10 rounded-lg text-[12px] font-medium cursor-pointer transition-all border"
-                      style={{ backgroundColor: shirtSize === s.key ? '#D97706' : 'transparent', borderColor: shirtSize === s.key ? '#D97706' : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
+                      style={{ backgroundColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
                       {s.label}
                     </button>
                   ))}
@@ -635,18 +640,18 @@ export default function PlayerManager() {
                       <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
                         className="flex items-center gap-2.5 rounded-xl p-2.5 cursor-pointer transition-all border-2 text-left"
                         style={{
-                          backgroundColor: isSelected ? '#D9770615' : 'var(--surface)',
-                          borderColor: isSelected ? '#D97706' : 'var(--border)',
+                          backgroundColor: isSelected ? 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)' : 'var(--surface)',
+                          borderColor: isSelected ? 'var(--cricket-accent)' : 'var(--border)',
                         }}>
                         <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition-all"
                           style={{
-                            backgroundColor: isSelected ? '#D97706' : `${rc?.color}15`,
+                            backgroundColor: isSelected ? 'var(--cricket-accent)' : colorAlpha(rc?.color ?? 'var(--cricket)', 8),
                             color: isSelected ? 'white' : rc?.color,
                           }}>
                           {rc?.icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? '#D97706' : 'var(--text)' }}>{r.label}</p>
+                          <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? 'var(--cricket-accent)' : 'var(--text)' }}>{r.label}</p>
                           <p className="text-[10px] text-[var(--muted)] leading-tight mt-0.5">{rc?.desc}</p>
                         </div>
                       </button>
@@ -664,7 +669,7 @@ export default function PlayerManager() {
                         {BATTING_STYLES.map((s) => (
                           <button key={s.key} type="button" onClick={() => setBattingStyle(battingStyle === s.key ? '' : s.key)}
                             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                            style={{ backgroundColor: battingStyle === s.key ? '#D97706' : 'transparent', borderColor: battingStyle === s.key ? '#D97706' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            style={{ backgroundColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
                             {battingIcon()} {s.label}
                           </button>
                         ))}
@@ -678,7 +683,7 @@ export default function PlayerManager() {
                         {BOWLING_STYLES.map((s) => (
                           <button key={s.key} type="button" onClick={() => setBowlingStyle(bowlingStyle === s.key ? '' : s.key)}
                             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                            style={{ backgroundColor: bowlingStyle === s.key ? '#D97706' : 'transparent', borderColor: bowlingStyle === s.key ? '#D97706' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            style={{ backgroundColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
                             {bowlingIcon()} {s.label}
                           </button>
                         ))}
@@ -715,8 +720,8 @@ export default function PlayerManager() {
             const hasSkills = p.batting_style || p.bowling_style || p.shirt_size;
             const hasContact = p.email || p.cricclub_id;
             const hasDetails = hasSkills || hasContact;
-            const roleColor = rc?.color ?? '#F59E0B';
-            const borderColor = isExpanded ? roleColor + '40' : isCaptain ? '#D97706' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)';
+            const roleColor = rc?.color ?? 'var(--cricket)';
+            const borderColor = isExpanded ? colorAlpha(roleColor, 25) : isCaptain ? 'var(--cricket-accent)' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)';
             const hasThickLeft = isCaptain || isVC || isPlayerAdmin;
 
             return (
@@ -728,7 +733,7 @@ export default function PlayerManager() {
                   borderRight: `1.5px solid ${borderColor}`,
                   borderBottom: `1.5px solid ${borderColor}`,
                   borderLeft: `${hasThickLeft ? '4px' : '1.5px'} solid ${borderColor}`,
-                  boxShadow: isExpanded ? `0 8px 32px ${roleColor}15, 0 2px 8px rgba(0,0,0,0.08)` : 'none',
+                  boxShadow: isExpanded ? `0 8px 32px ${colorAlpha(roleColor, 8)}, 0 2px 8px rgba(0,0,0,0.08)` : 'none',
                 }}>
                 {/* Clickable header area */}
                 <div
@@ -779,8 +784,8 @@ export default function PlayerManager() {
                             alt={p.name}
                             className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300 cursor-pointer"
                             style={{
-                              border: `2.5px solid ${roleColor}${isSignedUp ? '50' : '35'}`,
-                              boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                              border: `2.5px solid ${colorAlpha(roleColor, isSignedUp ? 30 : 20)}`,
+                              boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 6)}` : 'none',
                             }}
                             onClick={(e) => { e.stopPropagation(); setLightboxPhoto({ name: p.name, url: p.photo_url! }); }}
                           />
@@ -796,10 +801,10 @@ export default function PlayerManager() {
                       ) : (
                         <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
                           style={{
-                            backgroundColor: `${roleColor}${isSignedUp ? '18' : '08'}`,
-                            color: isSignedUp ? roleColor : `${roleColor}90`,
-                            border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${roleColor}${isSignedUp ? '50' : '35'}`,
-                            boxShadow: isExpanded ? `0 0 0 3px ${roleColor}10` : 'none',
+                            backgroundColor: colorAlpha(roleColor, isSignedUp ? 10 : 5),
+                            color: isSignedUp ? roleColor : colorAlpha(roleColor, 55),
+                            border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${colorAlpha(roleColor, isSignedUp ? 30 : 20)}`,
+                            boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 6)}` : 'none',
                           }}>
                           {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                         </div>
@@ -819,7 +824,7 @@ export default function PlayerManager() {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] truncate">{p.name}</span>
                         {isCaptain && (
-                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: '#D97706', background: '#D9770612' }}>
+                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 7%, transparent)' }}>
                             <FaCrown size={8} /> C
                           </span>
                         )}
@@ -833,7 +838,7 @@ export default function PlayerManager() {
                         {/* Role chip */}
                         {rc && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                            style={{ color: roleColor, background: `${roleColor}12` }}>
+                            style={{ color: roleColor, background: colorAlpha(roleColor, 7) }}>
                             {rc.icon} {rc.label}
                           </span>
                         )}
@@ -870,7 +875,7 @@ export default function PlayerManager() {
                       <div className="flex flex-wrap gap-2 mb-3">
                         {p.batting_style && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
                             <MdSportsCricket size={14} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Bat</span>
                             <span className="font-semibold text-[var(--text)]">{p.batting_style === 'right' ? 'Right' : 'Left'}</span>
@@ -878,7 +883,7 @@ export default function PlayerManager() {
                         )}
                         {p.bowling_style && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
                             <GiTennisBall size={13} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Bowl</span>
                             <span className="font-semibold text-[var(--text)]">{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>
@@ -886,7 +891,7 @@ export default function PlayerManager() {
                         )}
                         {p.shirt_size && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: `${roleColor}08`, border: `1px solid ${roleColor}18` }}>
+                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
                             <FaTshirt size={12} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Size</span>
                             <span className="font-semibold text-[var(--text)]">{p.shirt_size}</span>
@@ -907,7 +912,7 @@ export default function PlayerManager() {
                               border: `1.5px solid ${copiedField === `email-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
                             }}
                           >
-                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${roleColor}10` }}>
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
                               <MdEmail size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
@@ -931,7 +936,7 @@ export default function PlayerManager() {
                               border: `1.5px solid ${copiedField === `cc-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
                             }}
                           >
-                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${roleColor}10` }}>
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
                               <MdBadge size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
@@ -971,7 +976,7 @@ export default function PlayerManager() {
                 return (
                   <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
                     <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                      style={{ backgroundColor: `${rc?.color ?? '#F59E0B'}10`, color: `${rc?.color ?? '#D97706'}60`, border: `1.5px solid ${rc?.color ?? '#F59E0B'}20` }}>
+                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 6), color: colorAlpha(rc?.color ?? 'var(--cricket-accent)', 35), border: `1.5px solid ${colorAlpha(rc?.color ?? 'var(--cricket)', 12)}` }}>
                       {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1055,13 +1060,13 @@ export default function PlayerManager() {
             )}
 
             {adminModal.status === 'no-email' && (
-              <div className="rounded-xl bg-[var(--orange)]/10 border border-[var(--orange)]/20 p-3 mb-4">
+              <div className="rounded-xl bg-[var(--cricket)]/10 border border-[var(--cricket)]/20 p-3 mb-4">
                 <p className="text-[13px] text-[var(--text)]">This player doesn&apos;t have an email address. Add their email first to link them to an account.</p>
               </div>
             )}
 
             {adminModal.status === 'no-account' && (
-              <div className="rounded-xl bg-[var(--orange)]/10 border border-[var(--orange)]/20 p-3 mb-4">
+              <div className="rounded-xl bg-[var(--cricket)]/10 border border-[var(--cricket)]/20 p-3 mb-4">
                 <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.email}</b> is not registered with the cricket tool. Ask them to sign up first at <b>/cricket</b>.</p>
               </div>
             )}

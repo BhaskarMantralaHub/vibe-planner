@@ -46,6 +46,13 @@
   --filter-bg: #1A1C2E;
   --filter-border: #2D2F55;
   --filter-active: #8B5CF6;
+
+  /* Cricket team theme — change these to rebrand the entire cricket app */
+  --cricket: #4DBBEB;
+  --cricket-accent: #5B9BD5;
+  --cricket-deep: #1B3A6B;
+  --cricket-hover: #3AAAD9;
+  --cricket-glow: rgba(77, 187, 235, 0.25);
 }
 
 /* ── Soft Light Theme ── */
@@ -71,6 +78,12 @@
   --hover-bg: rgba(0, 0, 0, 0.04);
   --card-shadow: 0 2px 8px rgba(108, 99, 255, 0.08);
   --card-hover-shadow: 0 12px 30px rgba(108, 99, 255, 0.15);
+
+  /* Cricket team theme — change these to rebrand the entire cricket app */
+  --cricket: #2A8FC2;
+  --cricket-accent: #163B5E;
+  --cricket-hover: #2480B0;
+  --cricket-glow: rgba(42, 143, 194, 0.20);
 
   /* Status card gradients — soft pastels */
   --spark-from: #F0EDFF;

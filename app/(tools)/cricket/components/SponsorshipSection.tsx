@@ -115,7 +115,7 @@ export default function SponsorshipSection() {
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <FaHandshake size={18} style={{ color: 'var(--orange)' }} />
+          <FaHandshake size={18} style={{ color: 'var(--cricket)' }} />
           <h3 className="text-[16px] font-bold text-[var(--text)]">Sponsorships</h3>
           {totalSponsorship > 0 && (
             <span className="text-[13px] font-bold text-[var(--green)]">{formatCurrency(totalSponsorship)}</span>
@@ -135,26 +135,26 @@ export default function SponsorshipSection() {
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Sponsor Name *</label>
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Company or person name" />
           </div>
           <div className="grid grid-cols-[1fr_130px] gap-2">
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Amount ($) *</label>
               <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="0.00" />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Date</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors" />
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Notes</label>
             <input value={notes} onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--orange)] transition-colors"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
               placeholder="Optional" />
           </div>
           <Button onClick={handleSubmit} disabled={!name.trim() || !amount}
@@ -171,7 +171,7 @@ export default function SponsorshipSection() {
         <div className="space-y-2">
           {activeSponsors.map((s) => (
             <div key={s.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2.5 sm:p-3 overflow-hidden"
-              style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--orange)' }}>
+              style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--cricket)' }}>
 
               {/* Three-dot menu */}
               {isAdmin && (
@@ -192,8 +192,8 @@ export default function SponsorshipSection() {
 
               <div className="flex items-start gap-3 pr-8">
                 <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
-                  style={{ background: '#D9770615' }}>
-                  <FaHandshake size={16} style={{ color: '#D97706' }} />
+                  style={{ background: 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)' }}>
+                  <FaHandshake size={16} style={{ color: 'var(--cricket-accent)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] sm:text-[14px] font-semibold text-[var(--text)] truncate">{s.sponsor_name}</p>

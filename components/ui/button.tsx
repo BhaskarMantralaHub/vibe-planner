@@ -37,9 +37,9 @@ const buttonVariants = cva(
       // Primary + toolkit = purple gradient
       { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Primary + cricket = orange gradient
-      { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--orange)] to-[var(--red)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
+      { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--cricket)] to-[var(--cricket-accent)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Link + cricket = orange
-      { variant: 'link', brand: 'cricket', class: 'text-[var(--orange)]' },
+      { variant: 'link', brand: 'cricket', class: 'text-[var(--cricket)]' },
       // Ghost + icon = round
       { variant: 'ghost', size: 'icon', class: 'rounded-full' },
       { variant: 'ghost', size: 'icon-sm', class: 'rounded-full' },

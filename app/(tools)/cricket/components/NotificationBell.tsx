@@ -83,7 +83,7 @@ export default function NotificationBell() {
         className="relative p-2 rounded-xl hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
         title="Notifications"
       >
-        <MdNotifications size={20} style={{ color: unreadCount > 0 ? 'var(--orange)' : 'var(--muted)' }} />
+        <MdNotifications size={20} style={{ color: unreadCount > 0 ? 'var(--cricket)' : 'var(--muted)' }} />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold text-white px-0.5" style={{ background: 'var(--red)' }}>
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -118,9 +118,9 @@ export default function NotificationBell() {
                     key={n.id}
                     onClick={() => handleNotificationClick(n.id, n.post_id)}
                     className="w-full flex items-start gap-2.5 px-4 py-3 text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
-                    style={{ background: n.is_read ? 'transparent' : 'rgba(217,119,6,0.06)' }}
+                    style={{ background: n.is_read ? 'transparent' : 'color-mix(in srgb, var(--cricket) 6%, transparent)' }}
                   >
-                    <div className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: n.is_read ? 'transparent' : 'var(--orange)' }} />
+                    <div className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: n.is_read ? 'transparent' : 'var(--cricket)' }} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-[var(--text)] leading-snug">{n.message}</p>
                       <p className="text-[11px] text-[var(--dim)] mt-0.5">{timeAgo(n.created_at)}</p>

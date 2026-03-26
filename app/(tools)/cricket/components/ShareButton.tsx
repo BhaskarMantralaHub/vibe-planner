@@ -100,8 +100,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const WHITE: RGB = [255, 255, 255];
   const GREEN: RGB = [5, 150, 105];
   const RED: RGB = [220, 50, 50];
-  const ORANGE: RGB = [217, 119, 6];
-  const AMBER: RGB = [245, 158, 11];
+  const ORANGE: RGB = [42, 143, 194];   // Cricket sky blue (matches --cricket in light mode)
+  const AMBER: RGB = [77, 187, 235];    // Cricket bright blue (matches --cricket in dark mode)
   const BLUE: RGB = [59, 130, 246];
 
   const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
@@ -334,7 +334,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const catTotals: Record<string, number> = {};
     seasonExpenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount); });
     const catEntries = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-    const catRgb: Record<string, RGB> = { ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [245, 158, 11], food: [239, 68, 68], other: [107, 114, 128] };
+    const catRgb: Record<string, RGB> = { ground: [22, 163, 74], equipment: [59, 130, 246], tournament: [77, 187, 235], food: [239, 68, 68], other: [107, 114, 128] };
     const barMax = 80;
 
     catEntries.forEach(([cat, total]) => {
@@ -444,7 +444,7 @@ export default function ShareButton() {
         <div className="grid grid-cols-2 gap-2">
           <button onClick={handleSharePdf} disabled={generating}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)', color: '#fff', border: '1.5px solid #D97706' }}>
+            style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))', color: '#fff', border: '1.5px solid var(--cricket-accent)' }}>
             <MdShare size={16} /> {generating ? 'Generating...' : 'Share PDF'}
           </button>
           <button onClick={handleDownloadPdf} disabled={generating}
