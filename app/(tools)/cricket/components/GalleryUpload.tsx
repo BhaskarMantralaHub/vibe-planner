@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Drawer } from 'vaul';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -245,17 +245,9 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   const taggedPlayers = previewTags.map((id) => activePlayers.find((p) => p.id === id)).filter(Boolean) as CricketPlayer[];
 
   return (
-    <Drawer.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }} direction="bottom">
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
-        <Drawer.Content
-          className="fixed bottom-0 left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-2xl outline-none"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)', borderBottom: 'none' }}
-          aria-describedby={undefined}
-        >
-          <Drawer.Title className="sr-only">New Post</Drawer.Title>
-          {/* Drag handle */}
-          <Drawer.Handle className="mt-3 mb-1" style={{ background: 'var(--border)' }} />
+    <Drawer open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
+          <DrawerHandle />
+          <DrawerTitle>New Post</DrawerTitle>
 
           {/* Header: Cancel / Title / Share */}
           <div className="flex items-center justify-between px-5 py-3">
@@ -266,7 +258,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
             >
               Cancel
             </button>
-            <Drawer.Title className="text-[16px] font-bold text-[var(--text)]">New Post</Drawer.Title>
+            <span className="text-[16px] font-bold text-[var(--text)]">New Post</span>
             <button
               onClick={handlePost}
               disabled={files.length === 0 || uploading}
@@ -281,7 +273,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
           {/* Divider */}
           <div className="h-px" style={{ background: 'var(--border)' }} />
 
-          <div className="px-5 pb-6 pt-4 space-y-4 max-h-[70dvh] overflow-y-auto">
+          <DrawerBody>
             {/* Photo picker */}
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
             {previews.length > 0 ? (
@@ -382,9 +374,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
                 ))}
               </div>
             )}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+          </DrawerBody>
+    </Drawer>
   );
 }

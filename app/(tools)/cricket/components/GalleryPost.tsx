@@ -746,7 +746,7 @@ export default function GalleryPostCard({
         {photos.length > 0 && (
           <div
             className="w-full relative"
-            style={{ aspectRatio: '4/5' }}
+            style={{ aspectRatio: '4/5', maxHeight: '70vh' }}
             onDoubleClick={(e) => {
               e.preventDefault();
               handleDoubleTap();

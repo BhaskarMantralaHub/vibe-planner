@@ -40,4 +40,6 @@ export {
 export { PasswordInput, RequirementsChecklist, MatchStatus, passwordRequirements, allRequirementsMet } from './password-input';
 export type { PasswordInputProps } from './password-input';
 
+export { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose } from './drawer';
+
 export { Toaster } from './toast';
