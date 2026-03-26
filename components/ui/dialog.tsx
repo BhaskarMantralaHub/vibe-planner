@@ -37,10 +37,11 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2',
+          'w-full max-w-md',
           'rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl',
           'data-[state=open]:animate-[dialogContentIn_200ms_ease-out]',
           'data-[state=closed]:animate-[dialogContentOut_150ms_ease-in]',
@@ -61,6 +62,7 @@ function DialogContent({
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
+      </div>
     </DialogPortal>
   );
 }
