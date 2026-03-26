@@ -351,8 +351,8 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
                 placeholder="Great match today! Use @ to tag players"
                 rows={2}
                 maxLength={500}
-                className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none overflow-y-auto"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '120px' }}
               />
 
               {/* @mention dropdown */}
