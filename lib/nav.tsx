@@ -1,4 +1,4 @@
-import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings } from 'react-icons/md';
+import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard } from 'react-icons/md';
 
 export type Tool = {
   name: string;
@@ -28,6 +28,13 @@ export const tools: Tool[] = [
     href: '/cricket',
     icon: <MdAccountBalanceWallet size={22} />,
     description: 'Team expenses & dues.',
+    roles: ['cricket', 'admin'],
+  },
+  {
+    name: 'Live Scoring',
+    href: '/cricket/scoring',
+    icon: <MdScoreboard size={22} />,
+    description: 'Score matches ball-by-ball.',
     roles: ['cricket', 'admin'],
   },
   {

@@ -59,6 +59,14 @@ describe('lib/nav', () => {
     expect(cricket!.roles).toContain('admin');
   });
 
+  it('contains Live Scoring tool with cricket and admin roles', () => {
+    const scoring = tools.find((t) => t.name === 'Live Scoring');
+    expect(scoring).toBeDefined();
+    expect(scoring!.href).toBe('/cricket/scoring');
+    expect(scoring!.roles).toContain('cricket');
+    expect(scoring!.roles).toContain('admin');
+  });
+
   it('all tool hrefs are unique', () => {
     const hrefs = tools.map((t) => t.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
