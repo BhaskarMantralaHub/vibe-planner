@@ -183,14 +183,14 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ PAGE 1: HEADER BANNER ═══
   // ═══════════════════════════════════════
 
-  // Orange gradient banner
+  // Blue gradient banner (matches cricket theme)
   const bannerH = 48;
   // Draw gradient by layering thin strips
   for (let i = 0; i < bannerH; i++) {
     const t = i / bannerH;
-    const r = Math.round(180 + t * 30);  // 180→210
-    const g = Math.round(90 + t * 30);   // 90→120
-    const b = Math.round(0 + t * 10);    // 0→10
+    const r = Math.round(20 + t * 15);   // 20→35 (dark navy → slightly lighter)
+    const g = Math.round(50 + t * 30);   // 50→80
+    const b = Math.round(90 + t * 40);   // 90→130
     doc.setFillColor(r, g, b);
     doc.rect(0, i, W, 1, 'F');
   }
