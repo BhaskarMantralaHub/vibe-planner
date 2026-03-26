@@ -150,7 +150,7 @@ function AdminContent() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--purple)] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--toolkit)] border-t-transparent" />
       </div>
     );
   }
@@ -223,7 +223,7 @@ function AdminContent() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Users" value={totalUsers} subtext={`/ ${maxUsers} max`} color="var(--purple)" icon={Users} />
+        <StatCard label="Users" value={totalUsers} subtext={`/ ${maxUsers} max`} color="var(--toolkit)" icon={Users} />
         <StatCard label="Active Vibes" value={totalActive} color="var(--blue)" icon={Activity} />
         <StatCard label="Completed" value={totalDone} color="var(--green)" icon={CheckCircle} />
         <StatCard label="Total Vibes" value={totalVibes} color="var(--orange)" icon={BarChart3} />
@@ -259,7 +259,7 @@ function AdminContent() {
             ) : (
               <button
                 onClick={() => setEditingMaxUsers(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--purple)] text-white text-[13px] font-medium cursor-pointer hover:opacity-90 transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--toolkit)] text-white text-[13px] font-medium cursor-pointer hover:opacity-90 transition-all shadow-sm"
               >
                 <Zap size={14} />
                 Change Limit
@@ -298,7 +298,7 @@ function AdminContent() {
                     <div className="flex items-center gap-3 mb-3">
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white"
-                        style={{ background: `linear-gradient(135deg, ${p.is_admin ? 'var(--purple), var(--indigo)' : 'var(--blue), var(--green)'})` }}
+                        style={{ background: `linear-gradient(135deg, ${p.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})` }}
                       >
                         {(p.full_name || p.email || '?')[0].toUpperCase()}
                       </div>
@@ -341,15 +341,15 @@ function AdminContent() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search by name or email..."
-            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-10 pr-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30 transition-all"
+            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-10 pr-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--toolkit)] focus:ring-1 focus:ring-[var(--toolkit)]/30 transition-all"
           />
         </div>
 
         {/* Filter tabs */}
         <div className="grid grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
           {([
-            { key: 'all', label: 'All Users', icon: Users, count: profiles.length, total: maxUsers, color: 'var(--purple)' },
-            { key: 'admin', label: 'Admins', icon: ShieldCheck, count: adminCount, total: profiles.length, color: 'var(--indigo)' },
+            { key: 'all', label: 'All Users', icon: Users, count: profiles.length, total: maxUsers, color: 'var(--toolkit)' },
+            { key: 'admin', label: 'Admins', icon: ShieldCheck, count: adminCount, total: profiles.length, color: 'var(--toolkit-accent)' },
             { key: 'user', label: 'Users', icon: UserCheck, count: activeProfiles.length - adminCount, total: profiles.length, color: 'var(--blue)' },
             { key: 'flagged', label: 'Flagged', icon: AlertTriangle, count: profiles.filter(p => getSuspiciousFlags(p).length > 0).length, total: profiles.length, color: 'var(--orange)' },
             { key: 'disabled', label: 'Disabled', icon: Ban, count: disabledCount, total: profiles.length, color: 'var(--red)' },
@@ -416,7 +416,7 @@ function AdminContent() {
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center text-[18px] font-bold text-white shrink-0"
                   style={{
-                    background: `linear-gradient(135deg, ${profile.is_admin ? 'var(--purple), var(--indigo)' : 'var(--blue), var(--green)'})`,
+                    background: `linear-gradient(135deg, ${profile.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})`,
                   }}
                 >
                   {(profile.full_name || profile.email || '?')[0].toUpperCase()}
@@ -429,11 +429,11 @@ function AdminContent() {
                       {profile.full_name || 'No name'}
                     </span>
                     {profile.email === SUPER_ADMIN ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] text-white font-semibold shrink-0">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white font-semibold shrink-0">
                         SUPER ADMIN
                       </span>
                     ) : profile.is_admin ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--purple)]/15 text-[var(--purple)] font-semibold shrink-0">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold shrink-0">
                         ADMIN
                       </span>
                     ) : null}
@@ -536,7 +536,7 @@ function AdminContent() {
                         onClick={() => setPage(i + 1)}
                         className={`w-8 h-8 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
                           page === i + 1
-                            ? 'bg-[var(--purple)] text-white'
+                            ? 'bg-[var(--toolkit)] text-white'
                             : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]'
                         }`}
                       >
@@ -608,7 +608,7 @@ function UserMenu({ profile, onToggleAdmin, onToggleDisable }: { profile: Profil
                   className={`flex items-center gap-2 w-full px-3 py-2.5 text-[14px] rounded-lg transition-colors cursor-pointer ${
                     profile.is_admin
                       ? 'text-[var(--red)] hover:bg-[var(--red)]/10'
-                      : 'text-[var(--purple)] hover:bg-[var(--purple)]/10'
+                      : 'text-[var(--toolkit)] hover:bg-[var(--toolkit)]/10'
                   }`}
                 >
                   <span>{profile.is_admin ? '🛡️' : '👑'}</span>

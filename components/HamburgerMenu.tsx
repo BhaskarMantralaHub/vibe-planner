@@ -53,7 +53,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="bg-gradient-to-r from-[var(--purple)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
+            <h2 className="bg-gradient-to-r from-[var(--toolkit)] to-[var(--blue)] bg-clip-text text-lg font-bold text-transparent">
               {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
                 ? 'Sunrisers Manteca'
                 : "Viber\u0027s Toolkit"}
@@ -74,7 +74,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
           {visibleTools.map((tool) => (
             <Link key={tool.name} href={tool.href} onClick={onClose}>
               <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-                <span className="mt-0.5 text-xl flex-shrink-0">{tool.icon}</span>
+                <span className="mt-0.5 flex-shrink-0 text-[var(--toolkit)]">{tool.icon}</span>
                 <div className="flex-1 min-w-0">
                   <span className="text-[15px] font-medium text-[var(--text)]">
                     {tool.name}

@@ -16,7 +16,7 @@ function Column({ status, items }: { status: string; items: Vibe[] }) {
     <div
       ref={setNodeRef}
       className={`flex-1 min-w-[220px] bg-[var(--surface)] rounded-2xl p-3 transition-colors ${
-        isOver ? 'ring-2 ring-[var(--indigo)]/50' : ''
+        isOver ? 'ring-2 ring-[var(--toolkit-accent)]/50' : ''
       }`}
       data-testid={`board-column-${status}`}
     >

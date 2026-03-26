@@ -15,7 +15,7 @@ const buttonVariants = cva(
         danger: 'bg-[var(--red)] text-white hover:brightness-110 hover:-translate-y-[1px] shadow-md hover:shadow-lg',
         'danger-outline': 'border border-[var(--red)]/30 text-[var(--red)] hover:bg-[var(--red)]/10 hover:border-[var(--red)]/50',
         ghost: 'text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
-        link: 'text-[var(--purple)] underline-offset-4 hover:underline p-0 h-auto',
+        link: 'text-[var(--toolkit)] underline-offset-4 hover:underline p-0 h-auto',
       },
       size: {
         sm: 'h-8 px-3 text-[12px] rounded-lg',
@@ -35,7 +35,7 @@ const buttonVariants = cva(
     },
     compoundVariants: [
       // Primary + toolkit = purple gradient
-      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--purple)] to-[var(--indigo)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
+      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Primary + cricket = orange gradient
       { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--cricket)] to-[var(--cricket-accent)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
       // Link + cricket = orange

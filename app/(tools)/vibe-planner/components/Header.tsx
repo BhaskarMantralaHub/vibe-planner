@@ -53,7 +53,7 @@ export default function Header() {
     {/* Scrollable section — greeting, quote, stats */}
     <div className="px-4 lg:px-5 pt-4 lg:pt-5">
       {greeting && (
-        <h2 className="text-[18px] lg:text-[24px] font-semibold mb-2 lg:mb-3 bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-transparent">
+        <h2 className="text-[18px] lg:text-[24px] font-semibold mb-2 lg:mb-3 bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent">
           {greeting} {(() => {
             const h = new Date().getHours();
             if (h >= 5 && h < 12) return '☀️';
@@ -64,10 +64,10 @@ export default function Header() {
         </h2>
       )}
       {/* Stats — compact on mobile */}
-      <div className="flex items-center gap-2 lg:gap-3 mb-3 overflow-x-auto" data-testid="stats-row">
+      <div className="flex items-center gap-2 lg:gap-3 mb-3 overflow-hidden" data-testid="stats-row">
         <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
           <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Vibes</div>
-          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--purple)]">{total}</div>
+          <div className="text-[18px] lg:text-[22px] font-bold text-[var(--toolkit)]">{total}</div>
         </div>
         <div className="bg-[var(--surface)] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 shrink-0">
           <div className="text-[11px] lg:text-[13px] text-[var(--muted)]">Active</div>
@@ -107,7 +107,7 @@ export default function Header() {
           onChange={(e) => setNewText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="What's on your mind?"
-          className="flex-1 lg:max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl text-[var(--text)] px-4 py-3 text-[15px] lg:text-[17px] outline-none focus:border-[var(--purple)] focus:ring-2 focus:ring-[var(--purple)]/20 placeholder:text-[var(--dim)] transition-all"
+          className="flex-1 lg:max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl text-[var(--text)] px-4 py-3 text-[15px] lg:text-[17px] outline-none focus:border-[var(--toolkit)] focus:ring-2 focus:ring-[var(--toolkit)]/20 placeholder:text-[var(--dim)] transition-all"
           data-testid="new-vibe-input"
         />
 
@@ -154,9 +154,9 @@ function CategoryFilter({ items, filter, setFilter }: { items: Vibe[]; filter: s
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium cursor-pointer transition-all bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--muted)] text-[var(--text)]"
       >
-        <Filter size={15} className="text-[var(--purple)]" />
+        <Filter size={15} className="text-[var(--toolkit)]" />
         <span>{activeLabel}</span>
-        <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--purple)]/15 text-[var(--purple)]">{activeCount}</span>
+        <span className="text-[12px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--toolkit)]/15 text-[var(--toolkit)]">{activeCount}</span>
         {filter && (
           <span
             onClick={(e) => { e.stopPropagation(); setFilter(''); setOpen(false); }}
@@ -181,13 +181,13 @@ function CategoryFilter({ items, filter, setFilter }: { items: Vibe[]; filter: s
                   onClick={() => { setFilter(isActive && cat.key ? '' : cat.key); setOpen(false); }}
                   className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-[var(--purple)]/15 text-[var(--purple)]'
+                      ? 'bg-[var(--toolkit)]/15 text-[var(--toolkit)]'
                       : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
                   <span>{cat.label}</span>
                   <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded-md ${
-                    isActive ? 'bg-[var(--purple)]/20 text-[var(--purple)]' : 'bg-[var(--border)] text-[var(--dim)]'
+                    isActive ? 'bg-[var(--toolkit)]/20 text-[var(--toolkit)]' : 'bg-[var(--border)] text-[var(--dim)]'
                   }`}>{count}</span>
                 </button>
               );

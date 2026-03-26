@@ -43,7 +43,7 @@ export default function InlineEdit({ value, onSave, onCancel }: InlineEditProps)
       onChange={(e) => setText(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={handleSave}
-      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-[var(--text)] px-2 py-1 text-sm outline-none focus:border-[var(--indigo)]"
+      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-md text-[var(--text)] px-2 py-1 text-sm outline-none focus:border-[var(--toolkit-accent)]"
     />
   );
 }

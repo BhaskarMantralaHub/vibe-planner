@@ -20,16 +20,16 @@ function DayColumn({ date, items }: { date: string; items: Vibe[] }) {
       ref={setNodeRef}
       className={`flex-1 min-w-[130px] rounded-xl p-2 min-h-[140px] transition-colors ${
         isToday
-          ? 'bg-[var(--today-bg)] border border-[var(--indigo)]'
+          ? 'bg-[var(--today-bg)] border border-[var(--toolkit-accent)]'
           : 'bg-[var(--surface)]'
-      } ${isOver ? 'ring-2 ring-[var(--indigo)]/50' : ''}`}
+      } ${isOver ? 'ring-2 ring-[var(--toolkit-accent)]/50' : ''}`}
     >
       {/* Day header */}
       <div className="text-center mb-2">
-        <div className={`text-[10px] uppercase tracking-wide ${isToday ? 'text-[var(--indigo)]' : 'text-[var(--dim)]'}`}>
+        <div className={`text-[10px] uppercase tracking-wide ${isToday ? 'text-[var(--toolkit-accent)]' : 'text-[var(--dim)]'}`}>
           {dayName}
         </div>
-        <div className={`text-lg font-bold ${isToday ? 'text-[var(--indigo)]' : 'text-[var(--text)]'}`}>
+        <div className={`text-lg font-bold ${isToday ? 'text-[var(--toolkit-accent)]' : 'text-[var(--text)]'}`}>
           {dayNum}
         </div>
       </div>

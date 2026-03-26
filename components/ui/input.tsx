@@ -10,7 +10,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const brandFocus = {
-  toolkit: 'focus:border-[var(--purple)] focus:ring-1 focus:ring-[var(--purple)]/30',
+  toolkit: 'focus:border-[var(--toolkit)] focus:ring-1 focus:ring-[var(--toolkit)]/30',
   cricket: 'focus:border-[var(--cricket)] focus:ring-1 focus:ring-[var(--cricket)]/30',
 };
 

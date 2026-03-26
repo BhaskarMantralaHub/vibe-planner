@@ -67,8 +67,8 @@ export default function CardNotes({ notes, onSave, onDelete, onClose }: CardNote
         className="w-full min-h-[80px] rounded-xl text-[var(--text)] px-4 py-3 text-[15px] leading-relaxed font-sans outline-none resize-none transition-all placeholder:text-[var(--dim)]"
         style={{
           background: 'linear-gradient(135deg, var(--surface), var(--card))',
-          border: '1.5px solid var(--purple)',
-          boxShadow: '0 0 0 3px color-mix(in srgb, var(--purple) 15%, transparent)',
+          border: '1.5px solid var(--toolkit)',
+          boxShadow: '0 0 0 3px color-mix(in srgb, var(--toolkit) 15%, transparent)',
         }}
       />
 
@@ -78,7 +78,7 @@ export default function CardNotes({ notes, onSave, onDelete, onClose }: CardNote
           onClick={handleSave}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-[0.98]"
           style={{
-            background: hasChanges ? 'linear-gradient(135deg, var(--purple), var(--indigo))' : 'var(--surface)',
+            background: hasChanges ? 'linear-gradient(135deg, var(--toolkit), var(--toolkit-accent))' : 'var(--surface)',
             color: hasChanges ? '#fff' : 'var(--muted)',
             border: hasChanges ? 'none' : '1px solid var(--border)',
           }}

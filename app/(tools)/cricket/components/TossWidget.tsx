@@ -152,7 +152,7 @@ export default function TossWidget() {
         <h1 className="text-[12px] uppercase tracking-[3px] text-[var(--muted)] font-medium mb-1">
           🏏 ICC Cricket Standard
         </h1>
-        <h2 className="text-[24px] lg:text-[32px] font-bold bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-transparent">
+        <h2 className="text-[24px] lg:text-[32px] font-bold bg-gradient-to-r from-[var(--cricket)] via-[var(--blue)] to-[var(--cricket-accent)] bg-clip-text text-transparent">
           Coin Toss
         </h2>
       </div>
@@ -255,7 +255,7 @@ export default function TossWidget() {
         disabled={isFlipping}
         className="px-6 py-3 lg:px-8 lg:py-3.5 rounded-2xl text-[15px] lg:text-[17px] font-semibold transition-all shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
         style={{
-          background: 'linear-gradient(135deg, var(--purple), var(--indigo))',
+          background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
           color: '#fff',
           boxShadow: '0 8px 30px rgba(139, 92, 246, 0.3)',
         }}

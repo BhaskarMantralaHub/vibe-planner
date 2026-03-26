@@ -26,13 +26,13 @@ import {
 
 /* ── Person avatar colors ── */
 const PERSON_COLORS = [
-  'linear-gradient(135deg, #6366f1, #8b5cf6)', // indigo-purple
+  'linear-gradient(135deg, #0369a1, #0ea5e9)', // ocean blue
   'linear-gradient(135deg, #0d9488, #14b8a6)', // teal
   'linear-gradient(135deg, #2563eb, #3b82f6)', // blue
   'linear-gradient(135deg, #e11d48, #f43f5e)', // rose
   'linear-gradient(135deg, #ea580c, #f97316)', // orange
   'linear-gradient(135deg, #16a34a, #22c55e)', // green
-  'linear-gradient(135deg, #7c3aed, #a78bfa)', // violet
+  'linear-gradient(135deg, #0284c7, #38bdf8)', // sky blue
   'linear-gradient(135deg, #0891b2, #06b6d4)', // cyan
 ];
 
@@ -435,11 +435,11 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
             return allOwners.length === 0 && !addingNewPerson ? (
               <button
                 onClick={() => setAddingNewPerson(true)}
-                className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed cursor-pointer transition-all hover:border-[var(--purple)]"
+                className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed cursor-pointer transition-all hover:border-[var(--toolkit)]"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
               >
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: 'linear-gradient(135deg, var(--purple), var(--indigo))' }}>
+                  style={{ background: 'linear-gradient(135deg, var(--toolkit), var(--toolkit-accent))' }}>
                   <User size={22} className="text-white" />
                 </div>
                 <div className="text-left">
@@ -478,7 +478,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                 {/* Add another person */}
                 <button
                   onClick={() => setAddingNewPerson(true)}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl cursor-pointer border transition-all hover:border-[var(--purple)] hover:shadow-sm"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl cursor-pointer border transition-all hover:border-[var(--toolkit)] hover:shadow-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
                 >
                   <div className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -496,7 +496,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
             <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl border animate-[slideIn_0.15s]"
               style={{ borderColor: 'var(--green)', background: 'var(--surface)' }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: 'var(--purple)' }}>
+                style={{ background: 'var(--toolkit)' }}>
                 <User size={15} className="text-white" />
               </div>
               <input
@@ -520,7 +520,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                 onClick={() => { if (newPersonName.trim()) { setSelectedOwnerLocal(newPersonName.trim()); setAddingNewPerson(false); setNewPersonName(''); } }}
                 disabled={!newPersonName.trim()}
                 className="px-3 py-1.5 rounded-xl text-[13px] font-semibold text-white cursor-pointer disabled:opacity-40"
-                style={{ background: 'var(--purple)' }}>
+                style={{ background: 'var(--toolkit)' }}>
                 Done
               </button>
               <button
@@ -541,7 +541,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
               onClick={() => { setModalCountry(c); if (!editDoc) setSelectedTypeKey(null); }}
               className="flex-1 text-[13px] font-semibold py-2 rounded-lg transition-all duration-200"
               style={{
-                background: modalCountry === c ? 'var(--purple)' : 'transparent',
+                background: modalCountry === c ? 'var(--toolkit)' : 'transparent',
                 color: modalCountry === c ? '#fff' : 'var(--muted)',
               }}
             >
@@ -568,9 +568,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                   alreadyExists ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
                 }`}
                 style={{
-                  background: isSelected ? 'color-mix(in srgb, var(--purple) 12%, transparent)' : 'var(--bg)',
-                  borderColor: isSelected ? 'var(--purple)' : 'var(--border)',
-                  color: isSelected ? 'var(--purple)' : 'var(--text)',
+                  background: isSelected ? 'color-mix(in srgb, var(--toolkit) 12%, transparent)' : 'var(--bg)',
+                  borderColor: isSelected ? 'var(--toolkit)' : 'var(--border)',
+                  color: isSelected ? 'var(--toolkit)' : 'var(--text)',
                 }}
               >
                 <IconComp size={18} className="shrink-0" />
@@ -614,7 +614,7 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                 type="date"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl text-[14px] border outline-none transition-colors focus:border-[var(--purple)]"
+                className="w-full px-3 py-2.5 rounded-xl text-[14px] border outline-none transition-colors focus:border-[var(--toolkit)]"
                 style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
               />
             </div>
@@ -643,9 +643,9 @@ function IDFormModal({ onClose, owners, editDoc }: { onClose: (savedOwner?: stri
                     onClick={() => toggleReminder(opt.value)}
                     className="inline-flex items-center gap-1 text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-all"
                     style={{
-                      background: isActive ? 'color-mix(in srgb, var(--purple) 12%, transparent)' : 'var(--bg)',
-                      borderColor: isActive ? 'var(--purple)' : 'var(--border)',
-                      color: isActive ? 'var(--purple)' : 'var(--dim)',
+                      background: isActive ? 'color-mix(in srgb, var(--toolkit) 12%, transparent)' : 'var(--bg)',
+                      borderColor: isActive ? 'var(--toolkit)' : 'var(--border)',
+                      color: isActive ? 'var(--toolkit)' : 'var(--dim)',
                     }}
                   >
                     <Bell size={11} />
@@ -846,7 +846,7 @@ function IDTrackerContent() {
       <div className="px-4 lg:px-6 pt-4 pb-2">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <ShieldCheck size={22} style={{ color: 'var(--purple)' }} />
+            <ShieldCheck size={22} style={{ color: 'var(--toolkit)' }} />
             <h1 className="text-[20px] lg:text-[24px] font-bold" style={{ color: 'var(--text)' }}>ID Tracker</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -909,7 +909,7 @@ function IDTrackerContent() {
             }}
           >
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white shrink-0"
-              style={{ background: 'var(--purple)' }}>
+              style={{ background: 'var(--toolkit)' }}>
               <User size={16} />
             </div>
             <div className="text-left">
@@ -929,7 +929,7 @@ function IDTrackerContent() {
               <div
                 key={owner}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border animate-[slideIn_0.15s]"
-                style={{ borderColor: 'var(--purple)', background: 'var(--surface)' }}
+                style={{ borderColor: 'var(--toolkit)', background: 'var(--surface)' }}
               >
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white shrink-0"
                   style={{ background: avatarColor }}>
@@ -949,7 +949,7 @@ function IDTrackerContent() {
                 />
                 <button onClick={() => renameOwner(owner, editOwnerName)}
                   className="px-2 py-1 rounded-lg text-[12px] font-semibold text-white cursor-pointer"
-                  style={{ background: 'var(--purple)' }}>Save</button>
+                  style={{ background: 'var(--toolkit)' }}>Save</button>
                 <button onClick={() => setEditingOwner(null)}
                   className="p-1 cursor-pointer" style={{ color: 'var(--muted)' }}><X size={14} /></button>
               </div>
@@ -1021,7 +1021,7 @@ function IDTrackerContent() {
       {!loading && documents.length === 0 && (
         <div className="px-4 lg:px-6 pb-8">
           <EmptyState
-            icon={<ShieldCheck size={36} style={{ color: 'var(--purple)' }} />}
+            icon={<ShieldCheck size={36} style={{ color: 'var(--toolkit)' }} />}
             title="No IDs tracked yet"
             description="Keep all your passports, driver licenses, and other identity documents in one place. Never miss an expiry date again."
             brand="toolkit"

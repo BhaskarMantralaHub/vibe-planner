@@ -12,7 +12,7 @@ const CATEGORY_ICONS: Record<string, IconType> = {
   FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
 };
 import { formatCurrency, formatDate } from '../lib/utils';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, FilterDropdown } from '@/components/ui';
 import { FaExclamationTriangle, FaCheckCircle, FaWallet, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline } from 'react-icons/md';
 import { createPortal } from 'react-dom';
@@ -161,6 +161,7 @@ export default function ExpenseList() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string } | null>(null);
   const [editingExpense, setEditingExpense] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState('');
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   const allSeasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
@@ -293,6 +294,24 @@ export default function ExpenseList() {
           )}
         </div>
 
+        {/* Category filter */}
+        {seasonExpenses.length > 0 && (
+          <div className="mb-4">
+            <FilterDropdown
+              options={EXPENSE_CATEGORIES.map((c) => ({
+                key: c.key,
+                label: c.label,
+                count: seasonExpenses.filter((e) => e.category === c.key).length,
+              }))}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              allLabel="All Expenses"
+              allCount={seasonExpenses.length}
+              brand="cricket"
+            />
+          </div>
+        )}
+
         {seasonExpenses.length === 0 ? (
           <EmptyState
             icon="💸"
@@ -303,7 +322,7 @@ export default function ExpenseList() {
           />
         ) : (
           <div className="space-y-2">
-            {seasonExpenses.map((e) => {
+            {(categoryFilter ? seasonExpenses.filter((e) => e.category === categoryFilter) : seasonExpenses).map((e) => {
               const cfg = getCategoryConfig(e.category);
               return (
                 <div key={e.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 overflow-hidden"

@@ -77,7 +77,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           isOverdue ? 'border-[var(--red)]/50' : 'border-[var(--border)]'
         } ${!isMobile ? 'cursor-grab active:cursor-grabbing' : ''
         } ${isDragging ? '' : 'transition-shadow hover:translate-y-[-1px]'
-        } ${isExpanded ? 'ring-1 ring-[var(--accent)]' : ''}`}
+        } ${isExpanded ? 'ring-1 ring-[var(--toolkit)]' : ''}`}
         style={{
           transform: style.transform,
           opacity: style.opacity,
@@ -108,7 +108,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           {isEditing ? (
             <input
               autoFocus
-              className="w-full bg-transparent text-[17px] text-[var(--text)] outline-none border-b-2 border-[var(--indigo)] pb-1"
+              className="w-full bg-transparent text-[17px] text-[var(--text)] outline-none border-b-2 border-[var(--toolkit-accent)] pb-1"
               value={editText}
               onChange={(e) => useVibeStore.getState().setEditingCard(vibe.id, e.target.value)}
               onBlur={handleSaveEdit}
@@ -199,7 +199,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
                     <code className="text-[13px] px-1.5 py-0.5 rounded-md bg-[var(--card)] text-[var(--orange)] font-mono border border-[var(--border)]">{children}</code>
                   ),
                   blockquote: ({ children }) => (
-                    <blockquote className="border-l-3 border-[var(--purple)] pl-4 my-2 text-[var(--muted)]">{children}</blockquote>
+                    <blockquote className="border-l-3 border-[var(--toolkit)] pl-4 my-2 text-[var(--muted)]">{children}</blockquote>
                   ),
                   h1: ({ children }) => <h1 className="text-[18px] font-bold text-[var(--text)] mb-2">{children}</h1>,
                   h2: ({ children }) => <h2 className="text-[16px] font-bold text-[var(--text)] mb-1.5">{children}</h2>,

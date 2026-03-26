@@ -16,7 +16,7 @@ const sizes = {
 };
 
 const brandColors = {
-  toolkit: 'border-[var(--purple)]',
+  toolkit: 'border-[var(--toolkit)]',
   cricket: 'border-[var(--cricket)]',
 };
 

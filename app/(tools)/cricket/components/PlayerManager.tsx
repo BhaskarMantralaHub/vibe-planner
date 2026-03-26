@@ -73,9 +73,9 @@ function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onClose }:
         <button
           onClick={() => { onToggleAdmin(); onClose(); }}
           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--purple)' }}
+          style={{ color: 'var(--toolkit)' }}
         >
-          <FaCrown size={13} style={{ color: 'var(--purple)' }} />
+          <FaCrown size={13} style={{ color: 'var(--toolkit)' }} />
           Admin Access
         </button>
         <div className="border-t border-[var(--border)] my-0.5 mx-2" />
@@ -1045,7 +1045,7 @@ export default function PlayerManager() {
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.1)' }}>
-                <FaCrown size={18} style={{ color: 'var(--purple)' }} />
+                <FaCrown size={18} style={{ color: 'var(--toolkit)' }} />
               </div>
               <div>
                 <p className="text-[15px] font-semibold text-[var(--text)]">Admin Access</p>
@@ -1096,7 +1096,7 @@ export default function PlayerManager() {
                   <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
                     Cancel
                   </Button>
-                  <Button onClick={grantAdmin} size="sm" className="bg-[var(--purple)] text-white hover:opacity-90">
+                  <Button onClick={grantAdmin} size="sm" className="bg-[var(--toolkit)] text-white hover:opacity-90">
                     Grant Admin
                   </Button>
                 </div>

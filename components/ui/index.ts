@@ -42,4 +42,6 @@ export type { PasswordInputProps } from './password-input';
 
 export { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose } from './drawer';
 
+export { FilterDropdown } from './filter-dropdown';
+
 export { Toaster } from './toast';

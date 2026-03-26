@@ -79,8 +79,8 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     title: 'Access Required',
     subtitle: 'You don\'t have access to this tool.',
     buttonText: 'Request Access',
-    accentColor: 'var(--purple)',
-    gradient: 'from-[var(--purple)] to-[var(--indigo)]',
+    accentColor: 'var(--toolkit)',
+    gradient: 'from-[var(--toolkit)] to-[var(--toolkit-accent)]',
   };
 
   if (checking) {
@@ -150,13 +150,13 @@ const VARIANT_CONFIG = {
     loginSubtitle: 'Log in to your toolkit',
     signupTitle: 'Get Started',
     signupSubtitle: 'Create your account',
-    gradient: 'from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)]',
-    buttonGradient: 'from-[var(--purple)] to-[var(--indigo)]',
-    focusColor: 'focus:border-[var(--purple)] focus:ring-[var(--purple)]/30',
-    orbColor1: 'var(--purple)',
+    gradient: 'from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)]',
+    buttonGradient: 'from-[var(--toolkit)] to-[var(--toolkit-accent)]',
+    focusColor: 'focus:border-[var(--toolkit)] focus:ring-[var(--toolkit)]/30',
+    orbColor1: 'var(--toolkit)',
     orbColor2: 'var(--blue)',
-    shadowColor: 'rgba(139, 92, 246, 0.15)',
-    accentColor: 'var(--purple)',
+    shadowColor: 'var(--toolkit-glow)',
+    accentColor: 'var(--toolkit)',
     access: 'toolkit',
   },
   cricket: {

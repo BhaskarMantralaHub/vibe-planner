@@ -279,7 +279,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </span>
             </>
           ) : (
-            <h1 className="bg-gradient-to-r from-[var(--purple)] via-[var(--blue)] to-[var(--indigo)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
+            <h1 className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-lg font-bold tracking-tight text-transparent transition-opacity group-hover:opacity-80">
               Viber&apos;s Toolkit
             </h1>
           )}

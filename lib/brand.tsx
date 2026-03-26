@@ -16,9 +16,9 @@ const BRANDS: Record<Brand, BrandConfig> = {
   toolkit: {
     brand: 'toolkit',
     name: "Viber's Toolkit",
-    gradient: 'from-[var(--purple)] to-[var(--indigo)]',
-    focusRing: 'focus-visible:ring-[var(--purple)]/40',
-    accentVar: '--purple',
+    gradient: 'from-[var(--toolkit)] to-[var(--toolkit-accent)]',
+    focusRing: 'focus-visible:ring-[var(--toolkit)]/40',
+    accentVar: '--toolkit',
   },
   cricket: {
     brand: 'cricket',
