@@ -26,6 +26,8 @@ A personal productivity suite — fast, private, and self-hosted.
 - **Styling** — [Tailwind CSS v4](https://tailwindcss.com) with CSS custom properties
 - **State** — [Zustand](https://zustand-demo.pmnd.rs)
 - **Icons** — [Lucide React](https://lucide.dev), [React Icons](https://react-icons.github.io/react-icons/)
+- **Design System** — [CVA](https://cva.style) + [Radix UI](https://radix-ui.com) + shadcn/ui pattern
+- **Toasts** — [Sonner](https://sonner.emilkowal.ski) (lightweight notifications)
 - **Animations** — [Motion](https://motion.dev) (gestures, spring physics), [@formkit/auto-animate](https://auto-animate.formkit.com) (list transitions)
 - **Bottom Sheets** — [Vaul](https://vaul.emilkowal.ski) (iOS-style draggable drawers)
 - **Drag & Drop** — [@dnd-kit](https://dndkit.com)
@@ -41,7 +43,7 @@ vibers-toolkit/
 │   ├── layout.tsx                    # Root layout: theme, shell, metadata
 │   ├── page.tsx                      # Redirects to /vibe-planner
 │   ├── globals.css                   # Tailwind + dark/light theme variables
-│   ├── providers.tsx                 # ThemeProvider
+│   ├── providers.tsx                 # ThemeProvider + Toaster
 │   └── (tools)/
 │       ├── vibe-planner/             # Vibe Planner
 │       │   ├── page.tsx
@@ -55,7 +57,8 @@ vibers-toolkit/
 │       └── admin/                    # Admin Dashboard
 │           └── page.tsx
 ├── components/                       # Shared: Shell, AuthGate, HamburgerMenu, etc.
-├── lib/                              # Supabase client, auth helpers, storage, nav
+│   └── ui/                          # Design system: Button, Input, Dialog, Alert, Card, etc.
+├── lib/                              # Supabase client, auth helpers, storage, nav, utils, brand
 ├── stores/                           # Zustand stores (auth-store, vibe-store, id-tracker-store)
 ├── types/                            # TypeScript types
 ├── tests/                            # Playwright E2E tests

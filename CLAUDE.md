@@ -61,6 +61,9 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 - **State:** Zustand
 - **Charts:** recharts (SVG-based, for cricket expense breakdowns)
 - **Drag & Drop:** @dnd-kit/core
+- **Design System:** CVA (class-variance-authority) + Radix UI + shadcn/ui pattern
+- **Toasts:** sonner (lightweight toast notifications)
+- **Class Utils:** clsx + tailwind-merge via `cn()` helper
 - **Animations:** motion (framer-motion v11+), @formkit/auto-animate
 - **Bottom Sheets:** vaul (iOS-style draggable drawers)
 - **Icons:** lucide-react (Moments feed), react-icons (rest of app)
@@ -75,7 +78,7 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │   ├── layout.tsx                  # Root layout: ThemeProvider, Shell
 │   ├── page.tsx                    # Redirects to /vibe-planner
 │   ├── globals.css                 # Tailwind + dark/light CSS variables
-│   ├── providers.tsx               # ThemeProvider wrapper
+│   ├── providers.tsx               # ThemeProvider + Toaster wrapper
 │   └── (tools)/
 │       ├── vibe-planner/           # Vibe Planner tool
 │       │   ├── page.tsx
@@ -93,7 +96,8 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
 ├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, etc.
-├── lib/                            # Supabase client, auth helpers, storage, nav
+│   └── ui/                        # Design system: Button, Input, Dialog, Alert, Card, Badge, etc.
+├── lib/                            # Supabase client, auth helpers, storage, nav, utils (cn), brand
 ├── stores/                         # Zustand stores (auth-store, vibe-store, id-tracker-store, cricket-store)
 ├── types/                          # TypeScript types
 ├── tests/                          # Playwright E2E tests
@@ -159,6 +163,57 @@ RPC: `get_signed_up_emails(check_emails TEXT[])` — SECURITY DEFINER function r
 RPC: `create_welcome_post(new_user_id UUID, player_name TEXT)` — SECURITY DEFINER function that creates a welcome post in Moments + notifies all active players. Called by client on manual approval; also called internally by `handle_new_user` trigger for auto-approved players.
 
 Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
+
+## Design System (`components/ui/`)
+
+Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-code) with CVA for type-safe variants, Radix UI for accessible primitives, and sonner for toast notifications.
+
+### Stack
+- **CVA** (class-variance-authority) — Type-safe variant definitions for components
+- **Radix UI** — Accessible primitives (Dialog with focus trap, keyboard nav, ARIA)
+- **sonner** — Toast notifications with theme integration
+- **cn()** (`lib/utils.ts`) — Class merging via clsx + tailwind-merge
+- **BrandProvider** (`lib/brand.tsx`) — React context for toolkit (purple) / cricket (orange) theming
+
+### Components
+| Component | File | Key Props |
+|-----------|------|-----------|
+| `Button` | `button.tsx` | `variant` (primary/secondary/danger/ghost/link), `size` (sm/md/lg/xl/icon), `brand`, `loading`, `fullWidth`, `asChild` |
+| `Input` | `input.tsx` | `label`, `error`, `brand` (auto-switches focus color) |
+| `Dialog` | `dialog.tsx` | Radix Dialog: `DialogContent`, `DialogTitle`, `DialogDescription`, `DialogHeader`, `DialogFooter`, `DialogClose` |
+| `Alert` | `alert.tsx` | `variant` (error/success/warning/info) |
+| `Card` | `card.tsx` | `padding` (none/sm/md/lg), `shadow`, `animate` |
+| `Badge` | `badge.tsx` | `variant` (purple/orange/red/green/blue/muted), `size` (sm/md) |
+| `Spinner` | `spinner.tsx` | `size` (sm/md/lg), `brand`, `color` |
+| `Skeleton` | `skeleton.tsx` | Just `className` — pulse loading placeholder |
+| `Label` | `label.tsx` | `uppercase` flag |
+| `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
+| `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
+
+### Usage
+```tsx
+import { Button, Input, Alert, Card, Dialog, DialogContent, DialogTitle } from '@/components/ui';
+import { toast } from 'sonner';
+
+<Button variant="primary" size="lg" loading={saving} fullWidth>Save</Button>
+<Alert variant="error">{error}</Alert>
+toast.success('Saved!');
+```
+
+### Brand Context
+Components auto-detect brand from `BrandProvider`. Cricket pages use orange, toolkit uses purple.
+```tsx
+<BrandProvider brand="cricket">
+  <Button variant="primary">Save</Button>  {/* orange gradient */}
+</BrandProvider>
+```
+
+### Rules for New Components
+1. **Always use shared components** — never inline Tailwind for buttons, inputs, modals, alerts
+2. **Use `cn()` for conditional classes** — never string concatenation
+3. **Use CVA for new variants** — define in the component file, export the variants function
+4. **Use Radix Dialog** for modals — never hand-roll overlay + panel + close button
+5. **Use `toast()`** for user feedback — every create/update/delete action should confirm success or report failure
 
 ## Key Architecture
 
