@@ -8,16 +8,13 @@ import { CATEGORIES } from '../lib/constants';
 import type { Vibe } from '@/types/vibe';
 import { todayStr, getGreeting } from '../lib/utils';
 import { Filter, X } from 'lucide-react';
-import ViewTabs from './ViewTabs';
 import { Button, Badge } from '@/components/ui';
 
 export default function Header() {
   const {
     items: allItems,
-    view,
     newText,
     filter,
-    setView,
     setNewText,
     setFilter,
     addItem,
@@ -80,14 +77,6 @@ export default function Header() {
             <span className="text-[12px] font-normal text-[var(--dim)]"> done</span>
           </div>
           {todayDue > 0 && <div className="text-[11px] font-semibold text-[var(--orange)]">{todayDue} due</div>}
-        </div>
-
-        {/* View tabs inline with stats on mobile */}
-        <div className="ml-auto shrink-0">
-          <ViewTabs
-            view={view}
-            onViewChange={(v) => setView(v as 'board' | 'timeline' | 'list')}
-          />
         </div>
 
         {!cloud && (

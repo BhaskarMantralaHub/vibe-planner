@@ -174,7 +174,9 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 - **sonner** — Toast notifications with theme integration
 - **cn()** (`lib/utils.ts`) — Class merging via clsx + tailwind-merge
 - **BrandProvider** (`lib/brand.tsx`) — React context for toolkit (purple) / cricket (sky blue/navy) theming
+- **Toolkit theme** is configurable via 4 CSS variables in `globals.css`: `--toolkit`, `--toolkit-accent`, `--toolkit-hover`, `--toolkit-glow` — change these to rebrand the entire toolkit (Vibe Planner, ID Tracker, Sports, Admin)
 - **Cricket theme** is configurable via 4 CSS variables in `globals.css`: `--cricket`, `--cricket-accent`, `--cricket-hover`, `--cricket-glow` — change these to rebrand the entire cricket app
+- Both themes are independent — cricket can move to a separate repo without affecting toolkit
 
 ### Components
 | Component | File | Key Props |
@@ -190,6 +192,7 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 | `Label` | `label.tsx` | `uppercase` flag |
 | `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
 | `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
+| `FilterDropdown` | `filter-dropdown.tsx` | Category filter with counts, brand-aware (toolkit/cricket) |
 | `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
 
 ### Usage

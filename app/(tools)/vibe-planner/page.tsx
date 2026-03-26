@@ -9,7 +9,6 @@ import { LocalBanner } from '@/components/LocalBanner';
 import { Skeleton } from '@/components/ui';
 import Header from './components/Header';
 import Board from './components/Board';
-import Timeline from './components/Timeline';
 import RecentlyDeleted from './components/RecentlyDeleted';
 
 function BoardSkeleton() {
@@ -57,7 +56,7 @@ function BoardSkeleton() {
 
 function VibePlannerContent() {
   const { user } = useAuthStore();
-  const { view, items, syncing, loadItems, setOpenMenu } = useVibeStore();
+  const { items, syncing, loadItems, setOpenMenu } = useVibeStore();
 
   useEffect(() => {
     const cloud = isCloudMode();
@@ -85,8 +84,7 @@ function VibePlannerContent() {
     <div className="min-h-screen">
       {!isCloudMode() && <LocalBanner />}
       <Header />
-      {view === 'board' && <Board />}
-      {view === 'timeline' && <Timeline />}
+      <Board />
       <RecentlyDeleted />
     </div>
   );

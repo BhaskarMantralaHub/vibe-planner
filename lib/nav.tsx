@@ -17,13 +17,6 @@ export const tools: Tool[] = [
     roles: ['toolkit', 'admin'],
   },
   {
-    name: 'Sports',
-    href: '/sports/toss',
-    icon: <MdSportsCricket size={22} />,
-    description: 'Cricket toss. Fair coin. ICC standard.',
-    roles: ['toolkit', 'admin'],
-  },
-  {
     name: 'ID Tracker',
     href: '/id-tracker',
     icon: <MdBadge size={22} />,
