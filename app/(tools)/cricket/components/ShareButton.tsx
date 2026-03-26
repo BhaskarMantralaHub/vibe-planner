@@ -93,6 +93,14 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   let y = 0;
 
   type RGB = [number, number, number];
+
+  // ── Cricket brand colors (update these to match --cricket CSS vars) ──
+  const CRICKET: RGB = [42, 143, 194];         // Primary — matches --cricket light mode
+  const CRICKET_BRIGHT: RGB = [77, 187, 235];  // Bright — matches --cricket dark mode
+  const CRICKET_BANNER_START: RGB = [20, 50, 90];   // Banner gradient start (dark navy)
+  const CRICKET_BANNER_END: RGB = [35, 80, 130];    // Banner gradient end (lighter navy)
+
+  // ── Standard colors ──
   const BLACK: RGB = [30, 30, 30];
   const DARK: RGB = [55, 55, 55];
   const GRAY: RGB = [120, 120, 120];
@@ -100,8 +108,6 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const WHITE: RGB = [255, 255, 255];
   const GREEN: RGB = [5, 150, 105];
   const RED: RGB = [220, 50, 50];
-  const ORANGE: RGB = [42, 143, 194];   // Cricket sky blue (matches --cricket in light mode)
-  const AMBER: RGB = [77, 187, 235];    // Cricket bright blue (matches --cricket in dark mode)
   const BLUE: RGB = [59, 130, 246];
 
   const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
@@ -183,15 +189,17 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ PAGE 1: HEADER BANNER ═══
   // ═══════════════════════════════════════
 
-  // Blue gradient banner (matches cricket theme)
-  const bannerH = 48;
-  // Draw gradient by layering thin strips
+  // Cricket brand gradient banner
+  const bannerH = 36;
+  const [sr, sg, sb] = CRICKET_BANNER_START;
+  const [er, eg, eb] = CRICKET_BANNER_END;
   for (let i = 0; i < bannerH; i++) {
     const t = i / bannerH;
-    const r = Math.round(20 + t * 15);   // 20→35 (dark navy → slightly lighter)
-    const g = Math.round(50 + t * 30);   // 50→80
-    const b = Math.round(90 + t * 40);   // 90→130
-    doc.setFillColor(r, g, b);
+    doc.setFillColor(
+      Math.round(sr + t * (er - sr)),
+      Math.round(sg + t * (eg - sg)),
+      Math.round(sb + t * (eb - sb)),
+    );
     doc.rect(0, i, W, 1, 'F');
   }
 
@@ -223,7 +231,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const cardH2 = 22;
   const stats = [
     { label: 'FEES', value: formatCurrency(totalFees), color: GREEN },
-    { label: 'SPONSORS', value: formatCurrency(totalSponsorship), color: AMBER },
+    { label: 'SPONSORS', value: formatCurrency(totalSponsorship), color: CRICKET_BRIGHT },
     { label: 'SPENT', value: formatCurrency(totalSpent), color: RED },
     { label: 'BALANCE', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(Math.abs(poolBalance))}`, color: poolBalance >= 0 ? GREEN : RED },
   ];
@@ -255,7 +263,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   } else if (poolBalance > 0 && totalCollected > 0) {
     fillRect(M, y, TW, 10, [240, 253, 244], 2);
     text(
-      `${formatCurrency(poolBalance)} remaining  —  rolls over to next season`,
+      `${formatCurrency(poolBalance)} remaining — covers season maintenance & rolls over if funds are left`,
       W / 2, y + 6.5, { size: 8.5, color: GREEN, align: 'center' }
     );
     y += 14;
@@ -284,7 +292,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const isPaid = paidAmt >= feeAmount;
     const isPartial = paidAmt > 0 && paidAmt < feeAmount;
     const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid';
-    const sColor: RGB = isPaid ? GREEN : isPartial ? AMBER : RED;
+    const sColor: RGB = isPaid ? GREEN : isPartial ? CRICKET_BRIGHT : RED;
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
     const dateStr = fee?.paid_date ? formatDate(fee.paid_date) : '—';
     return {
@@ -299,14 +307,14 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   // ═══ SPONSORSHIPS ═══
   if (seasonSponsors.length) {
-    sectionHeader('SPONSORSHIPS', `${formatCurrency(totalSponsorship)} total`, AMBER);
+    sectionHeader('SPONSORSHIPS', `${formatCurrency(totalSponsorship)} total`, CRICKET_BRIGHT);
     const sponsorRows = seasonSponsors.map((s) => ({
       cells: [s.sponsor_name, formatDate(s.sponsored_date), s.notes || '—', formatCurrency(Number(s.amount))],
       bold: [true, false, false, true],
       colors: [DARK, GRAY, LGRAY, GREEN] as (RGB | null)[],
     }));
     // Sponsor(35%) Date(20%) Notes(25%) Amount(20%)
-    drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [35, 20, 25, 20], sponsorRows, AMBER);
+    drawTable(['Sponsor', 'Date', 'Notes', 'Amount'], [35, 20, 25, 20], sponsorRows, CRICKET_BRIGHT);
     y += 10;
   }
 
@@ -360,7 +368,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   }
 
   // ═══ SQUAD TABLE ═══
-  sectionHeader('TEAM SQUAD', `${activePlayers.length} players`, ORANGE);
+  sectionHeader('TEAM SQUAD', `${activePlayers.length} players`, CRICKET);
   const squadRows = activePlayers.map((p) => {
     const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
     const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1).replace('-', ' ') : '—';
@@ -371,11 +379,11 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     return {
       cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, role, style],
       bold: [false, true, false, false],
-      colors: [ORANGE, DARK, GRAY, LGRAY] as (RGB | null)[],
+      colors: [CRICKET, DARK, GRAY, LGRAY] as (RGB | null)[],
     };
   });
   // #(7%) Player(38%) Role(25%) Style(30%)
-  drawTable(['Jersey', 'Player', 'Role', 'Style'], [8, 37, 25, 30], squadRows, ORANGE);
+  drawTable(['Jersey', 'Player', 'Role', 'Style'], [8, 37, 25, 30], squadRows, CRICKET);
 
   // ═══ ADD FOOTER TO ALL PAGES ═══
   const total = pageCount();

@@ -270,10 +270,10 @@ export default function ExpenseList() {
 
             {!isLow && totalCollected > 0 && poolBalance > 0 && (
               <div className="p-3 rounded-xl flex items-center gap-2.5"
-                style={{ background: '#3B82F60A', border: '1px solid #3B82F620' }}>
-                <FaCheckCircle size={14} className="flex-shrink-0" style={{ color: '#3B82F6' }} />
-                <p className="text-[13px] text-[var(--muted)]">
-                  <span className="font-bold" style={{ color: '#3B82F6' }}>{formatCurrency(poolBalance)}</span> remaining — rolls over to next season.
+                style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
+                <FaCheckCircle size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
+                <p className="text-[13px] text-[var(--text)]">
+                  <span className="font-bold" style={{ color: 'var(--cricket)' }}>{formatCurrency(poolBalance)}</span> remaining — covers current season maintenance &amp; rolls over if funds are left.
                 </p>
               </div>
             )}

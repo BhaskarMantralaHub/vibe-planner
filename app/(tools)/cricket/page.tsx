@@ -127,11 +127,17 @@ function ViewTabs({ active, onChange, playerCount, expenseCount }: {
             <span className="hidden sm:inline">{v.label}</span>
             <span className="sm:hidden">{v.short}</span>
             {badge > 0 && (
-              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${
-                isActive
-                  ? 'bg-white/30 text-white'
-                  : 'bg-[var(--border)]/50 text-[var(--muted)]'
-              }`}>
+              <span
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${
+                  isActive
+                    ? 'text-[var(--cricket-accent)] shadow-sm'
+                    : 'text-[var(--muted)]'
+                }`}
+                style={isActive
+                  ? { background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }
+                  : { background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }
+                }
+              >
                 {badge}
               </span>
             )}

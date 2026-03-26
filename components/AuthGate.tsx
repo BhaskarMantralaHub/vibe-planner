@@ -378,7 +378,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               <img
                 src={v.heroImage}
                 alt={v.heroAlt}
-                className="w-full max-h-[140px] lg:max-h-[320px] object-cover rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
+                className="w-full rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
               />
               <h1 className={`text-[18px] lg:text-[32px] font-bold text-center bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
                 {v.tagline}
