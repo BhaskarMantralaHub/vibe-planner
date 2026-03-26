@@ -189,6 +189,7 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 | `Skeleton` | `skeleton.tsx` | Just `className` — pulse loading placeholder |
 | `Label` | `label.tsx` | `uppercase` flag |
 | `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
+| `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
 | `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
 
 ### Usage
@@ -215,6 +216,8 @@ Components auto-detect brand from `BrandProvider`. Cricket pages use orange, too
 3. **Use CVA for new variants** — define in the component file, export the variants function
 4. **Use Radix Dialog** for modals — never hand-roll overlay + panel + close button
 5. **Use `toast()`** for user feedback — every create/update/delete action should confirm success or report failure
+6. **Use shared `Drawer`** for bottom sheets — never use raw `vaul` directly. The shared Drawer handles iOS Safari keyboard, scroll-to-dismiss, and viewport issues automatically via `useKeyboardHeight` hook.
+7. **Viewport zoom is disabled** (`maximumScale: 1, userScalable: false` in `app/layout.tsx`) — appropriate for web app, prevents accidental pinch-zoom on iOS
 
 ## Key Architecture
 
