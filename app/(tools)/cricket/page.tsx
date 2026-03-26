@@ -123,14 +123,14 @@ function ViewTabs({ active, onChange, playerCount, expenseCount }: {
             }`}
             style={isActive ? { boxShadow: '0 2px 12px var(--cricket-glow)' } : undefined}
           >
-            <span className={isActive ? 'text-white/90' : ''}>{v.icon}</span>
+            <span className={isActive ? 'text-white' : ''}>{v.icon}</span>
             <span className="hidden sm:inline">{v.label}</span>
             <span className="sm:hidden">{v.short}</span>
             {badge > 0 && (
               <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${
                 isActive
-                  ? 'bg-white/25 text-white'
-                  : 'bg-[var(--hover-bg)] text-[var(--dim)]'
+                  ? 'bg-white/30 text-white'
+                  : 'bg-[var(--border)]/50 text-[var(--muted)]'
               }`}>
                 {badge}
               </span>
