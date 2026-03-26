@@ -234,6 +234,21 @@ Components auto-detect brand from `BrandProvider`. Cricket pages use orange, too
 - Main branch auto-deploys to Cloudflare Pages — limited build quota
 - Commit convention: `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `chore:`
 
+## Bug Fixing — MANDATORY Process
+
+When a user reports an issue is **not resolved after a fix attempt**, do NOT immediately try another quick fix. Instead:
+
+1. **Stop and form an agent council** — Launch 2-3 specialist agents in parallel to research the root cause deeply (iOS Safari behavior, library GitHub issues, how production apps solve it, codebase analysis)
+2. **Wait for all agents to report back** — Synthesize findings before writing any code
+3. **Present the solution plan** — Explain the root cause and proposed fix to the user before implementing
+4. **One permanent fix** — Never push iterative band-aids. Each failed attempt erodes trust and wastes deploy quota.
+
+This applies especially to:
+- iOS Safari / mobile browser issues (keyboard, viewport, scroll, touch)
+- Cross-platform rendering differences
+- Animation/positioning bugs (dialog repositioning, drawer conflicts)
+- Auth flow edge cases
+
 ## Testing — MANDATORY
 
 **ALWAYS update or add unit tests when changing code.** Tests live in `tests/unit/` and use Vitest.
