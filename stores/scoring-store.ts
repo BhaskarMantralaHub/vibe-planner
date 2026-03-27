@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type {
   ScoringMatch,
   ScoringInnings,
@@ -127,7 +128,9 @@ const initialInnings: [ScoringInnings, ScoringInnings] = [
   makeEmptyInnings('team_b'),
 ];
 
-export const useScoringStore = create<ScoringState>((set, get) => ({
+export const useScoringStore = create<ScoringState>()(
+  persist(
+    (set, get) => ({
   match: null,
   innings: [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')],
   balls: [],
@@ -716,4 +719,19 @@ export const useScoringStore = create<ScoringState>((set, get) => ({
       redoStack: [],
     });
   },
-}));
+}),
+    {
+      name: 'scoring-match',
+      // Only persist data state, not computed functions
+      partialize: (state) => ({
+        match: state.match,
+        innings: state.innings,
+        balls: state.balls,
+        isFreeHit: state.isFreeHit,
+        lastBallId: state.lastBallId,
+        redoStack: state.redoStack,
+        wizardStep: state.wizardStep,
+      }),
+    },
+  ),
+);
