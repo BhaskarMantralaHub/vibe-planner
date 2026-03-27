@@ -449,6 +449,9 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               </div>
             </div>
           )}
+
+          {/* Bottom safe area padding */}
+          <div className="pb-[max(env(safe-area-inset-bottom),40px)]" />
         </div>
       </div>
     </div>
