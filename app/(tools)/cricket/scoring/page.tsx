@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createPortal } from 'react-dom';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
+import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
@@ -20,21 +19,7 @@ import { ScoringScreen } from './components/ScoringScreen';
 /* ── Match Card ── */
 function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => Promise<void> }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-
-  // Close menu on scroll or resize
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = () => setMenuOpen(false);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [menuOpen]);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
@@ -72,14 +57,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             </Text>
             {onDelete && (
               <button
-                ref={menuBtnRef}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  const menuWidth = 160;
-                  setMenuPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)) });
-                  setMenuOpen(true);
-                }}
+                onClick={(e) => { e.stopPropagation(); setActionsOpen(true); }}
                 className={cn(
                   'flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer transition-colors',
                   isActive ? 'text-white/70 hover:bg-white/10' : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]',
@@ -156,25 +134,46 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
         </div>
       </div>
 
-      {/* Three-dot menu portal */}
-      {menuOpen && typeof document !== 'undefined' && createPortal(
-        <>
-          <div className="fixed inset-0 z-[99]" onClick={() => setMenuOpen(false)} />
-          <div
-            className="fixed z-[100] w-[160px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
-            style={{ top: menuPos.top, left: menuPos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
+      {/* Actions Drawer (same pattern as GalleryPost) */}
+      <Drawer open={actionsOpen} onOpenChange={setActionsOpen}>
+        <DrawerHandle />
+        <DrawerTitle>Actions</DrawerTitle>
+        <DrawerBody className="px-4 pb-6 pt-2">
+          <div className="space-y-1">
             <button
-              onClick={() => { setMenuOpen(false); setDeleteOpen(true); }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-              style={{ color: 'var(--red)' }}
+              onClick={() => { setActionsOpen(false); onTap(); }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
             >
-              <MdDeleteOutline size={15} /> Delete Match
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
+              </div>
+              <div className="text-left">
+                <Text size="sm" weight="semibold">View Scorecard</Text>
+                <Text as="p" size="2xs" color="dim">Full match details</Text>
+              </div>
+            </button>
+            <button
+              onClick={() => { setActionsOpen(false); setDeleteOpen(true); }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
+              </div>
+              <div className="text-left">
+                <Text size="sm" weight="semibold" color="danger">Delete Match</Text>
+                <Text as="p" size="2xs" color="dim">Remove from match history</Text>
+              </div>
             </button>
           </div>
-        </>,
-        document.body,
-      )}
+          <button
+            onClick={() => setActionsOpen(false)}
+            className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
+            style={{ background: 'var(--surface)', color: 'var(--text)' }}
+          >
+            Cancel
+          </button>
+        </DrawerBody>
+      </Drawer>
 
       {/* Delete Dialog */}
       {onDelete && (
