@@ -1092,15 +1092,11 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   loadMatchHistory: async (loadMore = false, fromDate?: string, toDate?: string) => {
-    if (!isCloudMode()) { console.log('[scoring] not cloud mode'); return; }
+    if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
-    if (!supabase) { console.log('[scoring] no supabase client'); return; }
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log('[scoring] loadMatchHistory — session:', session ? 'yes' : 'NO SESSION');
-    if (!session) { console.log('[scoring] skipping — no auth session yet'); return; }
+    if (!supabase) return;
     if (!loadMore) set({ historyLoading: true });
     const offset = loadMore ? get().matchHistory.length : 0;
-    console.log('[scoring] calling RPC get_match_history...');
     const { data, error } = await supabase.rpc('get_match_history', {
       match_status: null,
       result_limit: 10,
@@ -1108,22 +1104,14 @@ export const useScoringStore = create<ScoringState>()(
       from_date: fromDate ?? null,
       to_date: toDate ?? null,
     });
-    console.log('[scoring] RPC response:', { data, error, dataType: typeof data, dataLength: Array.isArray(data) ? data.length : 'not array' });
     if (error) { console.error('[scoring] loadMatchHistory failed:', error); set({ historyLoading: false }); return; }
     const items = (data ?? []) as MatchHistoryItem[];
     if (loadMore) {
       const existing = new Set(get().matchHistory.map((m) => m.id));
-      const merged = [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))];
-      console.log('[scoring] matchHistory set (append):', merged.length, 'items');
-      set({ matchHistory: merged, historyLoading: false });
+      set({ matchHistory: [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))], historyLoading: false });
     } else {
-      console.log('[scoring] matchHistory set:', items.length, 'items');
       set({ matchHistory: items, historyLoading: false });
     }
-    // Verify store updated
-    setTimeout(() => {
-      console.log('[scoring] matchHistory in store after set:', get().matchHistory.length);
-    }, 100);
   },
 
   resumeMatch: async (matchId: string) => {
