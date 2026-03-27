@@ -743,13 +743,13 @@ export const useScoringStore = create<ScoringState>()(
     let resultSummary = match.result_summary;
     let matchWinner: string | null = null;
 
-    // Only compute result if both innings have been played
-    const secondInningsBalls = balls.filter((b) => b.innings === 1);
-    const bothInningsPlayed = first.is_completed && secondInningsBalls.length > 0;
+    // Only compute result if both innings completed naturally
+    // (2nd innings must be completed — all out, overs done, or target reached)
+    const matchFinishedNaturally = first.is_completed && second.is_completed;
 
     if (!resultSummary) {
-      if (!bothInningsPlayed) {
-        // Match ended early (abandoned/cancelled during 1st innings or before 2nd started)
+      if (!matchFinishedNaturally) {
+        // Match ended early — aborted/abandoned before natural conclusion
         resultSummary = 'Match ended — No result';
         matchWinner = null;
       } else {
