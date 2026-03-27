@@ -995,7 +995,7 @@ export const useScoringStore = create<ScoringState>()(
     const { data, error } = await supabase.rpc('revert_match_to_scoring', { target_match_id: matchId });
     if (error) { console.error('[scoring] revertMatch failed:', error); toast.error('Failed to revert'); return false; }
     if (!data) { toast.error('Not authorized — admin only'); return false; }
-    toast.success('Match reverted to scoring');
+    toast.success('Match reverted — ready to score');
     await get().loadMatchHistory();
     return true;
   },

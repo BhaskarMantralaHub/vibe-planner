@@ -976,6 +976,14 @@ BEGIN
     AND status = 'completed'
     AND match_winner IS NULL
     AND deleted_at IS NULL;
+
+  -- Also reset current innings completion flag
+  IF FOUND THEN
+    UPDATE practice_innings
+    SET is_completed = false, updated_at = now()
+    WHERE match_id = target_match_id
+      AND innings_number = (SELECT current_innings FROM practice_matches WHERE id = target_match_id);
+  END IF;
   RETURN FOUND;
 END;
 $$;
