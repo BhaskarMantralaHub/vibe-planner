@@ -15,6 +15,7 @@ import type {
   MatchHistoryItem,
 } from '@/types/scoring';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 function genId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -973,17 +974,31 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   deleteMatch: async (matchId: string, deleterName: string) => {
-    if (!isCloudMode()) return false;
+    if (!isCloudMode()) {
+      // Local mode: remove from matchHistory directly
+      set({ matchHistory: get().matchHistory.filter((m) => m.id !== matchId) });
+      toast.success('Match deleted');
+      return true;
+    }
     const supabase = getSupabaseClient();
     if (!supabase) return false;
     const { data, error } = await supabase.rpc('soft_delete_match', {
       target_match_id: matchId,
       deleter_name: deleterName,
     });
-    if (error) { console.error('[scoring] deleteMatch failed:', error); return false; }
-    // Refresh history
-    get().loadMatchHistory();
-    return data as boolean;
+    if (error) {
+      console.error('[scoring] deleteMatch failed:', error);
+      toast.error('Failed to delete match');
+      return false;
+    }
+    if (data === false) {
+      toast.error('Not authorized to delete this match');
+      return false;
+    }
+    toast.success('Match deleted');
+    // Refresh history from DB
+    await get().loadMatchHistory();
+    return true;
   },
 
   loadMatchHistory: async () => {

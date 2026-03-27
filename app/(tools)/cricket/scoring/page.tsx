@@ -16,7 +16,7 @@ import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => void }) {
+function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => Promise<void> }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
@@ -142,7 +142,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             </DialogHeader>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-              <Button variant="danger" onClick={() => { onDelete(); setDeleteOpen(false); }}>Delete</Button>
+              <Button variant="danger" onClick={async () => { setDeleteOpen(false); if (onDelete) await onDelete(); }}>Delete</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -251,8 +251,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                     key={m.id}
                     item={m}
                     onTap={() => onResumeMatch(m.id)}
-                    onDelete={isAdmin ? () => {
-                      deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                    onDelete={isAdmin ? async () => {
+                      await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
                   />
                 ))}
@@ -272,8 +272,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                     key={m.id}
                     item={m}
                     onTap={() => onResumeMatch(m.id)}
-                    onDelete={isAdmin ? () => {
-                      deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                    onDelete={isAdmin ? async () => {
+                      await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
                   />
                 ))}
