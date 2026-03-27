@@ -8,83 +8,119 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState } from '@/components/ui';
+import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd } from 'react-icons/md';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
 
-/* ── Match Card (reusable for active + history) ── */
+/* ── Match Card ── */
 function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => void }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
   const inn2 = item.second_innings;
 
   return (
-    <div
-      onClick={onTap}
-      className={cn(
-        'w-full text-left rounded-xl border px-4 py-3 cursor-pointer select-none',
-        'transition-all duration-150 active:scale-[0.98]',
-        isActive
-          ? 'border-[var(--cricket)]/40 bg-[var(--cricket)]/5'
-          : 'border-[var(--border)] bg-[var(--card)]',
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <div className="min-w-0 flex-1">
-          <Text size="sm" weight="bold" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
-          <Text size="2xs" color="muted" className="mt-0.5">{item.match_date} · {item.overs_per_innings} overs</Text>
-        </div>
+    <>
+      <div
+        onClick={onTap}
+        className={cn(
+          'w-full rounded-xl border overflow-hidden cursor-pointer select-none',
+          'transition-all duration-150 active:scale-[0.98]',
+          isActive
+            ? 'border-[var(--cricket)]/40'
+            : 'border-[var(--border)]',
+        )}
+      >
+        {/* Live badge bar */}
         {isActive && (
-          <Text size="2xs" weight="bold" color="cricket" uppercase className="flex-shrink-0 ml-2">LIVE</Text>
+          <div className="px-3 py-1" style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+            <Text size="2xs" weight="bold" color="white" uppercase tracking="wider">Live Match</Text>
+          </div>
         )}
-        {isCompleted && (
-          <Text size="2xs" weight="semibold"
-            color={!item.match_winner ? 'muted' : item.match_winner === 'tied' ? 'muted' : 'success'}
-            className="flex-shrink-0 ml-2"
-          >
-            {!item.match_winner ? 'NO RESULT' : item.match_winner === 'tied' ? 'TIED' : 'DONE'}
-          </Text>
-        )}
-      </div>
-      {/* Scores */}
-      {(inn1 || inn2) && (
-        <div className="flex items-center gap-3 mt-1.5">
-          {inn1 && (
-            <Text size="xs" weight="semibold" tabular>
-              {inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name} {inn1.total_runs}/{inn1.total_wickets}
-              <Text size="2xs" color="muted"> ({inn1.total_overs})</Text>
-            </Text>
-          )}
-          {inn2 && inn2.total_runs > 0 && (
-            <>
-              <Text size="2xs" color="dim">vs</Text>
-              <Text size="xs" weight="semibold" tabular>
-                {inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name} {inn2.total_runs}/{inn2.total_wickets}
-                <Text size="2xs" color="muted"> ({inn2.total_overs})</Text>
+
+        <div className="px-3 py-2.5" style={{ background: isActive ? 'color-mix(in srgb, var(--cricket) 4%, var(--card))' : 'var(--card)' }}>
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <Text size="sm" weight="bold" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
+              {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
+                <Text size="2xs" weight="medium" color="muted" truncate>{item.title}</Text>
+              )}
+            </div>
+            {isCompleted && (
+              <Text size="2xs" weight="bold"
+                color={!item.match_winner ? 'muted' : item.match_winner === 'tied' ? 'muted' : 'success'}
+                className="flex-shrink-0 mt-0.5"
+                uppercase
+              >
+                {!item.match_winner ? 'No Result' : item.match_winner === 'tied' ? 'Tied' : 'Completed'}
               </Text>
-            </>
+            )}
+          </div>  {/* end title row */}
+
+          {/* Meta */}
+          <Text size="2xs" color="muted" className="mt-0.5">
+            {item.match_date} · {item.overs_per_innings} overs{item.scorer_name ? ` · Scored by ${item.scorer_name}` : ''}
+          </Text>
+
+          {/* Scores */}
+          {inn1 && (
+            <div className="mt-2 space-y-0.5">
+              <div className="flex items-center justify-between">
+                <Text size="xs" weight="medium">{inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
+                <Text size="sm" weight="bold" tabular>{inn1.total_runs}/{inn1.total_wickets} <Text size="2xs" color="muted">({inn1.total_overs} ov)</Text></Text>
+              </div>
+              {inn2 && (inn2.total_runs > 0 || inn2.total_wickets > 0) && (
+                <div className="flex items-center justify-between">
+                  <Text size="xs" weight="medium">{inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
+                  <Text size="sm" weight="bold" tabular>{inn2.total_runs}/{inn2.total_wickets} <Text size="2xs" color="muted">({inn2.total_overs} ov)</Text></Text>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Result */}
+          {isCompleted && item.result_summary && (
+            <Text size="2xs" weight="medium" color="muted" className="mt-1.5">{item.result_summary}</Text>
+          )}
+
+          {/* Admin delete */}
+          {onDelete && (
+            <div className="mt-2 pt-1.5 border-t border-[var(--border)]/30 flex justify-end">
+              <button
+                onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
+                className="text-[11px] font-medium cursor-pointer active:scale-[0.96] transition-all px-2 py-1 rounded"
+                style={{ color: 'var(--red)' }}
+              >
+                Delete Match
+              </button>
+            </div>
           )}
         </div>
-      )}
-      {isCompleted && item.result_summary && (
-        <Text size="2xs" color="muted" className="mt-1">{item.result_summary}</Text>
-      )}
+      </div>
+
+      {/* Delete Confirmation Dialog */}
       {onDelete && (
-        <div className="mt-2 pt-2 border-t border-[var(--border)]/30 flex justify-end">
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-[11px] font-medium cursor-pointer active:scale-[0.96] transition-all"
-            style={{ color: 'var(--red)' }}
-          >
-            Delete
-          </button>
-        </div>
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Match?</DialogTitle>
+              <DialogDescription>
+                &quot;{item.team_a_name} vs {item.team_b_name}&quot; will be removed from match history. This can be recovered by an admin.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+              <Button variant="danger" onClick={() => { onDelete(); setDeleteOpen(false); }}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
-    </div>
+    </>
   );
 }
 
@@ -189,9 +225,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                     item={m}
                     onTap={() => onResumeMatch(m.id)}
                     onDelete={isAdmin ? () => {
-                      if (confirm(`Delete "${m.team_a_name} vs ${m.team_b_name}"?`)) {
-                        deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
-                      }
+                      deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
                   />
                 ))}
@@ -212,9 +246,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                     item={m}
                     onTap={() => onResumeMatch(m.id)}
                     onDelete={isAdmin ? () => {
-                      if (confirm(`Delete "${m.team_a_name} vs ${m.team_b_name}"?`)) {
-                        deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
-                      }
+                      deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
                   />
                 ))}

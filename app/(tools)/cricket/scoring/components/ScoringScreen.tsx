@@ -688,7 +688,8 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                 View Scorecard
               </Button>
 
-              {/* Utility actions — side by side */}
+              {/* Utility actions — only show when match is still in progress */}
+              {match.status !== 'completed' && (
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={handleUndo}
@@ -715,6 +716,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                   <Text size="xs" weight="medium" color="danger">End Match</Text>
                 </button>
               </div>
+              )}
             </div>
           </div>
         ) : (
