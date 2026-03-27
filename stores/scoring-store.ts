@@ -1003,8 +1003,9 @@ export const useScoringStore = create<ScoringState>()(
       return false;
     }
     toast.success('Match deleted');
-    // Refresh history from DB
+    // Refresh both lists
     await get().loadMatchHistory();
+    await get().loadDeletedMatches();
     return true;
   },
 

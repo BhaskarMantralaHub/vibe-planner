@@ -23,6 +23,7 @@ function DeletedMatchCard({ item, onRestore, onPermanentDelete }: {
   onPermanentDelete: () => Promise<void>;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   return (
     <>
@@ -41,12 +42,16 @@ function DeletedMatchCard({ item, onRestore, onPermanentDelete }: {
         </div>
         <div className="flex gap-2 mt-2">
           <button
-            onClick={onRestore}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]"
+            onClick={async () => { setRestoring(true); await onRestore(); setRestoring(false); }}
+            disabled={restoring}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]',
+              restoring && 'opacity-50 cursor-not-allowed active:scale-100',
+            )}
             style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', color: 'var(--cricket)' }}
           >
             <MdRestoreFromTrash size={15} />
-            <Text size="xs" weight="semibold" color="cricket">Restore</Text>
+            <Text size="xs" weight="semibold" color="cricket">{restoring ? 'Restoring...' : 'Restore'}</Text>
           </button>
           <button
             onClick={() => setConfirmDelete(true)}
@@ -248,7 +253,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
                 {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}`
                   ? `"${item.title}" (${item.team_a_name} vs ${item.team_b_name})`
                   : `"${item.team_a_name} vs ${item.team_b_name}"`
-                } on {item.match_date} will be permanently removed from match history.
+                } on {item.match_date} will be moved to Recently Deleted. An admin can restore it later.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
