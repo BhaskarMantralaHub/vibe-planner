@@ -313,14 +313,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   const { user, userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
 
-  // Load matches from DB — wait for auth to be ready
+  // Load matches from DB on mount (AuthGate guarantees user is authenticated)
   useEffect(() => {
-    if (isCloudMode() && user) {
+    if (isCloudMode()) {
       loadMatchHistory();
       if (isAdmin) loadDeletedMatches();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, []);
 
   // Local active match (from this device's store)
   const hasLocalMatch = match && (match.status === 'scoring' || match.status === 'innings_break' || match.status === 'setup');
