@@ -182,7 +182,10 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             <DialogHeader>
               <DialogTitle>Delete Match?</DialogTitle>
               <DialogDescription>
-                &quot;{item.team_a_name} vs {item.team_b_name}&quot; will be removed from history. An admin can recover it.
+                {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}`
+                  ? `"${item.title}" (${item.team_a_name} vs ${item.team_b_name})`
+                  : `"${item.team_a_name} vs ${item.team_b_name}"`
+                } on {item.match_date} will be permanently removed from match history.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
