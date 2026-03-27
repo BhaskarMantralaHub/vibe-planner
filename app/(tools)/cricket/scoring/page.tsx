@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { useScoringStore } from '@/stores/scoring-store';
@@ -10,7 +11,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdArrowBack, MdSportsCricket, MdAdd } from 'react-icons/md';
+import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline } from 'react-icons/md';
+import { FaEllipsisV } from 'react-icons/fa';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
@@ -18,6 +20,9 @@ import { ScoringScreen } from './components/ScoringScreen';
 /* ── Match Card ── */
 function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => Promise<void> }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
@@ -49,9 +54,30 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
               {item.overs_per_innings} Over Match
             </Text>
           </div>
-          <Text size="xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
-            {item.match_date}
-          </Text>
+          <div className="flex items-center gap-2">
+            <Text size="xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
+              {item.match_date}
+            </Text>
+            {onDelete && (
+              <button
+                ref={menuBtnRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const menuWidth = 160;
+                  setMenuPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)) });
+                  setMenuOpen(true);
+                }}
+                className={cn(
+                  'flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer transition-colors',
+                  isActive ? 'text-white/70 hover:bg-white/10' : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]',
+                )}
+                title="Options"
+              >
+                <FaEllipsisV size={11} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Body ── */}
@@ -110,25 +136,33 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
           )}
         </div>
 
-        {/* Level 4: Meta — smallest, most muted */}
-        <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]/15">
+        {/* Level 4: Meta */}
+        <div className="px-4 py-2 border-t border-[var(--border)]/15">
           <Text size="xs" weight="medium" color="muted">
             {item.scorer_name ? `Scored by ${item.scorer_name}` : 'Practice Match'}
           </Text>
-          {onDelete && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
-              className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer transition-colors hover:bg-[var(--red)]/15"
-              style={{ color: 'var(--red)' }}
-              title="Delete"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Three-dot menu portal */}
+      {menuOpen && typeof document !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-[99]" onClick={() => setMenuOpen(false)} />
+          <div
+            className="fixed z-[100] w-[160px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
+            style={{ top: menuPos.top, left: menuPos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <button
+              onClick={() => { setMenuOpen(false); setDeleteOpen(true); }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+              style={{ color: 'var(--red)' }}
+            >
+              <MdDeleteOutline size={15} /> Delete Match
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* Delete Dialog */}
       {onDelete && (
