@@ -1113,10 +1113,17 @@ export const useScoringStore = create<ScoringState>()(
     const items = (data ?? []) as MatchHistoryItem[];
     if (loadMore) {
       const existing = new Set(get().matchHistory.map((m) => m.id));
-      set({ matchHistory: [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))], historyLoading: false });
+      const merged = [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))];
+      console.log('[scoring] matchHistory set (append):', merged.length, 'items');
+      set({ matchHistory: merged, historyLoading: false });
     } else {
+      console.log('[scoring] matchHistory set:', items.length, 'items');
       set({ matchHistory: items, historyLoading: false });
     }
+    // Verify store updated
+    setTimeout(() => {
+      console.log('[scoring] matchHistory in store after set:', get().matchHistory.length);
+    }, 100);
   },
 
   resumeMatch: async (matchId: string) => {
