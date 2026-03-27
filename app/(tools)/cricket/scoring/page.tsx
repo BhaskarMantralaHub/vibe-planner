@@ -23,6 +23,18 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  // Close menu on scroll or resize
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [menuOpen]);
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
