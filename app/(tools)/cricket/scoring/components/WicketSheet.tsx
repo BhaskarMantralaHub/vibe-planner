@@ -16,6 +16,7 @@ interface WicketSheetProps {
   onOpenChange: (open: boolean) => void;
   battingTeam: Player[];
   bowlingTeam: Player[];
+  currentBowlerId?: string;
   currentBatsmen: [Player, Player]; // striker, non-striker
   onConfirm: (data: {
     dismissal: DismissalType;
@@ -35,7 +36,7 @@ const dismissalTypes: { key: DismissalType; label: string; emoji: string }[] = [
   { key: 'retired', label: 'Retired', emoji: '\uD83D\uDEAA' },
 ];
 
-function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBatsmen, onConfirm }: WicketSheetProps) {
+function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowlerId, currentBatsmen, onConfirm }: WicketSheetProps) {
   const [step, setStep] = useState<'dismissal' | 'fielder' | 'run_out' | 'new_batsman'>('dismissal');
   const [dismissal, setDismissal] = useState<DismissalType | null>(null);
   const [batsmanOut, setBatsmanOut] = useState<string | null>(null);
@@ -178,7 +179,9 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
             <Text size="md" weight="semibold" className="mb-1">
               {dismissal === 'caught' ? 'Caught by?' : 'Stumped by?'}
             </Text>
-            {bowlingTeam.map((p) => (
+            {bowlingTeam
+              .filter((p) => dismissal === 'stumped' ? p.id !== currentBowlerId : true)
+              .map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleFielderSelect(p.id)}

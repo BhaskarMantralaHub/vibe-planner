@@ -84,7 +84,7 @@ function eventTag(entry: BallEntry): string | null {
 
 function ballDescription(entry: BallEntry): string {
   if (entry.type === 'wicket') {
-    return `${entry.bowler} to ${entry.batter}, ${entry.wicketText ?? 'OUT'}`;
+    return `${entry.bowler} to ${entry.batter}, OUT`;
   }
   if (entry.type === 'wide') {
     return `${entry.bowler} to ${entry.batter}, ${entry.runs} run${entry.runs !== 1 ? 's' : ''}, wide`;
@@ -151,7 +151,7 @@ function BallRow({ entry }: { entry: BallEntry }) {
             color={isWicket ? 'danger' : entry.type === 'four' ? 'accent' : entry.type === 'six' ? 'success' : 'muted'}
             className="mt-0.5"
           >
-            {isWicket ? `WICKET! ${entry.batter} ${entry.wicketText}` : tag}
+            {isWicket ? `OUT! ${entry.batter} — ${entry.wicketText ?? 'dismissed'}` : tag}
           </Text>
         )}
       </div>

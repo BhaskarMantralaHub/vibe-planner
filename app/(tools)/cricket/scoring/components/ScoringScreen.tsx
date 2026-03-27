@@ -285,6 +285,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   }, []);
 
   const confirmEndMatch = useCallback(() => {
+    setShowResultScreen(true);
     endMatch();
     setEndMatchOpen(false);
   }, [endMatch]);
@@ -702,10 +703,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                   <Text size="xs" weight="medium" color="muted">Undo</Text>
                 </button>
                 <button
-                  onClick={() => {
-                    setShowResultScreen(true);
-                    useScoringStore.getState().endMatch();
-                  }}
+                  onClick={handleEndMatch}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 cursor-pointer select-none',
                     'border border-[var(--red)]/30 transition-all active:scale-[0.96]',
@@ -775,6 +773,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
           onOpenChange={setWicketOpen}
           battingTeam={[...yetToBat, ...currentBatsmen]}
           bowlingTeam={bowlingTeamPlayers}
+          currentBowlerId={currentInnings.bowler_id ?? undefined}
           currentBatsmen={currentBatsmen}
           onConfirm={handleWicketConfirm}
         />
