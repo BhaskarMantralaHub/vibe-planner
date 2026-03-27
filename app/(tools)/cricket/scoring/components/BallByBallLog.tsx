@@ -30,19 +30,19 @@ type TimelineEntry =
   | { kind: 'ball'; data: BallEntry }
   | { kind: 'overSummary'; data: OverSummary };
 
-/* ── Ball color map (matches OverTimeline) ── */
+/* ── Ball color map (matches OverTimeline 3-tone palette) ── */
 const ballTypeColor: Record<BallEntry['type'], { bg: string; text: string }> = {
-  dot:    { bg: '#4B5563', text: 'white' },
+  dot:    { bg: '#9CA3AF', text: 'white' },
   single: { bg: '#6B7280', text: 'white' },
   double: { bg: '#6B7280', text: 'white' },
   triple: { bg: '#6B7280', text: 'white' },
-  four:   { bg: '#3B82F6', text: 'white' },
-  six:    { bg: '#16A34A', text: 'white' },
-  wide:   { bg: '#F59E0B', text: '#1C1917' },
-  noball: { bg: '#EA580C', text: 'white' },
-  bye:    { bg: '#8B5CF6', text: 'white' },
-  legbye: { bg: '#8B5CF6', text: 'white' },
-  wicket: { bg: '#EF4444', text: 'white' },
+  four:   { bg: '#1A75A8', text: 'white' },
+  six:    { bg: '#1A75A8', text: 'white' },
+  wide:   { bg: '#D97706', text: 'white' },
+  noball: { bg: '#D97706', text: 'white' },
+  bye:    { bg: '#D97706', text: 'white' },
+  legbye: { bg: '#D97706', text: 'white' },
+  wicket: { bg: '#DC2626', text: 'white' },
 };
 
 function ballLabel(entry: BallEntry): string {
@@ -82,49 +82,7 @@ function ballDescription(entry: BallEntry): string {
   return `${entry.bowler} to ${entry.batter}, ${entry.runs} run${entry.runs !== 1 ? 's' : ''}`;
 }
 
-/* ── Mock Data ── */
-
-const MOCK_TIMELINE: TimelineEntry[] = [
-  // Over 1 balls
-  { kind: 'ball', data: { overBall: '0.1', bowler: 'Ravi', batter: 'Bhaskar', runs: 1, type: 'single', timestamp: '9:45' } },
-  { kind: 'ball', data: { overBall: '0.2', bowler: 'Ravi', batter: 'Venkat', runs: 0, type: 'dot', timestamp: '9:46' } },
-  { kind: 'ball', data: { overBall: '0.3', bowler: 'Ravi', batter: 'Venkat', runs: 4, type: 'four', timestamp: '9:47' } },
-  { kind: 'ball', data: { overBall: '0.4', bowler: 'Ravi', batter: 'Venkat', runs: 0, type: 'dot', timestamp: '9:48' } },
-  { kind: 'ball', data: { overBall: '0.5', bowler: 'Ravi', batter: 'Venkat', runs: 2, type: 'double', timestamp: '9:49' } },
-  { kind: 'ball', data: { overBall: '0.6', bowler: 'Ravi', batter: 'Bhaskar', runs: 6, type: 'six', timestamp: '9:50' } },
-  // Over 1 summary
-  {
-    kind: 'overSummary', data: {
-      overNumber: 1, totalRuns: 13,
-      batsmen: [{ name: 'Bhaskar', runs: 7, balls: 2 }, { name: 'Venkat', runs: 6, balls: 4 }],
-      bowlerName: 'Ravi', bowlerFigures: '1.0-0-13-0', runRate: '13.00',
-      teamName: 'SUN', teamScore: '13/0',
-    },
-  },
-  // Over 2 balls
-  { kind: 'ball', data: { overBall: '1.1', bowler: 'Sanjay', batter: 'Bhaskar', runs: 0, type: 'dot', timestamp: '9:52' } },
-  { kind: 'ball', data: { overBall: '1.2', bowler: 'Sanjay', batter: 'Bhaskar', runs: 1, type: 'wide', timestamp: '9:53' } },
-  { kind: 'ball', data: { overBall: '1.2', bowler: 'Sanjay', batter: 'Bhaskar', runs: 4, type: 'four', timestamp: '9:54' } },
-  { kind: 'ball', data: { overBall: '1.3', bowler: 'Sanjay', batter: 'Bhaskar', runs: 0, type: 'wicket', wicketText: 'c Venkat b Sanjay', timestamp: '9:55' } },
-  { kind: 'ball', data: { overBall: '1.4', bowler: 'Sanjay', batter: 'Arun', runs: 2, type: 'double', timestamp: '9:57' } },
-  { kind: 'ball', data: { overBall: '1.5', bowler: 'Sanjay', batter: 'Venkat', runs: 0, type: 'dot', timestamp: '9:58' } },
-  { kind: 'ball', data: { overBall: '1.6', bowler: 'Sanjay', batter: 'Venkat', runs: 1, type: 'single', timestamp: '9:59' } },
-  // Over 2 summary
-  {
-    kind: 'overSummary', data: {
-      overNumber: 2, totalRuns: 8,
-      batsmen: [{ name: 'Venkat', runs: 7, balls: 6 }, { name: 'Arun', runs: 2, balls: 1 }],
-      bowlerName: 'Sanjay', bowlerFigures: '1.0-0-8-1', runRate: '10.50',
-      teamName: 'SUN', teamScore: '21/1',
-    },
-  },
-  // Over 3 balls (current, in progress)
-  { kind: 'ball', data: { overBall: '2.1', bowler: 'Ravi', batter: 'Arun', runs: 1, type: 'noball', timestamp: '10:01' } },
-  { kind: 'ball', data: { overBall: '2.1', bowler: 'Ravi', batter: 'Venkat', runs: 4, type: 'four', timestamp: '10:02' } },
-  { kind: 'ball', data: { overBall: '2.2', bowler: 'Ravi', batter: 'Venkat', runs: 0, type: 'dot', timestamp: '10:03' } },
-  { kind: 'ball', data: { overBall: '2.3', bowler: 'Ravi', batter: 'Venkat', runs: 6, type: 'six', timestamp: '10:04' } },
-  { kind: 'ball', data: { overBall: '2.4', bowler: 'Ravi', batter: 'Venkat', runs: 1, type: 'single', timestamp: '10:05' } },
-];
+/* ── (mock data removed — accepts timeline as prop) ── */
 
 /* ── Components ── */
 
@@ -208,8 +166,8 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
       <div className="flex gap-4">
         {/* Batsmen */}
         <div className="flex-1 space-y-0.5">
-          {data.batsmen.map((b) => (
-            <div key={b.name} className="flex items-center gap-2">
+          {data.batsmen.map((b, i) => (
+            <div key={i} className="flex items-center gap-2">
               <Text size="xs" weight="medium" truncate className="flex-1">
                 {b.name}
               </Text>
@@ -244,25 +202,37 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
   );
 }
 
-function BallByBallLog() {
+interface BallByBallLogProps {
+  timeline: TimelineEntry[];
+}
+
+function BallByBallLog({ timeline }: BallByBallLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on mount
+  // Scroll to top when new entries arrive (latest ball is at the top)
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = 0;
     }
-  }, []);
+  }, [timeline.length]);
 
-  // Render in reverse (most recent at bottom, scroll starts at bottom)
+  if (timeline.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-4" style={{ maxHeight: 400 }}>
+        <Text size="sm" color="muted">No balls bowled yet</Text>
+      </div>
+    );
+  }
+
+  // Render in reverse (most recent at top)
   return (
     <div
       ref={scrollRef}
       className="flex-1 overflow-y-auto px-2"
-      style={{ maxHeight: 260 }}
+      style={{ maxHeight: 400 }}
     >
       <div className="space-y-0.5 py-1">
-        {[...MOCK_TIMELINE].reverse().map((entry, i) => {
+        {[...timeline].reverse().map((entry, i) => {
           if (entry.kind === 'ball') {
             return <BallRow key={i} entry={entry.data} />;
           }

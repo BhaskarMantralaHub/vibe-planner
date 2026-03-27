@@ -11,29 +11,15 @@ function FreeHitBanner({ visible }: FreeHitBannerProps) {
 
   return (
     <div
-      className="mx-4 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 animate-free-hit-pulse"
+      className="mx-4 px-3 py-2 rounded-xl flex items-center justify-center gap-2"
       style={{
-        background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(251,191,36,0.1))',
-        border: '1px solid rgba(245,158,11,0.4)',
+        background: 'color-mix(in srgb, var(--cricket) 8%, var(--surface))',
+        border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
       }}
     >
-      <span className="text-[16px]" aria-hidden>
-        &#x26A1;
-      </span>
-      <Text size="sm" weight="semibold" className="text-amber-400">
-        FREE HIT — Batsman can only be out: Run Out
-      </Text>
-
-      {/* Pulsing glow animation via inline style tag (scoped) */}
-      <style>{`
-        @keyframes freeHitPulse {
-          0%, 100% { box-shadow: 0 0 8px rgba(245,158,11,0.2); }
-          50% { box-shadow: 0 0 20px rgba(245,158,11,0.4); }
-        }
-        .animate-free-hit-pulse {
-          animation: freeHitPulse 1.5s ease-in-out infinite;
-        }
-      `}</style>
+      <Text size="xs" weight="bold" color="cricket">FREE HIT</Text>
+      <Text size="xs" weight="medium" color="muted">—</Text>
+      <Text size="xs" weight="medium" color="muted">Only Run Out dismissal</Text>
     </div>
   );
 }

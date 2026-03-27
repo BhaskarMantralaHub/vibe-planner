@@ -102,28 +102,39 @@ export default function ScoringPage() {
     }
   }, [user, players.length, loadAll]);
 
-  // If there is an active match in the store, show it
+  // Sync view with match status
+  const matchStatus = match?.status ?? null;
   useEffect(() => {
-    if (match && match.status === 'scoring') {
+    if (matchStatus === 'scoring' || matchStatus === 'innings_break') {
       setView('match');
     }
-  }, [match]);
+    if (matchStatus === 'completed') {
+      useScoringStore.getState().reset();
+      setView('landing');
+    }
+  }, [matchStatus]);
 
   return (
     <AuthGate variant="cricket">
       <RoleGate allowed={['cricket', 'admin']}>
-        {/* Hide Shell header by overlaying full screen */}
-        <div className="fixed inset-0 z-50 bg-[var(--bg)] overflow-y-auto">
-          {view === 'landing' && (
-            <ScoringLanding onNewMatch={() => setView('wizard')} />
-          )}
-          {view === 'wizard' && (
-            <ScoringWizard
-              onComplete={() => setView('match')}
-              onBack={() => setView('landing')}
-            />
-          )}
-          {view === 'match' && <ActiveMatch />}
+        {/* Hide Shell — fixed overlay (no scroll on this element, iOS Safari ignores it).
+             Inner absolute div is the actual scroll container. */}
+        <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: 'var(--bg)' }}>
+          <div
+            className="absolute inset-0 overflow-y-auto overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {view === 'landing' && (
+              <ScoringLanding onNewMatch={() => setView('wizard')} />
+            )}
+            {view === 'wizard' && (
+              <ScoringWizard
+                onComplete={() => setView('match')}
+                onBack={() => setView('landing')}
+              />
+            )}
+            {view === 'match' && <ActiveMatch />}
+          </div>
         </div>
       </RoleGate>
     </AuthGate>

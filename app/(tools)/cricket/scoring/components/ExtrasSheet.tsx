@@ -91,7 +91,7 @@ function ExtrasSheet({ open, onOpenChange, type, onConfirm }: ExtrasSheetProps) 
                   'border transition-all duration-150 active:scale-[0.92]',
                   c.bgClass,
                 )}
-                style={{ width: 56, height: 56 }}
+                style={{ width: 50, height: 50 }}
               >
                 <Text size="lg" weight="bold" tabular>{runs}</Text>
               </button>

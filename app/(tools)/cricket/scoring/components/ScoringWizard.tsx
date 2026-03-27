@@ -182,9 +182,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
       case 4:
         return true; // toss always has defaults
       case 5:
-        return strikerId !== null && nonStrikerId !== null && strikerId !== nonStrikerId;
-      case 6:
-        return bowlerId !== null;
+        return strikerId !== null && nonStrikerId !== null && strikerId !== nonStrikerId && bowlerId !== null;
       default:
         return false;
     }
@@ -194,15 +192,13 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
     } else {
-      // Final step — create match and start
-      const finalTeamA = buildTeamA();
-      const finalTeamB = buildTeamB();
+      // Final step — use the memoized teams (same IDs as the picker)
       createMatch({
         title: title.trim(),
         overs: parseInt(overs),
         date: matchDate,
-        teamA: finalTeamA,
-        teamB: finalTeamB,
+        teamA: teamA,
+        teamB: teamB,
         tossWinner,
         tossDecision,
         scorerName: scorerName.trim() || 'Scorer',

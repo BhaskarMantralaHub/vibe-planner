@@ -66,6 +66,9 @@ interface ScoringState {
   isFreeHit: boolean;
   lastBallId: string | null;
 
+  // Redo stack
+  redoStack: ScoringBall[];
+
   // Actions - Setup
   setWizardStep: (step: number) => void;
   createMatch: (data: {
@@ -92,6 +95,7 @@ interface ScoringState {
     fielder_id?: string;
   }) => void;
   undoLastBall: () => void;
+  redoLastBall: () => void;
   swapStrike: () => void;
   setBowler: (playerId: string) => void;
   setNextBatsman: (playerId: string) => void;
@@ -130,6 +134,7 @@ export const useScoringStore = create<ScoringState>((set, get) => ({
   wizardStep: 1,
   isFreeHit: false,
   lastBallId: null,
+  redoStack: [],
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -334,11 +339,12 @@ export const useScoringStore = create<ScoringState>((set, get) => ({
       match: { ...match, status: matchStatus, result_summary: resultSummary },
       isFreeHit: nextFreeHit,
       lastBallId: ball.id,
+      redoStack: [], // new ball invalidates redo history
     });
   },
 
   undoLastBall: () => {
-    const { match, innings, balls } = get();
+    const { match, innings, balls, redoStack } = get();
     if (!match || balls.length === 0) return;
 
     const lastBall = balls[balls.length - 1];
@@ -384,7 +390,28 @@ export const useScoringStore = create<ScoringState>((set, get) => ({
       match: { ...match, status: idx === 0 && match.status === 'innings_break' ? 'scoring' : match.status, result_summary: match.status === 'completed' ? null : match.result_summary },
       isFreeHit: wasFreeHit,
       lastBallId: prevBall?.id ?? null,
+      redoStack: [...redoStack, lastBall],
     });
+  },
+
+  redoLastBall: () => {
+    const { redoStack } = get();
+    if (redoStack.length === 0) return;
+
+    const ball = redoStack[redoStack.length - 1];
+    // Re-record the ball with its original data
+    get().recordBall({
+      runs_bat: ball.runs_bat,
+      extras_type: ball.extras_type ?? undefined,
+      runs_extras: ball.runs_extras,
+      is_wicket: ball.is_wicket,
+      wicket_type: ball.wicket_type ?? undefined,
+      dismissed_id: ball.dismissed_id ?? undefined,
+      fielder_id: ball.fielder_id ?? undefined,
+    });
+
+    // recordBall clears redoStack, so restore it minus the last item
+    set({ redoStack: redoStack.slice(0, -1) });
   },
 
   swapStrike: () => {
@@ -686,6 +713,7 @@ export const useScoringStore = create<ScoringState>((set, get) => ({
       wizardStep: 1,
       isFreeHit: false,
       lastBallId: null,
+      redoStack: [],
     });
   },
 }));

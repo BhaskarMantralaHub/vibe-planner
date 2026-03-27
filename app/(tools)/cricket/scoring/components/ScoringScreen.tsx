@@ -1,63 +1,29 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Text, Button, SegmentedControl } from '@/components/ui';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useScoringStore } from '@/stores/scoring-store';
 import { Scoreboard } from './Scoreboard';
 import { OverTimeline } from './OverTimeline';
 import { ButtonGrid } from './ButtonGrid';
 import { FreeHitBanner } from './FreeHitBanner';
 import { WicketSheet } from './WicketSheet';
 import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
-import { EndOfOverSheet, type BowlerFigures } from './EndOfOverSheet';
+import { EndOfOverSheet } from './EndOfOverSheet';
 import { BallByBallLog } from './BallByBallLog';
 import { FullScorecard } from './FullScorecard';
-import type { BallResult } from './OverTimeline';
-
-/* ── Mock data for visual testing ── */
-const MOCK_BATSMEN = {
-  striker: { id: '1', name: 'Bhaskar', runs: 34, balls: 22, fours: 4, sixes: 1, sr: '154.5' },
-  nonStriker: { id: '2', name: 'Venkat', runs: 18, balls: 14, fours: 2, sixes: 0, sr: '128.6' },
-};
-
-const MOCK_BOWLER = {
-  id: 'b1',
-  name: 'Ravi',
-  overs: '2.3',
-  maidens: 0,
-  runs: 18,
-  wickets: 1,
-  economy: '7.20',
-};
-
-const MOCK_BALLS: BallResult[] = [
-  { type: '1' },
-  { type: '4' },
-  { type: 'dot' },
-  { type: '2' },
-  { type: '6' },
-];
-
-const MOCK_BOWLERS: BowlerFigures[] = [
-  { id: 'b1', name: 'Ravi', overs: '3.0', maidens: 0, runs: 22, wickets: 1, economy: '7.33', justBowled: true },
-  { id: 'b2', name: 'Suresh', overs: '2.0', maidens: 0, runs: 14, wickets: 0, economy: '7.00' },
-  { id: 'b3', name: 'Kiran', overs: '1.0', maidens: 1, runs: 0, wickets: 1, economy: '0.00' },
-];
-
-const MOCK_BATTING_TEAM = [
-  { id: '1', name: 'Bhaskar' },
-  { id: '2', name: 'Venkat' },
-  { id: '3', name: 'Sunil' },
-  { id: '4', name: 'Arun' },
-  { id: '5', name: 'Prasad' },
-];
-
-const MOCK_BOWLING_TEAM = [
-  { id: 'b1', name: 'Ravi' },
-  { id: 'b2', name: 'Suresh' },
-  { id: 'b3', name: 'Kiran' },
-  { id: 'b4', name: 'Deepak' },
-];
+import type { WicketType } from '@/types/scoring';
+import {
+  buildPlayerMap,
+  scoringBallToBallResult,
+  buildTimeline,
+  buildInningsSummary,
+  bowlingStatsToBowlerFigures,
+  computePartnership,
+  computePreviousOverRuns,
+  formatOversDisplay,
+} from '../lib/scoring-utils';
 
 interface ScoringScreenProps {
   onBack?: () => void;
@@ -66,12 +32,135 @@ interface ScoringScreenProps {
 }
 
 function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
+  /* ── Store state ── */
+  const match = useScoringStore((s) => s.match);
+  const innings = useScoringStore((s) => s.innings);
+  const balls = useScoringStore((s) => s.balls);
+  const isFreeHit = useScoringStore((s) => s.isFreeHit);
+
+  const redoStack = useScoringStore((s) => s.redoStack);
+
+  const {
+    recordBall,
+    undoLastBall,
+    redoLastBall,
+    endMatch,
+    setBowler,
+    setNextBatsman,
+    getCurrentInnings,
+    getCurrentOverBalls,
+    getBattingStats,
+    getBowlingStats,
+    getBattingTeamPlayers,
+    getBowlingTeamPlayers,
+    getYetToBat,
+    getAvailableBowlers,
+  } = useScoringStore.getState();
+
+  /* ── Local UI state ── */
   const [wicketOpen, setWicketOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
-  const [freeHit, setFreeHit] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard'>('scoring');
+  const [endMatchOpen, setEndMatchOpen] = useState(false);
+
+  /* ── Derived data ── */
+  const idx = match?.current_innings ?? 0;
+  const currentInnings = useMemo(() => getCurrentInnings(), [innings, match]);
+
+  const playerMap = useMemo(() => {
+    if (!match) return new Map();
+    return buildPlayerMap(match);
+  }, [match]);
+
+  // Over timeline balls
+  const currentOverBalls = useMemo(() => {
+    return getCurrentOverBalls().map(scoringBallToBallResult);
+  }, [balls, match]);
+
+  // Batting stats for display
+  const battingStats = useMemo(() => getBattingStats(idx), [balls, idx]);
+  const bowlingStats = useMemo(() => getBowlingStats(idx), [balls, idx]);
+
+  // Striker / non-striker display data
+  const strikerStats = useMemo(
+    () => battingStats.find((s) => s.player.id === currentInnings.striker_id),
+    [battingStats, currentInnings.striker_id],
+  );
+  const nonStrikerStats = useMemo(
+    () => battingStats.find((s) => s.player.id === currentInnings.non_striker_id),
+    [battingStats, currentInnings.non_striker_id],
+  );
+
+  // Current bowler
+  const currentBowlerStats = useMemo(
+    () => bowlingStats.find((s) => s.player.id === currentInnings.bowler_id),
+    [bowlingStats, currentInnings.bowler_id],
+  );
+
+  // Bowling team name + batting team name
+  const battingTeamName = useMemo(() => {
+    if (!match) return '';
+    return currentInnings.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+  }, [match, currentInnings.batting_team]);
+
+  // Run rate
+  const runRate = useMemo(() => {
+    const inningsBalls = balls.filter((b) => b.innings === idx);
+    const legalBalls = inningsBalls.filter((b) => b.is_legal).length;
+    if (legalBalls === 0) return '0.00';
+    return ((currentInnings.total_runs / legalBalls) * 6).toFixed(2);
+  }, [balls, idx, currentInnings.total_runs]);
+
+  // Partnership
+  const partnership = useMemo(() => computePartnership(idx, balls), [balls, idx]);
+
+  // Previous over
+  const prevOver = useMemo(() => computePreviousOverRuns(idx, balls, playerMap), [balls, idx, playerMap]);
+
+  // Ball-by-ball timeline
+  const timeline = useMemo(() => {
+    if (!match) return [];
+    return buildTimeline(idx, balls, currentInnings, match, playerMap);
+  }, [balls, idx, match, currentInnings, playerMap]);
+
+  // Full scorecard
+  const scorecardData = useMemo(() => {
+    if (!match) return null;
+    return buildInningsSummary(idx, match, currentInnings, battingStats, bowlingStats, balls, playerMap);
+  }, [idx, match, currentInnings, battingStats, bowlingStats, balls, playerMap]);
+
+  /* ── End of over detection ── */
+  const legalBallCount = useMemo(() => {
+    return balls.filter((b) => b.innings === idx && b.is_legal).length;
+  }, [balls, idx]);
+
+  const prevLegalBallCountRef = useRef(legalBallCount);
+
+  useEffect(() => {
+    const prev = prevLegalBallCountRef.current;
+    prevLegalBallCountRef.current = legalBallCount;
+
+    // Detect: legal balls crossed a multiple of 6
+    if (
+      legalBallCount > 0 &&
+      legalBallCount % 6 === 0 &&
+      prev % 6 !== 0 &&
+      !currentInnings.is_completed
+    ) {
+      setEndOfOverOpen(true);
+    }
+  }, [legalBallCount, currentInnings.is_completed]);
+
+  /* ── Handlers ── */
+
+  // Check if scoring is possible (guards same as store's recordBall)
+  const canScore = match?.status === 'scoring' &&
+    !currentInnings.is_completed &&
+    !!currentInnings.striker_id &&
+    !!currentInnings.non_striker_id &&
+    !!currentInnings.bowler_id;
 
   const handleScore = useCallback((type: string, value?: number) => {
     if (type === 'wicket') {
@@ -79,36 +168,156 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
       return;
     }
     if (type === 'wide' || type === 'noball' || type === 'bye') {
-      setExtrasType(type);
+      setExtrasType(type as ExtrasType);
       setExtrasOpen(true);
       return;
     }
-    // For demo: toggle free hit on 6, show end-of-over sheet on 5
-    if (value === 6) setFreeHit((f) => !f);
-    if (value === 5) setEndOfOverOpen(true);
-    // In real usage, dispatch to scoring store
-    setActiveTab('scoring');
-  }, []);
+    if (type === 'runs' && value !== undefined) {
+      recordBall({ runs_bat: value });
+    }
+  }, [recordBall]);
+
+  const handleWicketConfirm = useCallback((data: {
+    dismissal: string;
+    batsmanOut: string;
+    fielder?: string;
+    newBatsman: string;
+    runsCompleted?: number;
+  }) => {
+    const runsBat = data.dismissal === 'run_out' ? (data.runsCompleted ?? 0) : 0;
+
+    recordBall({
+      runs_bat: runsBat,
+      is_wicket: true,
+      wicket_type: data.dismissal as WicketType,
+      dismissed_id: data.batsmanOut,
+      fielder_id: data.fielder,
+    });
+
+    // Set replacement batsman (recordBall already cleared the dismissed slot)
+    setNextBatsman(data.newBatsman);
+    setWicketOpen(false);
+  }, [recordBall, setNextBatsman]);
+
+  const handleExtrasConfirm = useCallback((
+    type: ExtrasType,
+    additionalRuns: number,
+    subType?: 'bye' | 'legbye',
+  ) => {
+    if (type === 'wide') {
+      recordBall({
+        runs_bat: 0,
+        extras_type: 'wide',
+        runs_extras: 1 + additionalRuns,
+      });
+    } else if (type === 'noball') {
+      recordBall({
+        runs_bat: additionalRuns,
+        extras_type: 'no_ball',
+        runs_extras: 1,
+      });
+    } else if (type === 'bye') {
+      const storeType = subType === 'legbye' ? 'leg_bye' : 'bye';
+      recordBall({
+        runs_bat: 0,
+        extras_type: storeType,
+        runs_extras: additionalRuns,
+      });
+    }
+    setExtrasOpen(false);
+  }, [recordBall]);
 
   const handleUndo = useCallback(() => {
-    // Will dispatch to scoring store
-  }, []);
+    undoLastBall();
+    // Close any open sheets — undo may reverse end-of-over or wicket
+    setWicketOpen(false);
+    setExtrasOpen(false);
+    setEndOfOverOpen(false);
+  }, [undoLastBall]);
 
   const handleRedo = useCallback(() => {
-    // Will dispatch to scoring store
+    redoLastBall();
+  }, [redoLastBall]);
+
+  const handleEndMatch = useCallback(() => {
+    setEndMatchOpen(true);
   }, []);
 
+  const confirmEndMatch = useCallback(() => {
+    endMatch();
+    setEndMatchOpen(false);
+  }, [endMatch]);
+
+  const handleSelectBowler = useCallback((bowlerId: string) => {
+    setBowler(bowlerId);
+    setEndOfOverOpen(false);
+  }, [setBowler]);
+
   const handleSwapStrike = useCallback(() => {
-    // Will dispatch to scoring store
+    useScoringStore.getState().swapStrike();
   }, []);
+
+  /* ── Guard: no match ── */
+  if (!match) return null;
+
+  /* ── Resolve player names for display ── */
+  const strikerPlayer = currentInnings.striker_id ? playerMap.get(currentInnings.striker_id) : null;
+  const nonStrikerPlayer = currentInnings.non_striker_id ? playerMap.get(currentInnings.non_striker_id) : null;
+  const bowlerPlayer = currentInnings.bowler_id ? playerMap.get(currentInnings.bowler_id) : null;
+
+  /* ── Data for sheets ── */
+  const battingTeamPlayers = getBattingTeamPlayers().map((p) => ({ id: p.id, name: p.name }));
+  const bowlingTeamPlayers = getBowlingTeamPlayers().map((p) => ({ id: p.id, name: p.name }));
+  const yetToBat = getYetToBat().map((p) => ({ id: p.id, name: p.name }));
+
+  const currentBatsmen: [{ id: string; name: string }, { id: string; name: string }] | null =
+    strikerPlayer && nonStrikerPlayer
+      ? [
+          { id: strikerPlayer.id, name: strikerPlayer.name },
+          { id: nonStrikerPlayer.id, name: nonStrikerPlayer.name },
+        ]
+      : null;
+
+  // EndOfOverSheet data
+  const endOfOverBowlers = bowlingStatsToBowlerFigures(
+    bowlingStats,
+    currentInnings.bowler_id ?? undefined,
+  );
+
+  // Also include available bowlers who haven't bowled yet (so they appear in the sheet)
+  const availableBowlerIds = new Set(getAvailableBowlers().map((p) => p.id));
+  const allBowlerFigures = [
+    ...endOfOverBowlers,
+    ...getBowlingTeamPlayers()
+      .filter((p) => !endOfOverBowlers.some((b) => b.id === p.id))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        overs: '0.0',
+        maidens: 0,
+        runs: 0,
+        wickets: 0,
+        economy: '0.00',
+        justBowled: false,
+      })),
+  ].map((b) => ({
+    ...b,
+    // Mark as justBowled if NOT in available list (can't bowl consecutive overs)
+    justBowled: !availableBowlerIds.has(b.id),
+  }));
+
+  // Completed over number for sheet title
+  const completedOverNumber = legalBallCount > 0 ? Math.ceil(legalBallCount / 6) : 0;
+  const lastOverBalls = balls.filter((b) => b.innings === idx && b.over_number === completedOverNumber - 1);
+  const lastOverRuns = lastOverBalls.reduce((s, b) => s + b.runs_bat + b.runs_extras, 0);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col"
+      className="min-h-[100dvh]"
       style={{ background: 'var(--bg)' }}
     >
-      {/* ── Top Bar (48px) ── */}
-      <div className="flex items-center justify-between px-3" style={{ height: 48 }}>
+      {/* ── Top Bar (48px) — sticky at top ── */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-3 backdrop-blur-md" style={{ height: 48, background: 'color-mix(in srgb, var(--bg) 90%, transparent)' }}>
         <button
           onClick={onBack}
           className="flex items-center gap-1 cursor-pointer active:scale-[0.92] transition-all"
@@ -120,7 +329,7 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
         </button>
 
         <Text size="md" weight="semibold">
-          SUN vs OPP
+          {match.team_a.name} vs {match.team_b.name}
         </Text>
 
         <div className="flex items-center gap-2">
@@ -147,136 +356,115 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
         </div>
       </div>
 
-      {/* ── Scoreboard (88px) ── */}
+      {/* ── Scoreboard (72px) ── */}
       <Scoreboard
-        teamName="SUN"
-        runs={78}
-        wickets={3}
-        overs="6.2"
-        runRate="12.3"
-        target={156}
+        teamName={battingTeamName}
+        runs={currentInnings.total_runs}
+        wickets={currentInnings.total_wickets}
+        overs={formatOversDisplay(currentInnings.total_overs)}
+        runRate={runRate}
+        target={currentInnings.target ?? undefined}
       />
 
-      {/* ── Batsmen Section ── */}
+      {/* ── Batsmen + Bowler ── */}
       <div className="mx-4 mt-2 rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
-        {/* Section header */}
-        <div className="px-3 pt-2 pb-1">
-          <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
-            Batting
-          </Text>
-        </div>
-
-        {/* Striker row — full width, accent border, tinted bg */}
-        <button
-          type="button"
-          onClick={handleSwapStrike}
-          className="w-full text-left px-3 py-2 border-l-4 cursor-pointer active:scale-[0.98] transition-all"
-          style={{
-            borderLeftColor: 'var(--cricket)',
-            background: 'color-mix(in srgb, var(--cricket) 6%, transparent)',
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Text size="sm" weight="semibold" truncate>
-                {MOCK_BATSMEN.striker.name}
+        {/* Striker */}
+        {strikerPlayer ? (
+          <button
+            type="button"
+            onClick={handleSwapStrike}
+            className="w-full text-left px-3 py-2.5 border-l-[3px] cursor-pointer active:scale-[0.98] transition-all"
+            style={{
+              borderLeftColor: 'var(--cricket)',
+              background: 'color-mix(in srgb, var(--cricket) 6%, transparent)',
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-0.5 min-w-0 flex-1">
+                <Text size="sm" weight="bold" truncate>{strikerPlayer.name}</Text>
+                <Text size="xs" weight="bold" color="cricket" className="flex-shrink-0">*</Text>
+              </div>
+              <Text size="lg" weight="bold" tabular className="flex-shrink-0">
+                {strikerStats?.runs ?? 0}
+                <Text size="xs" weight="normal" color="muted" tabular> ({strikerStats?.balls ?? 0})</Text>
               </Text>
-              <Text size="xs" weight="bold" color="cricket">*</Text>
             </div>
-            <Text size="lg" weight="bold" tabular>
-              {MOCK_BATSMEN.striker.runs}
-              <Text size="sm" weight="normal" color="muted" tabular>
-                {' '}({MOCK_BATSMEN.striker.balls})
+            <div className="flex items-center gap-3 mt-0.5">
+              <Text size="xs" weight="medium" tabular>4s: {strikerStats?.fours ?? 0}</Text>
+              <Text size="xs" weight="medium" tabular>6s: {strikerStats?.sixes ?? 0}</Text>
+              <Text size="xs" weight="medium" color="muted" tabular>SR: {strikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
+            </div>
+          </button>
+        ) : (
+          <div className="px-3 py-2.5 border-l-[3px]" style={{ borderLeftColor: 'var(--cricket)' }}>
+            <Text size="sm" color="muted">Waiting for striker...</Text>
+          </div>
+        )}
+
+        <div className="mx-3 border-t border-[var(--border)]/40" />
+
+        {/* Non-striker */}
+        {nonStrikerPlayer ? (
+          <button
+            type="button"
+            onClick={handleSwapStrike}
+            className="w-full text-left px-3 py-2 pl-[calc(0.75rem+3px)] cursor-pointer active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <Text size="sm" weight="medium" color="muted" truncate className="min-w-0 flex-1">{nonStrikerPlayer.name}</Text>
+              <Text size="md" weight="semibold" color="muted" tabular className="flex-shrink-0">
+                {nonStrikerStats?.runs ?? 0}
+                <Text size="xs" weight="normal" color="dim" tabular> ({nonStrikerStats?.balls ?? 0})</Text>
               </Text>
-            </Text>
+            </div>
+            <div className="flex items-center gap-3 mt-0.5">
+              <Text size="xs" weight="medium" color="muted" tabular>4s: {nonStrikerStats?.fours ?? 0}</Text>
+              <Text size="xs" weight="medium" color="muted" tabular>6s: {nonStrikerStats?.sixes ?? 0}</Text>
+              <Text size="xs" weight="medium" color="dim" tabular>SR: {nonStrikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
+            </div>
+          </button>
+        ) : (
+          <div className="px-3 py-2 pl-[calc(0.75rem+3px)]">
+            <Text size="sm" color="dim">Waiting for non-striker...</Text>
           </div>
-          <div className="flex items-center gap-4 mt-0.5">
-            <Text size="xs" weight="medium" tabular>4s: {MOCK_BATSMEN.striker.fours}</Text>
-            <Text size="xs" weight="medium" tabular>6s: {MOCK_BATSMEN.striker.sixes}</Text>
-            <Text size="xs" weight="medium" color="muted" tabular>SR: {MOCK_BATSMEN.striker.sr}</Text>
-          </div>
-        </button>
+        )}
 
-        {/* Divider */}
-        <div className="mx-3 border-t border-[var(--border)]" />
+        <div className="mx-3 border-t border-[var(--border)]/40" />
 
-        {/* Non-striker row — full width, no accent */}
-        <button
-          type="button"
-          onClick={handleSwapStrike}
-          className="w-full text-left px-3 py-2 pl-[calc(0.75rem+4px)] cursor-pointer active:scale-[0.98] transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <Text size="sm" weight="medium" color="muted" truncate>
-              {MOCK_BATSMEN.nonStriker.name}
-            </Text>
-            <Text size="md" weight="semibold" color="muted" tabular>
-              {MOCK_BATSMEN.nonStriker.runs}
-              <Text size="sm" weight="normal" color="dim" tabular>
-                {' '}({MOCK_BATSMEN.nonStriker.balls})
-              </Text>
-            </Text>
-          </div>
-          <div className="flex items-center gap-4 mt-0.5">
-            <Text size="xs" weight="medium" color="muted" tabular>4s: {MOCK_BATSMEN.nonStriker.fours}</Text>
-            <Text size="xs" weight="medium" color="muted" tabular>6s: {MOCK_BATSMEN.nonStriker.sixes}</Text>
-            <Text size="xs" weight="medium" color="dim" tabular>SR: {MOCK_BATSMEN.nonStriker.sr}</Text>
-          </div>
-        </button>
-      </div>
-
-      {/* ── Bowler Section ── */}
-      <div
-        className="mx-4 mt-2 rounded-xl border border-[var(--border)] px-3 py-2 flex items-center gap-3"
-        style={{ background: 'var(--surface)' }}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="flex-shrink-0">
-            Bowl
-          </Text>
-          <Text size="sm" weight="semibold" truncate>
-            {MOCK_BOWLER.name}
-          </Text>
-        </div>
-        <div className="flex items-center gap-3 ml-auto flex-shrink-0">
-          <div className="text-center">
-            <Text size="2xs" color="dim" uppercase tracking="wider">O</Text>
-            <Text as="div" size="sm" weight="semibold" tabular>{MOCK_BOWLER.overs}</Text>
-          </div>
-          <div className="text-center">
-            <Text size="2xs" color="dim" uppercase tracking="wider">W</Text>
-            <Text as="div" size="sm" weight="semibold" tabular>{MOCK_BOWLER.wickets}</Text>
-          </div>
-          <div className="text-center">
-            <Text size="2xs" color="dim" uppercase tracking="wider">R</Text>
-            <Text as="div" size="sm" weight="semibold" tabular>{MOCK_BOWLER.runs}</Text>
-          </div>
-          <div className="text-center">
-            <Text size="2xs" color="dim" uppercase tracking="wider">ER</Text>
-            <Text as="div" size="sm" weight="semibold" tabular>{MOCK_BOWLER.economy}</Text>
+        {/* Bowler */}
+        <div className="px-3 py-2 flex items-center gap-2">
+          <Text size="2xs" weight="semibold" color="muted" uppercase className="flex-shrink-0">Bowl</Text>
+          <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer?.name ?? 'TBD'}</Text>
+          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+            <Text size="xs" color="muted" tabular>{currentBowlerStats?.overs ?? '0.0'}ov</Text>
+            <Text size="xs" weight="semibold" tabular>{currentBowlerStats?.wickets ?? 0}w</Text>
+            <Text size="xs" color="muted" tabular>{currentBowlerStats?.runs ?? 0}r</Text>
+            <Text size="xs" color="muted" tabular>{currentBowlerStats ? currentBowlerStats.economy.toFixed(1) : '0.0'}er</Text>
           </div>
         </div>
       </div>
 
       {/* ── Over Timeline ── */}
-      <div className="mt-2">
-        <OverTimeline balls={MOCK_BALLS} />
+      <div className="mt-1.5">
+        <OverTimeline balls={currentOverBalls} />
       </div>
 
       {/* ── Free Hit Banner ── */}
-      <div className="mt-1">
-        <FreeHitBanner visible={freeHit} />
-      </div>
+      {isFreeHit && <div className="mt-1"><FreeHitBanner visible /></div>}
 
       {/* ── Info Strip ── */}
-      <div className="flex items-center justify-center gap-3 px-4 py-2">
-        <Text size="xs" weight="medium" color="muted" tabular>
-          Partnership: <Text size="xs" weight="semibold" tabular>45</Text> (28 balls)
+      <div className="flex items-center justify-center gap-2 px-4 py-1">
+        <Text size="2xs" weight="medium" color="muted" tabular>
+          P&apos;ship: <Text size="2xs" weight="semibold" tabular>{partnership.runs}</Text>({partnership.balls}b)
         </Text>
-        <Text size="xs" color="dim">|</Text>
-        <Text size="xs" weight="medium" color="muted" tabular>
-          Prev Over: 12 runs (Ravi)
-        </Text>
+        {prevOver && (
+          <>
+            <Text size="2xs" color="dim">|</Text>
+            <Text size="2xs" weight="medium" color="muted" tabular>
+              Prev: {prevOver.runs}r ({prevOver.bowlerName})
+            </Text>
+          </>
+        )}
       </div>
 
       {/* ── Segmented Control ── */}
@@ -292,83 +480,82 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
       />
 
       {/* ── Tab Content ── */}
-      {activeTab === 'scoring' && <ButtonGrid onScore={handleScore} />}
-      {activeTab === 'ballbyball' && <BallByBallLog />}
-      {activeTab === 'scorecard' && <FullScorecard />}
+      {activeTab === 'scoring' && (
+        <>
+          {!canScore && match?.status === 'scoring' && (
+            <div className="mx-4 mb-2 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/8">
+              <Text size="xs" weight="medium" className="text-amber-500">
+                {!currentInnings.striker_id ? 'Select a new batsman to continue scoring' :
+                 !currentInnings.bowler_id ? 'Select a bowler to continue scoring' :
+                 currentInnings.is_completed ? 'Innings is complete' : 'Cannot score right now'}
+              </Text>
+            </div>
+          )}
+          <ButtonGrid
+            onScore={handleScore}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            onEndMatch={handleEndMatch}
+            canUndo={balls.length > 0}
+            canRedo={redoStack.length > 0}
+          />
+        </>
+      )}
+      {activeTab === 'ballbyball' && <BallByBallLog timeline={timeline} />}
+      {activeTab === 'scorecard' && <FullScorecard innings={scorecardData} />}
 
-      {/* ── Action Bar ── */}
-      <div className="flex gap-2 px-4 py-2" style={{ height: 60 }}>
-        <button
-          onClick={handleUndo}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 rounded-xl cursor-pointer select-none',
-            'border border-[var(--border)]',
-            'transition-all duration-150 active:scale-[0.92]',
-            'hover:bg-[var(--hover-bg)]',
-          )}
-          style={{ height: 44 }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
-            <path d="M3 7v6h6" />
-            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
-          </svg>
-          <Text size="sm" weight="medium" color="muted">Undo</Text>
-        </button>
-        <button
-          onClick={handleRedo}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 rounded-xl cursor-pointer select-none',
-            'border border-[var(--border)]',
-            'transition-all duration-150 active:scale-[0.92]',
-            'hover:bg-[var(--hover-bg)]',
-          )}
-          style={{ height: 44 }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
-            <path d="M21 7v6h-6" />
-            <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
-          </svg>
-          <Text size="sm" weight="medium" color="muted">Redo</Text>
-        </button>
-      </div>
+      {/* Undo is now integrated into ButtonGrid's extras row */}
 
       {/* Safe area bottom padding */}
-      <div className="pb-[env(safe-area-inset-bottom)]" />
+      <div className="pb-[max(env(safe-area-inset-bottom),20px)]" />
 
-      {/* ── Sheets ── */}
-      <WicketSheet
-        open={wicketOpen}
-        onOpenChange={setWicketOpen}
-        battingTeam={MOCK_BATTING_TEAM}
-        bowlingTeam={MOCK_BOWLING_TEAM}
-        currentBatsmen={[MOCK_BATTING_TEAM[0], MOCK_BATTING_TEAM[1]]}
-        onConfirm={(data) => {
-          // Will dispatch to scoring store
-          setWicketOpen(false);
-        }}
-      />
+      {/* ── Sheets (use portals, render to document.body) ── */}
+      {currentBatsmen && (
+        <WicketSheet
+          open={wicketOpen}
+          onOpenChange={setWicketOpen}
+          battingTeam={[...yetToBat, ...currentBatsmen]}
+          bowlingTeam={bowlingTeamPlayers}
+          currentBatsmen={currentBatsmen}
+          onConfirm={handleWicketConfirm}
+        />
+      )}
 
       <ExtrasSheet
         open={extrasOpen}
         onOpenChange={setExtrasOpen}
         type={extrasType}
-        onConfirm={(type, additionalRuns, subType) => {
-          // Will dispatch to scoring store
-          if (type === 'noball') setFreeHit(true);
-        }}
+        onConfirm={handleExtrasConfirm}
       />
 
       <EndOfOverSheet
         open={endOfOverOpen}
         onOpenChange={setEndOfOverOpen}
-        overNumber={7}
-        overRuns={12}
-        bowlers={MOCK_BOWLERS}
-        onSelectBowler={(id) => {
-          // Will dispatch to scoring store
-          setEndOfOverOpen(false);
-        }}
+        overNumber={completedOverNumber}
+        overRuns={lastOverRuns}
+        bowlers={allBowlerFigures}
+        onSelectBowler={handleSelectBowler}
       />
+
+      {/* End Match Confirmation */}
+      <Dialog open={endMatchOpen} onOpenChange={setEndMatchOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End Match?</DialogTitle>
+            <DialogDescription>
+              This will end the match at the current score. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEndMatchOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={confirmEndMatch}>
+              End Match
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

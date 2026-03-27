@@ -16,27 +16,28 @@ interface OverTimelineProps {
   previousOverRuns?: number;
 }
 
-/* ── Strong, solid-fill colors for outdoor readability ── */
+/* ── Minimal 3-tone palette: gray (runs), theme (boundaries), red (wicket), warm (extras) ── */
 const ballColors: Record<BallType, { bg: string; text: string; label: string }> = {
-  dot:  { bg: '#4B5563', text: 'white',   label: '\u00B7' },   // dark gray
+  dot:  { bg: '#9CA3AF', text: 'white',   label: '\u00B7' },   // light gray
   '1':  { bg: '#6B7280', text: 'white',   label: '1' },        // medium gray
   '2':  { bg: '#6B7280', text: 'white',   label: '2' },
   '3':  { bg: '#6B7280', text: 'white',   label: '3' },
-  '4':  { bg: '#3B82F6', text: 'white',   label: '4' },        // solid blue
-  '6':  { bg: '#16A34A', text: 'white',   label: '6' },        // solid green
-  W:    { bg: '#EF4444', text: 'white',   label: 'W' },        // solid red
-  Wd:   { bg: '#F59E0B', text: '#1C1917', label: 'Wd' },       // solid amber, dark text
-  NB:   { bg: '#EA580C', text: 'white',   label: 'NB' },       // solid orange
-  B:    { bg: '#8B5CF6', text: 'white',   label: 'B' },        // solid purple
-  LB:   { bg: '#8B5CF6', text: 'white',   label: 'LB' },
+  '4':  { bg: '#1A75A8', text: 'white',   label: '4' },        // cricket theme
+  '6':  { bg: '#1A75A8', text: 'white',   label: '6' },        // cricket theme (same)
+  W:    { bg: '#DC2626', text: 'white',   label: 'W' },        // red — only hot color
+  Wd:   { bg: '#D97706', text: 'white',   label: 'Wd' },       // warm amber (all extras)
+  NB:   { bg: '#D97706', text: 'white',   label: 'NB' },       // same amber
+  B:    { bg: '#D97706', text: 'white',   label: 'B' },        // same amber
+  LB:   { bg: '#D97706', text: 'white',   label: 'LB' },       // same amber
 };
 
 const BALL_SIZE = 36;
 
 function BallCircle({ ball }: { ball: BallResult }) {
   const c = ballColors[ball.type];
+  const label = ball.label ?? c.label;
   const isDot = ball.type === 'dot';
-  const isSmallLabel = ball.type === 'Wd' || ball.type === 'NB' || ball.type === 'LB';
+  const isSmallLabel = label.length >= 2;
   return (
     <div
       className="flex-shrink-0 flex items-center justify-center rounded-full"
@@ -49,7 +50,7 @@ function BallCircle({ ball }: { ball: BallResult }) {
           fontSize: isDot ? 22 : isSmallLabel ? 11 : 14,
         }}
       >
-        {ball.label ?? c.label}
+        {label}
       </span>
     </div>
   );
