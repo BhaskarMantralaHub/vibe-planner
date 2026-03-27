@@ -391,6 +391,15 @@ When making changes, ALWAYS update these files if affected:
 4. **`README.md`** — if features, tech stack, or project structure changes
 5. **`.env.example`** — if any new environment variables are added
 
+## SQL Changes — MANDATORY Agent Review
+
+For ANY change to SQL schema files (`docs/*.sql`), you MUST:
+
+1. **Get reviewed by DBA agent** — check data integrity, constraints, indexes, performance
+2. **Get reviewed by Architecture agent** — check RLS policies, security, access control, data flow
+3. **Get reviewed by SQL specialist agent** — check query correctness, function safety, injection vectors
+4. Run all three reviews BEFORE committing. Fix all CRITICAL and HIGH issues. Document any accepted MEDIUM/LOW risks.
+
 ## Adding a New Tool
 
 1. Create folder under `app/(tools)/your-tool/`
