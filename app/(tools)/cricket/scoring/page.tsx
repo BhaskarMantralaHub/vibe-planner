@@ -580,7 +580,12 @@ export default function ScoringPage() {
             {view === 'landing' && (
               <ScoringLanding
                 onNewMatch={() => setView('wizard')}
-                onContinue={match ? () => setView('match') : undefined}
+                onContinue={match ? async () => {
+                  // Re-hydrate from DB if available, to avoid stale localStorage
+                  const { dbMatchId } = useScoringStore.getState();
+                  if (dbMatchId) await useScoringStore.getState().resumeMatch(dbMatchId);
+                  setView('match');
+                } : undefined}
                 onResumeMatch={async (matchId) => {
                   const ok = await useScoringStore.getState().resumeMatch(matchId);
                   if (ok) setView('match');
