@@ -91,35 +91,41 @@ CREATE TABLE IF NOT EXISTS practice_matches (
 
 ALTER TABLE practice_matches ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Cricket users can read matches" ON practice_matches;
 CREATE POLICY "Cricket users can read matches"
   ON practice_matches FOR SELECT USING (has_cricket_access());
+DROP POLICY IF EXISTS "Cricket users can create matches" ON practice_matches;
 CREATE POLICY "Cricket users can create matches"
   ON practice_matches FOR INSERT WITH CHECK (has_cricket_access() AND created_by = auth.uid());
+DROP POLICY IF EXISTS "Scorer can update match" ON practice_matches;
 CREATE POLICY "Scorer can update match"
   ON practice_matches FOR UPDATE USING (
     has_cricket_access() AND (
       active_scorer_id = auth.uid() OR created_by = auth.uid() OR is_cricket_admin()
     )
   );
+DROP POLICY IF EXISTS "Creator or admin can delete match" ON practice_matches;
 CREATE POLICY "Creator or admin can delete match"
   ON practice_matches FOR DELETE USING (
     has_cricket_access() AND (created_by = auth.uid() OR is_cricket_admin())
   );
 
+DROP TRIGGER IF EXISTS set_practice_matches_updated_at ON practice_matches;
 CREATE TRIGGER set_practice_matches_updated_at
   BEFORE UPDATE ON practice_matches
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Prevent created_by from being changed
+DROP TRIGGER IF EXISTS protect_practice_match_creator ON practice_matches;
 CREATE TRIGGER protect_practice_match_creator
   BEFORE UPDATE ON practice_matches
   FOR EACH ROW EXECUTE FUNCTION prevent_created_by_change();
 
-CREATE INDEX idx_practice_matches_date ON practice_matches (match_date DESC, created_at DESC);
-CREATE INDEX idx_practice_matches_status ON practice_matches (status);
-CREATE INDEX idx_practice_matches_season ON practice_matches (season_id) WHERE season_id IS NOT NULL;
-CREATE INDEX idx_practice_matches_completed ON practice_matches (completed_at DESC) WHERE status = 'completed';
-CREATE INDEX idx_practice_matches_active_scorer ON practice_matches (active_scorer_id) WHERE active_scorer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_matches_date ON practice_matches (match_date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_practice_matches_status ON practice_matches (status);
+CREATE INDEX IF NOT EXISTS idx_practice_matches_season ON practice_matches (season_id) WHERE season_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_matches_completed ON practice_matches (completed_at DESC) WHERE status = 'completed';
+CREATE INDEX IF NOT EXISTS idx_practice_matches_active_scorer ON practice_matches (active_scorer_id) WHERE active_scorer_id IS NOT NULL;
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -139,14 +145,16 @@ CREATE TABLE IF NOT EXISTS practice_match_players (
 );
 
 -- Roster players unique per match (guests can have NULL player_id, so no conflict)
-CREATE UNIQUE INDEX idx_practice_match_players_unique_roster
+CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_match_players_unique_roster
   ON practice_match_players (match_id, player_id)
   WHERE player_id IS NOT NULL;
 
 ALTER TABLE practice_match_players ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Cricket users can read match players" ON practice_match_players;
 CREATE POLICY "Cricket users can read match players"
   ON practice_match_players FOR SELECT USING (has_cricket_access());
+DROP POLICY IF EXISTS "Scorer can manage match players" ON practice_match_players;
 CREATE POLICY "Scorer can manage match players"
   ON practice_match_players FOR INSERT WITH CHECK (
     has_cricket_access() AND EXISTS (
@@ -155,6 +163,7 @@ CREATE POLICY "Scorer can manage match players"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Scorer can update match players" ON practice_match_players;
 CREATE POLICY "Scorer can update match players"
   ON practice_match_players FOR UPDATE USING (
     has_cricket_access() AND EXISTS (
@@ -163,6 +172,7 @@ CREATE POLICY "Scorer can update match players"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Scorer can delete match players" ON practice_match_players;
 CREATE POLICY "Scorer can delete match players"
   ON practice_match_players FOR DELETE USING (
     has_cricket_access() AND (
@@ -176,7 +186,7 @@ CREATE POLICY "Scorer can delete match players"
     )
   );
 
-CREATE INDEX idx_practice_match_players_match ON practice_match_players (match_id, team);
+CREATE INDEX IF NOT EXISTS idx_practice_match_players_match ON practice_match_players (match_id, team);
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -216,8 +226,10 @@ CREATE TABLE IF NOT EXISTS practice_innings (
 
 ALTER TABLE practice_innings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Cricket users can read innings" ON practice_innings;
 CREATE POLICY "Cricket users can read innings"
   ON practice_innings FOR SELECT USING (has_cricket_access());
+DROP POLICY IF EXISTS "Scorer can create innings" ON practice_innings;
 CREATE POLICY "Scorer can create innings"
   ON practice_innings FOR INSERT WITH CHECK (
     has_cricket_access() AND EXISTS (
@@ -226,6 +238,7 @@ CREATE POLICY "Scorer can create innings"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Scorer can update innings" ON practice_innings;
 CREATE POLICY "Scorer can update innings"
   ON practice_innings FOR UPDATE USING (
     has_cricket_access() AND EXISTS (
@@ -234,14 +247,16 @@ CREATE POLICY "Scorer can update innings"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Admin can delete innings" ON practice_innings;
 CREATE POLICY "Admin can delete innings"
   ON practice_innings FOR DELETE USING (has_cricket_access() AND is_cricket_admin());
 
+DROP TRIGGER IF EXISTS set_practice_innings_updated_at ON practice_innings;
 CREATE TRIGGER set_practice_innings_updated_at
   BEFORE UPDATE ON practice_innings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE INDEX idx_practice_innings_match ON practice_innings (match_id, innings_number);
+CREATE INDEX IF NOT EXISTS idx_practice_innings_match ON practice_innings (match_id, innings_number);
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -286,14 +301,16 @@ CREATE TABLE IF NOT EXISTS practice_balls (
 );
 
 -- Unique sequence per innings (only for active balls — allows undo/redo)
-CREATE UNIQUE INDEX idx_practice_balls_unique_sequence
+CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_balls_unique_sequence
   ON practice_balls (match_id, innings_number, sequence)
   WHERE deleted_at IS NULL;
 
 ALTER TABLE practice_balls ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Cricket users can read balls" ON practice_balls;
 CREATE POLICY "Cricket users can read balls"
   ON practice_balls FOR SELECT USING (has_cricket_access());
+DROP POLICY IF EXISTS "Scorer can record balls" ON practice_balls;
 CREATE POLICY "Scorer can record balls"
   ON practice_balls FOR INSERT WITH CHECK (
     has_cricket_access() AND EXISTS (
@@ -302,6 +319,7 @@ CREATE POLICY "Scorer can record balls"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Scorer can update balls" ON practice_balls;
 CREATE POLICY "Scorer can update balls"
   ON practice_balls FOR UPDATE USING (
     has_cricket_access() AND EXISTS (
@@ -310,13 +328,14 @@ CREATE POLICY "Scorer can update balls"
         AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
     )
   );
+DROP POLICY IF EXISTS "Admin can delete balls" ON practice_balls;
 CREATE POLICY "Admin can delete balls"
   ON practice_balls FOR DELETE USING (has_cricket_access() AND is_cricket_admin());
 
-CREATE INDEX idx_practice_balls_innings ON practice_balls (match_id, innings_number, sequence) WHERE deleted_at IS NULL;
-CREATE INDEX idx_practice_balls_over ON practice_balls (match_id, innings_number, over_number) WHERE deleted_at IS NULL;
-CREATE INDEX idx_practice_balls_striker ON practice_balls (striker_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_practice_balls_bowler ON practice_balls (bowler_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_balls_innings ON practice_balls (match_id, innings_number, sequence) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_balls_over ON practice_balls (match_id, innings_number, over_number) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_balls_striker ON practice_balls (striker_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_balls_bowler ON practice_balls (bowler_id) WHERE deleted_at IS NULL;
 
 
 -- ══════════════════════════════════════════════════════════════
