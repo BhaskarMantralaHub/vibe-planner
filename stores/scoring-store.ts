@@ -149,6 +149,7 @@ interface ScoringState {
 
   // Deleted matches (admin)
   deletedMatches: MatchHistoryItem[];
+  historyLoading: boolean;
 
   // Reset
   reset: () => void;
@@ -173,6 +174,7 @@ export const useScoringStore = create<ScoringState>()(
   idMap: {},
   matchHistory: [],
   deletedMatches: [],
+  historyLoading: false,
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -1047,6 +1049,7 @@ export const useScoringStore = create<ScoringState>()(
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    if (!loadMore) set({ historyLoading: true });
     const offset = loadMore ? get().matchHistory.length : 0;
     const { data, error } = await supabase.rpc('get_match_history', {
       match_status: null,
@@ -1055,14 +1058,13 @@ export const useScoringStore = create<ScoringState>()(
       from_date: fromDate ?? null,
       to_date: toDate ?? null,
     });
-    if (error) { console.error('[scoring] loadMatchHistory failed:', error); return; }
+    if (error) { console.error('[scoring] loadMatchHistory failed:', error); set({ historyLoading: false }); return; }
     const items = (data ?? []) as MatchHistoryItem[];
     if (loadMore) {
-      // Append, deduplicate by id
       const existing = new Set(get().matchHistory.map((m) => m.id));
-      set({ matchHistory: [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))] });
+      set({ matchHistory: [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))], historyLoading: false });
     } else {
-      set({ matchHistory: items });
+      set({ matchHistory: items, historyLoading: false });
     }
   },
 

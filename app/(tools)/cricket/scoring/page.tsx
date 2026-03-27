@@ -8,7 +8,7 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody, SegmentedControl } from '@/components/ui';
+import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
@@ -292,7 +292,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onResumeMatch: (matchId: string) => void;
 }) {
   const router = useRouter();
-  const { match, innings, matchHistory, deletedMatches, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
+  const { match, innings, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
 
@@ -300,7 +300,6 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   useEffect(() => {
     if (isCloudMode()) {
       loadMatchHistory();
-      if (isAdmin) loadDeletedMatches();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -310,9 +309,13 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   const idx = match?.current_innings ?? 0;
   const currentInnings = hasLocalMatch ? innings[idx] : null;
 
-  // Date filter
-  type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';
+  // Date filter (admin gets extra "Deleted" option)
+  type DateFilter = 'all' | 'today' | 'week' | 'month' | 'season' | 'deleted';
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+
+  // Get active season date range from cricket store
+  const { seasons, selectedSeasonId } = useCricketStore();
+  const activeSeason = seasons.find((s) => s.id === selectedSeasonId);
 
   const getDateRange = (filter: DateFilter): { from?: string; to?: string } => {
     const now = new Date();
@@ -327,9 +330,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
         const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
         return { from: monthAgo.toISOString().split('T')[0], to: today };
       }
-      case 'year': {
-        const yearStart = `${now.getFullYear()}-01-01`;
-        return { from: yearStart, to: today };
+      case 'season': {
+        // Use active season's year range (e.g., Nov 2025 → Apr 2026)
+        if (activeSeason) {
+          const year = activeSeason.year ?? new Date().getFullYear();
+          // Cricket seasons typically span Nov-Apr, use a wide range
+          return { from: `${year - 1}-09-01`, to: `${year}-08-31` };
+        }
+        return {};
       }
       default: return {};
     }
@@ -337,8 +345,12 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
 
   const handleFilterChange = (filter: DateFilter) => {
     setDateFilter(filter);
-    const { from, to } = getDateRange(filter);
-    loadMatchHistory(false, from, to);
+    if (filter === 'deleted') {
+      loadDeletedMatches();
+    } else {
+      const { from, to } = getDateRange(filter);
+      loadMatchHistory(false, from, to);
+    }
   };
 
   // DB matches — separate active vs completed
@@ -404,8 +416,27 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             <MdAdd size={20} /> Start New Match
           </Button>
 
+          {/* Loading skeleton */}
+          {historyLoading && (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+                  <Skeleton className="h-9 w-full" />
+                  <div className="p-4 space-y-3">
+                    <Skeleton className="h-5 w-48 rounded-lg" />
+                    <Skeleton className="h-4 w-32 rounded-lg" />
+                    <div className="rounded-xl overflow-hidden">
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                    <Skeleton className="h-4 w-40 rounded-lg" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Active Matches from DB (visible to all players) */}
-          {activeDbMatches.length > 0 && (
+          {!historyLoading && activeDbMatches.length > 0 && (
             <div>
               <Text as="h2" size="sm" weight="semibold" className="mb-2">
                 Active Matches
@@ -426,7 +457,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Completed Matches (history with pagination + date filter) */}
-          {(completedDbMatches.length > 0 || dateFilter !== 'all') && (
+          {!historyLoading && (completedDbMatches.length > 0 || dateFilter !== 'all') && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
@@ -438,7 +469,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                   { key: 'today', label: 'Today' },
                   { key: 'week', label: 'Week' },
                   { key: 'month', label: 'Month' },
-                  { key: 'year', label: 'Year' },
+                  { key: 'season', label: 'Season' },
+                  ...(isAdmin ? [{ key: 'deleted', label: 'Deleted' }] : []),
                 ]}
                 active={dateFilter}
                 onChange={(key) => handleFilterChange(key as DateFilter)}
@@ -472,8 +504,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Empty state — only when no filter is active and truly no matches */}
-          {!hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && dateFilter === 'all' && (
+          {/* Empty state — only when not loading, no filter active, and truly no matches */}
+          {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && dateFilter === 'all' && (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
               <EmptyState
                 icon={<MdSportsCricket size={32} style={{ color: 'var(--dim)' }} />}
@@ -483,23 +515,22 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Recently Deleted (admin only) */}
-          {isAdmin && deletedMatches.length > 0 && (
-            <div>
-              <Text as="h2" size="sm" weight="semibold" color="muted" className="mb-2">
-                Recently Deleted
-              </Text>
-              <div className="space-y-2">
-                {deletedMatches.map((m) => (
-                  <MatchCard
-                    key={m.id}
-                    item={m}
-                    onTap={() => onResumeMatch(m.id)}
-                    onRestore={async () => { await restoreMatch(m.id); }}
-                    onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
-                  />
-                ))}
-              </div>
+          {/* Deleted matches (shown when "Deleted" filter is active) */}
+          {dateFilter === 'deleted' && (
+            <div className="space-y-2">
+              {deletedMatches.length > 0 ? deletedMatches.map((m) => (
+                <MatchCard
+                  key={m.id}
+                  item={m}
+                  onTap={() => onResumeMatch(m.id)}
+                  onRestore={async () => { await restoreMatch(m.id); }}
+                  onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
+                />
+              )) : (
+                <div className="py-6 text-center">
+                  <Text size="sm" color="muted">No deleted matches</Text>
+                </div>
+              )}
             </div>
           )}
 
