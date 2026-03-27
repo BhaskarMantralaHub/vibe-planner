@@ -12,7 +12,9 @@ import type {
   WicketType,
   BattingStats,
   BowlingStats,
+  MatchHistoryItem,
 } from '@/types/scoring';
+import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 
 function genId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -54,6 +56,18 @@ function formatOvers(legalBalls: number): string {
   return `${completedOvers}.${remainingBalls}`;
 }
 
+/** Translate client player ID to server player ID for DB writes */
+function toServerId(idMap: Record<string, string>, clientId: string): string {
+  return idMap[clientId] ?? clientId;
+}
+
+/** Fire-and-forget Supabase call with error logging */
+function syncToDb(label: string, fn: () => Promise<{ error: unknown }>) {
+  fn().then(({ error }) => {
+    if (error) console.error(`[scoring] ${label} failed:`, error);
+  });
+}
+
 interface ScoringState {
   // Match data
   match: ScoringMatch | null;
@@ -61,7 +75,7 @@ interface ScoringState {
   balls: ScoringBall[];
 
   // Setup wizard state
-  wizardStep: number; // 1-6
+  wizardStep: number;
 
   // Scoring state
   isFreeHit: boolean;
@@ -69,6 +83,11 @@ interface ScoringState {
 
   // Redo stack
   redoStack: ScoringBall[];
+
+  // Cloud sync state
+  dbMatchId: string | null;
+  idMap: Record<string, string>;  // clientPlayerId -> serverPlayerId
+  matchHistory: MatchHistoryItem[];
 
   // Actions - Setup
   setWizardStep: (step: number) => void;
@@ -81,7 +100,7 @@ interface ScoringState {
     tossWinner: TeamSide;
     tossDecision: TossDecision;
     scorerName: string;
-  }) => void;
+  }) => Promise<void>;
   setOpeners: (strikerId: string, nonStrikerId: string, bowlerId: string) => void;
   startMatch: () => void;
 
@@ -119,6 +138,10 @@ interface ScoringState {
   getYetToBat: () => ScoringPlayer[];
   getAvailableBowlers: () => ScoringPlayer[];
 
+  // Cloud
+  loadMatchHistory: () => Promise<void>;
+  resumeMatch: (matchId: string) => Promise<boolean>;
+
   // Reset
   reset: () => void;
 }
@@ -138,11 +161,13 @@ export const useScoringStore = create<ScoringState>()(
   isFreeHit: false,
   lastBallId: null,
   redoStack: [],
+  dbMatchId: null,
+  idMap: {},
+  matchHistory: [],
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
-  createMatch: ({ title, overs, date, teamA, teamB, tossWinner, tossDecision, scorerName }) => {
-    // Determine batting order from toss
+  createMatch: async ({ title, overs, date, teamA, teamB, tossWinner, tossDecision, scorerName }) => {
     const battingFirst: TeamSide =
       (tossWinner === 'team_a' && tossDecision === 'bat') ||
       (tossWinner === 'team_b' && tossDecision === 'bowl')
@@ -168,13 +193,70 @@ export const useScoringStore = create<ScoringState>()(
       mvp_player_id: null,
     };
 
+    // Optimistic local set
     set({
       match,
       innings: [makeEmptyInnings(battingFirst), makeEmptyInnings(battingSecond)],
       balls: [],
       isFreeHit: false,
       lastBallId: null,
+      dbMatchId: null,
+      idMap: {},
     });
+
+    // Cloud sync — AWAITED (need server player IDs before any ball can sync)
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      const allPlayers = [
+        ...teamA.players.map((p) => ({
+          team: 'team_a',
+          name: p.name,
+          jersey_number: p.jersey_number,
+          player_id: p.player_id ?? '',
+          is_guest: p.is_guest,
+        })),
+        ...teamB.players.map((p) => ({
+          team: 'team_b',
+          name: p.name,
+          jersey_number: p.jersey_number,
+          player_id: p.player_id ?? '',
+          is_guest: p.is_guest,
+        })),
+      ];
+
+      const { data, error } = await supabase.rpc('create_practice_match', {
+        p_title: title,
+        p_match_date: date,
+        p_overs: overs,
+        p_team_a_name: teamA.name,
+        p_team_b_name: teamB.name,
+        p_toss_winner: tossWinner,
+        p_toss_decision: tossDecision,
+        p_scorer_name: scorerName,
+        p_batting_first: battingFirst,
+        p_players: allPlayers,
+      });
+
+      if (error) {
+        console.error('[scoring] createMatch RPC failed:', error);
+        return;
+      }
+
+      // Build ID map from RPC response
+      const result = data as { match_id: string; player_map: { idx: number; db_id: string }[]; share_token: string };
+      const clientPlayers = [...teamA.players, ...teamB.players];
+      const newIdMap: Record<string, string> = {};
+      for (const mapping of result.player_map) {
+        const clientPlayer = clientPlayers[mapping.idx];
+        if (clientPlayer) {
+          newIdMap[clientPlayer.id] = mapping.db_id;
+        }
+      }
+
+      set({ dbMatchId: result.match_id, idMap: newIdMap });
+    }
   },
 
   setOpeners: (strikerId, nonStrikerId, bowlerId) => {
@@ -189,12 +271,25 @@ export const useScoringStore = create<ScoringState>()(
       bowler_id: bowlerId,
     };
     set({ innings: updated });
+
+    // Sync openers to DB
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('setOpeners', () => supabase.from('practice_innings').update({
+        striker_id: toServerId(idMap, strikerId),
+        non_striker_id: toServerId(idMap, nonStrikerId),
+        bowler_id: toServerId(idMap, bowlerId),
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+    }
   },
 
   startMatch: () => {
     const { match } = get();
     if (!match) return;
     set({ match: { ...match, status: 'scoring' } });
+    // Note: create_practice_match RPC already sets status='scoring' and started_at
   },
 
   recordBall: (data) => {
@@ -342,8 +437,63 @@ export const useScoringStore = create<ScoringState>()(
       match: { ...match, status: matchStatus, result_summary: resultSummary },
       isFreeHit: nextFreeHit,
       lastBallId: ball.id,
-      redoStack: [], // new ball invalidates redo history
+      redoStack: [],
     });
+
+    // Cloud sync — fire-and-forget
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      // 1. Insert ball
+      syncToDb('recordBall', () => supabase.from('practice_balls').insert({
+        match_id: dbMatchId,
+        innings_number: ball.innings,
+        sequence: ball.sequence,
+        over_number: ball.over_number,
+        ball_in_over: ball.ball_in_over,
+        striker_id: toServerId(idMap, ball.striker_id),
+        non_striker_id: toServerId(idMap, ball.non_striker_id),
+        bowler_id: toServerId(idMap, ball.bowler_id),
+        runs_bat: ball.runs_bat,
+        runs_extras: ball.runs_extras,
+        extras_type: ball.extras_type,
+        is_legal: ball.is_legal,
+        is_free_hit: ball.is_free_hit,
+        is_wicket: ball.is_wicket,
+        wicket_type: ball.wicket_type,
+        dismissed_id: ball.dismissed_id ? toServerId(idMap, ball.dismissed_id) : null,
+        fielder_id: ball.fielder_id ? toServerId(idMap, ball.fielder_id) : null,
+      }));
+
+      // 2. Update innings totals
+      const updInn = updated[idx];
+      syncToDb('recordBall innings', () => supabase.from('practice_innings').update({
+        total_runs: updInn.total_runs,
+        total_wickets: updInn.total_wickets,
+        total_overs: updInn.total_overs,
+        legal_balls: newLegalBalls,
+        extras_wide: updInn.extras.wide,
+        extras_no_ball: updInn.extras.no_ball,
+        extras_bye: updInn.extras.bye,
+        extras_leg_bye: updInn.extras.leg_bye,
+        striker_id: updInn.striker_id ? toServerId(idMap, updInn.striker_id) : null,
+        non_striker_id: updInn.non_striker_id ? toServerId(idMap, updInn.non_striker_id) : null,
+        bowler_id: updInn.bowler_id ? toServerId(idMap, updInn.bowler_id) : null,
+        is_completed: updInn.is_completed,
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+
+      // 3. Update match status if changed
+      if (matchStatus !== match.status) {
+        const matchUpdate: Record<string, unknown> = { status: matchStatus };
+        if (matchStatus === 'completed') {
+          matchUpdate.result_summary = resultSummary;
+          matchUpdate.completed_at = new Date().toISOString();
+        }
+        syncToDb('recordBall match', () => supabase.from('practice_matches').update(matchUpdate).eq('id', dbMatchId));
+      }
+    }
   },
 
   undoLastBall: () => {
@@ -387,14 +537,47 @@ export const useScoringStore = create<ScoringState>()(
     const prevBall = newBalls.length > 0 ? newBalls[newBalls.length - 1] : null;
     const wasFreeHit = prevBall?.extras_type === 'no_ball';
 
+    const revertedStatus = idx === 0 && match.status === 'innings_break' ? 'scoring' : match.status;
     set({
       balls: newBalls,
       innings: updated,
-      match: { ...match, status: idx === 0 && match.status === 'innings_break' ? 'scoring' : match.status, result_summary: match.status === 'completed' ? null : match.result_summary },
+      match: { ...match, status: revertedStatus, result_summary: match.status === 'completed' ? null : match.result_summary },
       isFreeHit: wasFreeHit,
       lastBallId: prevBall?.id ?? null,
       redoStack: [...redoStack, lastBall],
     });
+
+    // Cloud sync — soft-delete ball + update innings
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      syncToDb('undo ball', () => supabase.from('practice_balls')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('match_id', dbMatchId)
+        .eq('innings_number', lastBall.innings)
+        .eq('sequence', lastBall.sequence)
+        .is('deleted_at', null));
+
+      const updInn = updated[idx];
+      syncToDb('undo innings', () => supabase.from('practice_innings').update({
+        total_runs: updInn.total_runs, total_wickets: updInn.total_wickets,
+        total_overs: updInn.total_overs, legal_balls: legalBalls,
+        extras_wide: updInn.extras.wide, extras_no_ball: updInn.extras.no_ball,
+        extras_bye: updInn.extras.bye, extras_leg_bye: updInn.extras.leg_bye,
+        striker_id: updInn.striker_id ? toServerId(idMap, updInn.striker_id) : null,
+        non_striker_id: updInn.non_striker_id ? toServerId(idMap, updInn.non_striker_id) : null,
+        bowler_id: updInn.bowler_id ? toServerId(idMap, updInn.bowler_id) : null,
+        is_completed: false,
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+
+      if (revertedStatus !== match.status) {
+        syncToDb('undo match status', () => supabase.from('practice_matches')
+          .update({ status: revertedStatus, result_summary: null, completed_at: null })
+          .eq('id', dbMatchId));
+      }
+    }
   },
 
   redoLastBall: () => {
@@ -423,12 +606,18 @@ export const useScoringStore = create<ScoringState>()(
     const idx = match.current_innings;
     const inn = innings[idx];
     const updated = [...innings] as [ScoringInnings, ScoringInnings];
-    updated[idx] = {
-      ...inn,
-      striker_id: inn.non_striker_id,
-      non_striker_id: inn.striker_id,
-    };
+    updated[idx] = { ...inn, striker_id: inn.non_striker_id, non_striker_id: inn.striker_id };
     set({ innings: updated });
+    // Sync
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('swapStrike', () => supabase.from('practice_innings').update({
+        striker_id: updated[idx].striker_id ? toServerId(idMap, updated[idx].striker_id!) : null,
+        non_striker_id: updated[idx].non_striker_id ? toServerId(idMap, updated[idx].non_striker_id!) : null,
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+    }
   },
 
   setBowler: (playerId) => {
@@ -438,6 +627,14 @@ export const useScoringStore = create<ScoringState>()(
     const updated = [...innings] as [ScoringInnings, ScoringInnings];
     updated[idx] = { ...updated[idx], bowler_id: playerId };
     set({ innings: updated });
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('setBowler', () => supabase.from('practice_innings').update({
+        bowler_id: toServerId(idMap, playerId),
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+    }
   },
 
   setNextBatsman: (playerId) => {
@@ -452,6 +649,15 @@ export const useScoringStore = create<ScoringState>()(
       updated[idx] = { ...inn, non_striker_id: playerId };
     }
     set({ innings: updated });
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('setNextBatsman', () => supabase.from('practice_innings').update({
+        striker_id: updated[idx].striker_id ? toServerId(idMap, updated[idx].striker_id!) : null,
+        non_striker_id: updated[idx].non_striker_id ? toServerId(idMap, updated[idx].non_striker_id!) : null,
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+    }
   },
 
   endInnings: () => {
@@ -460,14 +666,25 @@ export const useScoringStore = create<ScoringState>()(
     const idx = match.current_innings;
     const updated = [...innings] as [ScoringInnings, ScoringInnings];
     updated[idx] = { ...updated[idx], is_completed: true };
-    // Set target for 2nd innings
     if (idx === 0) {
       updated[1] = { ...updated[1], target: updated[0].total_runs + 1 };
     }
-    set({
-      innings: updated,
-      match: { ...match, status: idx === 0 ? 'innings_break' : 'completed' },
-    });
+    const newStatus = idx === 0 ? 'innings_break' : 'completed';
+    set({ innings: updated, match: { ...match, status: newStatus } });
+
+    const { dbMatchId } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('endInnings', () => supabase.from('practice_innings').update({ is_completed: true })
+        .eq('match_id', dbMatchId).eq('innings_number', idx));
+      if (idx === 0) {
+        syncToDb('endInnings target', () => supabase.from('practice_innings')
+          .update({ target: updated[0].total_runs + 1 }).eq('match_id', dbMatchId).eq('innings_number', 1));
+      }
+      syncToDb('endInnings match', () => supabase.from('practice_matches')
+        .update({ status: newStatus }).eq('id', dbMatchId));
+    }
   },
 
   startSecondInnings: (strikerId, nonStrikerId, bowlerId) => {
@@ -481,12 +698,21 @@ export const useScoringStore = create<ScoringState>()(
       non_striker_id: nonStrikerId,
       bowler_id: bowlerId,
     };
-    set({
-      innings: updated,
-      match: { ...match, current_innings: 1, status: 'scoring' },
-      isFreeHit: false,
-      lastBallId: null,
-    });
+    set({ innings: updated, match: { ...match, current_innings: 1, status: 'scoring' }, isFreeHit: false, lastBallId: null });
+
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('startSecondInnings', () => supabase.from('practice_innings').update({
+        target: updated[0].total_runs + 1,
+        striker_id: toServerId(idMap, strikerId),
+        non_striker_id: toServerId(idMap, nonStrikerId),
+        bowler_id: toServerId(idMap, bowlerId),
+      }).eq('match_id', dbMatchId).eq('innings_number', 1));
+      syncToDb('startSecondInnings match', () => supabase.from('practice_matches')
+        .update({ current_innings: 1, status: 'scoring' }).eq('id', dbMatchId));
+    }
   },
 
   endMatch: () => {
@@ -495,6 +721,7 @@ export const useScoringStore = create<ScoringState>()(
     const first = innings[0];
     const second = innings[1];
     let resultSummary = match.result_summary;
+    let matchWinner: string | null = null;
     if (!resultSummary) {
       const firstTotal = first.total_runs;
       const secondTotal = second.total_runs;
@@ -503,21 +730,46 @@ export const useScoringStore = create<ScoringState>()(
         const wicketsLeft = batTeamSize - 1 - second.total_wickets;
         const winner = second.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
         resultSummary = `${winner} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
+        matchWinner = second.batting_team;
       } else if (secondTotal === firstTotal) {
         resultSummary = 'Match tied';
+        matchWinner = 'tied';
       } else {
         const runDiff = firstTotal - secondTotal;
         const winner = first.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
         resultSummary = `${winner} won by ${runDiff} run${runDiff !== 1 ? 's' : ''}`;
+        matchWinner = first.batting_team;
       }
     }
     set({ match: { ...match, status: 'completed', result_summary: resultSummary } });
+
+    const { dbMatchId } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('endMatch', () => supabase.from('practice_matches').update({
+        status: 'completed',
+        result_summary: resultSummary,
+        match_winner: matchWinner,
+        completed_at: new Date().toISOString(),
+      }).eq('id', dbMatchId));
+    }
   },
 
   handOffTo: (playerName, playerId) => {
     const { match } = get();
     if (!match) return;
     set({ match: { ...match, active_scorer_id: playerId, scorer_name: playerName } });
+
+    const { dbMatchId } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      syncToDb('claim_scorer', () => supabase.rpc('claim_scorer', {
+        target_match_id: dbMatchId,
+        scorer_display_name: playerName,
+      }));
+    }
   },
 
   getCurrentInnings: () => {
@@ -708,6 +960,89 @@ export const useScoringStore = create<ScoringState>()(
     return bowlingTeam.players;
   },
 
+  loadMatchHistory: async () => {
+    if (!isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc('get_match_history', {
+      match_status: null,
+      result_limit: 20,
+      result_offset: 0,
+    });
+    if (error) { console.error('[scoring] loadMatchHistory failed:', error); return; }
+    set({ matchHistory: (data ?? []) as MatchHistoryItem[] });
+  },
+
+  resumeMatch: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('get_match_scorecard', { target_match_id: matchId });
+    if (error || !data) { console.error('[scoring] resumeMatch failed:', error); return false; }
+
+    const sc = data as { match: Record<string, unknown>; players: Record<string, unknown>[]; innings: Record<string, unknown>[]; balls: Record<string, unknown>[] };
+    const dbMatch = sc.match;
+    const idMap: Record<string, string> = {};
+    const reverseMap: Record<string, string> = {};
+    const teamAPlayers: ScoringPlayer[] = [];
+    const teamBPlayers: ScoringPlayer[] = [];
+
+    for (const p of sc.players) {
+      const clientId = genId();
+      idMap[clientId] = p.id as string;
+      reverseMap[p.id as string] = clientId;
+      const sp: ScoringPlayer = {
+        id: clientId, name: p.name as string, jersey_number: p.jersey_number as number | null,
+        player_id: (p.player_id as string) ?? null, is_guest: p.is_guest as boolean,
+      };
+      if (p.team === 'team_a') teamAPlayers.push(sp); else teamBPlayers.push(sp);
+    }
+
+    const toClient = (sid: string | null): string | null => sid ? (reverseMap[sid] ?? sid) : null;
+
+    const match: ScoringMatch = {
+      id: genId(), title: dbMatch.title as string,
+      team_a: { name: dbMatch.team_a_name as string, captain_id: null, players: teamAPlayers },
+      team_b: { name: dbMatch.team_b_name as string, captain_id: null, players: teamBPlayers },
+      overs_per_innings: dbMatch.overs_per_innings as number, match_date: dbMatch.match_date as string,
+      toss_winner: dbMatch.toss_winner as TeamSide | null, toss_decision: dbMatch.toss_decision as TossDecision | null,
+      status: dbMatch.status as ScoringMatch['status'], current_innings: dbMatch.current_innings as number,
+      scorer_id: null, scorer_name: dbMatch.scorer_name as string | null,
+      active_scorer_id: dbMatch.active_scorer_id as string | null,
+      result_summary: dbMatch.result_summary as string | null, mvp_player_id: null,
+    };
+
+    const innings: [ScoringInnings, ScoringInnings] = [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')];
+    for (const di of sc.innings) {
+      const i = di.innings_number as 0 | 1;
+      innings[i] = {
+        batting_team: di.batting_team as TeamSide, total_runs: di.total_runs as number,
+        total_wickets: di.total_wickets as number, total_overs: parseFloat(String(di.total_overs)),
+        extras: { wide: di.extras_wide as number, no_ball: di.extras_no_ball as number, bye: di.extras_bye as number, leg_bye: di.extras_leg_bye as number },
+        striker_id: toClient(di.striker_id as string | null), non_striker_id: toClient(di.non_striker_id as string | null),
+        bowler_id: toClient(di.bowler_id as string | null), is_completed: di.is_completed as boolean, target: di.target as number | null,
+      };
+    }
+
+    const balls: ScoringBall[] = sc.balls.map((b) => ({
+      id: genId(), innings: b.innings_number as number, sequence: b.sequence as number,
+      over_number: b.over_number as number, ball_in_over: b.ball_in_over as number,
+      striker_id: reverseMap[b.striker_id as string] ?? (b.striker_id as string),
+      non_striker_id: reverseMap[b.non_striker_id as string] ?? (b.non_striker_id as string),
+      bowler_id: reverseMap[b.bowler_id as string] ?? (b.bowler_id as string),
+      runs_bat: b.runs_bat as number, runs_extras: b.runs_extras as number,
+      extras_type: b.extras_type as ExtrasType | null, is_wicket: b.is_wicket as boolean,
+      wicket_type: b.wicket_type as WicketType | null,
+      dismissed_id: b.dismissed_id ? (reverseMap[b.dismissed_id as string] ?? (b.dismissed_id as string)) : null,
+      fielder_id: b.fielder_id ? (reverseMap[b.fielder_id as string] ?? (b.fielder_id as string)) : null,
+      is_legal: b.is_legal as boolean, is_free_hit: b.is_free_hit as boolean,
+    }));
+
+    const lastBall = balls.length > 0 ? balls[balls.length - 1] : null;
+    set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: lastBall?.extras_type === 'no_ball', lastBallId: lastBall?.id ?? null, redoStack: [], wizardStep: 1 });
+    return true;
+  },
+
   reset: () => {
     set({
       match: null,
@@ -717,12 +1052,13 @@ export const useScoringStore = create<ScoringState>()(
       isFreeHit: false,
       lastBallId: null,
       redoStack: [],
+      dbMatchId: null,
+      idMap: {},
     });
   },
 }),
     {
       name: 'scoring-match',
-      // Only persist data state, not computed functions
       partialize: (state) => ({
         match: state.match,
         innings: state.innings,
@@ -731,6 +1067,8 @@ export const useScoringStore = create<ScoringState>()(
         lastBallId: state.lastBallId,
         redoStack: state.redoStack,
         wizardStep: state.wizardStep,
+        dbMatchId: state.dbMatchId,
+        idMap: state.idMap,
       }),
     },
   ),

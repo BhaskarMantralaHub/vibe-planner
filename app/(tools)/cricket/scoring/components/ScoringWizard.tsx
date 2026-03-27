@@ -188,12 +188,14 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
     }
   };
 
-  const handleNext = () => {
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleNext = async () => {
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
     } else {
-      // Final step — use the memoized teams (same IDs as the picker)
-      createMatch({
+      setIsCreating(true);
+      await createMatch({
         title: title.trim(),
         overs: parseInt(overs),
         date: matchDate,
@@ -205,6 +207,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
       });
       setOpeners(strikerId!, nonStrikerId!, bowlerId!);
       startMatch();
+      setIsCreating(false);
       onComplete();
     }
   };
@@ -522,7 +525,8 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
             brand="cricket"
             size="lg"
             onClick={handleNext}
-            disabled={!canAdvance()}
+            disabled={!canAdvance() || isCreating}
+            loading={isCreating}
             className="flex-1"
           >
             {step === TOTAL_STEPS ? (

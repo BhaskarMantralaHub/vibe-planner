@@ -90,3 +90,22 @@ export type BowlingStats = {
   wides: number;
   no_balls: number;
 };
+
+export type MatchHistoryItem = {
+  id: string;
+  title: string;
+  match_date: string;
+  status: MatchStatus;
+  overs_per_innings: number;
+  team_a_name: string;
+  team_b_name: string;
+  result_summary: string | null;
+  match_winner: string | null;
+  scorer_name: string | null;
+  share_token: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  first_innings: { batting_team: TeamSide; total_runs: number; total_wickets: number; total_overs: number } | null;
+  second_innings: { batting_team: TeamSide; total_runs: number; total_wickets: number; total_overs: number } | null;
+};
