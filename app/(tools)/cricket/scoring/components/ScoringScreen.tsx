@@ -125,10 +125,17 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
   const prevOver = useMemo(() => computePreviousOverRuns(idx, balls, playerMap), [balls, idx, playerMap]);
 
   // Ball-by-ball timeline
+  // Ball-by-ball timeline — show current innings during play, both innings after completion
   const timeline = useMemo(() => {
     if (!match) return [];
+    if (match.status === 'completed') {
+      // Both innings
+      const t1 = buildTimeline(0, balls, innings[0], match, playerMap);
+      const t2 = buildTimeline(1, balls, innings[1], match, playerMap);
+      return [...t1, ...t2];
+    }
     return buildTimeline(idx, balls, currentInnings, match, playerMap);
-  }, [balls, idx, match, currentInnings, playerMap]);
+  }, [balls, idx, match, currentInnings, innings, playerMap]);
 
   // Full scorecard
   const scorecardData = useMemo(() => {
@@ -644,7 +651,10 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
                   brand="cricket"
                   size="lg"
                   fullWidth
-                  onClick={() => useScoringStore.getState().endMatch()}
+                  onClick={() => {
+                    setShowResultScreen(true);
+                    useScoringStore.getState().endMatch();
+                  }}
                 >
                   View Match Result
                 </Button>
@@ -664,6 +674,17 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
                 onClick={handleUndo}
               >
                 Undo Last Ball
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  setShowResultScreen(true);
+                  useScoringStore.getState().endMatch();
+                }}
+              >
+                <Text size="sm" weight="medium" color="danger">End Match Now</Text>
               </Button>
             </div>
           </div>
