@@ -139,6 +139,7 @@ interface ScoringState {
   getAvailableBowlers: () => ScoringPlayer[];
 
   // Cloud
+  deleteMatch: (matchId: string, deleterName: string) => Promise<boolean>;
   loadMatchHistory: () => Promise<void>;
   resumeMatch: (matchId: string) => Promise<boolean>;
 
@@ -969,6 +970,20 @@ export const useScoringStore = create<ScoringState>()(
     }
 
     return bowlingTeam.players;
+  },
+
+  deleteMatch: async (matchId: string, deleterName: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('soft_delete_match', {
+      target_match_id: matchId,
+      deleter_name: deleterName,
+    });
+    if (error) { console.error('[scoring] deleteMatch failed:', error); return false; }
+    // Refresh history
+    get().loadMatchHistory();
+    return data as boolean;
   },
 
   loadMatchHistory: async () => {

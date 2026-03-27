@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS practice_matches (
   -- Public share
   share_token         UUID UNIQUE DEFAULT gen_random_uuid(),
 
+  -- Soft delete
+  deleted_at          TIMESTAMPTZ,
+  deleted_by          TEXT,             -- display name of who deleted
+
   -- Timestamps
   started_at          TIMESTAMPTZ,
   completed_at        TIMESTAMPTZ,
@@ -126,6 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_practice_matches_status ON practice_matches (stat
 CREATE INDEX IF NOT EXISTS idx_practice_matches_season ON practice_matches (season_id) WHERE season_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_practice_matches_completed ON practice_matches (completed_at DESC) WHERE status = 'completed';
 CREATE INDEX IF NOT EXISTS idx_practice_matches_active_scorer ON practice_matches (active_scorer_id) WHERE active_scorer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_matches_not_deleted ON practice_matches (match_date DESC, created_at DESC) WHERE deleted_at IS NULL;
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -468,7 +473,8 @@ BEGIN
         'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
        FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 1) AS second_innings
     FROM practice_matches m
-    WHERE (match_status IS NULL OR m.status = match_status)
+    WHERE m.deleted_at IS NULL
+      AND (match_status IS NULL OR m.status = match_status)
     ORDER BY m.match_date DESC, m.created_at DESC
     LIMIT result_limit OFFSET result_offset
   ) row;
@@ -539,7 +545,7 @@ DECLARE
   target_id UUID;
   result JSON;
 BEGIN
-  SELECT id INTO target_id FROM practice_matches WHERE share_token = token;
+  SELECT id INTO target_id FROM practice_matches WHERE share_token = token AND deleted_at IS NULL;
   IF target_id IS NULL THEN RETURN NULL; END IF;
 
   SELECT json_build_object(
@@ -678,6 +684,33 @@ $$;
 GRANT EXECUTE ON FUNCTION get_rematch_template(UUID) TO authenticated;
 
 
+-- ── Soft Delete Match (admin cleanup) ──
+CREATE OR REPLACE FUNCTION soft_delete_match(
+  target_match_id UUID,
+  deleter_name TEXT DEFAULT 'Admin'
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+
+  -- Only admin or match creator can soft-delete
+  UPDATE practice_matches
+  SET deleted_at = now(),
+      deleted_by = deleter_name,
+      updated_at = now()
+  WHERE id = target_match_id
+    AND deleted_at IS NULL
+    AND (created_by = auth.uid() OR is_cricket_admin());
+
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION soft_delete_match(UUID, TEXT) TO authenticated;
+
+
 -- ══════════════════════════════════════════════════════════════
 -- 6. PRACTICE LEADERBOARD
 -- ══════════════════════════════════════════════════════════════
@@ -718,7 +751,7 @@ BEGIN
       JOIN practice_match_players pmp ON pmp.id = b.striker_id
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
-      WHERE b.deleted_at IS NULL AND m.status = 'completed'
+      WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
         AND pmp.player_id IS NOT NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url
@@ -745,7 +778,7 @@ BEGIN
       JOIN practice_match_players pmp ON pmp.id = b.bowler_id
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
-      WHERE b.deleted_at IS NULL AND m.status = 'completed'
+      WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
         AND pmp.player_id IS NOT NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url
@@ -768,7 +801,7 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND b.is_wicket = true AND b.fielder_id IS NOT NULL
-        AND m.status = 'completed' AND pmp.player_id IS NOT NULL
+        AND m.status = 'completed' AND m.deleted_at IS NULL AND pmp.player_id IS NOT NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url
       ORDER BY total_catches DESC LIMIT 50
@@ -789,14 +822,14 @@ BEGIN
         SELECT SUM(b.runs_bat) AS total_runs
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.striker_id
         JOIN practice_matches m ON m.id = b.match_id
-        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed'
+        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
           AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bat ON true
       LEFT JOIN LATERAL (
         SELECT SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.bowler_id
         JOIN practice_matches m ON m.id = b.match_id
-        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed'
+        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
           AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bowl ON true
       LEFT JOIN LATERAL (
@@ -804,7 +837,7 @@ BEGIN
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.fielder_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND b.is_wicket = true
-          AND m.status = 'completed' AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND m.status = 'completed' AND m.deleted_at IS NULL AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) field ON true
       WHERE cp.is_active = true
         AND (COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) + COALESCE(field.total_catches, 0)) > 0

@@ -16,7 +16,7 @@ import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
 
 /* ── Match Card (reusable for active + history) ── */
-function MatchCard({ item, onTap }: { item: MatchHistoryItem; onTap: () => void }) {
+function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => void }) {
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
@@ -73,6 +73,17 @@ function MatchCard({ item, onTap }: { item: MatchHistoryItem; onTap: () => void 
       {isCompleted && item.result_summary && (
         <Text size="2xs" color="muted" className="mt-1">{item.result_summary}</Text>
       )}
+      {onDelete && (
+        <div className="mt-2 pt-2 border-t border-[var(--border)]/30 flex justify-end">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-[11px] font-medium cursor-pointer active:scale-[0.96] transition-all"
+            style={{ color: 'var(--red)' }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </button>
   );
 }
@@ -84,7 +95,9 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onResumeMatch: (matchId: string) => void;
 }) {
   const router = useRouter();
-  const { match, innings, matchHistory, loadMatchHistory } = useScoringStore();
+  const { match, innings, matchHistory, loadMatchHistory, deleteMatch } = useScoringStore();
+  const { user, userAccess } = useAuthStore();
+  const isAdmin = userAccess.includes('admin');
 
   // Load matches from DB every time this component mounts
   // (remounts when returning from match view since it's conditionally rendered)
@@ -171,7 +184,16 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               </Text>
               <div className="space-y-2">
                 {activeDbMatches.map((m) => (
-                  <MatchCard key={m.id} item={m} onTap={() => onResumeMatch(m.id)} />
+                  <MatchCard
+                    key={m.id}
+                    item={m}
+                    onTap={() => onResumeMatch(m.id)}
+                    onDelete={isAdmin ? () => {
+                      if (confirm(`Delete "${m.team_a_name} vs ${m.team_b_name}"?`)) {
+                        deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                      }
+                    } : undefined}
+                  />
                 ))}
               </div>
             </div>
@@ -185,7 +207,16 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               </Text>
               <div className="space-y-2">
                 {completedDbMatches.map((m) => (
-                  <MatchCard key={m.id} item={m} onTap={() => onResumeMatch(m.id)} />
+                  <MatchCard
+                    key={m.id}
+                    item={m}
+                    onTap={() => onResumeMatch(m.id)}
+                    onDelete={isAdmin ? () => {
+                      if (confirm(`Delete "${m.team_a_name} vs ${m.team_b_name}"?`)) {
+                        deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                      }
+                    } : undefined}
+                  />
                 ))}
               </div>
             </div>
