@@ -141,8 +141,14 @@ interface ScoringState {
 
   // Cloud
   deleteMatch: (matchId: string, deleterName: string) => Promise<boolean>;
+  restoreMatch: (matchId: string) => Promise<boolean>;
+  permanentDeleteMatch: (matchId: string) => Promise<boolean>;
   loadMatchHistory: () => Promise<void>;
+  loadDeletedMatches: () => Promise<void>;
   resumeMatch: (matchId: string) => Promise<boolean>;
+
+  // Deleted matches (admin)
+  deletedMatches: MatchHistoryItem[];
 
   // Reset
   reset: () => void;
@@ -166,6 +172,7 @@ export const useScoringStore = create<ScoringState>()(
   dbMatchId: null,
   idMap: {},
   matchHistory: [],
+  deletedMatches: [],
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -999,6 +1006,40 @@ export const useScoringStore = create<ScoringState>()(
     // Refresh history from DB
     await get().loadMatchHistory();
     return true;
+  },
+
+  restoreMatch: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('restore_match', { target_match_id: matchId });
+    if (error) { console.error('[scoring] restoreMatch failed:', error); toast.error('Failed to restore'); return false; }
+    if (!data) { toast.error('Not authorized'); return false; }
+    toast.success('Match restored');
+    await get().loadMatchHistory();
+    await get().loadDeletedMatches();
+    return true;
+  },
+
+  permanentDeleteMatch: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('permanent_delete_match', { target_match_id: matchId });
+    if (error) { console.error('[scoring] permanentDelete failed:', error); toast.error('Failed to permanently delete'); return false; }
+    if (!data) { toast.error('Not authorized — admin only'); return false; }
+    toast.success('Match permanently deleted');
+    await get().loadDeletedMatches();
+    return true;
+  },
+
+  loadDeletedMatches: async () => {
+    if (!isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc('get_deleted_matches', { result_limit: 20 });
+    if (error) { console.error('[scoring] loadDeletedMatches failed:', error); return; }
+    set({ deletedMatches: (data ?? []) as MatchHistoryItem[] });
   },
 
   loadMatchHistory: async () => {

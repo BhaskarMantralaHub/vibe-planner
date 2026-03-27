@@ -10,11 +10,74 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline } from 'react-icons/md';
+import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
+
+/* ── Deleted Match Card (admin only) ── */
+function DeletedMatchCard({ item, onRestore, onPermanentDelete }: {
+  item: MatchHistoryItem;
+  onRestore: () => Promise<void>;
+  onPermanentDelete: () => Promise<void>;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  return (
+    <>
+      <div className="rounded-xl border border-[var(--border)]/50 bg-[var(--card)] p-3 opacity-70">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <Text size="sm" weight="medium" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
+            {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
+              <Text size="2xs" color="dim" truncate>{item.title}</Text>
+            )}
+            <Text size="2xs" color="dim" className="mt-0.5">
+              {item.match_date} · Deleted{(item as Record<string, unknown>).deleted_by ? ` by ${(item as Record<string, unknown>).deleted_by}` : ''}
+            </Text>
+          </div>
+          <Text size="2xs" weight="bold" color="muted" uppercase>Deleted</Text>
+        </div>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onRestore}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]"
+            style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', color: 'var(--cricket)' }}
+          >
+            <MdRestoreFromTrash size={15} />
+            <Text size="xs" weight="semibold" color="cricket">Restore</Text>
+          </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]"
+            style={{ background: 'color-mix(in srgb, var(--red) 10%, transparent)', color: 'var(--red)' }}
+          >
+            <MdDeleteForever size={15} />
+            <Text size="xs" weight="semibold" color="danger">Delete Forever</Text>
+          </button>
+        </div>
+      </div>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently Delete?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove &quot;{item.team_a_name} vs {item.team_b_name}&quot; and all its ball-by-ball data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="danger" onClick={async () => { setConfirmDelete(false); await onPermanentDelete(); }}>
+              Delete Forever
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 /* ── Match Card ── */
 function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => Promise<void> }) {
@@ -206,15 +269,15 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onResumeMatch: (matchId: string) => void;
 }) {
   const router = useRouter();
-  const { match, innings, matchHistory, loadMatchHistory, deleteMatch } = useScoringStore();
+  const { match, innings, matchHistory, deletedMatches, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
 
   // Load matches from DB every time this component mounts
-  // (remounts when returning from match view since it's conditionally rendered)
   useEffect(() => {
     if (isCloudMode()) {
       loadMatchHistory();
+      if (isAdmin) loadDeletedMatches();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -337,6 +400,25 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                 title="No matches yet"
                 description="Start a new match to begin scoring"
               />
+            </div>
+          )}
+
+          {/* Recently Deleted (admin only) */}
+          {isAdmin && deletedMatches.length > 0 && (
+            <div>
+              <Text as="h2" size="sm" weight="semibold" color="muted" className="mb-2">
+                Recently Deleted
+              </Text>
+              <div className="space-y-2">
+                {deletedMatches.map((m) => (
+                  <DeletedMatchCard
+                    key={m.id}
+                    item={m}
+                    onRestore={async () => { await restoreMatch(m.id); }}
+                    onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

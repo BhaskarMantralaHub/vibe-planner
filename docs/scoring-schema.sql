@@ -711,6 +711,79 @@ $$;
 GRANT EXECUTE ON FUNCTION soft_delete_match(UUID, TEXT) TO authenticated;
 
 
+-- ── Restore Soft-Deleted Match ──
+CREATE OR REPLACE FUNCTION restore_match(target_match_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+  UPDATE practice_matches
+  SET deleted_at = NULL, deleted_by = NULL, updated_at = now()
+  WHERE id = target_match_id
+    AND deleted_at IS NOT NULL
+    AND (created_by = auth.uid() OR is_cricket_admin());
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION restore_match(UUID) TO authenticated;
+
+
+-- ── Permanent Delete (hard delete with CASCADE) ──
+CREATE OR REPLACE FUNCTION permanent_delete_match(target_match_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+  -- Only allow permanent delete on already soft-deleted matches
+  DELETE FROM practice_matches
+  WHERE id = target_match_id AND deleted_at IS NOT NULL;
+  -- CASCADE removes practice_match_players, practice_innings, practice_balls
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION permanent_delete_match(UUID) TO authenticated;
+
+
+-- ── Get Deleted Matches (admin only, for Recently Deleted section) ──
+CREATE OR REPLACE FUNCTION get_deleted_matches(
+  result_limit INTEGER DEFAULT 20
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  IF NOT is_cricket_admin() THEN RETURN '[]'::json; END IF;
+  result_limit := LEAST(COALESCE(result_limit, 20), 50);
+
+  SELECT COALESCE(json_agg(row ORDER BY row.deleted_at DESC), '[]'::json)
+  INTO result
+  FROM (
+    SELECT
+      m.id, m.title, m.match_date, m.status, m.overs_per_innings,
+      m.team_a_name, m.team_b_name, m.result_summary, m.match_winner,
+      m.scorer_name, m.deleted_at, m.deleted_by, m.created_at,
+      (SELECT json_build_object('total_runs', i.total_runs, 'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
+       FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 0) AS first_innings,
+      (SELECT json_build_object('total_runs', i.total_runs, 'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
+       FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 1) AS second_innings
+    FROM practice_matches m
+    WHERE m.deleted_at IS NOT NULL
+    ORDER BY m.deleted_at DESC
+    LIMIT result_limit
+  ) row;
+  RETURN result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_deleted_matches(INTEGER) TO authenticated;
+
+
 -- ══════════════════════════════════════════════════════════════
 -- 6. PRACTICE LEADERBOARD
 -- ══════════════════════════════════════════════════════════════
