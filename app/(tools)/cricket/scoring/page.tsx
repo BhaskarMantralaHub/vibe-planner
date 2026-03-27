@@ -85,7 +85,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete }: {
             <Text size="xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
               {item.match_date}
             </Text>
-            {onDelete && (
+            {(onDelete || onRestore || onPermanentDelete) && (
               <button
                 onClick={(e) => { e.stopPropagation(); setActionsOpen(true); }}
                 className={cn(
