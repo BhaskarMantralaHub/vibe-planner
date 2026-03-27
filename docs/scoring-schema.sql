@@ -968,42 +968,27 @@ AS $$
 BEGIN
   IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
   -- Only allow revert for abruptly ended matches (no result / no winner)
+  -- Smart logic: if 1st innings was completed → revert to innings_break (not scoring)
+  -- If current innings has no players → fall back to innings 0
   UPDATE practice_matches
-  SET status = 'scoring',
-      result_summary = NULL,
+  SET result_summary = NULL,
       match_winner = NULL,
       completed_at = NULL,
-      updated_at = now()
+      updated_at = now(),
+      status = CASE
+        WHEN (SELECT is_completed FROM practice_innings WHERE match_id = target_match_id AND innings_number = 0)
+        THEN 'innings_break'
+        ELSE 'scoring'
+      END,
+      current_innings = CASE
+        WHEN (SELECT striker_id FROM practice_innings WHERE match_id = target_match_id AND innings_number = 1) IS NOT NULL
+        THEN 1
+        ELSE 0
+      END
   WHERE id = target_match_id
     AND status = 'completed'
     AND match_winner IS NULL
     AND deleted_at IS NULL;
-
-  IF FOUND THEN
-    -- Reset current innings completion flag
-    UPDATE practice_innings
-    SET is_completed = false, updated_at = now()
-    WHERE match_id = target_match_id
-      AND innings_number = (SELECT current_innings FROM practice_matches WHERE id = target_match_id);
-
-    -- If current innings has no players set, revert to the previous innings that does
-    IF NOT EXISTS (
-      SELECT 1 FROM practice_innings
-      WHERE match_id = target_match_id
-        AND innings_number = (SELECT current_innings FROM practice_matches WHERE id = target_match_id)
-        AND striker_id IS NOT NULL
-    ) THEN
-      -- Fall back to innings 0 if innings 1 has no players
-      UPDATE practice_matches
-      SET current_innings = 0
-      WHERE id = target_match_id AND current_innings = 1;
-
-      -- Also mark innings 0 as not completed so scoring can continue
-      UPDATE practice_innings
-      SET is_completed = false, updated_at = now()
-      WHERE match_id = target_match_id AND innings_number = 0;
-    END IF;
-  END IF;
   RETURN FOUND;
 END;
 $$;
