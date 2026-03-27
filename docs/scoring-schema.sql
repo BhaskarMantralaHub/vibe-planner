@@ -976,6 +976,8 @@ BEGIN
       completed_at = NULL,
       updated_at = now(),
       status = CASE
+        WHEN (SELECT striker_id FROM practice_innings WHERE match_id = target_match_id AND innings_number = 1) IS NOT NULL
+        THEN 'scoring'
         WHEN (SELECT is_completed FROM practice_innings WHERE match_id = target_match_id AND innings_number = 0)
         THEN 'innings_break'
         ELSE 'scoring'
