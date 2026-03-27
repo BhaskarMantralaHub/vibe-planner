@@ -13,6 +13,7 @@ import type {
   BattingStats,
   BowlingStats,
   MatchHistoryItem,
+  LeaderboardEntry,
 } from '@/types/scoring';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -158,6 +159,11 @@ interface ScoringState {
   // Guest suggestions
   guestSuggestions: { name: string; last_used: string }[];
   fetchGuestSuggestions: () => Promise<void>;
+
+  // Leaderboard
+  leaderboard: Record<string, LeaderboardEntry[]>;
+  leaderboardLoading: boolean;
+  fetchLeaderboard: (category: string) => Promise<void>;
 
   // Reset
   reset: () => void;

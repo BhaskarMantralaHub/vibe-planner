@@ -91,6 +91,32 @@ export type BowlingStats = {
   no_balls: number;
 };
 
+export type LeaderboardEntry = {
+  player_id: string;
+  name: string;
+  photo_url: string | null;
+  matches?: number;
+  // Batting
+  total_runs?: number;
+  balls_faced?: number;
+  strike_rate?: number;
+  fours?: number;
+  sixes?: number;
+  // Bowling
+  total_wickets?: number;
+  legal_balls?: number;
+  runs_conceded?: number;
+  economy?: number;
+  wides?: number;
+  no_balls?: number;
+  // Fielding
+  total_catches?: number;
+  total_runouts?: number;
+  total_stumpings?: number;
+  // All-rounder
+  score?: number;
+};
+
 export type MatchHistoryItem = {
   id: string;
   title: string;
