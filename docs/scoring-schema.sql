@@ -445,7 +445,9 @@ GRANT EXECUTE ON FUNCTION create_practice_match(TEXT, DATE, INTEGER, TEXT, TEXT,
 CREATE OR REPLACE FUNCTION get_match_history(
   match_status TEXT DEFAULT NULL,
   result_limit INTEGER DEFAULT 20,
-  result_offset INTEGER DEFAULT 0
+  result_offset INTEGER DEFAULT 0,
+  from_date DATE DEFAULT NULL,
+  to_date DATE DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
@@ -475,6 +477,8 @@ BEGIN
     FROM practice_matches m
     WHERE m.deleted_at IS NULL
       AND (match_status IS NULL OR m.status = match_status)
+      AND (from_date IS NULL OR m.match_date >= from_date)
+      AND (to_date IS NULL OR m.match_date <= to_date)
     ORDER BY m.match_date DESC, m.created_at DESC
     LIMIT result_limit OFFSET result_offset
   ) row;

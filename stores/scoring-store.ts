@@ -143,7 +143,7 @@ interface ScoringState {
   deleteMatch: (matchId: string, deleterName: string) => Promise<boolean>;
   restoreMatch: (matchId: string) => Promise<boolean>;
   permanentDeleteMatch: (matchId: string) => Promise<boolean>;
-  loadMatchHistory: (loadMore?: boolean) => Promise<void>;
+  loadMatchHistory: (loadMore?: boolean, fromDate?: string, toDate?: string) => Promise<void>;
   loadDeletedMatches: () => Promise<void>;
   resumeMatch: (matchId: string) => Promise<boolean>;
 
@@ -1043,7 +1043,7 @@ export const useScoringStore = create<ScoringState>()(
     set({ deletedMatches: (data ?? []) as MatchHistoryItem[] });
   },
 
-  loadMatchHistory: async (loadMore = false) => {
+  loadMatchHistory: async (loadMore = false, fromDate?: string, toDate?: string) => {
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -1052,6 +1052,8 @@ export const useScoringStore = create<ScoringState>()(
       match_status: null,
       result_limit: 10,
       result_offset: offset,
+      from_date: fromDate ?? null,
+      to_date: toDate ?? null,
     });
     if (error) { console.error('[scoring] loadMatchHistory failed:', error); return; }
     const items = (data ?? []) as MatchHistoryItem[];

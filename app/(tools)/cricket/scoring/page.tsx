@@ -310,6 +310,37 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   const idx = match?.current_innings ?? 0;
   const currentInnings = hasLocalMatch ? innings[idx] : null;
 
+  // Date filter
+  type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+
+  const getDateRange = (filter: DateFilter): { from?: string; to?: string } => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    switch (filter) {
+      case 'today': return { from: today, to: today };
+      case 'week': {
+        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+        return { from: weekAgo.toISOString().split('T')[0], to: today };
+      }
+      case 'month': {
+        const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+        return { from: monthAgo.toISOString().split('T')[0], to: today };
+      }
+      case 'year': {
+        const yearStart = `${now.getFullYear()}-01-01`;
+        return { from: yearStart, to: today };
+      }
+      default: return {};
+    }
+  };
+
+  const handleFilterChange = (filter: DateFilter) => {
+    setDateFilter(filter);
+    const { from, to } = getDateRange(filter);
+    loadMatchHistory(false, from, to);
+  };
+
   // DB matches — separate active vs completed
   const activeDbMatches = matchHistory.filter((m) => m.status === 'scoring' || m.status === 'innings_break');
   const completedDbMatches = matchHistory.filter((m) => m.status === 'completed');
@@ -394,12 +425,38 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Completed Matches (history with pagination) */}
-          {completedDbMatches.length > 0 && (
+          {/* Completed Matches (history with pagination + date filter) */}
+          {(completedDbMatches.length > 0 || dateFilter !== 'all') && (
             <div>
-              <Text as="h2" size="sm" weight="semibold" className="mb-2">
-                Previous Matches
-              </Text>
+              <div className="flex items-center justify-between mb-2">
+                <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
+              </div>
+              {/* Date filter chips */}
+              <div className="flex gap-1.5 mb-3 overflow-x-auto scrollbar-hide">
+                {([
+                  { key: 'all', label: 'All' },
+                  { key: 'today', label: 'Today' },
+                  { key: 'week', label: 'This Week' },
+                  { key: 'month', label: 'This Month' },
+                  { key: 'year', label: 'This Year' },
+                ] as { key: DateFilter; label: string }[]).map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => handleFilterChange(f.key)}
+                    className={cn(
+                      'flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold cursor-pointer transition-all active:scale-[0.95]',
+                      dateFilter === f.key
+                        ? 'text-white'
+                        : 'border border-[var(--border)] text-[var(--muted)]',
+                    )}
+                    style={dateFilter === f.key ? {
+                      background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+                    } : {}}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
               <div className="space-y-2">
                 {completedDbMatches.map((m) => (
                   <MatchCard
@@ -412,9 +469,18 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                   />
                 ))}
               </div>
-              {/* Load More — show if we got a full page (10 items possible) */}
+              {/* Empty state for filtered results */}
+              {completedDbMatches.length === 0 && dateFilter !== 'all' && (
+                <div className="py-6 text-center">
+                  <Text size="sm" color="muted">No matches found for this period</Text>
+                </div>
+              )}
+              {/* Load More */}
               {completedDbMatches.length >= 5 && (
-                <LoadMoreButton onLoadMore={() => loadMatchHistory(true)} />
+                <LoadMoreButton onLoadMore={() => {
+                  const { from, to } = getDateRange(dateFilter);
+                  return loadMatchHistory(true, from, to);
+                }} />
               )}
             </div>
           )}
