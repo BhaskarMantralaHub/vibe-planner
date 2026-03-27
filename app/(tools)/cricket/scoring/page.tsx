@@ -98,7 +98,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
           {/* ── Result ── */}
           {isCompleted && item.result_summary && (
             <div className="mt-3 pt-2 border-t border-[var(--border)]/20">
-              <Text size="xs" weight="medium" color={hasResult ? 'cricket' : 'muted'}>
+              <Text size="sm" weight="semibold">
                 {item.result_summary}
               </Text>
             </div>
