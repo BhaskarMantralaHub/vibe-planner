@@ -89,14 +89,18 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │       └── cricket/               # Sunrisers HQ tool
 │           ├── page.tsx
 │           ├── components/         # SeasonSelector, PlayerManager, ExpenseForm, etc.
-│           └── lib/                # constants, utils (balance calculations)
+│           ├── lib/                # constants, utils (balance calculations)
+│           └── scoring/            # Live Scoring (standalone full-screen page)
+│               ├── page.tsx        # Landing, wizard, match routing
+│               ├── components/     # ScoringScreen, ButtonGrid, WicketSheet, etc.
+│               └── lib/            # scoring-utils.ts (type converters)
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
-├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, etc.
+├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, PageFooter, etc.
 │   └── ui/                        # Design system: Button, Input, Dialog, Alert, Card, Badge, etc.
 ├── lib/                            # Supabase client, auth helpers, storage, nav, utils (cn), brand
-├── stores/                         # Zustand stores (auth-store, vibe-store, id-tracker-store, cricket-store)
-├── types/                          # TypeScript types
+├── stores/                         # Zustand stores (auth-store, vibe-store, id-tracker-store, cricket-store, scoring-store)
+├── types/                          # TypeScript types (scoring.ts for live scoring)
 ├── tests/                          # Playwright E2E tests
 ├── public/                         # Static assets (hero.png, toss.png, cricket-hero.png, cricket-logo.png, _headers, _redirects)
 ├── .env.local                      # GITIGNORED — Supabase credentials
@@ -160,6 +164,80 @@ RPC: `get_signed_up_emails(check_emails TEXT[])` — SECURITY DEFINER function r
 RPC: `create_welcome_post(new_user_id UUID, player_name TEXT)` — SECURITY DEFINER function that creates a welcome post in Moments + notifies all active players. Called by client on manual approval; also called internally by `handle_new_user` trigger for auto-approved players.
 
 Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
+
+### Live Scoring Tables & Architecture
+
+**Route:** `/cricket/scoring` — standalone full-screen page (not inside cricket dashboard tabs).
+**Store:** `stores/scoring-store.ts` (Zustand) — full match lifecycle, ball-by-ball logic, computed stats.
+**Types:** `types/scoring.ts` — `ScoringMatch`, `ScoringBall`, `ScoringInnings`, `BattingStats`, `BowlingStats`.
+**Schema:** `docs/scoring-schema.sql` — 4 tables, 8 RPCs, reviewed by DBA/Arch/SQL agents.
+
+#### Tables
+Table `practice_matches`: `id`, `season_id`, `created_by`, `title`, `match_date`, `overs_per_innings`, `status` (setup/scoring/innings_break/completed), `current_innings` (0 or 1), `team_a_name`, `team_b_name`, `toss_winner`, `toss_decision`, `result_summary`, `match_winner`, `mvp_player_id`, `scorer_name`, `scorer_id`, `active_scorer_id`, `scorer_heartbeat`, `previous_match_id` (rematch link), `match_number`, `share_token` (public URL), `started_at`, `completed_at`, `created_at`, `updated_at`.
+Table `practice_match_players`: `id`, `match_id` (CASCADE), `player_id` (FK to cricket_players, NULL for guests), `team` (team_a/team_b), `name`, `jersey_number`, `is_guest`, `is_captain`, `batting_order`, `created_at`. Match-local player snapshots — all ball references use these IDs, not global roster IDs.
+Table `practice_innings`: `id`, `match_id` (CASCADE), `innings_number` (0 or 1), `batting_team`, `total_runs`, `total_wickets`, `total_overs`, `legal_balls`, `extras_wide`, `extras_no_ball`, `extras_bye`, `extras_leg_bye`, `striker_id`, `non_striker_id`, `bowler_id`, `target`, `is_completed`, `created_at`, `updated_at`. Denormalized totals updated after every ball for fast scoreboard reads.
+Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`, `over_number`, `ball_in_over`, `striker_id`, `non_striker_id`, `bowler_id`, `runs_bat` (0-7), `runs_extras`, `extras_type` (wide/no_ball/bye/leg_bye), `is_legal`, `is_free_hit`, `is_wicket`, `wicket_type` (bowled/caught/run_out/stumped/hit_wicket/retired), `dismissed_id`, `fielder_id`, `deleted_at` (soft delete for undo), `created_at`. Every delivery is an immutable row.
+
+#### Key Constraints
+- Wicket consistency: `is_wicket=true` requires `wicket_type` to be set
+- Wide/no-ball must have `runs_extras >= 1`
+- Toss: both `toss_winner` and `toss_decision` set together or both null
+- Ball sequence: partial unique index `WHERE deleted_at IS NULL` (allows undo/redo)
+- Guest players: partial unique on `(match_id, player_id) WHERE player_id IS NOT NULL`
+- Overs validation: decimal part 0-5 only
+- `created_by` immutable via trigger
+
+#### RLS Policies
+- **Read**: All cricket users can read all 4 tables
+- **Write (balls/innings)**: Only `active_scorer_id` or `created_by`, AND match must be in `scoring`/`innings_break` status (blocked after completion)
+- **Delete matches**: Creator or admin (CASCADE cleans up children)
+- **Admin**: Can delete from any table regardless of match status (cleanup)
+
+#### RPCs
+- `create_practice_match(...)` → atomic: creates match + players + innings in one transaction, returns server player ID mapping
+- `get_match_history(status, limit, offset)` → paginated match list with both innings scores (landing page)
+- `get_match_scorecard(match_id)` → full data dump: match + players + innings + balls (scorecard view)
+- `get_public_match_scorecard(share_token)` → no-auth public view, internal IDs stripped
+- `claim_scorer(match_id, name)` → atomic handoff with row-level lock (`FOR UPDATE NOWAIT`)
+- `release_scorer(match_id)` → release scoring rights (self, creator, or admin)
+- `get_rematch_template(match_id)` → pre-fill teams/players for back-to-back matches
+- `get_practice_leaderboard(season_id, category)` → season stats: batting (runs, SR, 4s/6s), bowling (wickets, economy), fielding (catches, run outs), all-rounder (combined score)
+
+#### Sync Architecture (Optimistic Local-First)
+- **Match creation**: Awaited — must complete before scoring starts (need server player IDs for FK references)
+- **Every ball**: Fire-and-forget — INSERT ball + UPDATE innings in background. If fails, toast warning, ball stays local.
+- **Undo**: Fire-and-forget — UPDATE ball `deleted_at` + UPDATE innings totals
+- **End match**: Awaited — UPDATE match status/result
+- **Handoff**: Awaited — `claim_scorer` RPC with row lock
+- **Match resume** (new device): Call `get_match_scorecard` to hydrate store, then `claim_scorer`
+- **Spectators**: Subscribe to Supabase Realtime on `practice_matches` + `practice_innings` for live score updates
+
+#### Scoring UI Components
+- `ScoringWizard.tsx` — 5-step setup (match details → Team A → Team B → toss → opening players)
+- `ScoringScreen.tsx` — main scoring interface (scoreboard + batsmen/bowler + over timeline + button grid + tabs)
+- `ButtonGrid.tsx` — premium scoring pad (circular run buttons, gradient boundaries, wicket bar, extras, undo/redo/end)
+- `Scoreboard.tsx` — gradient score display (team, runs/wickets, overs, run rate, target)
+- `OverTimeline.tsx` — colored ball circles for current over (3-tone: gray runs, blue boundaries, red wickets, amber extras)
+- `BallByBallLog.tsx` — reverse chronological timeline with over summaries, innings break cards, match result card
+- `FullScorecard.tsx` — batting table + bowling table + fall of wickets
+- `WicketSheet.tsx` — multi-step Dialog: dismissal type → fielder → new batsman (handles all-out)
+- `ExtrasSheet.tsx` — Dialog for wide/no-ball/bye with run selection
+- `EndOfOverSheet.tsx` — Dialog showing bowling figures + next bowler selection
+- `FreeHitBanner.tsx` — subtle cricket-themed banner after no-ball
+- `PostMatchSummary.tsx` — result screen with gradient hero, both innings scores, scorecard link
+- `scoring-utils.ts` — type converters between store (ScoringBall) and UI (BallResult, TimelineEntry, InningsSummary)
+- `PageFooter.tsx` — shared "Designed by Bhaskar Mantrala" footer (used across cricket + scoring)
+
+#### Match Lifecycle
+```
+Landing Page → Start New Match → Wizard (5 steps) → Scoring Screen
+  ↓ (each ball)                                        ↓
+  recordBall → update scoreboard/batsmen/bowler       End of Over → select next bowler
+  ↓ (all out / overs complete / target reached)        ↓
+  Innings Over card → Start 2nd Innings               2nd Innings Setup Dialog → continue scoring
+  ↓ (match complete)                                   ↓
+  Match Result Screen → View Scorecard / Done         Back to Landing (match in history)
+```
 
 ## Design System (`components/ui/`)
 
