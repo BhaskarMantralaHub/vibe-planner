@@ -292,7 +292,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onResumeMatch: (matchId: string) => void;
 }) {
   const router = useRouter();
-  const { match, innings, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
+  const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
 
@@ -332,8 +332,10 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
     }
   };
 
-  // DB matches — separate active vs completed, apply count filter
-  const activeDbMatches = matchHistory.filter((m) => m.status === 'scoring' || m.status === 'innings_break');
+  // DB matches — separate active vs completed, exclude local match to avoid duplicates
+  const activeDbMatches = matchHistory.filter((m) =>
+    (m.status === 'scoring' || m.status === 'innings_break') && m.id !== dbMatchId
+  );
   const allCompleted = matchHistory.filter((m) => m.status === 'completed');
   const limit = getLimit(matchFilter);
   const completedDbMatches = allCompleted.slice(0, limit);
