@@ -716,29 +716,40 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   endMatch: () => {
-    const { match, innings } = get();
+    const { match, innings, balls } = get();
     if (!match) return;
     const first = innings[0];
     const second = innings[1];
     let resultSummary = match.result_summary;
     let matchWinner: string | null = null;
+
+    // Only compute result if both innings have been played
+    const secondInningsBalls = balls.filter((b) => b.innings === 1);
+    const bothInningsPlayed = first.is_completed && secondInningsBalls.length > 0;
+
     if (!resultSummary) {
-      const firstTotal = first.total_runs;
-      const secondTotal = second.total_runs;
-      if (secondTotal > firstTotal) {
-        const batTeamSize = second.batting_team === 'team_a' ? match.team_a.players.length : match.team_b.players.length;
-        const wicketsLeft = batTeamSize - 1 - second.total_wickets;
-        const winner = second.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
-        resultSummary = `${winner} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
-        matchWinner = second.batting_team;
-      } else if (secondTotal === firstTotal) {
-        resultSummary = 'Match tied';
-        matchWinner = 'tied';
+      if (!bothInningsPlayed) {
+        // Match ended early (abandoned/cancelled during 1st innings or before 2nd started)
+        resultSummary = 'Match ended — No result';
+        matchWinner = null;
       } else {
-        const runDiff = firstTotal - secondTotal;
-        const winner = first.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
-        resultSummary = `${winner} won by ${runDiff} run${runDiff !== 1 ? 's' : ''}`;
-        matchWinner = first.batting_team;
+        const firstTotal = first.total_runs;
+        const secondTotal = second.total_runs;
+        if (secondTotal > firstTotal) {
+          const batTeamSize = second.batting_team === 'team_a' ? match.team_a.players.length : match.team_b.players.length;
+          const wicketsLeft = batTeamSize - 1 - second.total_wickets;
+          const winner = second.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+          resultSummary = `${winner} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
+          matchWinner = second.batting_team;
+        } else if (secondTotal === firstTotal) {
+          resultSummary = 'Match tied';
+          matchWinner = 'tied';
+        } else {
+          const runDiff = firstTotal - secondTotal;
+          const winner = first.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+          resultSummary = `${winner} won by ${runDiff} run${runDiff !== 1 ? 's' : ''}`;
+          matchWinner = first.batting_team;
+        }
       }
     }
     set({ match: { ...match, status: 'completed', result_summary: resultSummary } });
