@@ -318,6 +318,92 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
   const lastOverBalls = balls.filter((b) => b.innings === idx && b.over_number === completedOverNumber - 1);
   const lastOverRuns = lastOverBalls.reduce((s, b) => s + b.runs_bat + b.runs_extras, 0);
 
+  /* ── Match Completed Screen ── */
+  if (match.status === 'completed') {
+    const inn1 = innings[0];
+    const inn2 = innings[1];
+    const team1Name = inn1.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+    const team2Name = inn2.batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
+        <div className="w-full max-w-md flex flex-col items-center gap-6 text-center">
+          {/* Result */}
+          <div>
+            <Text as="p" size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="mb-2">
+              Match Result
+            </Text>
+            <Text as="h1" size="2xl" weight="bold">
+              {match.result_summary ?? 'Match Complete'}
+            </Text>
+          </div>
+
+          {/* Scores */}
+          <div className="w-full rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
+            {/* 1st innings */}
+            <div className="px-4 py-3 flex items-center justify-between">
+              <Text size="md" weight="semibold">{team1Name}</Text>
+              <Text size="lg" weight="bold" tabular>
+                {inn1.total_runs}/{inn1.total_wickets}
+                <Text size="xs" weight="normal" color="muted" tabular> ({formatOversDisplay(inn1.total_overs)} ov)</Text>
+              </Text>
+            </div>
+            <div className="mx-4 border-t border-[var(--border)]/40" />
+            {/* 2nd innings */}
+            <div className="px-4 py-3 flex items-center justify-between">
+              <Text size="md" weight="semibold">{team2Name}</Text>
+              <Text size="lg" weight="bold" tabular>
+                {inn2.total_runs}/{inn2.total_wickets}
+                <Text size="xs" weight="normal" color="muted" tabular> ({formatOversDisplay(inn2.total_overs)} ov)</Text>
+              </Text>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="w-full flex flex-col gap-2">
+            <Button
+              variant="primary"
+              brand="cricket"
+              size="lg"
+              fullWidth
+              onClick={() => {
+                useScoringStore.getState().reset();
+                if (onBack) onBack();
+              }}
+            >
+              Done
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={() => setActiveTab('scorecard')}
+            >
+              View Full Scorecard
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <footer className="mt-4">
+            <Text as="p" size="2xs" color="dim" tracking="wide">
+              &copy; Designed by <Text weight="semibold" color="muted">Bhaskar Mantrala</Text>
+            </Text>
+          </footer>
+        </div>
+
+        {/* Scorecard overlay if requested */}
+        {activeTab === 'scorecard' && scorecardData && (
+          <Dialog open={activeTab === 'scorecard'} onOpenChange={() => setActiveTab('scoring')}>
+            <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+              <DialogTitle>Full Scorecard</DialogTitle>
+              <FullScorecard innings={scorecardData} />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-[100dvh]"

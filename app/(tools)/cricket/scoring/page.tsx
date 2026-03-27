@@ -142,9 +142,9 @@ export default function ScoringPage() {
     if (matchStatus === 'scoring' || matchStatus === 'innings_break') {
       setView('match');
     }
+    // Don't auto-reset on completion — let user see the result first
     if (matchStatus === 'completed') {
-      useScoringStore.getState().reset();
-      setView('landing');
+      setView('match');
     }
   }, [matchStatus]);
 
