@@ -95,17 +95,10 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             </div>
           )}
 
-          {/* ── Result banner ── */}
+          {/* ── Result ── */}
           {isCompleted && item.result_summary && (
-            <div
-              className="mt-3 px-3 py-1.5 rounded-lg"
-              style={{
-                background: hasResult
-                  ? 'color-mix(in srgb, #4ADE80 10%, transparent)'
-                  : 'color-mix(in srgb, var(--muted) 8%, transparent)',
-              }}
-            >
-              <Text size="xs" weight="semibold" style={{ color: hasResult ? '#4ADE80' : 'var(--muted)' }}>
+            <div className="mt-3 pt-2 border-t border-[var(--border)]/20">
+              <Text size="xs" weight="medium" color={hasResult ? 'cricket' : 'muted'}>
                 {item.result_summary}
               </Text>
             </div>
@@ -114,8 +107,8 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
 
         {/* ── Footer ── */}
         <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]/20">
-          <Text size="2xs" color="dim">
-            {item.scorer_name ? `Scored by ${item.scorer_name}` : 'Practice Match'}
+          <Text size="2xs" weight="medium" color="muted">
+            {item.scorer_name ? `Scorer: ${item.scorer_name}` : 'Practice Match'}
           </Text>
           {onDelete && (
             <button
