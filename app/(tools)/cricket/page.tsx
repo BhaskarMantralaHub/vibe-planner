@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Text } from '@/components/ui';
+import { PageFooter } from '@/components/PageFooter';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
@@ -443,12 +444,7 @@ function CricketDashboard() {
       {/* Modals */}
       <ExpenseForm />
 
-      {/* Footer */}
-      <footer className="mt-16 mb-8 text-center">
-        <Text as="p" size="2xs" color="dim" tracking="wide">
-          &copy; Designed by <Text weight="semibold" color="muted">Bhaskar Mantrala</Text>
-        </Text>
-      </footer>
+      <PageFooter className="mt-16 mb-8" />
     </div>
   );
 }

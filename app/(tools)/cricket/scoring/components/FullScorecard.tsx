@@ -1,6 +1,7 @@
 'use client';
 
 import { Text } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 /* ── Types ── */
 
@@ -175,9 +176,9 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
       {/* Column headers */}
       <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: 'var(--surface)' }}>
         <Text size="2xs" weight="semibold" color="muted" className="flex-1">Bowler</Text>
-        <div className="flex gap-2">
-          {['O', 'M', 'D', 'R', 'W', 'ER'].map((h) => (
-            <Text key={h} size="2xs" weight="semibold" color="muted" tabular className="w-7 text-right">
+        <div className="flex gap-1.5">
+          {['O', 'M', 'R', 'W', 'Econ'].map((h) => (
+            <Text key={h} size="2xs" weight="semibold" color="muted" tabular className={cn(h === 'Econ' ? 'w-9' : 'w-6', 'text-right')}>
               {h}
             </Text>
           ))}
@@ -189,22 +190,21 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
         {bowlers.map((b, i) => (
           <div key={i}>
             <div className="mx-3 border-t border-[var(--border)]/30" />
-            <div className="px-3 py-2 flex items-start justify-between">
+            <div className="px-3 py-2 flex items-start justify-between gap-2">
               {/* Name + extras */}
-              <div className="min-w-0 flex-1 mr-2">
+              <div className="min-w-0 flex-1">
                 <Text size="sm" weight="semibold" truncate>{b.name}</Text>
                 {b.extras && (
                   <Text size="2xs" weight="medium" color="muted">{b.extras}</Text>
                 )}
               </div>
-              {/* Stats — aligned with header */}
-              <div className="flex gap-2 flex-shrink-0">
-                <Text size="sm" weight="medium" tabular className="w-7 text-right">{b.overs}</Text>
-                <Text size="sm" weight="medium" color="muted" tabular className="w-7 text-right">{b.maidens}</Text>
-                <Text size="sm" weight="medium" color="muted" tabular className="w-7 text-right">{b.dots}</Text>
-                <Text size="sm" weight="medium" tabular className="w-7 text-right">{b.runs}</Text>
-                <Text size="sm" weight="bold" tabular className="w-7 text-right">{b.wickets}</Text>
-                <Text size="sm" weight="medium" color="muted" tabular className="w-7 text-right">{b.economy}</Text>
+              {/* Stats */}
+              <div className="flex gap-1.5 flex-shrink-0">
+                <Text size="sm" weight="medium" tabular className="w-6 text-right">{b.overs}</Text>
+                <Text size="sm" weight="medium" color="muted" tabular className="w-6 text-right">{b.maidens}</Text>
+                <Text size="sm" weight="medium" tabular className="w-6 text-right">{b.runs}</Text>
+                <Text size="sm" weight="bold" tabular className="w-6 text-right">{b.wickets}</Text>
+                <Text size="sm" weight="medium" color="muted" tabular className="w-9 text-right">{b.economy}</Text>
               </div>
             </div>
           </div>
