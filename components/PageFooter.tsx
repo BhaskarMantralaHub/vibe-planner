@@ -9,7 +9,7 @@ interface PageFooterProps {
 
 function PageFooter({ className }: PageFooterProps) {
   return (
-    <footer className={cn('mt-12 mb-6 text-center', className)}>
+    <footer className={cn('mt-12 mb-6 w-full text-center', className)}>
       <Text as="p" size="2xs" color="dim" tracking="wide">
         &copy; Designed by <Text weight="semibold" color="muted">Bhaskar Mantrala</Text>
       </Text>

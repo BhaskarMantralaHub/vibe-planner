@@ -26,9 +26,25 @@ interface OverSummary {
   teamScore: string;      // e.g. "14/0"
 }
 
+interface InningsBreakData {
+  teamName: string;
+  totalRuns: number;
+  totalWickets: number;
+  totalOvers: string;
+  target: number;
+}
+
+interface MatchResultData {
+  result: string;
+  team1: { name: string; runs: number; wickets: number; overs: string };
+  team2: { name: string; runs: number; wickets: number; overs: string };
+}
+
 type TimelineEntry =
   | { kind: 'ball'; data: BallEntry }
-  | { kind: 'overSummary'; data: OverSummary };
+  | { kind: 'overSummary'; data: OverSummary }
+  | { kind: 'inningsBreak'; data: InningsBreakData }
+  | { kind: 'matchResult'; data: MatchResultData };
 
 /* ── Ball color map (matches OverTimeline 3-tone palette) ── */
 const ballTypeColor: Record<BallEntry['type'], { bg: string; text: string }> = {
@@ -206,6 +222,64 @@ interface BallByBallLogProps {
   timeline: TimelineEntry[];
 }
 
+function MatchResultCard({ data }: { data: MatchResultData }) {
+  return (
+    <div
+      className="mx-1 my-3 rounded-xl overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}
+    >
+      <div className="px-4 py-4">
+        <Text size="2xs" weight="semibold" color="white" uppercase tracking="wider" className="opacity-70">
+          Match Result
+        </Text>
+        <Text as="p" size="md" weight="bold" color="white" className="mt-1">
+          {data.result}
+        </Text>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <Text size="sm" weight="medium" color="white">{data.team1.name}</Text>
+            <Text size="sm" weight="bold" color="white" tabular>
+              {data.team1.runs}/{data.team1.wickets} <Text size="xs" color="white" className="opacity-60">({data.team1.overs})</Text>
+            </Text>
+          </div>
+          <div className="flex items-center justify-between">
+            <Text size="sm" weight="medium" color="white">{data.team2.name}</Text>
+            <Text size="sm" weight="bold" color="white" tabular>
+              {data.team2.runs}/{data.team2.wickets} <Text size="xs" color="white" className="opacity-60">({data.team2.overs})</Text>
+            </Text>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InningsBreakCard({ data }: { data: InningsBreakData }) {
+  return (
+    <div
+      className="mx-1 my-3 rounded-xl overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}
+    >
+      <div className="px-4 py-3 text-center">
+        <Text size="2xs" weight="semibold" color="white" uppercase tracking="wider" className="opacity-70">
+          End of 1st Innings
+        </Text>
+        <Text as="p" size="lg" weight="bold" color="white" tabular className="mt-1">
+          {data.teamName} {data.totalRuns}/{data.totalWickets}
+        </Text>
+        <Text size="xs" color="white" className="opacity-70" tabular>
+          ({data.totalOvers} overs)
+        </Text>
+        <div className="mt-2 pt-2 border-t border-white/20">
+          <Text size="xs" weight="semibold" color="white">
+            Target: {data.target}
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BallByBallLog({ timeline }: BallByBallLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -235,6 +309,12 @@ function BallByBallLog({ timeline }: BallByBallLogProps) {
         {[...timeline].reverse().map((entry, i) => {
           if (entry.kind === 'ball') {
             return <BallRow key={i} entry={entry.data} />;
+          }
+          if (entry.kind === 'inningsBreak') {
+            return <InningsBreakCard key={i} data={entry.data} />;
+          }
+          if (entry.kind === 'matchResult') {
+            return <MatchResultCard key={i} data={entry.data} />;
           }
           return <OverSummaryCard key={i} data={entry.data} />;
         })}

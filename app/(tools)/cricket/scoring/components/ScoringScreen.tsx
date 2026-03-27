@@ -128,11 +128,38 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
   // Ball-by-ball timeline — show current innings during play, both innings after completion
   const timeline = useMemo(() => {
     if (!match) return [];
-    if (match.status === 'completed') {
-      // Both innings
+    if (match.status === 'completed' || match.status === 'innings_break' || idx === 1) {
       const t1 = buildTimeline(0, balls, innings[0], match, playerMap);
       const t2 = buildTimeline(1, balls, innings[1], match, playerMap);
-      return [...t1, ...t2];
+      const team1Name = innings[0].batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+      const team2Name = innings[1].batting_team === 'team_a' ? match.team_a.name : match.team_b.name;
+
+      const inningsBreakEntry = {
+        kind: 'inningsBreak' as const,
+        data: {
+          teamName: team1Name,
+          totalRuns: innings[0].total_runs,
+          totalWickets: innings[0].total_wickets,
+          totalOvers: formatOversDisplay(innings[0].total_overs),
+          target: innings[0].total_runs + 1,
+        },
+      };
+
+      const entries = [...t1, inningsBreakEntry, ...t2];
+
+      // Add match result card at the end if completed
+      if (match.status === 'completed' && match.result_summary) {
+        entries.push({
+          kind: 'matchResult' as const,
+          data: {
+            result: match.result_summary,
+            team1: { name: team1Name, runs: innings[0].total_runs, wickets: innings[0].total_wickets, overs: formatOversDisplay(innings[0].total_overs) },
+            team2: { name: team2Name, runs: innings[1].total_runs, wickets: innings[1].total_wickets, overs: formatOversDisplay(innings[1].total_overs) },
+          },
+        });
+      }
+
+      return entries;
     }
     return buildTimeline(idx, balls, currentInnings, match, playerMap);
   }, [balls, idx, match, currentInnings, innings, playerMap]);
@@ -628,12 +655,13 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
               </Text>
             </div>
 
-            <div className="px-4 pb-4 flex flex-col gap-2">
+            <div className="px-4 pb-4 flex flex-col gap-3">
+              {/* Primary action */}
               {idx === 0 ? (
                 <Button
                   variant="primary"
                   brand="cricket"
-                  size="lg"
+                  size="xl"
                   fullWidth
                   onClick={() => {
                     useScoringStore.getState().endInnings();
@@ -649,7 +677,7 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
                 <Button
                   variant="primary"
                   brand="cricket"
-                  size="lg"
+                  size="xl"
                   fullWidth
                   onClick={() => {
                     setShowResultScreen(true);
@@ -659,6 +687,8 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
                   View Match Result
                 </Button>
               )}
+
+              {/* Secondary action */}
               <Button
                 variant="secondary"
                 size="lg"
@@ -667,25 +697,37 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
               >
                 View Scorecard
               </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                fullWidth
-                onClick={handleUndo}
-              >
-                Undo Last Ball
-              </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                fullWidth
-                onClick={() => {
-                  setShowResultScreen(true);
-                  useScoringStore.getState().endMatch();
-                }}
-              >
-                <Text size="sm" weight="medium" color="danger">End Match Now</Text>
-              </Button>
+
+              {/* Utility actions — side by side */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleUndo}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 cursor-pointer select-none',
+                    'border border-[var(--border)] transition-all active:scale-[0.96]',
+                  )}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--muted)' }}>
+                    <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                  </svg>
+                  <Text size="xs" weight="medium" color="muted">Undo</Text>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowResultScreen(true);
+                    useScoringStore.getState().endMatch();
+                  }}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 cursor-pointer select-none',
+                    'border border-[var(--red)]/30 transition-all active:scale-[0.96]',
+                  )}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--red)' }}>
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                  <Text size="xs" weight="medium" color="danger">End Match</Text>
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -730,7 +772,9 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
 
       {/* Undo is now integrated into ButtonGrid's extras row */}
 
-      <PageFooter />
+      {/* Separator + footer */}
+      <div className="mx-4 mt-8 border-t border-[var(--border)]/40" />
+      <PageFooter className="mt-4" />
 
       {/* Safe area bottom padding */}
       <div className="pb-[max(env(safe-area-inset-bottom),20px)]" />
