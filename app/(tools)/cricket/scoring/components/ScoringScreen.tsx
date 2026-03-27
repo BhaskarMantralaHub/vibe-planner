@@ -612,11 +612,11 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
       {/* ── Segmented Control ── */}
       <SegmentedControl
         options={[
-          { key: 'scoring', label: 'Scoring' },
+          ...(match.status !== 'completed' ? [{ key: 'scoring', label: 'Scoring' }] : []),
           { key: 'ballbyball', label: 'Ball by Ball' },
           { key: 'scorecard', label: 'Scorecard' },
         ]}
-        active={activeTab}
+        active={match.status === 'completed' && activeTab === 'scoring' ? 'scorecard' : activeTab}
         onChange={(key) => setActiveTab(key as 'scoring' | 'ballbyball' | 'scorecard')}
         className="mx-4 mb-2"
       />
