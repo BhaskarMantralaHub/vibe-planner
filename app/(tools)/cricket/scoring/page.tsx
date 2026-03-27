@@ -472,8 +472,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Empty state */}
-          {!hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && (
+          {/* Empty state — only when no filter is active and truly no matches */}
+          {!hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && dateFilter === 'all' && (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
               <EmptyState
                 icon={<MdSportsCricket size={32} style={{ color: 'var(--dim)' }} />}
