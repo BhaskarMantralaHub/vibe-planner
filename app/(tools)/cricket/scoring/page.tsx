@@ -45,7 +45,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
               {item.overs_per_innings} Over Match
             </Text>
           </div>
-          <Text size="2xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
+          <Text size="xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
             {item.match_date}
           </Text>
         </div>
@@ -57,7 +57,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             {item.team_a_name} <Text as="span" size="sm" weight="normal" color="muted">vs</Text> {item.team_b_name}
           </Text>
           {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
-            <Text as="p" size="xs" weight="normal" color="dim" className="mt-1">{item.title}</Text>
+            <Text as="p" size="xs" weight="medium" color="muted" className="mt-1">{item.title}</Text>
           )}
 
           {/* Level 2: Scores — numbers dominate, names recede */}
@@ -108,8 +108,8 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
 
         {/* Level 4: Meta — smallest, most muted */}
         <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]/15">
-          <Text size="2xs" weight="normal" color="dim">
-            {item.scorer_name ?? 'Practice Match'}
+          <Text size="xs" weight="medium" color="muted">
+            {item.scorer_name ? `Scored by ${item.scorer_name}` : 'Practice Match'}
           </Text>
           {onDelete && (
             <button
