@@ -36,15 +36,16 @@ export function constructDismissalText(
   wicketType: WicketType | null,
   bowlerName?: string,
   fielderName?: string,
+  verbose = false,
 ): string {
   if (!wicketType) return 'out';
   switch (wicketType) {
-    case 'bowled':     return 'bowled';
-    case 'caught':     return `caught by ${fielderName ?? '?'}`;
-    case 'lbw':        return `lbw, bowled ${bowlerName ?? '?'}`;
+    case 'bowled':     return verbose ? `b ${bowlerName ?? '?'}` : 'bowled';
+    case 'caught':     return verbose ? `c ${fielderName ?? '?'} b ${bowlerName ?? '?'}` : `caught by ${fielderName ?? '?'}`;
+    case 'lbw':        return verbose ? `lbw b ${bowlerName ?? '?'}` : `lbw, bowled ${bowlerName ?? '?'}`;
     case 'run_out':    return `run out by ${fielderName ?? '?'}`;
     case 'stumped':    return `stumped by ${fielderName ?? '?'}`;
-    case 'hit_wicket': return 'hit wicket';
+    case 'hit_wicket': return verbose ? `hit wicket b ${bowlerName ?? '?'}` : 'hit wicket';
     case 'retired':    return 'retired';
     default:           return 'out';
   }
@@ -236,7 +237,7 @@ export function buildInningsSummary(
       if (wicketBall) {
         const bowler = playerMap.get(wicketBall.bowler_id);
         const fielder = wicketBall.fielder_id ? playerMap.get(wicketBall.fielder_id) : undefined;
-        dismissal = constructDismissalText(wicketBall.wicket_type, bowler?.name, fielder?.name);
+        dismissal = constructDismissalText(wicketBall.wicket_type, bowler?.name, fielder?.name, true);
       } else {
         dismissal = bs.how_out ?? 'out';
       }
