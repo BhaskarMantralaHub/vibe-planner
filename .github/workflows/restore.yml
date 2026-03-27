@@ -50,6 +50,10 @@ jobs:
             "cricket_gallery_likes"
             "cricket_comment_reactions"
             "cricket_notifications"
+            "practice_matches"
+            "practice_match_players"
+            "practice_innings"
+            "practice_balls"
           )
 
           OUTPUT="restore_${DATE}.sql"
@@ -66,7 +70,7 @@ jobs:
 
           echo "" >> "$OUTPUT"
           echo "-- Uncomment the next line to wipe existing data first:" >> "$OUTPUT"
-          echo "-- TRUNCATE cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, profiles CASCADE;" >> "$OUTPUT"
+          echo "-- TRUNCATE practice_balls, practice_innings, practice_match_players, practice_matches, cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, profiles CASCADE;" >> "$OUTPUT"
           echo "" >> "$OUTPUT"
 
           for TABLE in "${TABLES_ORDERED[@]}"; do
