@@ -174,7 +174,7 @@ function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, canUndo = false, canR
             )}
             style={{ height: 40 }}
           >
-            <span className="text-[11px] font-semibold text-amber-500">Bye/LB</span>
+            <span className="text-[11px] font-semibold text-amber-500">Bye</span>
           </button>
         </div>
 

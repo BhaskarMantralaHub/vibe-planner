@@ -1,6 +1,6 @@
 'use client';
 
-import { Drawer, DrawerHandle, DrawerTitle, DrawerBody, Button, Text } from '@/components/ui';
+import { Dialog, DialogContent, DialogTitle, Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 interface BowlerFigures {
@@ -11,7 +11,7 @@ interface BowlerFigures {
   runs: number;
   wickets: number;
   economy: string;
-  justBowled?: boolean; // current bowler — disabled from selection
+  justBowled?: boolean;
 }
 
 interface EndOfOverSheetProps {
@@ -25,17 +25,14 @@ interface EndOfOverSheetProps {
 
 function EndOfOverSheet({ open, onOpenChange, overNumber, overRuns, bowlers, onSelectBowler }: EndOfOverSheetProps) {
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} dismissible={false}>
-      <DrawerHandle />
-      <DrawerTitle>End of Over</DrawerTitle>
-      <DrawerBody>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+        <DialogTitle>End of Over {overNumber}</DialogTitle>
+
         <div className="flex flex-col gap-4">
           {/* Over summary */}
           <div className="text-center">
-            <Text size="lg" weight="semibold">
-              Over {overNumber} Complete
-            </Text>
-            <Text as="p" size="2xl" weight="bold" tabular className="mt-1">
+            <Text as="p" size="2xl" weight="bold" tabular>
               {overRuns} runs
             </Text>
           </div>
@@ -60,7 +57,7 @@ function EndOfOverSheet({ open, onOpenChange, overNumber, overRuns, bowlers, onS
                 <Text size="sm" weight="medium" truncate className="col-span-2">
                   {b.name}
                   {b.justBowled && (
-                    <Text as="span" size="2xs" color="muted" className="ml-1">(just bowled)</Text>
+                    <Text as="span" size="2xs" color="muted" className="ml-1">(last)</Text>
                   )}
                 </Text>
                 <Text size="sm" tabular align="center">{b.overs}</Text>
@@ -100,8 +97,8 @@ function EndOfOverSheet({ open, onOpenChange, overNumber, overRuns, bowlers, onS
             ))}
           </div>
         </div>
-      </DrawerBody>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
 

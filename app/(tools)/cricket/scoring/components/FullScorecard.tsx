@@ -167,33 +167,38 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
     <div className="rounded-xl border border-[var(--border)] overflow-hidden">
       {/* Header */}
       <SectionHeader>
-        <Text size="sm" weight="bold" color="white">Bowling</Text>
-        <div className="flex gap-2 mt-1">
-          {['O', 'M', 'Dots', 'R', 'W', 'Econ'].map((h) => (
-            <Text key={h} size="2xs" weight="semibold" color="white" tabular className="w-7 text-right opacity-80">
+        <div className="flex items-center justify-between">
+          <Text size="sm" weight="bold" color="white">Bowling</Text>
+        </div>
+      </SectionHeader>
+
+      {/* Column headers */}
+      <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: 'var(--surface)' }}>
+        <Text size="2xs" weight="semibold" color="muted" className="flex-1">Bowler</Text>
+        <div className="flex gap-2">
+          {['O', 'M', 'D', 'R', 'W', 'ER'].map((h) => (
+            <Text key={h} size="2xs" weight="semibold" color="muted" tabular className="w-7 text-right">
               {h}
             </Text>
           ))}
         </div>
-      </SectionHeader>
+      </div>
 
       {/* Bowler rows */}
       <div style={{ background: 'var(--surface)' }}>
         {bowlers.map((b, i) => (
           <div key={i}>
-            {i > 0 && <div className="mx-3 border-t border-[var(--border)]/30" />}
-            <div className="px-3 py-2">
-              {/* Name + extras on first line */}
-              <div className="flex items-baseline justify-between mb-0.5">
-                <div className="flex items-baseline gap-1 min-w-0 flex-1 mr-2">
-                  <Text size="sm" weight="semibold" truncate>{b.name}</Text>
-                  {b.extras && (
-                    <Text size="2xs" weight="medium" color="muted" className="flex-shrink-0">{b.extras}</Text>
-                  )}
-                </div>
+            <div className="mx-3 border-t border-[var(--border)]/30" />
+            <div className="px-3 py-2 flex items-start justify-between">
+              {/* Name + extras */}
+              <div className="min-w-0 flex-1 mr-2">
+                <Text size="sm" weight="semibold" truncate>{b.name}</Text>
+                {b.extras && (
+                  <Text size="2xs" weight="medium" color="muted">{b.extras}</Text>
+                )}
               </div>
-              {/* Stats row — fixed widths, always aligned */}
-              <div className="flex gap-2">
+              {/* Stats — aligned with header */}
+              <div className="flex gap-2 flex-shrink-0">
                 <Text size="sm" weight="medium" tabular className="w-7 text-right">{b.overs}</Text>
                 <Text size="sm" weight="medium" color="muted" tabular className="w-7 text-right">{b.maidens}</Text>
                 <Text size="sm" weight="medium" color="muted" tabular className="w-7 text-right">{b.dots}</Text>

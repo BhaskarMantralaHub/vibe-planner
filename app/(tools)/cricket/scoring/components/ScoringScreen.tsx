@@ -195,7 +195,10 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
     });
 
     // Set replacement batsman (recordBall already cleared the dismissed slot)
-    setNextBatsman(data.newBatsman);
+    // If newBatsman is empty, it's an all-out scenario — skip setNextBatsman
+    if (data.newBatsman) {
+      setNextBatsman(data.newBatsman);
+    }
     setWicketOpen(false);
   }, [recordBall, setNextBatsman]);
 

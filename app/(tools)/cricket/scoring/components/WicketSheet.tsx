@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Drawer, DrawerHandle, DrawerTitle, DrawerBody, Button, Text } from '@/components/ui';
+import { Dialog, DialogContent, DialogTitle, Button, Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 type DismissalType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | 'hit_wicket' | 'retired';
@@ -29,7 +29,6 @@ interface WicketSheetProps {
 const dismissalTypes: { key: DismissalType; label: string; emoji: string }[] = [
   { key: 'bowled', label: 'Bowled', emoji: '\uD83C\uDFCF' },
   { key: 'caught', label: 'Caught', emoji: '\uD83E\uDD1E' },
-  { key: 'lbw', label: 'LBW', emoji: '\uD83E\uDDB5' },
   { key: 'run_out', label: 'Run Out', emoji: '\uD83C\uDFC3' },
   { key: 'stumped', label: 'Stumped', emoji: '\u26A1' },
   { key: 'hit_wicket', label: 'Hit Wicket', emoji: '\uD83D\uDCA5' },
@@ -42,7 +41,6 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
   const [batsmanOut, setBatsmanOut] = useState<string | null>(null);
   const [fielder, setFielder] = useState<string | null>(null);
   const [runsCompleted, setRunsCompleted] = useState(0);
-  const [newBatsman, setNewBatsman] = useState<string | null>(null);
 
   const resetState = () => {
     setStep('dismissal');
@@ -50,12 +48,29 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
     setBatsmanOut(null);
     setFielder(null);
     setRunsCompleted(0);
-    setNewBatsman(null);
   };
 
   const handleOpenChange = (v: boolean) => {
     if (!v) resetState();
     onOpenChange(v);
+  };
+
+  // Filter out current batsmen for "yet to bat" list
+  const yetToBat = battingTeam.filter(
+    (p) => !currentBatsmen.some((b) => b.id === p.id),
+  );
+
+  const confirmWicket = (newBatsmanId?: string) => {
+    if (dismissal) {
+      onConfirm({
+        dismissal,
+        batsmanOut: batsmanOut ?? currentBatsmen[0].id,
+        fielder: fielder ?? undefined,
+        newBatsman: newBatsmanId ?? '',
+        runsCompleted: dismissal === 'run_out' ? runsCompleted : undefined,
+      });
+    }
+    handleOpenChange(false);
   };
 
   const handleDismissalSelect = (type: DismissalType) => {
@@ -65,34 +80,47 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
     } else if (type === 'run_out') {
       setStep('run_out');
     } else {
-      setStep('new_batsman');
+      // For bowled, lbw, hit_wicket, retired — skip fielder, go to new batsman
+      if (yetToBat.length === 0) {
+        // All out — confirm immediately
+        setBatsmanOut(currentBatsmen[0].id);
+        setTimeout(() => confirmWicketDirect(type, currentBatsmen[0].id), 0);
+      } else {
+        setStep('new_batsman');
+      }
     }
+  };
+
+  // Direct confirm for all-out scenarios (no new batsman needed)
+  const confirmWicketDirect = (type: DismissalType, outId: string, fId?: string, runs?: number) => {
+    onConfirm({
+      dismissal: type,
+      batsmanOut: outId,
+      fielder: fId,
+      newBatsman: '',
+      runsCompleted: type === 'run_out' ? (runs ?? 0) : undefined,
+    });
+    handleOpenChange(false);
   };
 
   const handleFielderSelect = (playerId: string) => {
     setFielder(playerId);
-    setStep('new_batsman');
+    if (yetToBat.length === 0) {
+      confirmWicketDirect(dismissal!, batsmanOut ?? currentBatsmen[0].id, playerId);
+    } else {
+      setStep('new_batsman');
+    }
   };
 
   const handleRunOutDetails = (batId: string, fId: string, runs: number) => {
     setBatsmanOut(batId);
     setFielder(fId);
     setRunsCompleted(runs);
-    setStep('new_batsman');
-  };
-
-  const handleNewBatsman = (playerId: string) => {
-    setNewBatsman(playerId);
-    if (dismissal) {
-      onConfirm({
-        dismissal,
-        batsmanOut: batsmanOut ?? currentBatsmen[0].id,
-        fielder: fielder ?? undefined,
-        newBatsman: playerId,
-        runsCompleted: dismissal === 'run_out' ? runsCompleted : undefined,
-      });
+    if (yetToBat.length === 0) {
+      confirmWicketDirect('run_out', batId, fId, runs);
+    } else {
+      setStep('new_batsman');
     }
-    handleOpenChange(false);
   };
 
   const handleBack = () => {
@@ -105,16 +133,11 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
     }
   };
 
-  // Filter out current batsmen for "yet to bat" list
-  const yetToBat = battingTeam.filter(
-    (p) => !currentBatsmen.some((b) => b.id === p.id),
-  );
-
   return (
-    <Drawer open={open} onOpenChange={handleOpenChange}>
-      <DrawerHandle />
-      <DrawerTitle>Record Wicket</DrawerTitle>
-      <DrawerBody>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+        <DialogTitle>Record Wicket</DialogTitle>
+
         {/* Back button for non-first steps */}
         {step !== 'dismissal' && (
           <button
@@ -130,7 +153,7 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
         {/* Step 1: Dismissal type */}
         {step === 'dismissal' && (
           <div className="flex flex-col gap-1.5">
-            <Text size="lg" weight="semibold" className="mb-2">How out?</Text>
+            <Text size="md" weight="semibold" className="mb-1">How out?</Text>
             {dismissalTypes.map((d) => (
               <button
                 key={d.key}
@@ -152,7 +175,7 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
         {/* Step 2a: Fielder selection (Caught/Stumped) */}
         {step === 'fielder' && (
           <div className="flex flex-col gap-1.5">
-            <Text size="lg" weight="semibold" className="mb-2">
+            <Text size="md" weight="semibold" className="mb-1">
               {dismissal === 'caught' ? 'Caught by?' : 'Stumped by?'}
             </Text>
             {bowlingTeam.map((p) => (
@@ -184,14 +207,24 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
         {/* Step 3: New batsman */}
         {step === 'new_batsman' && (
           <div className="flex flex-col gap-1.5">
-            <Text size="lg" weight="semibold" className="mb-2">New Batsman</Text>
+            <Text size="md" weight="semibold" className="mb-1">New Batsman</Text>
             {yetToBat.length === 0 ? (
-              <Text size="sm" color="muted">No batsmen remaining — all out.</Text>
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Text size="sm" color="muted">No batsmen remaining — all out!</Text>
+                <Button
+                  variant="primary"
+                  brand="cricket"
+                  fullWidth
+                  onClick={() => confirmWicket()}
+                >
+                  Confirm Wicket (All Out)
+                </Button>
+              </div>
             ) : (
               yetToBat.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => handleNewBatsman(p.id)}
+                  onClick={() => confirmWicket(p.id)}
                   className={cn(
                     'flex items-center px-4 py-3 rounded-xl cursor-pointer select-none',
                     'border border-[var(--border)] bg-[var(--surface)]',
@@ -205,12 +238,12 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBats
             )}
           </div>
         )}
-      </DrawerBody>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-/* ── Run Out sub-step: which batsman, fielder, runs completed ── */
+/* ── Run Out sub-step ── */
 function RunOutStep({
   currentBatsmen,
   bowlingTeam,
@@ -227,7 +260,7 @@ function RunOutStep({
   if (!batId) {
     return (
       <div className="flex flex-col gap-1.5">
-        <Text size="lg" weight="semibold" className="mb-2">Which batsman is out?</Text>
+        <Text size="md" weight="semibold" className="mb-1">Which batsman is out?</Text>
         {currentBatsmen.map((b) => (
           <button
             key={b.id}
@@ -248,7 +281,7 @@ function RunOutStep({
   if (!fId) {
     return (
       <div className="flex flex-col gap-1.5">
-        <Text size="lg" weight="semibold" className="mb-2">Run out by?</Text>
+        <Text size="md" weight="semibold" className="mb-1">Run out by?</Text>
         {bowlingTeam.map((p) => (
           <button
             key={p.id}
@@ -268,7 +301,7 @@ function RunOutStep({
 
   return (
     <div className="flex flex-col gap-3">
-      <Text size="lg" weight="semibold">Runs completed</Text>
+      <Text size="md" weight="semibold">Runs completed</Text>
       <div className="flex gap-2">
         {[0, 1, 2, 3].map((r) => (
           <button
