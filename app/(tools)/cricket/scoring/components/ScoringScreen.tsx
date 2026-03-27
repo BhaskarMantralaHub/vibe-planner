@@ -491,14 +491,12 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
               <Text as="h2" size="2xl" weight="bold">
                 Innings Over
               </Text>
-              <div>
-                <Text as="p" size="xl" weight="bold" tabular color="cricket">
-                  {battingTeamName} {currentInnings.total_runs}/{currentInnings.total_wickets}
+              <Text as="p" size="xl" weight="bold" tabular color="cricket">
+                {battingTeamName} {currentInnings.total_runs}/{currentInnings.total_wickets}
+                <Text as="span" size="sm" weight="medium" color="muted" tabular>
+                  {' '}({formatOversDisplay(currentInnings.total_overs)} ov)
                 </Text>
-                <Text as="p" size="sm" color="muted" tabular className="mt-1">
-                  {formatOversDisplay(currentInnings.total_overs)} overs
-                </Text>
-              </div>
+              </Text>
               <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mt-1">
                 {currentInnings.total_wickets >= (getBattingTeamPlayers().length - 1)
                   ? 'All Out'
