@@ -28,11 +28,10 @@ import {
 
 interface ScoringScreenProps {
   onBack?: () => void;
-  onPause?: () => void;
   onHandoff?: () => void;
 }
 
-function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
+function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   /* ── Store state ── */
   const match = useScoringStore((s) => s.match);
   const innings = useScoringStore((s) => s.innings);
@@ -477,16 +476,6 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
         </Text>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={onPause}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--muted)] hover:bg-[var(--hover-bg)] cursor-pointer active:scale-[0.92] transition-all"
-            aria-label="Pause"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-          </button>
           <button
             onClick={onHandoff}
             className={cn(
