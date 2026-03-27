@@ -309,53 +309,33 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   const idx = match?.current_innings ?? 0;
   const currentInnings = hasLocalMatch ? innings[idx] : null;
 
-  // Date filter (admin gets extra "Deleted" option)
-  type DateFilter = 'all' | 'today' | 'week' | 'month' | 'season' | 'deleted';
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  // Match filter
+  type MatchFilter = 'all' | 'last5' | 'last10' | 'last20' | 'deleted';
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>('all');
 
-  // Get active season date range from cricket store
-  const { seasons, selectedSeasonId } = useCricketStore();
-  const activeSeason = seasons.find((s) => s.id === selectedSeasonId);
-
-  const getDateRange = (filter: DateFilter): { from?: string; to?: string } => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
+  const getLimit = (filter: MatchFilter): number => {
     switch (filter) {
-      case 'today': return { from: today, to: today };
-      case 'week': {
-        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
-        return { from: weekAgo.toISOString().split('T')[0], to: today };
-      }
-      case 'month': {
-        const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
-        return { from: monthAgo.toISOString().split('T')[0], to: today };
-      }
-      case 'season': {
-        // Use active season's year range (e.g., Nov 2025 → Apr 2026)
-        if (activeSeason) {
-          const year = activeSeason.year ?? new Date().getFullYear();
-          // Cricket seasons typically span Nov-Apr, use a wide range
-          return { from: `${year - 1}-09-01`, to: `${year}-08-31` };
-        }
-        return {};
-      }
-      default: return {};
+      case 'last5': return 5;
+      case 'last10': return 10;
+      case 'last20': return 20;
+      default: return 50;
     }
   };
 
-  const handleFilterChange = (filter: DateFilter) => {
-    setDateFilter(filter);
+  const handleFilterChange = (filter: MatchFilter) => {
+    setMatchFilter(filter);
     if (filter === 'deleted') {
       loadDeletedMatches();
     } else {
-      const { from, to } = getDateRange(filter);
-      loadMatchHistory(false, from, to);
+      loadMatchHistory(false);
     }
   };
 
-  // DB matches — separate active vs completed
+  // DB matches — separate active vs completed, apply count filter
   const activeDbMatches = matchHistory.filter((m) => m.status === 'scoring' || m.status === 'innings_break');
-  const completedDbMatches = matchHistory.filter((m) => m.status === 'completed');
+  const allCompleted = matchHistory.filter((m) => m.status === 'completed');
+  const limit = getLimit(matchFilter);
+  const completedDbMatches = allCompleted.slice(0, limit);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--bg)]">
@@ -436,7 +416,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Active Matches from DB (visible to all players) */}
-          {!historyLoading && dateFilter !== 'deleted' && activeDbMatches.length > 0 && (
+          {!historyLoading && matchFilter !== 'deleted' && activeDbMatches.length > 0 && (
             <div>
               <Text as="h2" size="sm" weight="semibold" className="mb-2">
                 Active Matches
@@ -457,7 +437,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Completed Matches (history with pagination + date filter) */}
-          {!historyLoading && dateFilter !== 'deleted' && (completedDbMatches.length > 0 || (dateFilter !== 'all' && dateFilter !== 'deleted')) && (
+          {!historyLoading && matchFilter !== 'deleted' && (completedDbMatches.length > 0 || matchFilter !== 'all') && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
@@ -466,14 +446,13 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               <SegmentedControl
                 options={[
                   { key: 'all', label: 'All' },
-                  { key: 'today', label: 'Today' },
-                  { key: 'week', label: 'Week' },
-                  { key: 'month', label: 'Month' },
-                  { key: 'season', label: 'Season' },
+                  { key: 'last5', label: 'Last 5' },
+                  { key: 'last10', label: 'Last 10' },
+                  { key: 'last20', label: 'Last 20' },
                   ...(isAdmin ? [{ key: 'deleted', label: 'Deleted' }] : []),
                 ]}
-                active={dateFilter}
-                onChange={(key) => handleFilterChange(key as DateFilter)}
+                active={matchFilter}
+                onChange={(key) => handleFilterChange(key as MatchFilter)}
                 className="mb-3"
               />
               <div className="space-y-2">
@@ -489,7 +468,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                 ))}
               </div>
               {/* Empty state for filtered results */}
-              {completedDbMatches.length === 0 && dateFilter !== 'all' && (
+              {completedDbMatches.length === 0 && matchFilter !== 'all' && (
                 <div className="py-6 text-center">
                   <Text size="sm" color="muted">No matches found for this period</Text>
                 </div>
@@ -497,15 +476,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               {/* Load More */}
               {completedDbMatches.length >= 5 && (
                 <LoadMoreButton onLoadMore={() => {
-                  const { from, to } = getDateRange(dateFilter);
-                  return loadMatchHistory(true, from, to);
+                  return loadMatchHistory(true);
                 }} />
               )}
             </div>
           )}
 
           {/* Empty state — only when not loading, no filter active, and truly no matches */}
-          {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && dateFilter === 'all' && (
+          {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && matchFilter === 'all' && (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
               <EmptyState
                 icon={<MdSportsCricket size={32} style={{ color: 'var(--dim)' }} />}
@@ -516,7 +494,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Deleted matches (shown when "Deleted" filter is active) */}
-          {dateFilter === 'deleted' && (
+          {matchFilter === 'deleted' && (
             <div className="space-y-2">
               {deletedMatches.length > 0 ? deletedMatches.map((m) => (
                 <MatchCard
