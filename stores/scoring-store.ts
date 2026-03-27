@@ -1100,6 +1100,7 @@ export const useScoringStore = create<ScoringState>()(
     if (!session) { console.log('[scoring] skipping — no auth session yet'); return; }
     if (!loadMore) set({ historyLoading: true });
     const offset = loadMore ? get().matchHistory.length : 0;
+    console.log('[scoring] calling RPC get_match_history...');
     const { data, error } = await supabase.rpc('get_match_history', {
       match_status: null,
       result_limit: 10,
@@ -1107,6 +1108,7 @@ export const useScoringStore = create<ScoringState>()(
       from_date: fromDate ?? null,
       to_date: toDate ?? null,
     });
+    console.log('[scoring] RPC response:', { data, error, dataType: typeof data, dataLength: Array.isArray(data) ? data.length : 'not array' });
     if (error) { console.error('[scoring] loadMatchHistory failed:', error); set({ historyLoading: false }); return; }
     const items = (data ?? []) as MatchHistoryItem[];
     if (loadMore) {
