@@ -15,7 +15,7 @@ import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
 
-/* ── Match Card ── */
+/* ── Match Card (rich design matching cricket dashboard patterns) ── */
 function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => void }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
@@ -23,83 +23,102 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
   const inn1 = item.first_innings;
   const inn2 = item.second_innings;
 
+  // Status-based left border color
+  const borderColor = isActive
+    ? 'var(--cricket)'
+    : !item.match_winner ? 'var(--muted)' : item.match_winner === 'tied' ? 'var(--muted)' : '#4ADE80';
+
+  const statusLabel = isActive ? 'LIVE' : !item.match_winner ? 'NO RESULT' : item.match_winner === 'tied' ? 'TIED' : 'WON';
+  const statusColor = isActive ? 'var(--cricket)' : statusLabel === 'WON' ? '#4ADE80' : 'var(--muted)';
+
   return (
     <>
       <div
         onClick={onTap}
-        className={cn(
-          'w-full rounded-xl border overflow-hidden cursor-pointer select-none',
-          'transition-all duration-150 active:scale-[0.98]',
-          isActive
-            ? 'border-[var(--cricket)]/40'
-            : 'border-[var(--border)]',
-        )}
+        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden cursor-pointer select-none transition-all duration-150 active:scale-[0.98]"
+        style={{ borderLeftWidth: '4px', borderLeftColor: borderColor }}
       >
-        {/* Live badge bar */}
-        {isActive && (
-          <div className="px-3 py-1" style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-            <Text size="2xs" weight="bold" color="white" uppercase tracking="wider">Live Match</Text>
-          </div>
-        )}
-
-        <div className="px-3 py-2.5" style={{ background: isActive ? 'color-mix(in srgb, var(--cricket) 4%, var(--card))' : 'var(--card)' }}>
-          {/* Title row */}
-          <div className="flex items-start justify-between gap-2">
+        <div className="p-3 sm:p-4">
+          {/* Header: team names + status pill */}
+          <div className="flex items-start gap-2 mb-1">
             <div className="min-w-0 flex-1">
-              <Text size="sm" weight="bold" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
+              <Text size="md" weight="semibold" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
               {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
-                <Text size="2xs" weight="medium" color="muted" truncate>{item.title}</Text>
+                <Text size="2xs" weight="medium" color="muted" truncate className="mt-0.5">{item.title}</Text>
               )}
             </div>
-            {isCompleted && (
-              <Text size="2xs" weight="bold"
-                color={!item.match_winner ? 'muted' : item.match_winner === 'tied' ? 'muted' : 'success'}
-                className="flex-shrink-0 mt-0.5"
-                uppercase
-              >
-                {!item.match_winner ? 'No Result' : item.match_winner === 'tied' ? 'Tied' : 'Completed'}
-              </Text>
-            )}
-          </div>  {/* end title row */}
+            <span
+              className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap"
+              style={{
+                background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
+                color: statusColor,
+                border: `1px solid color-mix(in srgb, ${statusColor} 25%, transparent)`,
+              }}
+            >
+              {isActive && <span className="w-1.5 h-1.5 rounded-full mr-1 animate-pulse" style={{ background: statusColor }} />}
+              {statusLabel}
+            </span>
+          </div>
 
-          {/* Meta */}
-          <Text size="2xs" color="muted" className="mt-0.5">
-            {item.match_date} · {item.overs_per_innings} overs{item.scorer_name ? ` · Scored by ${item.scorer_name}` : ''}
-          </Text>
-
-          {/* Scores */}
+          {/* Scoreboard container */}
           {inn1 && (
-            <div className="mt-2 space-y-0.5">
-              <div className="flex items-center justify-between">
-                <Text size="xs" weight="medium">{inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
-                <Text size="sm" weight="bold" tabular>{inn1.total_runs}/{inn1.total_wickets} <Text size="2xs" color="muted">({inn1.total_overs} ov)</Text></Text>
-              </div>
-              {inn2 && (inn2.total_runs > 0 || inn2.total_wickets > 0) && (
+            <div className="rounded-xl p-2.5 my-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="space-y-1">
+                {/* 1st innings */}
                 <div className="flex items-center justify-between">
-                  <Text size="xs" weight="medium">{inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
-                  <Text size="sm" weight="bold" tabular>{inn2.total_runs}/{inn2.total_wickets} <Text size="2xs" color="muted">({inn2.total_overs} ov)</Text></Text>
+                  <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">
+                    {(inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name).slice(0, 8)}
+                  </Text>
+                  <div className="flex items-baseline gap-1">
+                    <Text size="md" weight="bold" tabular>{inn1.total_runs}/{inn1.total_wickets}</Text>
+                    <Text size="2xs" color="muted" tabular>({inn1.total_overs} ov)</Text>
+                  </div>
                 </div>
-              )}
+
+                {inn2 && (inn2.total_runs > 0 || inn2.total_wickets > 0) && (
+                  <>
+                    <div className="h-px" style={{ background: 'var(--border)' }} />
+                    {/* 2nd innings */}
+                    <div className="flex items-center justify-between">
+                      <Text size="xs" weight="bold" color="muted" uppercase tracking="wide">
+                        {(inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name).slice(0, 8)}
+                      </Text>
+                      <div className="flex items-baseline gap-1">
+                        <Text size="md" weight="bold" tabular>{inn2.total_runs}/{inn2.total_wickets}</Text>
+                        <Text size="2xs" color="muted" tabular>({inn2.total_overs} ov)</Text>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Result */}
+          {/* Result text */}
           {isCompleted && item.result_summary && (
-            <Text size="2xs" weight="medium" color="muted" className="mt-1.5">{item.result_summary}</Text>
+            <Text as="p" size="xs" weight="semibold" className="mb-2" style={{ color: statusColor }}>
+              {item.result_summary}
+            </Text>
           )}
 
-          {/* Admin delete */}
-          {onDelete && (
-            <div className="mt-2 pt-1.5 border-t border-[var(--border)]/30 flex justify-end">
+          {/* Footer: meta + admin delete */}
+          <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border)]/20">
+            <Text size="2xs" color="dim" truncate>
+              {item.match_date} · {item.overs_per_innings} ov{item.scorer_name ? ` · ${item.scorer_name}` : ''}
+            </Text>
+            {onDelete && (
               <button
                 onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
-                className="text-[11px] font-medium cursor-pointer active:scale-[0.96] transition-all px-2 py-1 rounded"
-                style={{ color: 'var(--red)' }}
+                className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--red) 10%, transparent)', color: 'var(--red)' }}
+                title="Delete match"
               >
-                Delete Match
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
