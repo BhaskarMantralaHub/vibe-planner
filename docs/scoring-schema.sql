@@ -165,10 +165,14 @@ CREATE POLICY "Scorer can update match players"
   );
 CREATE POLICY "Scorer can delete match players"
   ON practice_match_players FOR DELETE USING (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid() OR is_cricket_admin())
+    has_cricket_access() AND (
+      -- Admin can always delete (cleanup)
+      is_cricket_admin()
+      OR EXISTS (
+        SELECT 1 FROM practice_matches WHERE id = match_id
+          AND status IN ('setup', 'scoring', 'innings_break')
+          AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+      )
     )
   );
 
