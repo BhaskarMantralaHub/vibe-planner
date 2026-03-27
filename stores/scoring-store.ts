@@ -314,17 +314,7 @@ export const useScoringStore = create<ScoringState>()(
     if (!match) return;
     const idx = match.current_innings;
     const inn = innings[idx];
-    if (inn.is_completed || !inn.striker_id || !inn.non_striker_id || !inn.bowler_id) {
-      console.warn('[scoring] recordBall blocked:', {
-        is_completed: inn.is_completed,
-        striker_id: inn.striker_id,
-        non_striker_id: inn.non_striker_id,
-        bowler_id: inn.bowler_id,
-        current_innings: idx,
-        match_status: match.status,
-      });
-      return;
-    }
+    if (inn.is_completed || !inn.striker_id || !inn.non_striker_id || !inn.bowler_id) return;
 
     const extrasType = data.extras_type ?? null;
     const runsExtras = data.runs_extras ?? (extrasType === 'wide' || extrasType === 'no_ball' ? 1 : 0);
@@ -1171,12 +1161,6 @@ export const useScoringStore = create<ScoringState>()(
     }));
 
     const lastBall = balls.length > 0 ? balls[balls.length - 1] : null;
-    console.log('[scoring] resumeMatch loaded:', {
-      status: match.status, current_innings: match.current_innings,
-      inn0: { striker: innings[0].striker_id, bowler: innings[0].bowler_id, completed: innings[0].is_completed },
-      inn1: { striker: innings[1].striker_id, bowler: innings[1].bowler_id, completed: innings[1].is_completed },
-      balls: balls.length,
-    });
     set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: lastBall?.extras_type === 'no_ball', lastBallId: lastBall?.id ?? null, redoStack: [], wizardStep: 1 });
     return true;
   },
