@@ -65,7 +65,10 @@ function toServerId(idMap: Record<string, string>, clientId: string): string {
 /** Fire-and-forget Supabase call with error logging */
 function syncToDb(label: string, fn: () => Promise<{ error: unknown }>) {
   fn().then(({ error }) => {
-    if (error) console.error(`[scoring] ${label} failed:`, error);
+    if (error) {
+      console.error(`[scoring] ${label} failed:`, error);
+      toast.error(`Sync failed: ${label}`);
+    }
   });
 }
 
@@ -1162,6 +1165,16 @@ export const useScoringStore = create<ScoringState>()(
 
     const lastBall = balls.length > 0 ? balls[balls.length - 1] : null;
     set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: lastBall?.extras_type === 'no_ball', lastBallId: lastBall?.id ?? null, redoStack: [], wizardStep: 1 });
+
+    // Claim scorer so RLS allows writes
+    const scorerName = match.scorer_name ?? 'Scorer';
+    supabase.rpc('claim_scorer', {
+      target_match_id: matchId,
+      scorer_display_name: scorerName,
+    }).then(({ error }) => {
+      if (error) console.error('[scoring] claim_scorer on resume failed:', error);
+    });
+
     return true;
   },
 
