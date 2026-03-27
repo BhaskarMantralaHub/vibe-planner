@@ -218,7 +218,7 @@ function BallByBallLog({ timeline }: BallByBallLogProps) {
 
   if (timeline.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center px-4" style={{ maxHeight: 400 }}>
+      <div className="flex-1 flex items-center justify-center px-4" style={{}}>
         <Text size="sm" color="muted">No balls bowled yet</Text>
       </div>
     );
@@ -229,7 +229,7 @@ function BallByBallLog({ timeline }: BallByBallLogProps) {
     <div
       ref={scrollRef}
       className="flex-1 overflow-y-auto px-2"
-      style={{ maxHeight: 400 }}
+      style={{}}
     >
       <div className="space-y-0.5 py-1">
         {[...timeline].reverse().map((entry, i) => {

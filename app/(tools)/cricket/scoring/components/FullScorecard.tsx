@@ -218,7 +218,7 @@ interface FullScorecardProps {
 function FullScorecard({ innings }: FullScorecardProps) {
   if (!innings || innings.batsmen.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center px-4" style={{ maxHeight: 400 }}>
+      <div className="flex-1 flex items-center justify-center px-4" style={{}}>
         <Text size="sm" color="muted">No scorecard data yet</Text>
       </div>
     );
@@ -227,7 +227,7 @@ function FullScorecard({ innings }: FullScorecardProps) {
   return (
     <div
       className="flex-1 overflow-y-auto px-4 space-y-3 py-1"
-      style={{ maxHeight: 400 }}
+      style={{}}
     >
       <BattingTable innings={innings} />
       <BowlingTable bowlers={innings.bowlers} />
