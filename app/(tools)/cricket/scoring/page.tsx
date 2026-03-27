@@ -52,63 +52,64 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
 
         {/* ── Body ── */}
         <div className="px-4 py-3">
-          {/* Team names */}
-          <Text as="h3" size="md" weight="bold">
-            {item.team_a_name} vs {item.team_b_name}
+          {/* Level 1: Title — largest, boldest */}
+          <Text as="h3" size="lg" weight="bold">
+            {item.team_a_name} <Text as="span" size="sm" weight="normal" color="muted">vs</Text> {item.team_b_name}
           </Text>
           {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
-            <Text as="p" size="2xs" color="muted" className="mt-0.5">{item.title}</Text>
+            <Text as="p" size="xs" weight="normal" color="dim" className="mt-1">{item.title}</Text>
           )}
 
-          {/* ── Scores ── */}
+          {/* Level 2: Scores — numbers dominate, names recede */}
           {inn1 && (
-            <div className="mt-3 space-y-2">
-              {/* 1st innings row */}
-              <div className="flex items-center gap-3">
-                <div className="w-16 flex-shrink-0">
-                  <Text size="xs" weight="semibold" truncate>{inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
+            <div className="mt-3 rounded-xl overflow-hidden" style={{ background: 'var(--surface)' }}>
+              {/* 1st innings */}
+              <div className="px-3 py-2.5 flex items-center justify-between">
+                <Text size="sm" weight="medium" color="muted" className="w-20 flex-shrink-0" truncate>
+                  {inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}
+                </Text>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[22px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
+                    {inn1.total_runs}
+                  </span>
+                  <Text size="sm" weight="normal" color="dim" tabular>/{inn1.total_wickets}</Text>
+                  <Text size="2xs" weight="normal" color="dim" tabular className="ml-1">({inn1.total_overs} ov)</Text>
                 </div>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                <Text size="lg" weight="bold" tabular className="flex-shrink-0">
-                  {inn1.total_runs}<Text size="xs" weight="normal" color="muted">/{inn1.total_wickets}</Text>
-                </Text>
-                <Text size="2xs" color="dim" tabular className="w-10 text-right flex-shrink-0">
-                  {inn1.total_overs} ov
-                </Text>
               </div>
 
-              {/* 2nd innings row */}
               {inn2 && (inn2.total_runs > 0 || inn2.total_wickets > 0) && (
-                <div className="flex items-center gap-3">
-                  <div className="w-16 flex-shrink-0">
-                    <Text size="xs" weight="semibold" truncate>{inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}</Text>
+                <>
+                  <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
+                  {/* 2nd innings */}
+                  <div className="px-3 py-2.5 flex items-center justify-between">
+                    <Text size="sm" weight="medium" color="muted" className="w-20 flex-shrink-0" truncate>
+                      {inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}
+                    </Text>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[22px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
+                        {inn2.total_runs}
+                      </span>
+                      <Text size="sm" weight="normal" color="dim" tabular>/{inn2.total_wickets}</Text>
+                      <Text size="2xs" weight="normal" color="dim" tabular className="ml-1">({inn2.total_overs} ov)</Text>
+                    </div>
                   </div>
-                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                  <Text size="lg" weight="bold" tabular className="flex-shrink-0">
-                    {inn2.total_runs}<Text size="xs" weight="normal" color="muted">/{inn2.total_wickets}</Text>
-                  </Text>
-                  <Text size="2xs" color="dim" tabular className="w-10 text-right flex-shrink-0">
-                    {inn2.total_overs} ov
-                  </Text>
-                </div>
+                </>
               )}
             </div>
           )}
 
-          {/* ── Result ── */}
+          {/* Level 3: Result — medium emphasis, readable */}
           {isCompleted && item.result_summary && (
-            <div className="mt-3 pt-2 border-t border-[var(--border)]/20">
-              <Text size="sm" weight="semibold">
-                {item.result_summary}
-              </Text>
-            </div>
+            <Text as="p" size="sm" weight="bold" color={hasResult ? 'cricket' : 'muted'} className="mt-3">
+              {item.result_summary}
+            </Text>
           )}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]/20">
-          <Text size="2xs" weight="medium" color="muted">
-            {item.scorer_name ? `Scorer: ${item.scorer_name}` : 'Practice Match'}
+        {/* Level 4: Meta — smallest, most muted */}
+        <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]/15">
+          <Text size="2xs" weight="normal" color="dim">
+            {item.scorer_name ?? 'Practice Match'}
           </Text>
           {onDelete && (
             <button
