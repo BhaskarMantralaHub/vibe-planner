@@ -436,7 +436,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Active Matches from DB (visible to all players) */}
-          {!historyLoading && activeDbMatches.length > 0 && (
+          {!historyLoading && dateFilter !== 'deleted' && activeDbMatches.length > 0 && (
             <div>
               <Text as="h2" size="sm" weight="semibold" className="mb-2">
                 Active Matches
@@ -457,7 +457,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Completed Matches (history with pagination + date filter) */}
-          {!historyLoading && (completedDbMatches.length > 0 || dateFilter !== 'all') && (
+          {!historyLoading && dateFilter !== 'deleted' && (completedDbMatches.length > 0 || (dateFilter !== 'all' && dateFilter !== 'deleted')) && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
