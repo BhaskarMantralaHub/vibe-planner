@@ -484,25 +484,92 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
 
       {/* ── Tab Content ── */}
       {activeTab === 'scoring' && (
-        <>
-          {!canScore && match?.status === 'scoring' && (
-            <div className="mx-4 mb-2 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/8">
-              <Text size="xs" weight="medium" className="text-amber-500">
-                {!currentInnings.striker_id ? 'Select a new batsman to continue scoring' :
-                 !currentInnings.bowler_id ? 'Select a bowler to continue scoring' :
-                 currentInnings.is_completed ? 'Innings is complete' : 'Cannot score right now'}
+        currentInnings.is_completed ? (
+          /* ── Innings Complete Card ── */
+          <div className="mx-4 rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
+            <div className="px-4 pt-6 pb-4 flex flex-col items-center gap-2 text-center">
+              <Text as="h2" size="2xl" weight="bold">
+                Innings Over
+              </Text>
+              <div>
+                <Text as="p" size="xl" weight="bold" tabular color="cricket">
+                  {battingTeamName} {currentInnings.total_runs}/{currentInnings.total_wickets}
+                </Text>
+                <Text as="p" size="sm" color="muted" tabular className="mt-1">
+                  {formatOversDisplay(currentInnings.total_overs)} overs
+                </Text>
+              </div>
+              <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mt-1">
+                {currentInnings.total_wickets >= (getBattingTeamPlayers().length - 1)
+                  ? 'All Out'
+                  : currentInnings.target && currentInnings.total_runs >= currentInnings.target
+                  ? 'Target Reached'
+                  : 'Overs Complete'}
               </Text>
             </div>
-          )}
-          <ButtonGrid
-            onScore={handleScore}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            onEndMatch={handleEndMatch}
-            canUndo={balls.length > 0}
-            canRedo={redoStack.length > 0}
-          />
-        </>
+
+            <div className="px-4 pb-4 flex flex-col gap-2">
+              {idx === 0 ? (
+                <Button
+                  variant="primary"
+                  brand="cricket"
+                  size="lg"
+                  fullWidth
+                  onClick={() => useScoringStore.getState().endInnings()}
+                >
+                  Start 2nd Innings
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  brand="cricket"
+                  size="lg"
+                  fullWidth
+                  onClick={() => useScoringStore.getState().endMatch()}
+                >
+                  View Match Result
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="lg"
+                fullWidth
+                onClick={() => setActiveTab('scorecard')}
+              >
+                View Scorecard
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                fullWidth
+                onClick={handleUndo}
+              >
+                Undo Last Ball
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* ── Active Scoring ── */
+          <>
+            {!canScore && match?.status === 'scoring' && (
+              <div className="mx-4 mb-2 px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/8">
+                <Text size="xs" weight="medium" className="text-amber-500">
+                  {!currentInnings.striker_id ? 'Select a new batsman to continue scoring' :
+                   !currentInnings.bowler_id ? 'Select a bowler to continue scoring' :
+                   'Cannot score right now'}
+                </Text>
+              </div>
+            )}
+            <ButtonGrid
+              onScore={handleScore}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              onEndMatch={handleEndMatch}
+              canUndo={balls.length > 0}
+              canRedo={redoStack.length > 0}
+            />
+          </>
+        )
       )}
       {activeTab === 'ballbyball' && <BallByBallLog timeline={timeline} />}
       {activeTab === 'scorecard' && <FullScorecard innings={scorecardData} />}

@@ -60,30 +60,35 @@ export function formatOversDisplay(overs: number): string {
 /* ── OverTimeline: ScoringBall → BallResult ── */
 
 export function scoringBallToBallResult(ball: ScoringBall): BallResult {
-  if (ball.is_wicket) return { type: 'W' };
   const totalRuns = ball.runs_bat + ball.runs_extras;
-  if (ball.extras_type === 'wide') {
-    // Show total runs if more than the 1-run penalty (e.g. "3wd" for wide + 2 extra)
-    return totalRuns > 1
-      ? { type: 'Wd', label: `${totalRuns}wd` }
-      : { type: 'Wd' };
-  }
-  if (ball.extras_type === 'no_ball') {
-    // Show bat runs if batsman scored (e.g. "4nb" for no-ball + 4 off bat)
+
+  // Wicket — show runs if any were scored (e.g. run out with completed runs)
+  if (ball.is_wicket) {
     return ball.runs_bat > 0
-      ? { type: 'NB', label: `${ball.runs_bat}nb` }
-      : { type: 'NB' };
+      ? { type: 'W', label: `W+${ball.runs_bat}` }
+      : { type: 'W' };
   }
+
+  // Wide — always show total runs (1 penalty + additional)
+  if (ball.extras_type === 'wide') {
+    return { type: 'Wd', label: `${totalRuns}wd` };
+  }
+
+  // No Ball — always show total (1 penalty + bat runs)
+  if (ball.extras_type === 'no_ball') {
+    return { type: 'NB', label: `${totalRuns}nb` };
+  }
+
+  // Bye — always show runs
   if (ball.extras_type === 'bye') {
-    return ball.runs_extras > 1
-      ? { type: 'B', label: `${ball.runs_extras}b` }
-      : { type: 'B' };
+    return { type: 'B', label: `${ball.runs_extras}b` };
   }
+
+  // Leg Bye — always show runs
   if (ball.extras_type === 'leg_bye') {
-    return ball.runs_extras > 1
-      ? { type: 'LB', label: `${ball.runs_extras}lb` }
-      : { type: 'LB' };
+    return { type: 'LB', label: `${ball.runs_extras}lb` };
   }
+
   if (ball.runs_bat === 0) return { type: 'dot' };
   return { type: String(ball.runs_bat) as BallType };
 }
