@@ -1,6 +1,8 @@
 -- ============================================================
--- Cricket Live Scoring — Database Schema
+-- Cricket Live Scoring — Database Schema (v2)
 -- ============================================================
+-- Reviewed by: DB Specialist, Architecture, UX, QA agents
+--
 -- Practice match ball-by-ball scoring with multi-device handoff.
 -- Any cricket user can read. Active scorer can write.
 -- Match lifecycle: setup → scoring → innings_break → completed
@@ -8,13 +10,14 @@
 -- Depends on: has_cricket_access(), is_cricket_admin(), update_updated_at()
 -- from cricket-schema.sql
 
+
 -- ── Helper: check if user is the active scorer for a match ──
-CREATE OR REPLACE FUNCTION is_active_scorer(match_id UUID)
+CREATE OR REPLACE FUNCTION is_active_scorer(target_match_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM practice_matches
-    WHERE id = match_id AND active_scorer_id = auth.uid()
+    WHERE id = target_match_id AND active_scorer_id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
@@ -38,18 +41,31 @@ CREATE TABLE IF NOT EXISTS practice_matches (
   team_a_name         TEXT NOT NULL,
   team_b_name         TEXT NOT NULL,
 
-  -- Toss
+  -- Toss (both must be set together or both null)
   toss_winner         TEXT CHECK (toss_winner IN ('team_a', 'team_b')),
   toss_decision       TEXT CHECK (toss_decision IN ('bat', 'bowl')),
+  CONSTRAINT toss_consistency CHECK (
+    (toss_winner IS NULL AND toss_decision IS NULL) OR
+    (toss_winner IS NOT NULL AND toss_decision IS NOT NULL)
+  ),
+
+  -- Result (set when status = 'completed')
+  result_summary      TEXT,               -- "Team A won by 5 wickets"
+  match_winner        TEXT CHECK (match_winner IN ('team_a', 'team_b', 'tied')),
+  mvp_player_id       UUID REFERENCES cricket_players(id) ON DELETE SET NULL,
 
   -- Scoring handoff
   scorer_name         TEXT,
   scorer_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   active_scorer_id    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  scorer_heartbeat    TIMESTAMPTZ,        -- updated every 30s by active scorer
 
-  -- Result
-  result_summary      TEXT,
-  mvp_player_id       UUID REFERENCES cricket_players(id) ON DELETE SET NULL,
+  -- Future: rematch / series
+  previous_match_id   UUID REFERENCES practice_matches(id) ON DELETE SET NULL,
+  match_number        INTEGER DEFAULT 1,
+
+  -- Future: public share URL
+  share_token         UUID UNIQUE DEFAULT gen_random_uuid(),
 
   -- Timestamps
   started_at          TIMESTAMPTZ,
@@ -79,29 +95,35 @@ CREATE TRIGGER set_practice_matches_updated_at
   BEFORE UPDATE ON practice_matches
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE INDEX idx_practice_matches_date ON practice_matches (match_date DESC);
+CREATE INDEX idx_practice_matches_date ON practice_matches (match_date DESC, created_at DESC);
 CREATE INDEX idx_practice_matches_status ON practice_matches (status);
 CREATE INDEX idx_practice_matches_season ON practice_matches (season_id) WHERE season_id IS NOT NULL;
+CREATE INDEX idx_practice_matches_completed ON practice_matches (completed_at DESC) WHERE status = 'completed';
+CREATE INDEX idx_practice_matches_active_scorer ON practice_matches (active_scorer_id) WHERE active_scorer_id IS NOT NULL;
 
 
 -- ══════════════════════════════════════════════════════════════
 -- 2. PRACTICE MATCH PLAYERS
 -- ══════════════════════════════════════════════════════════════
--- Snapshot of players per match. Each gets a match-local ID
+-- Snapshot of players per match. Each gets a match-local UUID
 -- used by all ball references. Supports roster + guest players.
 CREATE TABLE IF NOT EXISTS practice_match_players (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
-  player_id           UUID REFERENCES cricket_players(id) ON DELETE SET NULL,
+  player_id           UUID REFERENCES cricket_players(id) ON DELETE SET NULL,  -- NULL for guests
   team                TEXT NOT NULL CHECK (team IN ('team_a', 'team_b')),
   name                TEXT NOT NULL,
   jersey_number       INTEGER,
   is_guest            BOOLEAN NOT NULL DEFAULT false,
   is_captain          BOOLEAN NOT NULL DEFAULT false,
-  created_at          TIMESTAMPTZ DEFAULT now(),
-
-  UNIQUE NULLS NOT DISTINCT (match_id, player_id)
+  batting_order       INTEGER,            -- order they came in to bat (set during match)
+  created_at          TIMESTAMPTZ DEFAULT now()
 );
+
+-- Roster players are unique per match (guests can repeat since player_id is NULL)
+CREATE UNIQUE INDEX idx_practice_match_players_unique_roster
+  ON practice_match_players (match_id, player_id)
+  WHERE player_id IS NOT NULL;
 
 ALTER TABLE practice_match_players ENABLE ROW LEVEL SECURITY;
 
@@ -129,7 +151,7 @@ CREATE INDEX idx_practice_match_players_match ON practice_match_players (match_i
 -- 3. PRACTICE INNINGS
 -- ══════════════════════════════════════════════════════════════
 -- Denormalized innings summary. Exactly 2 rows per match.
--- Updated after each ball for fast reads.
+-- Updated after each ball for fast reads on scoreboard + history.
 CREATE TABLE IF NOT EXISTS practice_innings (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
@@ -142,18 +164,23 @@ CREATE TABLE IF NOT EXISTS practice_innings (
   total_overs         NUMERIC(4,1) NOT NULL DEFAULT 0,
   legal_balls         INTEGER NOT NULL DEFAULT 0,
 
+  -- Overs validation: decimal part 0-5 only (0.0, 0.1, ..., 0.5, 1.0, ...)
+  CONSTRAINT valid_overs CHECK (
+    total_overs >= 0 AND (total_overs - floor(total_overs)) * 10 <= 5
+  ),
+
   -- Extras breakdown
   extras_wide         INTEGER NOT NULL DEFAULT 0,
   extras_no_ball      INTEGER NOT NULL DEFAULT 0,
   extras_bye          INTEGER NOT NULL DEFAULT 0,
   extras_leg_bye      INTEGER NOT NULL DEFAULT 0,
 
-  -- Current state (for resuming)
+  -- Current state (for resuming scoring on another device)
   striker_id          UUID REFERENCES practice_match_players(id) ON DELETE SET NULL,
   non_striker_id      UUID REFERENCES practice_match_players(id) ON DELETE SET NULL,
   bowler_id           UUID REFERENCES practice_match_players(id) ON DELETE SET NULL,
 
-  target              INTEGER,
+  target              INTEGER,            -- set for 2nd innings
   is_completed        BOOLEAN NOT NULL DEFAULT false,
 
   created_at          TIMESTAMPTZ DEFAULT now(),
@@ -191,26 +218,33 @@ CREATE INDEX idx_practice_innings_match ON practice_innings (match_id, innings_n
 -- ══════════════════════════════════════════════════════════════
 -- 4. PRACTICE BALLS
 -- ══════════════════════════════════════════════════════════════
--- Every delivery. Undo = soft delete via deleted_at.
+-- Every delivery is immutable. Undo = soft delete via deleted_at.
 CREATE TABLE IF NOT EXISTS practice_balls (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
   innings_number      SMALLINT NOT NULL CHECK (innings_number IN (0, 1)),
-  sequence            INTEGER NOT NULL,
-  over_number         INTEGER NOT NULL,
-  ball_in_over        INTEGER NOT NULL,
+  sequence            INTEGER NOT NULL CHECK (sequence >= 0),
+  over_number         INTEGER NOT NULL CHECK (over_number >= 0),
+  ball_in_over        INTEGER NOT NULL CHECK (ball_in_over >= 0),
 
-  -- Players (match-local IDs)
+  -- Players (match-local IDs from practice_match_players)
   striker_id          UUID NOT NULL REFERENCES practice_match_players(id) ON DELETE CASCADE,
   non_striker_id      UUID NOT NULL REFERENCES practice_match_players(id) ON DELETE CASCADE,
   bowler_id           UUID NOT NULL REFERENCES practice_match_players(id) ON DELETE CASCADE,
 
   -- Scoring
-  runs_bat            INTEGER NOT NULL DEFAULT 0 CHECK (runs_bat >= 0),
+  runs_bat            INTEGER NOT NULL DEFAULT 0 CHECK (runs_bat >= 0 AND runs_bat <= 7),
   runs_extras         INTEGER NOT NULL DEFAULT 0 CHECK (runs_extras >= 0),
   extras_type         TEXT CHECK (extras_type IN ('wide', 'no_ball', 'bye', 'leg_bye')),
   is_legal            BOOLEAN NOT NULL DEFAULT true,
   is_free_hit         BOOLEAN NOT NULL DEFAULT false,
+
+  -- Wide/no-ball must have at least 1 extra run
+  CONSTRAINT extras_min_runs CHECK (
+    extras_type IS NULL
+    OR extras_type NOT IN ('wide', 'no_ball')
+    OR runs_extras >= 1
+  ),
 
   -- Wicket
   is_wicket           BOOLEAN NOT NULL DEFAULT false,
@@ -218,13 +252,22 @@ CREATE TABLE IF NOT EXISTS practice_balls (
   dismissed_id        UUID REFERENCES practice_match_players(id) ON DELETE SET NULL,
   fielder_id          UUID REFERENCES practice_match_players(id) ON DELETE SET NULL,
 
+  -- Wicket consistency: if is_wicket then wicket_type must be set
+  CONSTRAINT wicket_consistency CHECK (
+    (is_wicket = false AND wicket_type IS NULL AND dismissed_id IS NULL)
+    OR (is_wicket = true AND wicket_type IS NOT NULL)
+  ),
+
   -- Soft delete for undo
   deleted_at          TIMESTAMPTZ,
 
-  created_at          TIMESTAMPTZ DEFAULT now(),
-
-  UNIQUE (match_id, innings_number, sequence)
+  created_at          TIMESTAMPTZ DEFAULT now()
 );
+
+-- Unique sequence per innings (only for active/non-deleted balls)
+CREATE UNIQUE INDEX idx_practice_balls_unique_sequence
+  ON practice_balls (match_id, innings_number, sequence)
+  WHERE deleted_at IS NULL;
 
 ALTER TABLE practice_balls ENABLE ROW LEVEL SECURITY;
 
@@ -245,15 +288,95 @@ CREATE POLICY "Scorer can update balls"
     )
   );
 
+-- Primary query: get all active balls for an innings
 CREATE INDEX idx_practice_balls_innings ON practice_balls (match_id, innings_number, sequence)
   WHERE deleted_at IS NULL;
+-- Query by over
 CREATE INDEX idx_practice_balls_over ON practice_balls (match_id, innings_number, over_number)
   WHERE deleted_at IS NULL;
+-- Future: career stats queries
+CREATE INDEX idx_practice_balls_striker ON practice_balls (striker_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_practice_balls_bowler ON practice_balls (bowler_id) WHERE deleted_at IS NULL;
 
 
 -- ══════════════════════════════════════════════════════════════
 -- 5. RPC FUNCTIONS
 -- ══════════════════════════════════════════════════════════════
+
+-- ── Atomic Match Creation ──
+-- Creates match + players + innings in one transaction.
+-- Returns match ID and player ID mapping for the client store.
+CREATE OR REPLACE FUNCTION create_practice_match(
+  p_title TEXT,
+  p_match_date DATE,
+  p_overs INTEGER,
+  p_team_a_name TEXT,
+  p_team_b_name TEXT,
+  p_toss_winner TEXT,
+  p_toss_decision TEXT,
+  p_scorer_name TEXT,
+  p_batting_first TEXT,         -- 'team_a' or 'team_b'
+  p_players JSONB               -- [{team, name, jersey_number, player_id, is_guest}]
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  new_match_id UUID;
+  batting_second TEXT;
+  player_row JSONB;
+  new_player_id UUID;
+  player_map JSONB := '[]'::jsonb;
+  idx INTEGER := 0;
+BEGIN
+  batting_second := CASE WHEN p_batting_first = 'team_a' THEN 'team_b' ELSE 'team_a' END;
+
+  -- Create match
+  INSERT INTO practice_matches (
+    created_by, title, match_date, overs_per_innings,
+    team_a_name, team_b_name, toss_winner, toss_decision,
+    scorer_name, scorer_id, active_scorer_id, status, started_at
+  ) VALUES (
+    auth.uid(), p_title, p_match_date, p_overs,
+    p_team_a_name, p_team_b_name, p_toss_winner, p_toss_decision,
+    p_scorer_name, auth.uid(), auth.uid(), 'scoring', now()
+  ) RETURNING id INTO new_match_id;
+
+  -- Create players
+  FOR player_row IN SELECT * FROM jsonb_array_elements(p_players) LOOP
+    INSERT INTO practice_match_players (
+      match_id, team, name, jersey_number, player_id, is_guest
+    ) VALUES (
+      new_match_id,
+      player_row->>'team',
+      player_row->>'name',
+      (player_row->>'jersey_number')::INTEGER,
+      CASE WHEN player_row->>'player_id' IS NOT NULL AND player_row->>'player_id' != ''
+           THEN (player_row->>'player_id')::UUID ELSE NULL END,
+      COALESCE((player_row->>'is_guest')::BOOLEAN, false)
+    ) RETURNING id INTO new_player_id;
+
+    player_map := player_map || jsonb_build_array(jsonb_build_object('idx', idx, 'db_id', new_player_id));
+    idx := idx + 1;
+  END LOOP;
+
+  -- Create both innings
+  INSERT INTO practice_innings (match_id, innings_number, batting_team)
+  VALUES (new_match_id, 0, p_batting_first);
+
+  INSERT INTO practice_innings (match_id, innings_number, batting_team)
+  VALUES (new_match_id, 1, batting_second);
+
+  RETURN json_build_object(
+    'match_id', new_match_id,
+    'player_map', player_map,
+    'share_token', (SELECT share_token FROM practice_matches WHERE id = new_match_id)
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION create_practice_match(TEXT, DATE, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB) TO authenticated;
+
 
 -- ── Match History (landing page list) ──
 CREATE OR REPLACE FUNCTION get_match_history(
@@ -273,10 +396,14 @@ BEGIN
     SELECT
       m.id, m.title, m.match_date, m.status, m.overs_per_innings,
       m.team_a_name, m.team_b_name, m.toss_winner, m.toss_decision,
-      m.result_summary, m.scorer_name, m.started_at, m.completed_at, m.created_at,
-      (SELECT json_build_object('batting_team', i.batting_team, 'total_runs', i.total_runs, 'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
+      m.result_summary, m.match_winner, m.scorer_name,
+      m.previous_match_id, m.match_number, m.share_token,
+      m.started_at, m.completed_at, m.created_at,
+      (SELECT json_build_object('batting_team', i.batting_team, 'total_runs', i.total_runs,
+        'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
        FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 0) AS first_innings,
-      (SELECT json_build_object('batting_team', i.batting_team, 'total_runs', i.total_runs, 'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
+      (SELECT json_build_object('batting_team', i.batting_team, 'total_runs', i.total_runs,
+        'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
        FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 1) AS second_innings
     FROM practice_matches m
     WHERE (match_status IS NULL OR m.status = match_status)
@@ -339,6 +466,25 @@ $$;
 GRANT EXECUTE ON FUNCTION get_match_scorecard(UUID) TO authenticated;
 
 
+-- ── Public Match Scorecard (no auth, via share token) ──
+CREATE OR REPLACE FUNCTION get_public_match_scorecard(token UUID)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+DECLARE
+  target_id UUID;
+  result JSON;
+BEGIN
+  SELECT id INTO target_id FROM practice_matches WHERE share_token = token;
+  IF target_id IS NULL THEN RETURN NULL; END IF;
+  SELECT get_match_scorecard(target_id) INTO result;
+  RETURN result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_public_match_scorecard(UUID) TO anon;
+
+
 -- ── Claim Scorer (multi-device handoff) ──
 CREATE OR REPLACE FUNCTION claim_scorer(
   target_match_id UUID,
@@ -348,15 +494,248 @@ RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
 AS $$
 BEGIN
+  -- Lock the row to prevent concurrent claims
+  PERFORM 1 FROM practice_matches
+  WHERE id = target_match_id FOR UPDATE NOWAIT;
+
   UPDATE practice_matches
   SET active_scorer_id = auth.uid(),
       scorer_name = scorer_display_name,
+      scorer_heartbeat = now(),
       updated_at = now()
   WHERE id = target_match_id
     AND status IN ('setup', 'scoring', 'innings_break')
     AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND access @> '{cricket}');
   RETURN FOUND;
+
+EXCEPTION WHEN lock_not_available THEN
+  RETURN FALSE;
 END;
 $$;
 
 GRANT EXECUTE ON FUNCTION claim_scorer(UUID, TEXT) TO authenticated;
+
+
+-- ── Release Scorer (creator or admin can force-release) ──
+CREATE OR REPLACE FUNCTION release_scorer(target_match_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE practice_matches
+  SET active_scorer_id = NULL, updated_at = now()
+  WHERE id = target_match_id
+    AND (
+      active_scorer_id = auth.uid()
+      OR created_by = auth.uid()
+      OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND access @> '{admin}')
+    );
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION release_scorer(UUID) TO authenticated;
+
+
+-- ── Rematch Template (pre-fill for back-to-back matches) ──
+CREATE OR REPLACE FUNCTION get_rematch_template(source_match_id UUID)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+BEGIN
+  RETURN (
+    SELECT json_build_object(
+      'title', m.title,
+      'overs_per_innings', m.overs_per_innings,
+      'team_a_name', m.team_a_name,
+      'team_b_name', m.team_b_name,
+      'match_number', COALESCE(m.match_number, 1) + 1,
+      'previous_match_id', m.id,
+      'players', (
+        SELECT json_agg(json_build_object(
+          'team', p.team, 'name', p.name, 'jersey_number', p.jersey_number,
+          'player_id', p.player_id, 'is_guest', p.is_guest
+        ) ORDER BY p.team, p.created_at)
+        FROM practice_match_players p WHERE p.match_id = m.id
+      )
+    )
+    FROM practice_matches m WHERE m.id = source_match_id
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_rematch_template(UUID) TO authenticated;
+
+
+-- ══════════════════════════════════════════════════════════════
+-- 6. PRACTICE LEADERBOARD — Season Performance Stats
+-- ══════════════════════════════════════════════════════════════
+-- Computed on-demand from practice_balls. Returns ranked player
+-- stats for a season (or all-time if no season specified).
+-- Covers: batting (runs, avg, SR), bowling (wickets, economy),
+-- fielding (catches, run outs), and overall "Player of the Season".
+
+CREATE OR REPLACE FUNCTION get_practice_leaderboard(
+  p_season_id UUID DEFAULT NULL,       -- NULL = all-time
+  p_category TEXT DEFAULT 'batting'    -- 'batting', 'bowling', 'fielding', 'allround'
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  IF p_category = 'batting' THEN
+    SELECT COALESCE(json_agg(row ORDER BY row.total_runs DESC), '[]'::json)
+    INTO result
+    FROM (
+      SELECT
+        cp.id AS player_id,
+        cp.name,
+        cp.photo_url,
+        COUNT(DISTINCT b.match_id) AS matches,
+        COUNT(DISTINCT b.match_id || '-' || b.innings_number) AS innings,
+        SUM(b.runs_bat) AS total_runs,
+        COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') AS balls_faced,
+        CASE WHEN COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') > 0
+          THEN ROUND((SUM(b.runs_bat)::NUMERIC / COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball')) * 100, 1)
+          ELSE 0 END AS strike_rate,
+        SUM(CASE WHEN b.runs_bat = 4 THEN 1 ELSE 0 END) AS fours,
+        SUM(CASE WHEN b.runs_bat = 6 THEN 1 ELSE 0 END) AS sixes,
+        MAX(innings_runs.runs) AS highest_score
+      FROM practice_balls b
+      JOIN practice_match_players pmp ON pmp.id = b.striker_id
+      JOIN cricket_players cp ON cp.id = pmp.player_id
+      JOIN practice_matches m ON m.id = b.match_id
+      LEFT JOIN LATERAL (
+        SELECT SUM(b2.runs_bat) AS runs
+        FROM practice_balls b2
+        WHERE b2.striker_id = b.striker_id AND b2.match_id = b.match_id
+          AND b2.innings_number = b.innings_number AND b2.deleted_at IS NULL
+      ) innings_runs ON true
+      WHERE b.deleted_at IS NULL
+        AND m.status = 'completed'
+        AND pmp.player_id IS NOT NULL
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      GROUP BY cp.id, cp.name, cp.photo_url
+      HAVING SUM(b.runs_bat) > 0
+      ORDER BY total_runs DESC
+      LIMIT 50
+    ) row;
+
+  ELSIF p_category = 'bowling' THEN
+    SELECT COALESCE(json_agg(row ORDER BY row.total_wickets DESC, row.economy ASC), '[]'::json)
+    INTO result
+    FROM (
+      SELECT
+        cp.id AS player_id,
+        cp.name,
+        cp.photo_url,
+        COUNT(DISTINCT b.match_id) AS matches,
+        SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets,
+        COUNT(*) FILTER (WHERE b.is_legal) AS legal_balls,
+        SUM(b.runs_bat + b.runs_extras) AS runs_conceded,
+        CASE WHEN COUNT(*) FILTER (WHERE b.is_legal) > 0
+          THEN ROUND((SUM(b.runs_bat + b.runs_extras)::NUMERIC / COUNT(*) FILTER (WHERE b.is_legal)) * 6, 2)
+          ELSE 0 END AS economy,
+        SUM(CASE WHEN b.extras_type = 'wide' THEN 1 ELSE 0 END) AS wides,
+        SUM(CASE WHEN b.extras_type = 'no_ball' THEN 1 ELSE 0 END) AS no_balls
+      FROM practice_balls b
+      JOIN practice_match_players pmp ON pmp.id = b.bowler_id
+      JOIN cricket_players cp ON cp.id = pmp.player_id
+      JOIN practice_matches m ON m.id = b.match_id
+      WHERE b.deleted_at IS NULL
+        AND m.status = 'completed'
+        AND pmp.player_id IS NOT NULL
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      GROUP BY cp.id, cp.name, cp.photo_url
+      HAVING COUNT(*) FILTER (WHERE b.is_legal) > 0
+      ORDER BY total_wickets DESC, economy ASC
+      LIMIT 50
+    ) row;
+
+  ELSIF p_category = 'fielding' THEN
+    SELECT COALESCE(json_agg(row ORDER BY row.total_catches DESC), '[]'::json)
+    INTO result
+    FROM (
+      SELECT
+        cp.id AS player_id,
+        cp.name,
+        cp.photo_url,
+        COUNT(DISTINCT b.match_id) AS matches,
+        SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches,
+        SUM(CASE WHEN b.wicket_type = 'run_out' THEN 1 ELSE 0 END) AS total_runouts,
+        SUM(CASE WHEN b.wicket_type = 'stumped' THEN 1 ELSE 0 END) AS total_stumpings,
+        SUM(1) AS total_dismissals
+      FROM practice_balls b
+      JOIN practice_match_players pmp ON pmp.id = b.fielder_id
+      JOIN cricket_players cp ON cp.id = pmp.player_id
+      JOIN practice_matches m ON m.id = b.match_id
+      WHERE b.deleted_at IS NULL
+        AND b.is_wicket = true
+        AND b.fielder_id IS NOT NULL
+        AND m.status = 'completed'
+        AND pmp.player_id IS NOT NULL
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      GROUP BY cp.id, cp.name, cp.photo_url
+      HAVING SUM(1) > 0
+      ORDER BY total_catches DESC
+      LIMIT 50
+    ) row;
+
+  ELSE -- 'allround' — combined batting + bowling ranking
+    SELECT COALESCE(json_agg(row ORDER BY row.score DESC), '[]'::json)
+    INTO result
+    FROM (
+      SELECT
+        cp.id AS player_id,
+        cp.name,
+        cp.photo_url,
+        COALESCE(bat.total_runs, 0) AS total_runs,
+        COALESCE(bat.balls_faced, 0) AS balls_faced,
+        COALESCE(bowl.total_wickets, 0) AS total_wickets,
+        COALESCE(bowl.economy, 0) AS economy,
+        COALESCE(field.total_catches, 0) AS total_catches,
+        -- Simple all-rounder score: runs + (wickets * 25) + (catches * 10)
+        COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) * 25 + COALESCE(field.total_catches, 0) * 10 AS score
+      FROM cricket_players cp
+      LEFT JOIN LATERAL (
+        SELECT SUM(b.runs_bat) AS total_runs,
+               COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') AS balls_faced
+        FROM practice_balls b
+        JOIN practice_match_players pmp ON pmp.id = b.striker_id
+        JOIN practice_matches m ON m.id = b.match_id
+        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed'
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      ) bat ON true
+      LEFT JOIN LATERAL (
+        SELECT SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets,
+               CASE WHEN COUNT(*) FILTER (WHERE b.is_legal) > 0
+                 THEN ROUND((SUM(b.runs_bat + b.runs_extras)::NUMERIC / COUNT(*) FILTER (WHERE b.is_legal)) * 6, 2)
+                 ELSE 0 END AS economy
+        FROM practice_balls b
+        JOIN practice_match_players pmp ON pmp.id = b.bowler_id
+        JOIN practice_matches m ON m.id = b.match_id
+        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed'
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      ) bowl ON true
+      LEFT JOIN LATERAL (
+        SELECT SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches
+        FROM practice_balls b
+        JOIN practice_match_players pmp ON pmp.id = b.fielder_id
+        JOIN practice_matches m ON m.id = b.match_id
+        WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND b.is_wicket = true
+          AND m.status = 'completed' AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      ) field ON true
+      WHERE cp.is_active = true
+        AND (COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) + COALESCE(field.total_catches, 0)) > 0
+      ORDER BY score DESC
+      LIMIT 50
+    ) row;
+  END IF;
+
+  RETURN result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT) TO authenticated;

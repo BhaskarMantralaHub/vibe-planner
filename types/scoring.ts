@@ -1,4 +1,4 @@
-export type MatchStatus = 'setup' | 'toss' | 'scoring' | 'innings_break' | 'completed';
+export type MatchStatus = 'setup' | 'scoring' | 'innings_break' | 'completed';
 export type TeamSide = 'team_a' | 'team_b';
 export type TossDecision = 'bat' | 'bowl';
 export type ExtrasType = 'wide' | 'no_ball' | 'bye' | 'leg_bye';
