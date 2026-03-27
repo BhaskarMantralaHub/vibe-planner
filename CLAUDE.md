@@ -205,7 +205,10 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `soft_delete_match(match_id, deleter_name)` → soft-delete (sets deleted_at), creator or admin only
 - `restore_match(match_id)` → restores soft-deleted match, creator or admin only
 - `permanent_delete_match(match_id)` → hard delete with CASCADE (admin only, requires deleted_at IS NOT NULL)
-- `get_deleted_matches(limit)` → admin-only list of soft-deleted matches for Recently Deleted section
+- `get_deleted_matches(limit)` → admin-only list of soft-deleted matches for Deleted filter tab
+- `revert_match_to_scoring(match_id)` → admin-only, reverts abruptly ended match (no winner) back to scoring/innings_break. Smart logic: if 2nd innings has players → scoring, if 1st completed → innings_break, else scoring
+- `get_guest_suggestions()` → returns distinct guest names from past matches for autocomplete in wizard
+- `get_match_scorecard` returns `striker_id`, `non_striker_id`, `bowler_id` in innings data (needed for match resume)
 
 #### Sync Architecture (Optimistic Local-First)
 - **Match creation**: Awaited — must complete before scoring starts (need server player IDs for FK references)
@@ -213,8 +216,10 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - **Undo**: Fire-and-forget — UPDATE ball `deleted_at` + UPDATE innings totals
 - **End match**: Awaited — UPDATE match status/result
 - **Handoff**: Awaited — `claim_scorer` RPC with row lock
-- **Match resume** (new device): Call `get_match_scorecard` to hydrate store, then `claim_scorer`
-- **Spectators**: Subscribe to Supabase Realtime on `practice_matches` + `practice_innings` for live score updates
+- **Match resume** (new device / page refresh): Call `get_match_scorecard` to hydrate store (includes striker/bowler IDs), then `claim_scorer` for RLS write access. "Continue Scoring" always re-hydrates from DB to avoid stale localStorage.
+- **End match result logic**: Only declares winner when both innings completed naturally (`is_completed` on both). Mid-innings abort = "No result". `endInnings` on 2nd innings delegates to `endMatch` for proper result computation. `match_winner` always derived from scores.
+- **Revert match**: Admin can revert abruptly ended (no winner) matches. Smart status: if 2nd innings has players → `scoring`, if 1st innings completed → `innings_break`, else `scoring`.
+- **Spectators**: Subscribe to Supabase Realtime on `practice_matches` + `practice_innings` for live score updates (planned)
 
 #### Scoring UI Components
 - `ScoringWizard.tsx` — 5-step setup (match details → Team A → Team B → toss → opening players)
