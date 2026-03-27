@@ -977,12 +977,30 @@ BEGIN
     AND match_winner IS NULL
     AND deleted_at IS NULL;
 
-  -- Also reset current innings completion flag
   IF FOUND THEN
+    -- Reset current innings completion flag
     UPDATE practice_innings
     SET is_completed = false, updated_at = now()
     WHERE match_id = target_match_id
       AND innings_number = (SELECT current_innings FROM practice_matches WHERE id = target_match_id);
+
+    -- If current innings has no players set, revert to the previous innings that does
+    IF NOT EXISTS (
+      SELECT 1 FROM practice_innings
+      WHERE match_id = target_match_id
+        AND innings_number = (SELECT current_innings FROM practice_matches WHERE id = target_match_id)
+        AND striker_id IS NOT NULL
+    ) THEN
+      -- Fall back to innings 0 if innings 1 has no players
+      UPDATE practice_matches
+      SET current_innings = 0
+      WHERE id = target_match_id AND current_innings = 1;
+
+      -- Also mark innings 0 as not completed so scoring can continue
+      UPDATE practice_innings
+      SET is_completed = false, updated_at = now()
+      WHERE match_id = target_match_id AND innings_number = 0;
+    END IF;
   END IF;
   RETURN FOUND;
 END;
