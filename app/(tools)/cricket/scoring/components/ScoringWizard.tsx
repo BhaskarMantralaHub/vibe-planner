@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -59,16 +59,27 @@ function StepDots({ current, total }: { current: number; total: number }) {
 
 /* PlayerRow now delegates to the shared PlayerPickerRow */
 
-/* ── Add Guest Player Inline ── */
-function AddGuestInline({ onAdd }: { onAdd: (name: string) => void }) {
+/* ── Add Guest Player Inline (with autocomplete from past matches) ── */
+function AddGuestInline({ onAdd, suggestions = [], excludeNames = [] }: {
+  onAdd: (name: string) => void;
+  suggestions?: { name: string; last_used: string }[];
+  excludeNames?: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const handleAdd = () => {
-    const trimmed = name.trim();
+  const filtered = suggestions.filter((s) =>
+    s.name.toLowerCase().includes(name.toLowerCase()) &&
+    !excludeNames.some((e) => e.toLowerCase() === s.name.toLowerCase())
+  );
+
+  const handleAdd = (selectedName?: string) => {
+    const trimmed = (selectedName ?? name).trim();
     if (!trimmed) return;
     onAdd(trimmed);
     setName('');
+    setShowSuggestions(false);
     setOpen(false);
   };
 
@@ -85,17 +96,36 @@ function AddGuestInline({ onAdd }: { onAdd: (name: string) => void }) {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-[var(--cricket)]/30 bg-[var(--surface)] px-3 py-2">
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-        placeholder="Guest name"
-        autoFocus
-        className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--dim)]"
-      />
-      <button onClick={handleAdd} className="text-[var(--cricket)] cursor-pointer"><MdCheck size={20} /></button>
-      <button onClick={() => { setOpen(false); setName(''); }} className="text-[var(--muted)] cursor-pointer"><MdClose size={20} /></button>
+    <div className="relative">
+      <div className="flex items-center gap-2 rounded-xl border border-[var(--cricket)]/30 bg-[var(--surface)] px-3 py-2">
+        <input
+          value={name}
+          onChange={(e) => { setName(e.target.value); setShowSuggestions(true); }}
+          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          onFocus={() => setShowSuggestions(true)}
+          placeholder="Guest name"
+          autoFocus
+          className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--dim)]"
+        />
+        <button onClick={() => handleAdd()} className="text-[var(--cricket)] cursor-pointer"><MdCheck size={20} /></button>
+        <button onClick={() => { setOpen(false); setName(''); }} className="text-[var(--muted)] cursor-pointer"><MdClose size={20} /></button>
+      </div>
+
+      {/* Autocomplete dropdown */}
+      {showSuggestions && filtered.length > 0 && name.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-10 max-h-40 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-lg">
+          {filtered.slice(0, 5).map((s) => (
+            <button
+              key={s.name}
+              onClick={() => handleAdd(s.name)}
+              className="w-full flex items-center justify-between px-3 py-2 text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+            >
+              <Text size="sm" weight="medium">{s.name}</Text>
+              <Text size="2xs" color="dim">Last: {s.last_used}</Text>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -103,7 +133,10 @@ function AddGuestInline({ onAdd }: { onAdd: (name: string) => void }) {
 /* ── Main Wizard ── */
 export default function ScoringWizard({ onComplete, onBack }: { onComplete: () => void; onBack: () => void }) {
   const { players: rosterPlayers } = useCricketStore();
-  const { createMatch, setOpeners, startMatch } = useScoringStore();
+  const { createMatch, setOpeners, startMatch, guestSuggestions, fetchGuestSuggestions } = useScoringStore();
+
+  // Fetch guest suggestions on mount
+  useEffect(() => { fetchGuestSuggestions(); }, [fetchGuestSuggestions]);
 
   const activePlayers = useMemo(
     () => rosterPlayers.filter((p) => p.is_active),
@@ -362,7 +395,11 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
                 </div>
               </>
             )}
-            <AddGuestInline onAdd={(name) => setTeamAGuests((prev) => [...prev, makeGuestPlayer(name)])} />
+            <AddGuestInline
+              onAdd={(name) => setTeamAGuests((prev) => [...prev, makeGuestPlayer(name)])}
+              suggestions={guestSuggestions}
+              excludeNames={[...teamAGuests.map((g) => g.name), ...teamBGuests.map((g) => g.name)]}
+            />
             <Text size="xs" color="muted">
               {teamASelectedIds.size + teamAGuests.length} player{teamASelectedIds.size + teamAGuests.length !== 1 ? 's' : ''} selected (min 2)
             </Text>
@@ -415,7 +452,11 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
                 </div>
               </>
             )}
-            <AddGuestInline onAdd={(name) => setTeamBGuests((prev) => [...prev, makeGuestPlayer(name)])} />
+            <AddGuestInline
+              onAdd={(name) => setTeamBGuests((prev) => [...prev, makeGuestPlayer(name)])}
+              suggestions={guestSuggestions}
+              excludeNames={[...teamAGuests.map((g) => g.name), ...teamBGuests.map((g) => g.name)]}
+            />
             <Text size="xs" color="muted">
               {teamBSelectedIds.size + teamBGuests.length} player{teamBSelectedIds.size + teamBGuests.length !== 1 ? 's' : ''} selected (min 2)
             </Text>

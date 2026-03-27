@@ -151,6 +151,10 @@ interface ScoringState {
   deletedMatches: MatchHistoryItem[];
   historyLoading: boolean;
 
+  // Guest suggestions
+  guestSuggestions: { name: string; last_used: string }[];
+  fetchGuestSuggestions: () => Promise<void>;
+
   // Reset
   reset: () => void;
 }
@@ -175,6 +179,7 @@ export const useScoringStore = create<ScoringState>()(
   matchHistory: [],
   deletedMatches: [],
   historyLoading: false,
+  guestSuggestions: [],
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -1043,6 +1048,15 @@ export const useScoringStore = create<ScoringState>()(
     const { data, error } = await supabase.rpc('get_deleted_matches', { result_limit: 20 });
     if (error) { console.error('[scoring] loadDeletedMatches failed:', error); return; }
     set({ deletedMatches: (data ?? []) as MatchHistoryItem[] });
+  },
+
+  fetchGuestSuggestions: async () => {
+    if (!isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc('get_guest_suggestions');
+    if (error) { console.error('[scoring] fetchGuestSuggestions:', error); return; }
+    set({ guestSuggestions: (data ?? []) as { name: string; last_used: string }[] });
   },
 
   loadMatchHistory: async (loadMore = false, fromDate?: string, toDate?: string) => {

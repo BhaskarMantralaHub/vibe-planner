@@ -300,6 +300,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   useEffect(() => {
     if (isCloudMode()) {
       loadMatchHistory();
+      if (isAdmin) loadDeletedMatches();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -437,7 +438,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Completed Matches (history with pagination + date filter) */}
-          {!historyLoading && (completedDbMatches.length > 0 || matchFilter !== 'all') && (
+          {!historyLoading && (completedDbMatches.length > 0 || allCompleted.length > 0 || matchFilter !== 'all' || (isAdmin && deletedMatches.length > 0)) && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Text as="h2" size="sm" weight="semibold">

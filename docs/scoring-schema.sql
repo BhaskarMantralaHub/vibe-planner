@@ -927,3 +927,32 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT) TO authenticated;
+
+
+-- ── Guest Player Suggestions (auto-complete from past matches) ──
+CREATE OR REPLACE FUNCTION get_guest_suggestions()
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER STABLE
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
+
+  SELECT COALESCE(json_agg(row ORDER BY row.last_used DESC), '[]'::json)
+  INTO result
+  FROM (
+    SELECT DISTINCT ON (lower(pmp.name))
+      pmp.name,
+      pm.match_date AS last_used
+    FROM practice_match_players pmp
+    JOIN practice_matches pm ON pm.id = pmp.match_id
+    WHERE pmp.is_guest = true
+    ORDER BY lower(pmp.name), pm.match_date DESC
+  ) row;
+
+  RETURN result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_guest_suggestions() TO authenticated;
