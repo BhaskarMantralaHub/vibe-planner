@@ -143,7 +143,7 @@ interface ScoringState {
   deleteMatch: (matchId: string, deleterName: string) => Promise<boolean>;
   restoreMatch: (matchId: string) => Promise<boolean>;
   permanentDeleteMatch: (matchId: string) => Promise<boolean>;
-  loadMatchHistory: () => Promise<void>;
+  loadMatchHistory: (loadMore?: boolean) => Promise<void>;
   loadDeletedMatches: () => Promise<void>;
   resumeMatch: (matchId: string) => Promise<boolean>;
 
@@ -1043,17 +1043,25 @@ export const useScoringStore = create<ScoringState>()(
     set({ deletedMatches: (data ?? []) as MatchHistoryItem[] });
   },
 
-  loadMatchHistory: async () => {
+  loadMatchHistory: async (loadMore = false) => {
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const offset = loadMore ? get().matchHistory.length : 0;
     const { data, error } = await supabase.rpc('get_match_history', {
       match_status: null,
-      result_limit: 20,
-      result_offset: 0,
+      result_limit: 10,
+      result_offset: offset,
     });
     if (error) { console.error('[scoring] loadMatchHistory failed:', error); return; }
-    set({ matchHistory: (data ?? []) as MatchHistoryItem[] });
+    const items = (data ?? []) as MatchHistoryItem[];
+    if (loadMore) {
+      // Append, deduplicate by id
+      const existing = new Set(get().matchHistory.map((m) => m.id));
+      set({ matchHistory: [...get().matchHistory, ...items.filter((m) => !existing.has(m.id))] });
+    } else {
+      set({ matchHistory: items });
+    }
   },
 
   resumeMatch: async (matchId: string) => {

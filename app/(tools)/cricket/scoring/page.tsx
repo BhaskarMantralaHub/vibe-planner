@@ -16,78 +16,40 @@ import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
 
-/* ── Deleted Match Card (admin only) ── */
-function DeletedMatchCard({ item, onRestore, onPermanentDelete }: {
-  item: MatchHistoryItem;
-  onRestore: () => Promise<void>;
-  onPermanentDelete: () => Promise<void>;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+/* ── Load More Button ── */
+function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
 
   return (
-    <>
-      <div className="rounded-xl border border-[var(--border)]/50 bg-[var(--card)] p-3 opacity-70">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <Text size="sm" weight="medium" truncate>{item.team_a_name} vs {item.team_b_name}</Text>
-            {item.title && item.title !== `${item.team_a_name} vs ${item.team_b_name}` && (
-              <Text size="2xs" color="dim" truncate>{item.title}</Text>
-            )}
-            <Text size="2xs" color="dim" className="mt-0.5">
-              {item.match_date} · Deleted{(item as Record<string, unknown>).deleted_by ? ` by ${(item as Record<string, unknown>).deleted_by}` : ''}
-            </Text>
-          </div>
-          <Text size="2xs" weight="bold" color="muted" uppercase>Deleted</Text>
-        </div>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={async () => { setRestoring(true); await onRestore(); setRestoring(false); }}
-            disabled={restoring}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]',
-              restoring && 'opacity-50 cursor-not-allowed active:scale-100',
-            )}
-            style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', color: 'var(--cricket)' }}
-          >
-            <MdRestoreFromTrash size={15} />
-            <Text size="xs" weight="semibold" color="cricket">{restoring ? 'Restoring...' : 'Restore'}</Text>
-          </button>
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg cursor-pointer transition-all active:scale-[0.96]"
-            style={{ background: 'color-mix(in srgb, var(--red) 10%, transparent)', color: 'var(--red)' }}
-          >
-            <MdDeleteForever size={15} />
-            <Text size="xs" weight="semibold" color="danger">Delete Forever</Text>
-          </button>
-        </div>
-      </div>
-
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Permanently Delete?</DialogTitle>
-            <DialogDescription>
-              This will permanently remove &quot;{item.team_a_name} vs {item.team_b_name}&quot; and all its ball-by-ball data. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-            <Button variant="danger" onClick={async () => { setConfirmDelete(false); await onPermanentDelete(); }}>
-              Delete Forever
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <button
+      onClick={async () => { setLoading(true); await onLoadMore(); setLoading(false); }}
+      disabled={loading}
+      className={cn(
+        'w-full mt-3 py-2.5 rounded-xl text-center cursor-pointer transition-all active:scale-[0.98]',
+        'border border-[var(--border)] bg-[var(--surface)]',
+        loading && 'opacity-50 cursor-not-allowed',
+      )}
+    >
+      <Text size="xs" weight="semibold" color="cricket">
+        {loading ? 'Loading...' : 'Load More Matches'}
+      </Text>
+    </button>
   );
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: () => void; onDelete?: () => Promise<void> }) {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete }: {
+  item: MatchHistoryItem;
+  onTap: () => void;
+  onDelete?: () => Promise<void>;
+  onRestore?: () => Promise<void>;
+  onPermanentDelete?: () => Promise<void>;
+}) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const isDeleted = !!(item as Record<string, unknown>).deleted_at;
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
@@ -202,12 +164,13 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
         </div>
       </div>
 
-      {/* Actions Drawer (same pattern as GalleryPost) */}
+      {/* Actions Drawer */}
       <Drawer open={actionsOpen} onOpenChange={setActionsOpen}>
         <DrawerHandle />
         <DrawerTitle>Actions</DrawerTitle>
         <DrawerBody className="px-4 pb-6 pt-2">
           <div className="space-y-1">
+            {/* View Scorecard — always available */}
             <button
               onClick={() => { setActionsOpen(false); onTap(); }}
               className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
@@ -220,18 +183,55 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
                 <Text as="p" size="2xs" color="dim">Full match details</Text>
               </div>
             </button>
-            <button
-              onClick={() => { setActionsOpen(false); setDeleteOpen(true); }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
-              </div>
-              <div className="text-left">
-                <Text size="sm" weight="semibold" color="danger">Delete Match</Text>
-                <Text as="p" size="2xs" color="dim">Remove from match history</Text>
-              </div>
-            </button>
+
+            {/* Restore — only for deleted matches */}
+            {isDeleted && onRestore && (
+              <button
+                onClick={async () => { setActionsOpen(false); setRestoring(true); await onRestore(); setRestoring(false); }}
+                disabled={restoring}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                  <MdRestoreFromTrash size={18} style={{ color: 'var(--cricket)' }} />
+                </div>
+                <div className="text-left">
+                  <Text size="sm" weight="semibold" color="cricket">{restoring ? 'Restoring...' : 'Restore Match'}</Text>
+                  <Text as="p" size="2xs" color="dim">Move back to match history</Text>
+                </div>
+              </button>
+            )}
+
+            {/* Soft Delete — only for non-deleted matches */}
+            {!isDeleted && onDelete && (
+              <button
+                onClick={() => { setActionsOpen(false); setDeleteOpen(true); }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                  <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
+                </div>
+                <div className="text-left">
+                  <Text size="sm" weight="semibold" color="danger">Delete Match</Text>
+                  <Text as="p" size="2xs" color="dim">Move to recently deleted</Text>
+                </div>
+              </button>
+            )}
+
+            {/* Permanent Delete — only for already deleted matches */}
+            {isDeleted && onPermanentDelete && (
+              <button
+                onClick={() => { setActionsOpen(false); setPermanentDeleteOpen(true); }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                  <MdDeleteForever size={18} style={{ color: 'var(--red)' }} />
+                </div>
+                <div className="text-left">
+                  <Text size="sm" weight="semibold" color="danger">Delete Forever</Text>
+                  <Text as="p" size="2xs" color="dim">Permanently remove all data</Text>
+                </div>
+              </button>
+            )}
           </div>
           <button
             onClick={() => setActionsOpen(false)}
@@ -259,6 +259,24 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             <DialogFooter>
               <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
               <Button variant="danger" onClick={async () => { setDeleteOpen(false); if (onDelete) await onDelete(); }}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Permanent Delete Dialog */}
+      {onPermanentDelete && (
+        <Dialog open={permanentDeleteOpen} onOpenChange={setPermanentDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Permanently Delete?</DialogTitle>
+              <DialogDescription>
+                This will permanently remove &quot;{item.team_a_name} vs {item.team_b_name}&quot; and all ball-by-ball data. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setPermanentDeleteOpen(false)}>Cancel</Button>
+              <Button variant="danger" onClick={async () => { setPermanentDeleteOpen(false); await onPermanentDelete(); }}>Delete Forever</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -376,7 +394,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Completed Matches (history) */}
+          {/* Completed Matches (history with pagination) */}
           {completedDbMatches.length > 0 && (
             <div>
               <Text as="h2" size="sm" weight="semibold" className="mb-2">
@@ -394,6 +412,10 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                   />
                 ))}
               </div>
+              {/* Load More — show if we got a full page (10 items possible) */}
+              {completedDbMatches.length >= 5 && (
+                <LoadMoreButton onLoadMore={() => loadMatchHistory(true)} />
+              )}
             </div>
           )}
 
@@ -416,9 +438,10 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               </Text>
               <div className="space-y-2">
                 {deletedMatches.map((m) => (
-                  <DeletedMatchCard
+                  <MatchCard
                     key={m.id}
                     item={m}
+                    onTap={() => onResumeMatch(m.id)}
                     onRestore={async () => { await restoreMatch(m.id); }}
                     onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
                   />
