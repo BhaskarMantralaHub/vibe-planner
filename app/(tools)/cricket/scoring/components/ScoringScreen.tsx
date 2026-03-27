@@ -64,6 +64,10 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard'>('scoring');
   const [endMatchOpen, setEndMatchOpen] = useState(false);
+  const [inningsBreak, setInningsBreak] = useState(false);
+  const [inn2Striker, setInn2Striker] = useState<string | null>(null);
+  const [inn2NonStriker, setInn2NonStriker] = useState<string | null>(null);
+  const [inn2Bowler, setInn2Bowler] = useState<string | null>(null);
 
   /* ── Derived data ── */
   const idx = match?.current_innings ?? 0;
@@ -375,7 +379,7 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
         {strikerPlayer ? (
           <button
             type="button"
-            onClick={handleSwapStrike}
+            onClick={!currentInnings.is_completed ? handleSwapStrike : undefined}
             className="w-full text-left px-3 py-2.5 border-l-[3px] cursor-pointer active:scale-[0.98] transition-all"
             style={{
               borderLeftColor: 'var(--cricket)',
@@ -385,7 +389,8 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5 min-w-0 flex-1">
                 <Text size="sm" weight="bold" truncate>{strikerPlayer.name}</Text>
-                <Text size="xs" weight="bold" color="cricket" className="flex-shrink-0">*</Text>
+                {!currentInnings.is_completed && <Text size="xs" weight="bold" color="cricket" className="flex-shrink-0">*</Text>}
+                {currentInnings.is_completed && <Text size="2xs" weight="medium" color="success" className="flex-shrink-0 ml-1">not out</Text>}
               </div>
               <Text size="lg" weight="bold" tabular className="flex-shrink-0">
                 {strikerStats?.runs ?? 0}
@@ -398,38 +403,45 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
               <Text size="xs" weight="medium" color="muted" tabular>SR: {strikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
             </div>
           </button>
-        ) : (
+        ) : currentInnings.is_completed ? null : (
           <div className="px-3 py-2.5 border-l-[3px]" style={{ borderLeftColor: 'var(--cricket)' }}>
             <Text size="sm" color="muted">Waiting for striker...</Text>
           </div>
         )}
 
-        <div className="mx-3 border-t border-[var(--border)]/40" />
-
-        {/* Non-striker */}
+        {/* Non-striker — hide when innings complete and slot is empty */}
         {nonStrikerPlayer ? (
-          <button
-            type="button"
-            onClick={handleSwapStrike}
-            className="w-full text-left px-3 py-2 pl-[calc(0.75rem+3px)] cursor-pointer active:scale-[0.98] transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <Text size="sm" weight="medium" color="muted" truncate className="min-w-0 flex-1">{nonStrikerPlayer.name}</Text>
-              <Text size="md" weight="semibold" color="muted" tabular className="flex-shrink-0">
-                {nonStrikerStats?.runs ?? 0}
-                <Text size="xs" weight="normal" color="dim" tabular> ({nonStrikerStats?.balls ?? 0})</Text>
-              </Text>
+          <>
+            <div className="mx-3 border-t border-[var(--border)]/40" />
+            <button
+              type="button"
+              onClick={!currentInnings.is_completed ? handleSwapStrike : undefined}
+              className="w-full text-left px-3 py-2 pl-[calc(0.75rem+3px)] cursor-pointer active:scale-[0.98] transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 min-w-0 flex-1">
+                  <Text size="sm" weight="medium" color="muted" truncate>{nonStrikerPlayer.name}</Text>
+                  {currentInnings.is_completed && <Text size="2xs" weight="medium" color="success" className="flex-shrink-0">not out</Text>}
+                </div>
+                <Text size="md" weight="semibold" color="muted" tabular className="flex-shrink-0">
+                  {nonStrikerStats?.runs ?? 0}
+                  <Text size="xs" weight="normal" color="dim" tabular> ({nonStrikerStats?.balls ?? 0})</Text>
+                </Text>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                <Text size="xs" weight="medium" color="muted" tabular>4s: {nonStrikerStats?.fours ?? 0}</Text>
+                <Text size="xs" weight="medium" color="muted" tabular>6s: {nonStrikerStats?.sixes ?? 0}</Text>
+                <Text size="xs" weight="medium" color="dim" tabular>SR: {nonStrikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
+              </div>
+            </button>
+          </>
+        ) : currentInnings.is_completed ? null : (
+          <>
+            <div className="mx-3 border-t border-[var(--border)]/40" />
+            <div className="px-3 py-2 pl-[calc(0.75rem+3px)]">
+              <Text size="sm" color="dim">Waiting for non-striker...</Text>
             </div>
-            <div className="flex items-center gap-3 mt-0.5">
-              <Text size="xs" weight="medium" color="muted" tabular>4s: {nonStrikerStats?.fours ?? 0}</Text>
-              <Text size="xs" weight="medium" color="muted" tabular>6s: {nonStrikerStats?.sixes ?? 0}</Text>
-              <Text size="xs" weight="medium" color="dim" tabular>SR: {nonStrikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
-            </div>
-          </button>
-        ) : (
-          <div className="px-3 py-2 pl-[calc(0.75rem+3px)]">
-            <Text size="sm" color="dim">Waiting for non-striker...</Text>
-          </div>
+          </>
         )}
 
         <div className="mx-3 border-t border-[var(--border)]/40" />
@@ -513,7 +525,13 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
                   brand="cricket"
                   size="lg"
                   fullWidth
-                  onClick={() => useScoringStore.getState().endInnings()}
+                  onClick={() => {
+                    useScoringStore.getState().endInnings();
+                    setInningsBreak(true);
+                    setInn2Striker(null);
+                    setInn2NonStriker(null);
+                    setInn2Bowler(null);
+                  }}
                 >
                   Start 2nd Innings
                 </Button>
@@ -574,6 +592,13 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
 
       {/* Undo is now integrated into ButtonGrid's extras row */}
 
+      {/* Footer */}
+      <footer className="mt-12 mb-6 text-center">
+        <Text as="p" size="2xs" color="dim" tracking="wide">
+          &copy; Designed by <Text weight="semibold" color="muted">Bhaskar Mantrala</Text>
+        </Text>
+      </footer>
+
       {/* Safe area bottom padding */}
       <div className="pb-[max(env(safe-area-inset-bottom),20px)]" />
 
@@ -622,6 +647,110 @@ function ScoringScreen({ onBack, onPause, onHandoff }: ScoringScreenProps) {
               End Match
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2nd Innings Setup */}
+      <Dialog open={inningsBreak} onOpenChange={setInningsBreak}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+          <DialogTitle>2nd Innings Setup</DialogTitle>
+          <div className="flex flex-col gap-4">
+            {/* Target info */}
+            <div className="text-center rounded-xl px-3 py-3" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--surface))' }}>
+              <Text size="sm" color="muted">Target</Text>
+              <Text as="p" size="xl" weight="bold" color="cricket" tabular>
+                {(innings[0]?.total_runs ?? 0) + 1}
+              </Text>
+            </div>
+
+            {/* Opening batsmen — team batting 2nd */}
+            <div>
+              <Text size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mb-2">
+                Opening Batsmen
+              </Text>
+              <div className="flex flex-col gap-1">
+                {(() => {
+                  const secondBattingTeam = innings[1]?.batting_team === 'team_a' ? match.team_a : match.team_b;
+                  return secondBattingTeam.players.map((p) => {
+                    const isStriker = inn2Striker === p.id;
+                    const isNonStriker = inn2NonStriker === p.id;
+                    const isSelected = isStriker || isNonStriker;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          if (isStriker) { setInn2Striker(null); return; }
+                          if (isNonStriker) { setInn2NonStriker(null); return; }
+                          if (!inn2Striker) { setInn2Striker(p.id); return; }
+                          if (!inn2NonStriker) { setInn2NonStriker(p.id); return; }
+                        }}
+                        className={cn(
+                          'flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer select-none',
+                          'border transition-all duration-150 active:scale-[0.96]',
+                          isSelected
+                            ? 'border-[var(--cricket)]/50 bg-[var(--cricket)]/10'
+                            : 'border-[var(--border)] bg-[var(--surface)]',
+                        )}
+                      >
+                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{p.name}</Text>
+                        {isStriker && <Text size="2xs" weight="bold" color="cricket">Striker</Text>}
+                        {isNonStriker && <Text size="2xs" weight="bold" color="cricket">Non-Striker</Text>}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Opening bowler — team bowling 2nd */}
+            <div>
+              <Text size="xs" weight="semibold" color="muted" uppercase tracking="wider" className="mb-2">
+                Opening Bowler
+              </Text>
+              <div className="flex flex-col gap-1">
+                {(() => {
+                  const secondBowlingTeam = innings[1]?.batting_team === 'team_a' ? match.team_b : match.team_a;
+                  return secondBowlingTeam.players.map((p) => {
+                    const isSelected = inn2Bowler === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setInn2Bowler(isSelected ? null : p.id)}
+                        className={cn(
+                          'flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer select-none',
+                          'border transition-all duration-150 active:scale-[0.96]',
+                          isSelected
+                            ? 'border-[var(--cricket)]/50 bg-[var(--cricket)]/10'
+                            : 'border-[var(--border)] bg-[var(--surface)]',
+                        )}
+                      >
+                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{p.name}</Text>
+                        {isSelected && <Text size="2xs" weight="bold" color="cricket">Bowler</Text>}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Start button */}
+            <Button
+              variant="primary"
+              brand="cricket"
+              size="lg"
+              fullWidth
+              disabled={!inn2Striker || !inn2NonStriker || !inn2Bowler || inn2Striker === inn2NonStriker}
+              onClick={() => {
+                if (inn2Striker && inn2NonStriker && inn2Bowler) {
+                  useScoringStore.getState().startSecondInnings(inn2Striker, inn2NonStriker, inn2Bowler);
+                  setInningsBreak(false);
+                  setActiveTab('scoring');
+                }
+              }}
+            >
+              Start 2nd Innings
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
