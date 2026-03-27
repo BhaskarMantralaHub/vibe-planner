@@ -437,12 +437,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           )}
 
           {/* Completed Matches (history with pagination + date filter) */}
-          {!historyLoading && matchFilter !== 'deleted' && (completedDbMatches.length > 0 || matchFilter !== 'all') && (
+          {!historyLoading && (completedDbMatches.length > 0 || matchFilter !== 'all') && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
+                <Text as="h2" size="sm" weight="semibold">
+                  {matchFilter === 'deleted' ? 'Deleted Matches' : 'Previous Matches'}
+                </Text>
               </div>
-              {/* Date filter */}
+              {/* Filter */}
               <SegmentedControl
                 options={[
                   { key: 'all', label: 'All' },
@@ -455,60 +457,58 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                 onChange={(key) => handleFilterChange(key as MatchFilter)}
                 className="mb-3"
               />
-              <div className="space-y-2">
-                {completedDbMatches.map((m) => (
-                  <MatchCard
-                    key={m.id}
-                    item={m}
-                    onTap={() => onResumeMatch(m.id)}
-                    onDelete={isAdmin ? async () => {
-                      await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
-                    } : undefined}
-                  />
-                ))}
-              </div>
-              {/* Empty state for filtered results */}
-              {completedDbMatches.length === 0 && matchFilter !== 'all' && (
-                <div className="py-6 text-center">
-                  <Text size="sm" color="muted">No matches found for this period</Text>
+              {/* Match list — switches between completed and deleted */}
+              {matchFilter === 'deleted' ? (
+                <div className="space-y-2">
+                  {deletedMatches.length > 0 ? deletedMatches.map((m) => (
+                    <MatchCard
+                      key={m.id}
+                      item={m}
+                      onTap={() => onResumeMatch(m.id)}
+                      onRestore={async () => { await restoreMatch(m.id); }}
+                      onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
+                    />
+                  )) : (
+                    <div className="py-6 text-center">
+                      <Text size="sm" color="muted">No deleted matches</Text>
+                    </div>
+                  )}
                 </div>
-              )}
-              {/* Load More */}
-              {completedDbMatches.length >= 5 && (
-                <LoadMoreButton onLoadMore={() => {
-                  return loadMatchHistory(true);
-                }} />
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {completedDbMatches.map((m) => (
+                      <MatchCard
+                        key={m.id}
+                        item={m}
+                        onTap={() => onResumeMatch(m.id)}
+                        onDelete={isAdmin ? async () => {
+                          await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                        } : undefined}
+                      />
+                    ))}
+                  </div>
+                  {completedDbMatches.length === 0 && matchFilter !== 'all' && (
+                    <div className="py-6 text-center">
+                      <Text size="sm" color="muted">No matches found</Text>
+                    </div>
+                  )}
+                  {completedDbMatches.length >= 5 && (
+                    <LoadMoreButton onLoadMore={() => loadMatchHistory(true)} />
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {/* Empty state — only when not loading, no filter active, and truly no matches */}
-          {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && completedDbMatches.length === 0 && matchFilter === 'all' && (
+          {/* Empty state — only when not loading, no filter, and truly no matches */}
+          {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && allCompleted.length === 0 && matchFilter === 'all' && (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
               <EmptyState
                 icon={<MdSportsCricket size={32} style={{ color: 'var(--dim)' }} />}
                 title="No matches yet"
                 description="Start a new match to begin scoring"
               />
-            </div>
-          )}
-
-          {/* Deleted matches (shown when "Deleted" filter is active) */}
-          {matchFilter === 'deleted' && (
-            <div className="space-y-2">
-              {deletedMatches.length > 0 ? deletedMatches.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  item={m}
-                  onTap={() => onResumeMatch(m.id)}
-                  onRestore={async () => { await restoreMatch(m.id); }}
-                  onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
-                />
-              )) : (
-                <div className="py-6 text-center">
-                  <Text size="sm" color="muted">No deleted matches</Text>
-                </div>
-              )}
             </div>
           )}
 
