@@ -1092,9 +1092,12 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   loadMatchHistory: async (loadMore = false, fromDate?: string, toDate?: string) => {
-    if (!isCloudMode()) return;
+    if (!isCloudMode()) { console.log('[scoring] not cloud mode'); return; }
     const supabase = getSupabaseClient();
-    if (!supabase) return;
+    if (!supabase) { console.log('[scoring] no supabase client'); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('[scoring] loadMatchHistory — session:', session ? 'yes' : 'NO SESSION');
+    if (!session) { console.log('[scoring] skipping — no auth session yet'); return; }
     if (!loadMore) set({ historyLoading: true });
     const offset = loadMore ? get().matchHistory.length : 0;
     const { data, error } = await supabase.rpc('get_match_history', {
