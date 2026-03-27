@@ -202,6 +202,10 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `release_scorer(match_id)` → release scoring rights (self, creator, or admin)
 - `get_rematch_template(match_id)` → pre-fill teams/players for back-to-back matches
 - `get_practice_leaderboard(season_id, category)` → season stats: batting (runs, SR, 4s/6s), bowling (wickets, economy), fielding (catches, run outs), all-rounder (combined score)
+- `soft_delete_match(match_id, deleter_name)` → soft-delete (sets deleted_at), creator or admin only
+- `restore_match(match_id)` → restores soft-deleted match, creator or admin only
+- `permanent_delete_match(match_id)` → hard delete with CASCADE (admin only, requires deleted_at IS NOT NULL)
+- `get_deleted_matches(limit)` → admin-only list of soft-deleted matches for Recently Deleted section
 
 #### Sync Architecture (Optimistic Local-First)
 - **Match creation**: Awaited — must complete before scoring starts (need server player IDs for FK references)
@@ -237,6 +241,15 @@ Landing Page → Start New Match → Wizard (5 steps) → Scoring Screen
   Innings Over card → Start 2nd Innings               2nd Innings Setup Dialog → continue scoring
   ↓ (match complete)                                   ↓
   Match Result Screen → View Scorecard / Done         Back to Landing (match in history)
+
+Match History:
+  Previous Matches (paginated, 10 per page, Load More)
+  ↓ three-dot menu
+  View Scorecard / Delete Match (soft-delete → Recently Deleted)
+
+  Recently Deleted (admin only)
+  ↓ three-dot menu
+  Restore Match / Delete Forever (permanent, CASCADE)
 ```
 
 ## Design System (`components/ui/`)
@@ -307,7 +320,7 @@ Components auto-detect brand from `BrandProvider`. Cricket pages use orange, too
 - **Moments feed** — Gallery/GalleryPost/GalleryUpload components use `motion/react` for animations (double-tap heart, post entrance), `vaul` for bottom sheet menus (post actions, comment actions, liked-by, confirm delete, upload), `@formkit/auto-animate` for comment list animations, `lucide-react` for icons
 - **Role-based access** — `profiles.access` array determines tool visibility; `RoleGate` component for route protection; `AuthGate` variant prop for themed login
 - **RLS enforced** — every query filters by `user_id`, server-side RLS as backup
-- **Soft delete** — `deleted_at` column, Recently Deleted UI with restore (vibes); `is_active` flag for cricket players
+- **Soft delete** — `deleted_at` column, Recently Deleted UI with restore (vibes, practice matches); `is_active` flag for cricket players. Practice matches support soft-delete → restore → permanent delete (CASCADE) with admin-only Recently Deleted section.
 - **Public pages** — `/cricket/dues/` public share page bypasses auth, uses SECURITY DEFINER RPC function
 - **Feature branches** — develop on branches, merge to `main` only when ready to deploy
 
