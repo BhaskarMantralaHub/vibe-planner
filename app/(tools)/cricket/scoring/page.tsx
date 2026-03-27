@@ -357,6 +357,9 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   const limit = getLimit(matchFilter);
   const completedDbMatches = allCompleted.slice(0, limit);
 
+  // Debug render
+  console.log('[scoring] RENDER — matchHistory:', matchHistory.length, 'active:', activeDbMatches.length, 'completed:', completedDbMatches.length, 'dbMatchId:', dbMatchId, 'historyLoading:', historyLoading);
+
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--bg)]">
       {/* Header */}
