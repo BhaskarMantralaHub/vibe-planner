@@ -38,12 +38,13 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete }: {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert }: {
   item: MatchHistoryItem;
   onTap: () => void;
   onDelete?: () => Promise<void>;
   onRestore?: () => Promise<void>;
   onPermanentDelete?: () => Promise<void>;
+  onRevert?: () => Promise<void>;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
@@ -85,7 +86,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete }: {
             <Text size="xs" weight="medium" color={isActive ? 'white' : 'muted'} className={isActive ? 'opacity-80' : ''}>
               {item.match_date}
             </Text>
-            {(onDelete || onRestore || onPermanentDelete) && (
+            {(onDelete || onRestore || onPermanentDelete || onRevert) && (
               <button
                 onClick={(e) => { e.stopPropagation(); setActionsOpen(true); }}
                 className={cn(
@@ -183,6 +184,22 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete }: {
                 <Text as="p" size="2xs" color="dim">Full match details</Text>
               </div>
             </button>
+
+            {/* Revert — only for abruptly ended matches (no result) */}
+            {onRevert && (
+              <button
+                onClick={async () => { setActionsOpen(false); await onRevert(); }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                  <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
+                </div>
+                <div className="text-left">
+                  <Text size="sm" weight="semibold" color="cricket">Resume Scoring</Text>
+                  <Text as="p" size="2xs" color="dim">Continue this match</Text>
+                </div>
+              </button>
+            )}
 
             {/* Restore — only for deleted matches */}
             {isDeleted && onRestore && (
@@ -292,7 +309,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onResumeMatch: (matchId: string) => void;
 }) {
   const router = useRouter();
-  const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch } = useScoringStore();
+  const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch, revertMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
 
@@ -487,6 +504,9 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                         onTap={() => onResumeMatch(m.id)}
                         onDelete={isAdmin ? async () => {
                           await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                        } : undefined}
+                        onRevert={isAdmin && !m.match_winner ? async () => {
+                          await revertMatch(m.id);
                         } : undefined}
                       />
                     ))}

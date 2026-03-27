@@ -956,3 +956,28 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION get_guest_suggestions() TO authenticated;
+
+
+-- ── Revert Completed Match to Scoring (admin only) ──
+CREATE OR REPLACE FUNCTION revert_match_to_scoring(target_match_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+  -- Only allow revert for abruptly ended matches (no result / no winner)
+  UPDATE practice_matches
+  SET status = 'scoring',
+      result_summary = NULL,
+      match_winner = NULL,
+      completed_at = NULL,
+      updated_at = now()
+  WHERE id = target_match_id
+    AND status = 'completed'
+    AND match_winner IS NULL
+    AND deleted_at IS NULL;
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION revert_match_to_scoring(UUID) TO authenticated;

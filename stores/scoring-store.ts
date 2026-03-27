@@ -140,6 +140,7 @@ interface ScoringState {
   getAvailableBowlers: () => ScoringPlayer[];
 
   // Cloud
+  revertMatch: (matchId: string) => Promise<boolean>;
   deleteMatch: (matchId: string, deleterName: string) => Promise<boolean>;
   restoreMatch: (matchId: string) => Promise<boolean>;
   permanentDeleteMatch: (matchId: string) => Promise<boolean>;
@@ -985,6 +986,18 @@ export const useScoringStore = create<ScoringState>()(
     }
 
     return bowlingTeam.players;
+  },
+
+  revertMatch: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('revert_match_to_scoring', { target_match_id: matchId });
+    if (error) { console.error('[scoring] revertMatch failed:', error); toast.error('Failed to revert'); return false; }
+    if (!data) { toast.error('Not authorized — admin only'); return false; }
+    toast.success('Match reverted to scoring');
+    await get().loadMatchHistory();
+    return true;
   },
 
   deleteMatch: async (matchId: string, deleterName: string) => {
