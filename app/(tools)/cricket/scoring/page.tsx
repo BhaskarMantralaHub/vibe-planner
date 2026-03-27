@@ -8,7 +8,7 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
+import { Button, Text, EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
@@ -431,32 +431,19 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               <div className="flex items-center justify-between mb-2">
                 <Text as="h2" size="sm" weight="semibold">Previous Matches</Text>
               </div>
-              {/* Date filter chips */}
-              <div className="flex gap-1.5 mb-3 overflow-x-auto scrollbar-hide">
-                {([
+              {/* Date filter */}
+              <SegmentedControl
+                options={[
                   { key: 'all', label: 'All' },
                   { key: 'today', label: 'Today' },
-                  { key: 'week', label: 'This Week' },
-                  { key: 'month', label: 'This Month' },
-                  { key: 'year', label: 'This Year' },
-                ] as { key: DateFilter; label: string }[]).map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => handleFilterChange(f.key)}
-                    className={cn(
-                      'flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold cursor-pointer transition-all active:scale-[0.95]',
-                      dateFilter === f.key
-                        ? 'text-white'
-                        : 'border border-[var(--border)] text-[var(--muted)]',
-                    )}
-                    style={dateFilter === f.key ? {
-                      background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-                    } : {}}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+                  { key: 'week', label: 'Week' },
+                  { key: 'month', label: 'Month' },
+                  { key: 'year', label: 'Year' },
+                ]}
+                active={dateFilter}
+                onChange={(key) => handleFilterChange(key as DateFilter)}
+                className="mb-3"
+              />
               <div className="space-y-2">
                 {completedDbMatches.map((m) => (
                   <MatchCard
