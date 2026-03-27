@@ -23,7 +23,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
   const inn2 = item.second_innings;
 
   return (
-    <button
+    <div
       onClick={onTap}
       className={cn(
         'w-full text-left rounded-xl border px-4 py-3 cursor-pointer select-none',
@@ -84,7 +84,7 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
           </button>
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
