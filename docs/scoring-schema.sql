@@ -516,6 +516,8 @@ BEGIN
         'total_overs', i.total_overs, 'legal_balls', i.legal_balls,
         'extras_wide', i.extras_wide, 'extras_no_ball', i.extras_no_ball,
         'extras_bye', i.extras_bye, 'extras_leg_bye', i.extras_leg_bye,
+        'striker_id', i.striker_id, 'non_striker_id', i.non_striker_id,
+        'bowler_id', i.bowler_id,
         'target', i.target, 'is_completed', i.is_completed
       ) ORDER BY i.innings_number), '[]'::json)
       FROM practice_innings i WHERE i.match_id = target_match_id
