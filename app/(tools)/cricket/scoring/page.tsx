@@ -349,9 +349,11 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
     }
   };
 
-  // DB matches — separate active vs completed, exclude local match to avoid duplicates
+  // DB matches — separate active vs completed
+  // Only exclude dbMatchId if we have a valid local match with players (to avoid duplicate card)
+  const hasValidLocalMatch = hasLocalMatch && currentInnings?.striker_id;
   const activeDbMatches = matchHistory.filter((m) =>
-    (m.status === 'scoring' || m.status === 'innings_break') && m.id !== dbMatchId
+    (m.status === 'scoring' || m.status === 'innings_break') && !(hasValidLocalMatch && m.id === dbMatchId)
   );
   const allCompleted = matchHistory.filter((m) => m.status === 'completed');
   const limit = getLimit(matchFilter);
