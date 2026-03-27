@@ -689,8 +689,16 @@ export const useScoringStore = create<ScoringState>()(
     if (idx === 0) {
       updated[1] = { ...updated[1], target: updated[0].total_runs + 1 };
     }
-    const newStatus = idx === 0 ? 'innings_break' : 'completed';
-    set({ innings: updated, match: { ...match, status: newStatus } });
+
+    if (idx === 0) {
+      // 1st innings over → innings break
+      set({ innings: updated, match: { ...match, status: 'innings_break' } });
+    } else {
+      // 2nd innings over → compute result via endMatch (which handles result_summary + match_winner + DB sync)
+      set({ innings: updated });
+      get().endMatch();
+      return; // endMatch handles DB sync
+    }
 
     const { dbMatchId } = get();
     if (isCloudMode() && dbMatchId) {
@@ -698,12 +706,10 @@ export const useScoringStore = create<ScoringState>()(
       if (!supabase) return;
       syncToDb('endInnings', () => supabase.from('practice_innings').update({ is_completed: true })
         .eq('match_id', dbMatchId).eq('innings_number', idx));
-      if (idx === 0) {
-        syncToDb('endInnings target', () => supabase.from('practice_innings')
-          .update({ target: updated[0].total_runs + 1 }).eq('match_id', dbMatchId).eq('innings_number', 1));
-      }
+      syncToDb('endInnings target', () => supabase.from('practice_innings')
+        .update({ target: updated[0].total_runs + 1 }).eq('match_id', dbMatchId).eq('innings_number', 1));
       syncToDb('endInnings match', () => supabase.from('practice_matches')
-        .update({ status: newStatus }).eq('id', dbMatchId));
+        .update({ status: 'innings_break' }).eq('id', dbMatchId));
     }
   },
 
@@ -772,6 +778,16 @@ export const useScoringStore = create<ScoringState>()(
         }
       }
     }
+
+    // Always derive match_winner from scores (even if result_summary was pre-set by recordBall)
+    if (!matchWinner && matchFinishedNaturally) {
+      const firstTotal = first.total_runs;
+      const secondTotal = second.total_runs;
+      if (secondTotal > firstTotal) matchWinner = second.batting_team;
+      else if (secondTotal < firstTotal) matchWinner = first.batting_team;
+      else matchWinner = 'tied';
+    }
+
     set({ match: { ...match, status: 'completed', result_summary: resultSummary } });
 
     const { dbMatchId } = get();
