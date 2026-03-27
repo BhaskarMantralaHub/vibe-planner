@@ -44,7 +44,7 @@ export function constructDismissalText(
     case 'caught':     return verbose ? `c ${fielderName ?? '?'} b ${bowlerName ?? '?'}` : `caught by ${fielderName ?? '?'}`;
     case 'lbw':        return verbose ? `lbw b ${bowlerName ?? '?'}` : `lbw, bowled ${bowlerName ?? '?'}`;
     case 'run_out':    return `run out by ${fielderName ?? '?'}`;
-    case 'stumped':    return `stumped by ${fielderName ?? '?'}`;
+    case 'stumped':    return verbose ? `st ${fielderName ?? '?'} b ${bowlerName ?? '?'}` : `stumped by ${fielderName ?? '?'}`;
     case 'hit_wicket': return verbose ? `hit wicket b ${bowlerName ?? '?'}` : 'hit wicket';
     case 'retired':    return 'retired';
     default:           return 'out';
