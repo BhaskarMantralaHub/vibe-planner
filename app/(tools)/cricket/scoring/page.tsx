@@ -22,7 +22,11 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
   const isCompleted = item.status === 'completed';
   const inn1 = item.first_innings;
   const inn2 = item.second_innings;
-  const hasResult = item.match_winner && item.match_winner !== 'tied';
+  // Detect win from result_summary text if match_winner isn't set (older matches)
+  const hasWin = (item.match_winner && item.match_winner !== 'tied')
+    || (item.result_summary?.includes('won') ?? false);
+  const isTied = item.match_winner === 'tied' || (item.result_summary?.includes('tied') ?? false);
+  const isNoResult = !hasWin && !isTied;
 
   return (
     <>
@@ -98,9 +102,9 @@ function MatchCard({ item, onTap, onDelete }: { item: MatchHistoryItem; onTap: (
             </div>
           )}
 
-          {/* Level 3: Result — medium emphasis, readable */}
+          {/* Level 3: Result */}
           {isCompleted && item.result_summary && (
-            <Text as="p" size="sm" weight="bold" color={hasResult ? 'cricket' : 'muted'} className="mt-3">
+            <Text as="p" size="sm" weight="bold" color={hasWin ? 'cricket' : 'muted'} className="mt-3">
               {item.result_summary}
             </Text>
           )}
