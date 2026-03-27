@@ -39,12 +39,12 @@ export function constructDismissalText(
 ): string {
   if (!wicketType) return 'out';
   switch (wicketType) {
-    case 'bowled':     return `bowled by ${bowlerName ?? '?'}`;
-    case 'caught':     return `caught by ${fielderName ?? '?'}, bowled ${bowlerName ?? '?'}`;
+    case 'bowled':     return 'bowled';
+    case 'caught':     return `caught by ${fielderName ?? '?'}`;
     case 'lbw':        return `lbw, bowled ${bowlerName ?? '?'}`;
     case 'run_out':    return `run out by ${fielderName ?? '?'}`;
     case 'stumped':    return `stumped by ${fielderName ?? '?'}`;
-    case 'hit_wicket': return `hit wicket, bowled ${bowlerName ?? '?'}`;
+    case 'hit_wicket': return 'hit wicket';
     case 'retired':    return 'retired';
     default:           return 'out';
   }
