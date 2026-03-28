@@ -203,7 +203,7 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `claim_scorer(match_id, name)` → atomic handoff with row-level lock (`FOR UPDATE NOWAIT`)
 - `release_scorer(match_id)` → release scoring rights (self, creator, or admin)
 - `get_rematch_template(match_id)` → pre-fill teams/players for back-to-back matches
-- `get_practice_leaderboard(season_id, category)` → season stats: batting (runs, SR, 4s/6s), bowling (wickets, economy), fielding (catches, run outs), all-rounder (combined score)
+- `get_practice_leaderboard(season_id, category, match_limit)` → season stats with optional last-N-matches filter: batting (runs, SR, 4s/6s), bowling (wickets, economy, excludes byes/leg-byes), fielding (sorted by total dismissals), all-rounder (combined score with matches count)
 - `soft_delete_match(match_id, deleter_name)` → soft-delete (sets deleted_at), creator or admin only
 - `restore_match(match_id)` → restores soft-deleted match, creator or admin only
 - `permanent_delete_match(match_id)` → hard delete with CASCADE (admin only, requires deleted_at IS NOT NULL)
