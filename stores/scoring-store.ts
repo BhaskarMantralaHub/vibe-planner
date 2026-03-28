@@ -18,6 +18,8 @@ import type {
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
+let leaderboardRequestCounter = 0;
+
 function genId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -163,6 +165,8 @@ interface ScoringState {
   // Leaderboard
   leaderboard: Record<string, LeaderboardEntry[]>;
   leaderboardLoading: boolean;
+  leaderboardMatchLimit: number | null;
+  setLeaderboardMatchLimit: (limit: number | null) => void;
   fetchLeaderboard: (category: string) => Promise<void>;
 
   // Reset
@@ -192,6 +196,7 @@ export const useScoringStore = create<ScoringState>()(
   guestSuggestions: [],
   leaderboard: {},
   leaderboardLoading: false,
+  leaderboardMatchLimit: null,
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -796,7 +801,7 @@ export const useScoringStore = create<ScoringState>()(
       else matchWinner = 'tied';
     }
 
-    set({ match: { ...match, status: 'completed', result_summary: resultSummary } });
+    set({ match: { ...match, status: 'completed', result_summary: resultSummary }, leaderboard: {} });
 
     const { dbMatchId } = get();
     if (isCloudMode() && dbMatchId) {
@@ -1099,15 +1104,21 @@ export const useScoringStore = create<ScoringState>()(
     set({ guestSuggestions: (data ?? []) as { id: string; name: string }[] });
   },
 
+  setLeaderboardMatchLimit: (limit: number | null) => {
+    set({ leaderboardMatchLimit: limit, leaderboard: {} });
+  },
+
   fetchLeaderboard: async (category: string) => {
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const requestId = ++leaderboardRequestCounter;
     set({ leaderboardLoading: true });
-    const { data, error } = await supabase.rpc('get_practice_leaderboard', {
-      p_season_id: null,
-      p_category: category,
-    });
+    const { leaderboardMatchLimit } = get();
+    const rpcParams: Record<string, unknown> = { p_category: category };
+    if (leaderboardMatchLimit !== null) rpcParams.p_match_limit = leaderboardMatchLimit;
+    const { data, error } = await supabase.rpc('get_practice_leaderboard', rpcParams);
+    if (requestId !== leaderboardRequestCounter) return; // stale
     if (error) { console.error('[scoring] fetchLeaderboard:', error); set({ leaderboardLoading: false }); return; }
     set((state) => ({
       leaderboard: { ...state.leaderboard, [category]: (data ?? []) as LeaderboardEntry[] },

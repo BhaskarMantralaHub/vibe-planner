@@ -114,6 +114,7 @@ export type LeaderboardEntry = {
   total_catches?: number;
   total_runouts?: number;
   total_stumpings?: number;
+  total_dismissals?: number;
   // All-rounder
   score?: number;
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { PageFooter } from '@/components/PageFooter';
@@ -35,6 +36,8 @@ interface ScoringScreenProps {
 }
 
 function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
+  const router = useRouter();
+
   /* ── Store state ── */
   const match = useScoringStore((s) => s.match);
   const innings = useScoringStore((s) => s.innings);
@@ -453,6 +456,15 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
               variant="secondary"
               size="lg"
               fullWidth
+              onClick={() => router.push('/cricket/scoring/leaderboard')}
+            >
+              Practice Stats
+            </Button>
+            <Button
+              variant="link"
+              size="lg"
+              fullWidth
+              brand="cricket"
               onClick={() => {
                 useScoringStore.getState().reset();
                 if (onBack) onBack();

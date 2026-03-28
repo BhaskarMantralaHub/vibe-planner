@@ -284,31 +284,25 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
 
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[var(--bg)]">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-md">
-        <button
-          onClick={() => router.push('/cricket')}
-          className="cursor-pointer rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-        >
-          <MdArrowBack size={22} />
-        </button>
-        <Text size="lg" weight="semibold">Live Scoring</Text>
-      </div>
+    <div className="px-4 py-4">
+      <div className="mx-auto max-w-md space-y-6">
 
-      <div className="flex-1 px-4 py-6">
-        <div className="mx-auto max-w-md space-y-6">
-          {/* Hero */}
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div
-              className="flex h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
-            >
-              <MdSportsCricket size={32} className="text-white" />
+          {/* Page header */}
+          <div className="relative rounded-2xl overflow-hidden px-5 py-5"
+            style={{ background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}>
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 -translate-y-1/3 translate-x-1/4"
+              style={{ background: 'radial-gradient(circle, white, transparent 70%)' }} />
+            <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full opacity-10 translate-y-1/3 -translate-x-1/4"
+              style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
+            <div className="relative flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                <MdSportsCricket size={22} className="text-white" />
+              </div>
+              <div>
+                <Text as="h1" size="lg" weight="bold" color="white">Live Scoring</Text>
+                <Text as="p" size="2xs" color="white" className="opacity-70">Ball-by-ball match scoring</Text>
+              </div>
             </div>
-            <Text as="h1" size="xl" weight="semibold" tracking="tight">
-              Live Scoring
-            </Text>
           </div>
 
           {/* Local active match — Continue Scoring (scorer's device) */}
@@ -462,10 +456,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Bottom safe area padding */}
-          <div className="pb-[max(env(safe-area-inset-bottom),40px)]" />
         </div>
-      </div>
     </div>
   );
 }
@@ -516,37 +507,39 @@ export default function ScoringPage() {
   return (
     <AuthGate variant="cricket">
       <RoleGate allowed={['cricket', 'admin']}>
-        {/* Hide Shell — fixed overlay (no scroll on this element, iOS Safari ignores it).
-             Inner absolute div is the actual scroll container. */}
-        <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: 'var(--bg)' }}>
-          <div
-            className="absolute inset-0 overflow-y-auto overscroll-contain"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {view === 'landing' && (
-              <ScoringLanding
-                onNewMatch={() => setView('wizard')}
-                onContinue={match ? async () => {
-                  // Re-hydrate from DB if available, to avoid stale localStorage
-                  const { dbMatchId } = useScoringStore.getState();
-                  if (dbMatchId) await useScoringStore.getState().resumeMatch(dbMatchId);
-                  setView('match');
-                } : undefined}
-                onResumeMatch={async (matchId) => {
-                  const ok = await useScoringStore.getState().resumeMatch(matchId);
-                  if (ok) setView('match');
-                }}
-              />
-            )}
-            {view === 'wizard' && (
-              <ScoringWizard
-                onComplete={() => setView('match')}
-                onBack={() => setView('landing')}
-              />
-            )}
-            {view === 'match' && <ActiveMatch onBack={() => setView('landing')} />}
+        {/* Landing — renders within Shell (hamburger menu visible) */}
+        {view === 'landing' && (
+          <ScoringLanding
+            onNewMatch={() => setView('wizard')}
+            onContinue={match ? async () => {
+              const { dbMatchId } = useScoringStore.getState();
+              if (dbMatchId) await useScoringStore.getState().resumeMatch(dbMatchId);
+              setView('match');
+            } : undefined}
+            onResumeMatch={async (matchId) => {
+              const ok = await useScoringStore.getState().resumeMatch(matchId);
+              if (ok) setView('match');
+            }}
+          />
+        )}
+
+        {/* Wizard + Active Match — full-screen overlay (hides Shell) */}
+        {(view === 'wizard' || view === 'match') && (
+          <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: 'var(--bg)' }}>
+            <div
+              className="absolute inset-0 overflow-y-auto overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              {view === 'wizard' && (
+                <ScoringWizard
+                  onComplete={() => setView('match')}
+                  onBack={() => setView('landing')}
+                />
+              )}
+              {view === 'match' && <ActiveMatch onBack={() => setView('landing')} />}
+            </div>
           </div>
-        </div>
+        )}
       </RoleGate>
     </AuthGate>
   );

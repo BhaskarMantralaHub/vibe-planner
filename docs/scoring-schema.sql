@@ -830,20 +830,35 @@ GRANT EXECUTE ON FUNCTION get_deleted_matches(INTEGER) TO authenticated;
 -- Season performance stats computed from practice_balls.
 -- Categories: batting, bowling, fielding, allround
 
+DROP FUNCTION IF EXISTS get_practice_leaderboard(UUID, TEXT);
+
 CREATE OR REPLACE FUNCTION get_practice_leaderboard(
   p_season_id UUID DEFAULT NULL,
-  p_category TEXT DEFAULT 'batting'
+  p_category TEXT DEFAULT 'batting',
+  p_match_limit INTEGER DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
 AS $$
 DECLARE
   result JSON;
+  match_ids UUID[];
 BEGIN
   IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
 
   IF p_category NOT IN ('batting', 'bowling', 'fielding', 'allround') THEN
     RAISE EXCEPTION 'Invalid category: must be batting, bowling, fielding, or allround';
+  END IF;
+
+  -- Resolve match IDs: optionally limited to last N completed matches
+  IF p_match_limit IS NOT NULL THEN
+    SELECT ARRAY(
+      SELECT id FROM practice_matches
+      WHERE status = 'completed' AND deleted_at IS NULL
+        AND (p_season_id IS NULL OR season_id = p_season_id)
+      ORDER BY completed_at DESC NULLS LAST, created_at DESC
+      LIMIT p_match_limit
+    ) INTO match_ids;
   END IF;
 
   IF p_category = 'batting' THEN
@@ -865,6 +880,7 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
       HAVING SUM(b.runs_bat) > 0
@@ -891,6 +907,7 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
       HAVING COUNT(*) FILTER (WHERE b.is_legal) > 0
@@ -898,7 +915,7 @@ BEGIN
     ) row;
 
   ELSIF p_category = 'fielding' THEN
-    SELECT COALESCE(json_agg(row ORDER BY row.total_catches DESC), '[]'::json)
+    SELECT COALESCE(json_agg(row ORDER BY row.total_dismissals DESC, row.total_catches DESC), '[]'::json)
     INTO result
     FROM (
       SELECT
@@ -906,16 +923,18 @@ BEGIN
         COUNT(DISTINCT b.match_id) AS matches,
         SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches,
         SUM(CASE WHEN b.wicket_type = 'run_out' THEN 1 ELSE 0 END) AS total_runouts,
-        SUM(CASE WHEN b.wicket_type = 'stumped' THEN 1 ELSE 0 END) AS total_stumpings
+        SUM(CASE WHEN b.wicket_type = 'stumped' THEN 1 ELSE 0 END) AS total_stumpings,
+        COUNT(*) AS total_dismissals
       FROM practice_balls b
       JOIN practice_match_players pmp ON pmp.id = b.fielder_id
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND b.is_wicket = true AND b.fielder_id IS NOT NULL
         AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
-      ORDER BY total_catches DESC LIMIT 50
+      ORDER BY total_dismissals DESC, total_catches DESC LIMIT 50
     ) row;
 
   ELSE -- allround
@@ -924,31 +943,43 @@ BEGIN
     FROM (
       SELECT
         cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
+        COALESCE(match_count.matches, 0) AS matches,
         COALESCE(bat.total_runs, 0) AS total_runs,
         COALESCE(bowl.total_wickets, 0) AS total_wickets,
         COALESCE(field.total_catches, 0) AS total_catches,
         COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) * 25 + COALESCE(field.total_catches, 0) * 10 AS score
       FROM cricket_players cp
       LEFT JOIN LATERAL (
+        SELECT COUNT(DISTINCT m.id) AS matches
+        FROM practice_match_players pmp
+        JOIN practice_matches m ON m.id = pmp.match_id
+        WHERE pmp.player_id = cp.id AND m.status = 'completed' AND m.deleted_at IS NULL
+          AND (match_ids IS NULL OR m.id = ANY(match_ids))
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+      ) match_count ON true
+      LEFT JOIN LATERAL (
         SELECT SUM(b.runs_bat) AS total_runs
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.striker_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
-          AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND (match_ids IS NULL OR m.id = ANY(match_ids))
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bat ON true
       LEFT JOIN LATERAL (
         SELECT SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.bowler_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
-          AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND (match_ids IS NULL OR m.id = ANY(match_ids))
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bowl ON true
       LEFT JOIN LATERAL (
         SELECT SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.fielder_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND b.is_wicket = true
-          AND m.status = 'completed' AND m.deleted_at IS NULL AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND m.status = 'completed' AND m.deleted_at IS NULL AND (match_ids IS NULL OR m.id = ANY(match_ids))
+        AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) field ON true
       WHERE cp.is_active = true
         AND (COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) + COALESCE(field.total_catches, 0)) > 0
@@ -960,7 +991,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT, INTEGER) TO authenticated;
 
 
 -- ── Guest Player Suggestions (auto-complete from past matches) ──
