@@ -36,14 +36,14 @@ export const PLAYERS: CricketPlayer[] = [
     jersey_number: 7, phone: '555-0001', player_role: 'batsman',
     batting_style: 'right', bowling_style: '', cricclub_id: null,
     shirt_size: 'L', email: 'bhaskar@example.com', designation: 'captain',
-    photo_url: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    photo_url: null, is_active: true, is_guest: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'p2', user_id: PLAYER_USER_2.id, name: 'Manigopal',
     jersey_number: 11, phone: '555-0002', player_role: 'all-rounder',
     batting_style: 'right', bowling_style: 'medium', cricclub_id: null,
     shirt_size: 'M', email: 'mani@example.com', designation: null,
-    photo_url: 'https://example.com/mani.jpg', is_active: true,
+    photo_url: 'https://example.com/mani.jpg', is_active: true, is_guest: false,
     created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
   },
   {
@@ -51,7 +51,7 @@ export const PLAYERS: CricketPlayer[] = [
     jersey_number: 99, phone: null, player_role: 'bowler',
     batting_style: null, bowling_style: 'pace', cricclub_id: null,
     shirt_size: null, email: 'inactive@example.com', designation: null,
-    photo_url: null, is_active: false, created_at: '2026-01-03T00:00:00Z', updated_at: '2026-01-03T00:00:00Z',
+    photo_url: null, is_active: false, is_guest: false, created_at: '2026-01-03T00:00:00Z', updated_at: '2026-01-03T00:00:00Z',
   },
 ];
 

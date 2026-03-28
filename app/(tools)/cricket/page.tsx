@@ -164,7 +164,7 @@ function CricketDashboard() {
   const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses, fees, sponsorships } = useCricketStore();
   const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;

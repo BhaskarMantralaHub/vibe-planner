@@ -149,9 +149,9 @@ CREATE TABLE IF NOT EXISTS practice_match_players (
   created_at          TIMESTAMPTZ DEFAULT now()
 );
 
--- Roster players unique per match (guests can have NULL player_id, so no conflict)
+-- Players unique per match per team (includes team to allow same guest on both teams)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_match_players_unique_roster
-  ON practice_match_players (match_id, player_id)
+  ON practice_match_players (match_id, player_id, team)
   WHERE player_id IS NOT NULL;
 
 ALTER TABLE practice_match_players ENABLE ROW LEVEL SECURITY;
@@ -368,6 +368,8 @@ DECLARE
   batting_second TEXT;
   player_row JSONB;
   new_player_id UUID;
+  guest_player_id UUID;
+  guest_name TEXT;
   player_map JSONB := '[]'::jsonb;
   idx INTEGER := 0;
 BEGIN
@@ -409,6 +411,34 @@ BEGIN
   ) RETURNING id INTO new_match_id;
 
   FOR player_row IN SELECT * FROM jsonb_array_elements(p_players) LOOP
+    guest_player_id := NULL;
+
+    -- For guest players: upsert into cricket_players (race-safe via ON CONFLICT)
+    IF COALESCE((player_row->>'is_guest')::BOOLEAN, false) THEN
+      guest_name := player_row->>'name';
+
+      -- Validate name length
+      IF length(guest_name) > 100 THEN
+        RAISE EXCEPTION 'Guest player name too long: maximum 100 characters';
+      END IF;
+
+      -- Attempt INSERT, DO NOTHING on conflict (existing guest with same lower(name))
+      INSERT INTO cricket_players (name, is_guest, is_active)
+      VALUES (guest_name, true, true)
+      ON CONFLICT ((lower(name))) WHERE is_guest = true AND is_active = true
+      DO NOTHING
+      RETURNING id INTO guest_player_id;
+
+      -- If DO NOTHING fired (already exists), fetch the existing id
+      IF guest_player_id IS NULL THEN
+        SELECT id INTO guest_player_id
+        FROM cricket_players
+        WHERE lower(name) = lower(guest_name)
+          AND is_guest = true
+          AND is_active = true;
+      END IF;
+    END IF;
+
     INSERT INTO practice_match_players (
       match_id, team, name, jersey_number, player_id, is_guest
     ) VALUES (
@@ -416,8 +446,12 @@ BEGIN
       player_row->>'team',
       player_row->>'name',
       (player_row->>'jersey_number')::INTEGER,
-      CASE WHEN player_row->>'player_id' IS NOT NULL AND player_row->>'player_id' != ''
-           THEN (player_row->>'player_id')::UUID ELSE NULL END,
+      CASE
+        WHEN COALESCE((player_row->>'is_guest')::BOOLEAN, false) THEN guest_player_id
+        WHEN player_row->>'player_id' IS NOT NULL AND player_row->>'player_id' != ''
+          THEN (player_row->>'player_id')::UUID
+        ELSE NULL
+      END,
       COALESCE((player_row->>'is_guest')::BOOLEAN, false)
     ) RETURNING id INTO new_player_id;
 
@@ -817,7 +851,7 @@ BEGIN
     INTO result
     FROM (
       SELECT
-        cp.id AS player_id, cp.name, cp.photo_url,
+        cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
         COUNT(DISTINCT b.match_id) AS matches,
         SUM(b.runs_bat) AS total_runs,
         COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') AS balls_faced,
@@ -831,9 +865,8 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
-        AND pmp.player_id IS NOT NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
-      GROUP BY cp.id, cp.name, cp.photo_url
+      GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
       HAVING SUM(b.runs_bat) > 0
       ORDER BY total_runs DESC LIMIT 50
     ) row;
@@ -843,7 +876,7 @@ BEGIN
     INTO result
     FROM (
       SELECT
-        cp.id AS player_id, cp.name, cp.photo_url,
+        cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
         COUNT(DISTINCT b.match_id) AS matches,
         SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets,
         COUNT(*) FILTER (WHERE b.is_legal) AS legal_balls,
@@ -858,9 +891,8 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
-        AND pmp.player_id IS NOT NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
-      GROUP BY cp.id, cp.name, cp.photo_url
+      GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
       HAVING COUNT(*) FILTER (WHERE b.is_legal) > 0
       ORDER BY total_wickets DESC, economy ASC LIMIT 50
     ) row;
@@ -870,7 +902,7 @@ BEGIN
     INTO result
     FROM (
       SELECT
-        cp.id AS player_id, cp.name, cp.photo_url,
+        cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
         COUNT(DISTINCT b.match_id) AS matches,
         SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches,
         SUM(CASE WHEN b.wicket_type = 'run_out' THEN 1 ELSE 0 END) AS total_runouts,
@@ -880,9 +912,9 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND b.is_wicket = true AND b.fielder_id IS NOT NULL
-        AND m.status = 'completed' AND m.deleted_at IS NULL AND pmp.player_id IS NOT NULL
+        AND m.status = 'completed' AND m.deleted_at IS NULL
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
-      GROUP BY cp.id, cp.name, cp.photo_url
+      GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
       ORDER BY total_catches DESC LIMIT 50
     ) row;
 
@@ -891,7 +923,7 @@ BEGIN
     INTO result
     FROM (
       SELECT
-        cp.id AS player_id, cp.name, cp.photo_url,
+        cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
         COALESCE(bat.total_runs, 0) AS total_runs,
         COALESCE(bowl.total_wickets, 0) AS total_wickets,
         COALESCE(field.total_catches, 0) AS total_catches,
@@ -941,17 +973,13 @@ DECLARE
 BEGIN
   IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
 
-  SELECT COALESCE(json_agg(row ORDER BY row.last_used DESC), '[]'::json)
+  SELECT COALESCE(json_agg(
+    json_build_object('id', cp.id, 'name', cp.name)
+    ORDER BY cp.name
+  ), '[]'::json)
   INTO result
-  FROM (
-    SELECT DISTINCT ON (lower(pmp.name))
-      pmp.name,
-      pm.match_date AS last_used
-    FROM practice_match_players pmp
-    JOIN practice_matches pm ON pm.id = pmp.match_id
-    WHERE pmp.is_guest = true
-    ORDER BY lower(pmp.name), pm.match_date DESC
-  ) row;
+  FROM cricket_players cp
+  WHERE cp.is_guest = true AND cp.is_active = true;
 
   RETURN result;
 END;
@@ -996,3 +1024,45 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION revert_match_to_scoring(UUID) TO authenticated;
+
+
+-- ── Promote Guest to Roster (admin only) ─────────────────
+DROP FUNCTION IF EXISTS promote_guest_to_roster(UUID, INTEGER, TEXT, TEXT);
+
+CREATE OR REPLACE FUNCTION promote_guest_to_roster(
+  target_player_id UUID,
+  p_jersey_number INTEGER DEFAULT NULL,
+  p_phone TEXT DEFAULT NULL,
+  p_email TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+
+  -- Check email uniqueness if provided (prevents linking conflicts)
+  IF p_email IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM cricket_players
+      WHERE lower(email) = lower(p_email) AND id != target_player_id AND is_active = true
+    ) THEN
+      RAISE EXCEPTION 'Email already belongs to another player';
+    END IF;
+  END IF;
+
+  UPDATE cricket_players
+  SET is_guest = false,
+      jersey_number = COALESCE(p_jersey_number, jersey_number),
+      phone = COALESCE(p_phone, phone),
+      email = COALESCE(p_email, email),
+      updated_at = now()
+  WHERE id = target_player_id
+    AND is_guest = true
+    AND is_active = true;
+
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION promote_guest_to_roster(UUID, INTEGER, TEXT, TEXT) TO authenticated;

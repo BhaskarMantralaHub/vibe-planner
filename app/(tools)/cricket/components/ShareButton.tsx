@@ -12,7 +12,7 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   const season = seasons.find((s) => s.id === selectedSeasonId);
   if (!season) return '';
 
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId && !e.deleted_at);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
@@ -72,7 +72,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const season = seasons.find((s) => s.id === selectedSeasonId);
   if (!season) return null;
 
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId && !e.deleted_at);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;

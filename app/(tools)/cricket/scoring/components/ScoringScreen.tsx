@@ -5,10 +5,12 @@ import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, Dia
 import { cn } from '@/lib/utils';
 import { PageFooter } from '@/components/PageFooter';
 import { useScoringStore } from '@/stores/scoring-store';
+import { useCricketStore } from '@/stores/cricket-store';
 import { Scoreboard } from './Scoreboard';
 import { OverTimeline } from './OverTimeline';
 import { ButtonGrid } from './ButtonGrid';
 import { FreeHitBanner } from './FreeHitBanner';
+import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
 import { WicketSheet } from './WicketSheet';
 import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
 import { EndOfOverSheet } from './EndOfOverSheet';
@@ -17,6 +19,7 @@ import { FullScorecard } from './FullScorecard';
 import type { WicketType } from '@/types/scoring';
 import {
   buildPlayerMap,
+  displayName,
   scoringBallToBallResult,
   buildTimeline,
   buildInningsSummary,
@@ -57,12 +60,22 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
     getAvailableBowlers,
   } = useScoringStore.getState();
 
+  // Photo lookup: player_id → photo_url from cricket_players roster
+  const rosterPlayers = useCricketStore((s) => s.players);
+  const photoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of rosterPlayers) {
+      if (p.photo_url) map.set(p.id, p.photo_url);
+    }
+    return map;
+  }, [rosterPlayers]);
+
   /* ── Local UI state ── */
   const [wicketOpen, setWicketOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard'>('scoring');
+  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard' | 'squads'>('scoring');
   const [endMatchOpen, setEndMatchOpen] = useState(false);
   const [inningsBreak, setInningsBreak] = useState(false);
   const [inn2Striker, setInn2Striker] = useState<string | null>(null);
@@ -308,15 +321,15 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   const bowlerPlayer = currentInnings.bowler_id ? playerMap.get(currentInnings.bowler_id) : null;
 
   /* ── Data for sheets ── */
-  const battingTeamPlayers = getBattingTeamPlayers().map((p) => ({ id: p.id, name: p.name }));
-  const bowlingTeamPlayers = getBowlingTeamPlayers().map((p) => ({ id: p.id, name: p.name }));
-  const yetToBat = getYetToBat().map((p) => ({ id: p.id, name: p.name }));
+  const battingTeamPlayers = getBattingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
+  const bowlingTeamPlayers = getBowlingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
+  const yetToBat = getYetToBat().map((p) => ({ id: p.id, name: displayName(p) }));
 
   const currentBatsmen: [{ id: string; name: string }, { id: string; name: string }] | null =
     strikerPlayer && nonStrikerPlayer
       ? [
-          { id: strikerPlayer.id, name: strikerPlayer.name },
-          { id: nonStrikerPlayer.id, name: nonStrikerPlayer.name },
+          { id: strikerPlayer.id, name: displayName(strikerPlayer) },
+          { id: nonStrikerPlayer.id, name: displayName(nonStrikerPlayer) },
         ]
       : null;
 
@@ -334,7 +347,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
       .filter((p) => !endOfOverBowlers.some((b) => b.id === p.id))
       .map((p) => ({
         id: p.id,
-        name: p.name,
+        name: displayName(p),
         overs: '0.0',
         maidens: 0,
         runs: 0,
@@ -515,7 +528,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5 min-w-0 flex-1">
-                <Text size="sm" weight="bold" truncate>{strikerPlayer.name}</Text>
+                <Text size="sm" weight="bold" truncate>{displayName(strikerPlayer)}</Text>
                 {!currentInnings.is_completed && <Text size="xs" weight="bold" color="cricket" className="flex-shrink-0">*</Text>}
                 {currentInnings.is_completed && <Text size="2xs" weight="medium" color="success" className="flex-shrink-0 ml-1">not out</Text>}
               </div>
@@ -547,7 +560,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 min-w-0 flex-1">
-                  <Text size="sm" weight="medium" color="muted" truncate>{nonStrikerPlayer.name}</Text>
+                  <Text size="sm" weight="medium" color="muted" truncate>{displayName(nonStrikerPlayer)}</Text>
                   {currentInnings.is_completed && <Text size="2xs" weight="medium" color="success" className="flex-shrink-0">not out</Text>}
                 </div>
                 <Text size="md" weight="semibold" color="muted" tabular className="flex-shrink-0">
@@ -576,7 +589,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
         {/* Bowler */}
         <div className="px-3 py-2 flex items-center gap-2">
           <Text size="2xs" weight="semibold" color="muted" uppercase className="flex-shrink-0">Bowl</Text>
-          <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer?.name ?? 'TBD'}</Text>
+          <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer ? displayName(bowlerPlayer) : 'TBD'}</Text>
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
             <Text size="xs" color="muted" tabular>{currentBowlerStats?.overs ?? '0.0'}ov</Text>
             <Text size="xs" weight="semibold" tabular>{currentBowlerStats?.wickets ?? 0}w</Text>
@@ -615,9 +628,10 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
           ...(match.status !== 'completed' ? [{ key: 'scoring', label: 'Scoring' }] : []),
           { key: 'ballbyball', label: 'Ball by Ball' },
           { key: 'scorecard', label: 'Scorecard' },
+          { key: 'squads', label: 'Squads' },
         ]}
         active={match.status === 'completed' && activeTab === 'scoring' ? 'scorecard' : activeTab}
-        onChange={(key) => setActiveTab(key as 'scoring' | 'ballbyball' | 'scorecard')}
+        onChange={(key) => setActiveTab(key as 'scoring' | 'ballbyball' | 'scorecard' | 'squads')}
         className="mx-4 mb-2"
       />
 
@@ -759,6 +773,41 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
         )
       )}
 
+      {activeTab === 'squads' && (
+        <div className="px-4 space-y-4 pb-4">
+          {[match.team_a, match.team_b].map((team, idx) => {
+            const teamSide = idx === 0 ? 'team_a' : 'team_b';
+            const isBatting = innings[match.current_innings].batting_team === teamSide;
+            return (
+              <div key={teamSide} className="rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]/50"
+                  style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), transparent)' }}>
+                  <Text size="sm" weight="bold">{team.name}</Text>
+                  <div className="flex items-center gap-2">
+                    {isBatting && match.status === 'scoring' && (
+                      <Text size="2xs" weight="bold" color="cricket" uppercase>Batting</Text>
+                    )}
+                    <Text size="2xs" color="muted">{team.players.length} players</Text>
+                  </div>
+                </div>
+                <div className="px-2 py-1.5 space-y-1">
+                  {team.players.map((p) => (
+                    <PlayerPickerRow
+                      key={p.id}
+                      player={{ ...p, photo_url: p.player_id ? photoMap.get(p.player_id) ?? null : null }}
+                      selected={false}
+                      onToggle={() => {}}
+                      mode="highlight"
+                      badge={team.captain_id === p.id ? 'C' : undefined}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Undo is now integrated into ButtonGrid's extras row */}
 
       {/* Separator + footer */}
@@ -859,7 +908,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                             : 'border-[var(--border)] bg-[var(--surface)]',
                         )}
                       >
-                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{p.name}</Text>
+                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{displayName(p)}</Text>
                         {isStriker && <Text size="2xs" weight="bold" color="cricket">Striker</Text>}
                         {isNonStriker && <Text size="2xs" weight="bold" color="cricket">Non-Striker</Text>}
                       </button>
@@ -891,7 +940,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                             : 'border-[var(--border)] bg-[var(--surface)]',
                         )}
                       >
-                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{p.name}</Text>
+                        <Text size="sm" weight={isSelected ? 'semibold' : 'medium'}>{displayName(p)}</Text>
                         {isSelected && <Text size="2xs" weight="bold" color="cricket">Bowler</Text>}
                       </button>
                     );

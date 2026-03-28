@@ -157,7 +157,7 @@ interface ScoringState {
   historyLoading: boolean;
 
   // Guest suggestions
-  guestSuggestions: { name: string; last_used: string }[];
+  guestSuggestions: { id: string; name: string }[];
   fetchGuestSuggestions: () => Promise<void>;
 
   // Leaderboard
@@ -190,6 +190,8 @@ export const useScoringStore = create<ScoringState>()(
   deletedMatches: [],
   historyLoading: false,
   guestSuggestions: [],
+  leaderboard: {},
+  leaderboardLoading: false,
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -1094,7 +1096,23 @@ export const useScoringStore = create<ScoringState>()(
     if (!supabase) return;
     const { data, error } = await supabase.rpc('get_guest_suggestions');
     if (error) { console.error('[scoring] fetchGuestSuggestions:', error); return; }
-    set({ guestSuggestions: (data ?? []) as { name: string; last_used: string }[] });
+    set({ guestSuggestions: (data ?? []) as { id: string; name: string }[] });
+  },
+
+  fetchLeaderboard: async (category: string) => {
+    if (!isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    set({ leaderboardLoading: true });
+    const { data, error } = await supabase.rpc('get_practice_leaderboard', {
+      p_season_id: null,
+      p_category: category,
+    });
+    if (error) { console.error('[scoring] fetchLeaderboard:', error); set({ leaderboardLoading: false }); return; }
+    set((state) => ({
+      leaderboard: { ...state.leaderboard, [category]: (data ?? []) as LeaderboardEntry[] },
+      leaderboardLoading: false,
+    }));
   },
 
   loadMatchHistory: async (loadMore = false, fromDate?: string, toDate?: string) => {
@@ -1193,7 +1211,7 @@ export const useScoringStore = create<ScoringState>()(
     supabase.rpc('claim_scorer', {
       target_match_id: matchId,
       scorer_display_name: scorerName,
-    }).then(({ error }) => {
+    }).then(({ error }: { error: unknown }) => {
       if (error) console.error('[scoring] claim_scorer on resume failed:', error);
     });
 

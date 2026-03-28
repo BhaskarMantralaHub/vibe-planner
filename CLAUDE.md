@@ -134,7 +134,7 @@ Statuses: `spark`, `in_progress`, `scheduled`, `done`. Soft delete via `deleted_
 Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `label`, `owner_name`, `description`, `expiry_date`, `renewal_url`, `reminder_days` (integer array), `created_at`, `updated_at`.
 
 ### Cricket Tables
-Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `created_at`, `updated_at`.
+Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `is_guest` (BOOLEAN, true for auto-created guest players from practice matches — can be promoted to roster via `promote_guest_to_roster` RPC), `created_at`, `updated_at`. Unique index on `lower(name) WHERE is_guest = true AND is_active = true` prevents duplicate guests.
 Storage bucket `player-photos`: Public bucket for player profile photos. Path: `{user_id}/{player_id}.jpg`. Only the player themselves can upload (RLS by `auth.uid()`).
 Table `cricket_seasons`: `id`, `user_id`, `name`, `year`, `season_type`, `share_token` (UUID for public URL), `is_active`, `created_at`, `updated_at`.
 Table `cricket_expenses`: `id`, `user_id`, `season_id`, `paid_by` (player FK), `category`, `description`, `amount` (NUMERIC), `expense_date`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.
@@ -170,11 +170,11 @@ Full SQL in `docs/DATABASE_SCHEMA.sql` and `docs/cricket-schema.sql`.
 **Route:** `/cricket/scoring` — standalone full-screen page (not inside cricket dashboard tabs).
 **Store:** `stores/scoring-store.ts` (Zustand) — full match lifecycle, ball-by-ball logic, computed stats.
 **Types:** `types/scoring.ts` — `ScoringMatch`, `ScoringBall`, `ScoringInnings`, `BattingStats`, `BowlingStats`.
-**Schema:** `docs/scoring-schema.sql` — 4 tables, 8 RPCs, reviewed by DBA/Arch/SQL agents.
+**Schema:** `docs/scoring-schema.sql` — 4 tables, 17 RPCs, reviewed by DBA/Arch/SQL agents.
 
 #### Tables
 Table `practice_matches`: `id`, `season_id`, `created_by`, `title`, `match_date`, `overs_per_innings`, `status` (setup/scoring/innings_break/completed), `current_innings` (0 or 1), `team_a_name`, `team_b_name`, `toss_winner`, `toss_decision`, `result_summary`, `match_winner`, `mvp_player_id`, `scorer_name`, `scorer_id`, `active_scorer_id`, `scorer_heartbeat`, `previous_match_id` (rematch link), `match_number`, `share_token` (public URL), `started_at`, `completed_at`, `created_at`, `updated_at`.
-Table `practice_match_players`: `id`, `match_id` (CASCADE), `player_id` (FK to cricket_players, NULL for guests), `team` (team_a/team_b), `name`, `jersey_number`, `is_guest`, `is_captain`, `batting_order`, `created_at`. Match-local player snapshots — all ball references use these IDs, not global roster IDs.
+Table `practice_match_players`: `id`, `match_id` (CASCADE), `player_id` (FK to cricket_players — set for ALL players including guests), `team` (team_a/team_b), `name`, `jersey_number`, `is_guest`, `is_captain`, `batting_order`, `created_at`. Match-local player snapshots — all ball references use these IDs, not global roster IDs.
 Table `practice_innings`: `id`, `match_id` (CASCADE), `innings_number` (0 or 1), `batting_team`, `total_runs`, `total_wickets`, `total_overs`, `legal_balls`, `extras_wide`, `extras_no_ball`, `extras_bye`, `extras_leg_bye`, `striker_id`, `non_striker_id`, `bowler_id`, `target`, `is_completed`, `created_at`, `updated_at`. Denormalized totals updated after every ball for fast scoreboard reads.
 Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`, `over_number`, `ball_in_over`, `striker_id`, `non_striker_id`, `bowler_id`, `runs_bat` (0-7), `runs_extras`, `extras_type` (wide/no_ball/bye/leg_bye), `is_legal`, `is_free_hit`, `is_wicket`, `wicket_type` (bowled/caught/run_out/stumped/hit_wicket/retired), `dismissed_id`, `fielder_id`, `deleted_at` (soft delete for undo), `created_at`. Every delivery is an immutable row.
 
@@ -183,7 +183,7 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - Wide/no-ball must have `runs_extras >= 1`
 - Toss: both `toss_winner` and `toss_decision` set together or both null
 - Ball sequence: partial unique index `WHERE deleted_at IS NULL` (allows undo/redo)
-- Guest players: partial unique on `(match_id, player_id) WHERE player_id IS NOT NULL`
+- Players: partial unique on `(match_id, player_id, team) WHERE player_id IS NOT NULL` — allows same guest on both teams
 - Overs validation: decimal part 0-5 only
 - `created_by` immutable via trigger
 
@@ -194,7 +194,7 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - **Admin**: Can delete from any table regardless of match status (cleanup)
 
 #### RPCs
-- `create_practice_match(...)` → atomic: creates match + players + innings in one transaction, returns server player ID mapping
+- `create_practice_match(...)` → atomic: creates match + players + innings in one transaction, upserts guest players into `cricket_players` (ON CONFLICT dedup by `lower(name)`), returns server player ID mapping
 - `get_match_history(status, limit, offset)` → paginated match list with both innings scores (landing page)
 - `get_match_scorecard(match_id)` → full data dump: match + players + innings + balls (scorecard view)
 - `get_public_match_scorecard(share_token)` → no-auth public view, internal IDs stripped
@@ -207,7 +207,8 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `permanent_delete_match(match_id)` → hard delete with CASCADE (admin only, requires deleted_at IS NOT NULL)
 - `get_deleted_matches(limit)` → admin-only list of soft-deleted matches for Deleted filter tab
 - `revert_match_to_scoring(match_id)` → admin-only, reverts abruptly ended match (no winner) back to scoring/innings_break. Smart logic: if 2nd innings has players → scoring, if 1st completed → innings_break, else scoring
-- `get_guest_suggestions()` → returns distinct guest names from past matches for autocomplete in wizard
+- `get_guest_suggestions()` → returns `{id, name}` from `cricket_players WHERE is_guest = true` for autocomplete in wizard
+- `promote_guest_to_roster(player_id, jersey, phone, email)` → admin-only, flips `is_guest=false`, validates email uniqueness, stats carry over
 - `get_match_scorecard` returns `striker_id`, `non_striker_id`, `bowler_id` in innings data (needed for match resume)
 
 #### Sync Architecture (Optimistic Local-First)

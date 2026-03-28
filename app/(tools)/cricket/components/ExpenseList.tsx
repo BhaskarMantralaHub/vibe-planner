@@ -169,7 +169,7 @@ export default function ExpenseList() {
   const deletedExpenses = allSeasonExpenses.filter((e) => e.deleted_at);
   const [showDeleted, setShowDeleted] = useState(false);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
 
   const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
   const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);

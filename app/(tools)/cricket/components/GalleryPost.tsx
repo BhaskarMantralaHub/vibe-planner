@@ -20,7 +20,7 @@ function getPostPhotos(post: GalleryPostType): string[] {
 
 /* ── Render text with @mentions and #hashtags highlighted ── */
 function RichText({ text, players }: { text: string; players: CricketPlayer[] }) {
-  const playerNames = players.filter((p) => p.is_active).map((p) => p.name.toLowerCase());
+  const playerNames = players.filter((p) => p.is_active && !p.is_guest).map((p) => p.name.toLowerCase());
 
   const result: { text: string; type: 'plain' | 'mention' | 'hashtag' }[] = [];
   const tokenRegex = /(@\w[\w\s]*?)(?=\s@|\s#|\.\.|[!?,]|$)|(#\w+)/g;
@@ -368,7 +368,7 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
 }) {
   const showAll = 'all'.includes(query.toLowerCase());
   const filtered = players
-    .filter((p) => p.is_active && p.name.toLowerCase().includes(query.toLowerCase()))
+    .filter((p) => p.is_active && !p.is_guest && p.name.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 6);
   if (!showAll && filtered.length === 0) return null;
 

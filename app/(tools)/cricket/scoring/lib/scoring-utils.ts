@@ -21,6 +21,11 @@ import type { BallEntry, OverSummary, TimelineEntry } from '../components/BallBy
 import type { BatsmanScore, BowlerFigure, ExtrasBreakdown, InningsSummary } from '../components/FullScorecard';
 import type { BowlerFigures } from '../components/EndOfOverSheet';
 
+/* ── Display name: appends (G) for guest players ── */
+export function displayName(player: ScoringPlayer): string {
+  return player.is_guest ? `${player.name} (G)` : player.name;
+}
+
 /* ── Player map ── */
 
 export function buildPlayerMap(match: ScoringMatch): Map<string, ScoringPlayer> {
@@ -123,15 +128,15 @@ export function scoringBallToBallEntry(
   if (ball.is_wicket) {
     wicketText = constructDismissalText(
       ball.wicket_type,
-      bowler?.name,
-      fielder?.name,
+      bowler ? displayName(bowler) : undefined,
+      fielder ? displayName(fielder) : undefined,
     );
   }
 
   return {
     overBall: `${ball.over_number}.${ball.ball_in_over + 1}`,
-    bowler: bowler?.name ?? '?',
-    batter: batter?.name ?? '?',
+    bowler: bowler ? displayName(bowler) : '?',
+    batter: batter ? displayName(batter) : '?',
     runs: ball.runs_bat + ball.runs_extras,
     type: scoringBallToEntryType(ball),
     wicketText,
@@ -176,7 +181,8 @@ export function buildTimeline(
     const legalInOver = overBalls.filter((b) => b.is_legal).length;
     if (legalInOver === 6) {
       const overRuns = overBalls.reduce((s, b) => s + b.runs_bat + b.runs_extras, 0);
-      const bowlerName = playerMap.get(overBalls[0].bowler_id)?.name ?? '?';
+      const bowlerP = playerMap.get(overBalls[0].bowler_id);
+      const bowlerName = bowlerP ? displayName(bowlerP) : '?';
 
       // Batsmen who faced in this over
       const batsmenInOver = new Map<string, { runs: number; balls: number }>();
@@ -189,7 +195,7 @@ export function buildTimeline(
       }
 
       const batsmen = Array.from(batsmenInOver.entries()).map(([id, stats]) => ({
-        name: playerMap.get(id)?.name ?? '?',
+        name: (() => { const p = playerMap.get(id); return p ? displayName(p) : '?'; })(),
         runs: stats.runs,
         balls: stats.balls,
       }));
@@ -237,14 +243,14 @@ export function buildInningsSummary(
       if (wicketBall) {
         const bowler = playerMap.get(wicketBall.bowler_id);
         const fielder = wicketBall.fielder_id ? playerMap.get(wicketBall.fielder_id) : undefined;
-        dismissal = constructDismissalText(wicketBall.wicket_type, bowler?.name, fielder?.name, true);
+        dismissal = constructDismissalText(wicketBall.wicket_type, bowler ? displayName(bowler) : undefined, fielder ? displayName(fielder) : undefined, true);
       } else {
         dismissal = bs.how_out ?? 'out';
       }
     }
 
     return {
-      name: bs.player.name,
+      name: displayName(bs.player),
       isStriker: bs.player.id === innings.striker_id,
       dismissal,
       runs: bs.runs,
@@ -258,7 +264,7 @@ export function buildInningsSummary(
   // Did not bat
   const didNotBat = battingTeam.players
     .filter((p) => !battedIds.has(p.id))
-    .map((p) => p.name);
+    .map((p) => displayName(p));
 
   // Bowler figures
   const bowlers: BowlerFigure[] = bowlingStats.map((bs) => {
@@ -268,7 +274,7 @@ export function buildInningsSummary(
 
     const extrasStr = formatBowlerExtras(bs.wides, bs.no_balls);
     return {
-      name: bs.player.name,
+      name: displayName(bs.player),
       overs: bs.overs,
       maidens: bs.maidens,
       dots,
@@ -322,7 +328,7 @@ function computeFallOfWickets(
       const dismissed = b.dismissed_id ? playerMap.get(b.dismissed_id) : playerMap.get(b.striker_id);
       fow.push({
         wicketNum: wicketCount,
-        playerName: dismissed?.name ?? '?',
+        playerName: dismissed ? displayName(dismissed) : '?',
         score: runningScore,
         over: `${b.over_number}.${b.ball_in_over + 1}`,
       });
@@ -349,7 +355,7 @@ export function bowlingStatsToBowlerFigures(
 ): BowlerFigures[] {
   return stats.map((bs) => ({
     id: bs.player.id,
-    name: bs.player.name,
+    name: displayName(bs.player),
     overs: bs.overs,
     maidens: bs.maidens,
     runs: bs.runs,

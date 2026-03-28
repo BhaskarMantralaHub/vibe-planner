@@ -14,7 +14,7 @@ export default function FeeTracker() {
   const isAdmin = userAccess.includes('admin');
   const adminName = (user?.user_metadata?.full_name as string) || user?.email || 'Admin';
   const { players, fees, selectedSeasonId, seasons, updateSeason, recordFee, deleteFee } = useCricketStore();
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
 
   const season = seasons.find((s) => s.id === selectedSeasonId);
   const feeAmount = season?.fee_amount ?? 60;

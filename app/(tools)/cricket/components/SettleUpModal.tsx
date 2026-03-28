@@ -11,7 +11,7 @@ const SETTLE_FORM_KEY = 'cricket_settle_form_draft';
 export default function SettleUpModal() {
   const { user } = useAuthStore();
   const { players, selectedSeasonId, showSettleForm, setShowSettleForm, addSettlement } = useCricketStore();
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
 
   const getSavedForm = () => {
     try { const s = sessionStorage.getItem(SETTLE_FORM_KEY); return s ? JSON.parse(s) : null; } catch { return null; }

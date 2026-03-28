@@ -108,7 +108,7 @@ interface CricketState {
   loadMoreGallery: () => Promise<void>;
 
   // Players
-  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; cricclub_id: string | null; shirt_size: string | null; email: string | null; designation: string | null; photo_url?: string | null }) => void;
+  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; cricclub_id: string | null; shirt_size: string | null; email: string | null; designation: string | null; photo_url?: string | null; is_guest?: boolean }) => void;
   updatePlayer: (id: string, updates: Partial<CricketPlayer>) => void;
   removePlayer: (id: string) => void;
   restorePlayer: (id: string) => void;
@@ -291,7 +291,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       email: data.email,
       designation: data.designation as CricketPlayer['designation'],
       photo_url: data.photo_url ?? null,
-      is_active: true, created_at: now, updated_at: now,
+      is_active: true, is_guest: data.is_guest ?? false, created_at: now, updated_at: now,
     };
     set({ players: [...get().players, newPlayer] });
 
@@ -304,6 +304,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           batting_style: data.batting_style, bowling_style: data.bowling_style,
           cricclub_id: data.cricclub_id, shirt_size: data.shirt_size, email: data.email, designation: data.designation,
           photo_url: data.photo_url ?? null,
+          is_guest: data.is_guest ?? false,
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketPlayer | null; error: unknown }) => {

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS cricket_players (
   designation   TEXT,           -- 'captain' | 'vice-captain'
   photo_url     TEXT,           -- Supabase Storage public URL (player-photos bucket)
   is_active     BOOLEAN DEFAULT true,
+  is_guest      BOOLEAN NOT NULL DEFAULT false,  -- true for guest players auto-created from practice matches
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -51,6 +52,11 @@ CREATE POLICY "Cricket users can read players" ON cricket_players FOR SELECT USI
 CREATE POLICY "Admin can manage players" ON cricket_players FOR INSERT WITH CHECK (is_cricket_admin());
 CREATE POLICY "Admin can update players" ON cricket_players FOR UPDATE USING (is_cricket_admin());
 CREATE POLICY "Admin can delete players" ON cricket_players FOR DELETE USING (is_cricket_admin());
+
+-- Unique index for guest name dedup (prevents duplicate guest records)
+CREATE UNIQUE INDEX idx_cricket_players_guest_name_unique
+  ON cricket_players (lower(name))
+  WHERE is_guest = true AND is_active = true;
 
 CREATE TRIGGER set_cricket_players_updated_at BEFORE UPDATE ON cricket_players
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

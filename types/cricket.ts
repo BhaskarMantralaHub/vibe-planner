@@ -19,6 +19,7 @@ export type CricketPlayer = {
   designation: 'captain' | 'vice-captain' | null;
   photo_url: string | null;
   is_active: boolean;
+  is_guest: boolean;
   created_at: string;
   updated_at: string;
 };

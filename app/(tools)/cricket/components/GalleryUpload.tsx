@@ -23,7 +23,7 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
 }) {
   const showAll = 'all'.includes(query.toLowerCase());
   const filtered = players
-    .filter((p) => p.is_active && p.name.toLowerCase().includes(query.toLowerCase()))
+    .filter((p) => p.is_active && !p.is_guest && p.name.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, 6);
 
@@ -73,7 +73,7 @@ function MentionDropdown({ query, players, onSelect, onSelectAll, position }: {
 export default function GalleryUpload({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user } = useAuthStore();
   const { players, selectedSeasonId, addGalleryPost } = useCricketStore();
-  const activePlayers = players.filter((p) => p.is_active);
+  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const fileRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 

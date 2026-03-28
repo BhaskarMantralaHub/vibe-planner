@@ -13,7 +13,7 @@ export function calculatePlayerBalances(
   splits: CricketExpenseSplit[],
   settlements: CricketSettlement[],
 ): PlayerBalance[] {
-  return players.filter((p) => p.is_active).map((player) => {
+  return players.filter((p) => p.is_active && !p.is_guest).map((player) => {
     // Total this player paid upfront for the team
     const totalPaid = expenses
       .filter((e) => e.paid_by === player.id)

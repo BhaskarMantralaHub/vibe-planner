@@ -13,9 +13,9 @@ export function extractTaggedIds(text: string, players: CricketPlayer[]): string
   for (const mention of mentions) {
     const name = mention.slice(1).trim().toLowerCase();
     if (name === 'all' || name === 'everyone') {
-      return players.filter((p) => p.is_active).map((p) => p.id);
+      return players.filter((p) => p.is_active && !p.is_guest).map((p) => p.id);
     }
-    const player = players.find((p) => p.is_active && p.name.toLowerCase() === name);
+    const player = players.find((p) => p.is_active && !p.is_guest && p.name.toLowerCase() === name);
     if (player && !ids.includes(player.id)) ids.push(player.id);
   }
   return ids;

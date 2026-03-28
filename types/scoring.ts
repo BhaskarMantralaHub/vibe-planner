@@ -95,6 +95,7 @@ export type LeaderboardEntry = {
   player_id: string;
   name: string;
   photo_url: string | null;
+  is_guest?: boolean;
   matches?: number;
   // Batting
   total_runs?: number;

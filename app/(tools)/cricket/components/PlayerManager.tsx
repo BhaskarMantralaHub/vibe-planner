@@ -8,11 +8,13 @@ import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../li
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose } from '@/components/ui/drawer';
 import { EmptyState, Text } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
@@ -30,11 +32,12 @@ function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: strin
 }
 
 /* ── Three-dot Card Menu (portal) ── */
-function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onClose }: {
+function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onMoveToGuest, onClose }: {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onEdit: () => void;
   onDelete: () => void;
   onToggleAdmin: () => void;
+  onMoveToGuest?: () => void;
   onClose: () => void;
 }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -78,6 +81,16 @@ function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onClose }:
           <FaCrown size={13} style={{ color: 'var(--toolkit)' }} />
           Admin Access
         </button>
+        {onMoveToGuest && (
+          <button
+            onClick={() => { onMoveToGuest(); onClose(); }}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+            style={{ color: 'var(--muted)' }}
+          >
+            <MdBadge size={15} style={{ color: 'var(--muted)' }} />
+            Move to Guest
+          </button>
+        )}
         <div className="border-t border-[var(--border)] my-0.5 mx-2" />
         <button
           onClick={() => { onDelete(); onClose(); }}
@@ -177,9 +190,17 @@ export default function PlayerManager() {
   const userEmail = user?.email?.toLowerCase();
   const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
   const isSelfEditing = !isAdmin && editingPlayer === myPlayer?.id;
-  const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, userEmail));
+  const rosterPlayers = [...players.filter((p) => p.is_active && !p.is_guest)].sort((a, b) => playerSort(a, b, userEmail));
+  const guestPlayers = [...players.filter((p) => p.is_active && p.is_guest)].sort((a, b) => a.name.localeCompare(b.name));
   const removedPlayers = players.filter((p) => !p.is_active);
+  // Keep activePlayers for backward compat (used in expense splits, etc.)
+  const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, userEmail));
   const [showRemoved, setShowRemoved] = useState(false);
+  const [showGuests, setShowGuests] = useState(false);
+  const [promotingGuest, setPromotingGuest] = useState<CricketPlayer | null>(null);
+  const [movingToGuest, setMovingToGuest] = useState<CricketPlayer | null>(null);
+  const [deletingGuest, setDeletingGuest] = useState<CricketPlayer | null>(null);
+  const [openGuestMenu, setOpenGuestMenu] = useState<string | null>(null);
 
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -238,6 +259,7 @@ export default function PlayerManager() {
   const [battingStyle, setBattingStyle] = useState(draft?.battingStyle ?? '');
   const [bowlingStyle, setBowlingStyle] = useState(draft?.bowlingStyle ?? '');
   const [designation, setDesignation] = useState(draft?.designation ?? '');
+  const [isGuestPlayer, setIsGuestPlayer] = useState(draft?.isGuestPlayer ?? false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoRemoved, setPhotoRemoved] = useState(false);
@@ -257,10 +279,10 @@ export default function PlayerManager() {
     if (showPlayerForm && (name || jersey || email || cricclubId || playerRole)) {
       sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
         name, jersey, email, cricclubId, shirtSize, playerRole,
-        battingStyle, bowlingStyle, designation, editingPlayer,
+        battingStyle, bowlingStyle, designation, isGuestPlayer, editingPlayer,
       }));
     }
-  }, [name, jersey, email, cricclubId, shirtSize, playerRole, battingStyle, bowlingStyle, designation, editingPlayer, showPlayerForm]);
+  }, [name, jersey, email, cricclubId, shirtSize, playerRole, battingStyle, bowlingStyle, designation, isGuestPlayer, editingPlayer, showPlayerForm]);
 
   const showBatting = ['batsman', 'all-rounder', 'keeper'].includes(playerRole);
   const showBowling = ['bowler', 'all-rounder'].includes(playerRole);
@@ -268,6 +290,7 @@ export default function PlayerManager() {
   const resetForm = () => {
     setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setDesignation('');
+    setIsGuestPlayer(false);
     setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(false);
     setEditingPlayer(null); setDesignationConflict(null);
     sessionStorage.removeItem(FORM_STORAGE_KEY);
@@ -299,7 +322,10 @@ export default function PlayerManager() {
   };
 
   const isFormValid = () => {
-    if (!name.trim() || !playerRole) return false;
+    if (!name.trim()) return false;
+    // Guest players only need a name
+    if (isGuestPlayer) return true;
+    if (!playerRole) return false;
     if (showBatting && !battingStyle) return false;
     if (showBowling && !bowlingStyle) return false;
     return true;
@@ -354,10 +380,11 @@ export default function PlayerManager() {
     const data: Record<string, unknown> = {
       name: name.trim(), jersey_number: jersey ? Number(jersey) : null, phone: null,
       email: email.trim() || null, cricclub_id: cricclubId.trim() || null, shirt_size: shirtSize || null,
-      player_role: (playerRole || null) as PlayerRole | null,
-      batting_style: (showBatting ? battingStyle || null : null) as BattingStyle | null,
-      bowling_style: (showBowling ? bowlingStyle || null : null) as BowlingStyle | null,
-      designation: (designation || null) as 'captain' | 'vice-captain' | null,
+      player_role: (isGuestPlayer ? null : (playerRole || null)) as PlayerRole | null,
+      batting_style: (isGuestPlayer ? null : (showBatting ? battingStyle || null : null)) as BattingStyle | null,
+      bowling_style: (isGuestPlayer ? null : (showBowling ? bowlingStyle || null : null)) as BowlingStyle | null,
+      designation: (isGuestPlayer ? null : (designation || null)) as 'captain' | 'vice-captain' | null,
+      is_guest: isGuestPlayer,
     };
 
     // Handle photo: upload new, or clear if removed
@@ -481,7 +508,7 @@ export default function PlayerManager() {
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
       <div className="mb-4 flex items-center justify-between gap-2">
         <Text as="h3" size="md" weight="semibold" truncate className="sm:text-[16px] min-w-0">
-          Players <Text color="muted" weight="normal">({activePlayers.length})</Text>
+          Squad <Text color="muted" weight="normal">({rosterPlayers.length})</Text>
         </Text>
         {isAdmin && (
           <Button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
@@ -571,6 +598,28 @@ export default function PlayerManager() {
                     placeholder="#" />
                 </div>
               </div>
+              {/* Guest Player toggle (only for new players, not editing) */}
+              {isAdmin && !editingPlayer && (
+                <button
+                  type="button"
+                  onClick={() => setIsGuestPlayer(!isGuestPlayer)}
+                  className="w-full flex items-center justify-between rounded-xl p-3 cursor-pointer transition-all border"
+                  style={{
+                    backgroundColor: isGuestPlayer ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'var(--surface)',
+                    borderColor: isGuestPlayer ? 'var(--cricket)' : 'var(--border)',
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Text size="sm" weight="medium">Guest Player</Text>
+                    <Text size="2xs" color="dim">Practice / fill-in player</Text>
+                  </div>
+                  <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
+                    <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                  </div>
+                </button>
+              )}
+
+              {!isGuestPlayer && <>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -682,6 +731,7 @@ export default function PlayerManager() {
                   )}
                 </div>
               )}
+              </>}
               <Alert variant="error">{formError}</Alert>
               <Button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
                 variant="primary" brand="cricket" size="lg" fullWidth loading={submitting}>
@@ -694,7 +744,7 @@ export default function PlayerManager() {
       )}
 
       {/* ── Player List ── */}
-      {activePlayers.length === 0 ? (
+      {rosterPlayers.length === 0 ? (
         <EmptyState
           icon="🏏"
           title="No players yet"
@@ -704,7 +754,7 @@ export default function PlayerManager() {
         />
       ) : (
         <div className="space-y-2">
-          {activePlayers.map((p) => {
+          {rosterPlayers.map((p) => {
             const rc = roleConfig[p.player_role ?? ''];
             const isCaptain = p.designation === 'captain';
             const isVC = p.designation === 'vice-captain';
@@ -753,6 +803,7 @@ export default function PlayerManager() {
                           anchorRef={menuBtnRef}
                           onEdit={() => handleEdit(p)}
                           onToggleAdmin={() => handleAdminAccess(p)}
+                          onMoveToGuest={() => { setMovingToGuest(p); setOpenMenu(null); }}
                           onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
                           onClose={() => setOpenMenu(null)}
                         />
@@ -961,6 +1012,69 @@ export default function PlayerManager() {
         </div>
       )}
 
+      {/* Guest Players (Net Players — from practice matches) */}
+      {isAdmin && guestPlayers.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
+          <button onClick={() => setShowGuests(!showGuests)}
+            className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            <Text size="sm" weight="semibold" color="muted">Guest Players ({guestPlayers.length})</Text>
+            <Text size="xs" color="muted">{showGuests ? '▲' : '▼'}</Text>
+          </button>
+          {showGuests && (
+            <div className="px-3 pb-3 space-y-2">
+              {guestPlayers.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
+                  <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--cricket) 6%, transparent)', color: 'color-mix(in srgb, var(--cricket-accent) 35%, transparent)', border: '1.5px solid color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Text as="p" size="sm" weight="semibold" color="muted" truncate>{p.name}</Text>
+                    <Text as="p" size="2xs" color="dim">Guest player</Text>
+                  </div>
+                  <button
+                    onClick={() => setOpenGuestMenu(openGuestMenu === p.id ? null : p.id)}
+                    className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                  >
+                    <FaEllipsisV size={13} />
+                  </button>
+                  <Drawer open={openGuestMenu === p.id} onOpenChange={(open) => { if (!open) setOpenGuestMenu(null); }}>
+                    <DrawerHandle />
+                    <DrawerHeader>
+                      <DrawerTitle>{p.name}</DrawerTitle>
+                    </DrawerHeader>
+                    <DrawerBody>
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => { setPromotingGuest(p); setOpenGuestMenu(null); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+                        >
+                          <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
+                          <div>
+                            <Text as="p" size="sm" weight="medium">Add to Squad</Text>
+                            <Text as="p" size="2xs" color="dim">Promote to full squad member</Text>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => { setDeletingGuest(p); setOpenGuestMenu(null); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+                        >
+                          <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
+                          <div>
+                            <Text as="p" size="sm" weight="medium" color="danger">Delete</Text>
+                            <Text as="p" size="2xs" color="dim">Permanently remove guest</Text>
+                          </div>
+                        </button>
+                      </div>
+                    </DrawerBody>
+                  </Drawer>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Past Players */}
       {isAdmin && removedPlayers.length > 0 && (
         <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
@@ -1000,7 +1114,118 @@ export default function PlayerManager() {
         </div>
       )}
 
-      {/* Delete confirmation modal */}
+      {/* Promote Guest confirmation dialog */}
+      <Dialog open={!!promotingGuest} onOpenChange={(open) => { if (!open) setPromotingGuest(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add to Squad</DialogTitle>
+            <DialogDescription>
+              Promote <b>{promotingGuest?.name}</b> from guest to a full squad member? Their practice match stats will carry over. You can edit their details (role, jersey, email) after promoting.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="primary"
+              brand="cricket"
+              size="sm"
+              onClick={async () => {
+                if (!promotingGuest) return;
+                const player = promotingGuest;
+                setPromotingGuest(null);
+                if (!isCloudMode()) return;
+                const supabase = getSupabaseClient();
+                if (!supabase) return;
+                const { error } = await supabase.rpc('promote_guest_to_roster', { target_player_id: player.id });
+                if (error) { toast.error('Failed to promote player'); console.error(error); return; }
+                updatePlayer(player.id, { is_guest: false });
+                toast.success(`${player.name} added to the squad!`);
+              }}
+            >
+              Add to Squad
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move to Guest confirmation dialog */}
+      <Dialog open={!!movingToGuest} onOpenChange={(open) => { if (!open) setMovingToGuest(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move to Guest</DialogTitle>
+            <DialogDescription>
+              Move <b>{movingToGuest?.name}</b> from the active squad to guest players? Their match stats and profile data will be preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="primary"
+              brand="cricket"
+              size="sm"
+              onClick={() => {
+                if (!movingToGuest) return;
+                const player = movingToGuest;
+                setMovingToGuest(null);
+                updatePlayer(player.id, { is_guest: true, designation: null });
+                toast.success(`${player.name} moved to guest players`);
+              }}
+            >
+              Move to Guest
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Guest confirmation dialog (hard delete, guest only) */}
+      <Dialog open={!!deletingGuest} onOpenChange={(open) => { if (!open) setDeletingGuest(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Guest Player</DialogTitle>
+            <DialogDescription>
+              Permanently delete <b>{deletingGuest?.name}</b>? Their leaderboard stats will be removed. Match history data (balls, runs, wickets) will remain but will no longer be linked to this player.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={async () => {
+                if (!deletingGuest) return;
+                const player = deletingGuest;
+                setDeletingGuest(null);
+                if (!isCloudMode()) {
+                  useCricketStore.setState({ players: useCricketStore.getState().players.filter((p) => p.id !== player.id) });
+                  toast.success(`${player.name} deleted`);
+                  return;
+                }
+                const supabase = getSupabaseClient();
+                if (!supabase) return;
+                // Hard delete — only for guests (extra .eq('is_guest', true) safety guard)
+                const { error } = await supabase
+                  .from('cricket_players')
+                  .delete()
+                  .eq('id', player.id)
+                  .eq('is_guest', true);
+                if (error) { toast.error('Failed to delete guest player'); console.error(error); return; }
+                useCricketStore.setState({ players: useCricketStore.getState().players.filter((p) => p.id !== player.id) });
+                toast.success(`${player.name} deleted`);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation modal (roster players — soft delete via removePlayer) */}
       {deletingPlayer && (
         <DeleteConfirm
           player={deletingPlayer}

@@ -62,7 +62,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 /* ── Add Guest Player Inline (with autocomplete from past matches) ── */
 function AddGuestInline({ onAdd, suggestions = [], excludeNames = [] }: {
   onAdd: (name: string) => void;
-  suggestions?: { name: string; last_used: string }[];
+  suggestions?: { id: string; name: string }[];
   excludeNames?: string[];
 }) {
   const [open, setOpen] = useState(false);
@@ -121,7 +121,7 @@ function AddGuestInline({ onAdd, suggestions = [], excludeNames = [] }: {
               className="w-full flex items-center justify-between px-3 py-2 text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
             >
               <Text size="sm" weight="medium">{s.name}</Text>
-              <Text size="2xs" color="dim">Last: {s.last_used}</Text>
+              <Text size="2xs" color="dim">Guest</Text>
             </button>
           ))}
         </div>

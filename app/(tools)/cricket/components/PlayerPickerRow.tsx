@@ -41,6 +41,7 @@ export interface PlayerPickerPlayer {
   jersey_number: number | null;
   photo_url?: string | null;
   player_role?: PlayerRole | null;
+  is_guest?: boolean;
 }
 
 interface PlayerPickerRowProps {
@@ -164,7 +165,7 @@ export default function PlayerPickerRow({
           )}
           truncate
         >
-          {player.name}
+          {player.name}{player.is_guest && <span className="text-[var(--dim)] font-normal"> (G)</span>}
         </Text>
         {role && (
           <div className="flex items-center gap-1 mt-0.5">
