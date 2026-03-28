@@ -255,9 +255,9 @@ BEGIN
         COUNT(DISTINCT b.match_id) AS matches,
         SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets,
         COUNT(*) FILTER (WHERE b.is_legal) AS legal_balls,
-        SUM(b.runs_bat + b.runs_extras) AS runs_conceded,
+        SUM(b.runs_bat + CASE WHEN b.extras_type IN ('wide', 'no_ball') THEN b.runs_extras ELSE 0 END) AS runs_conceded,
         CASE WHEN COUNT(*) FILTER (WHERE b.is_legal) > 0
-          THEN ROUND((SUM(b.runs_bat + b.runs_extras)::NUMERIC / COUNT(*) FILTER (WHERE b.is_legal)) * 6, 2)
+          THEN ROUND((SUM(b.runs_bat + CASE WHEN b.extras_type IN ('wide', 'no_ball') THEN b.runs_extras ELSE 0 END)::NUMERIC / COUNT(*) FILTER (WHERE b.is_legal)) * 6, 2)
           ELSE 0 END AS economy,
         SUM(CASE WHEN b.extras_type = 'wide' THEN 1 ELSE 0 END) AS wides,
         SUM(CASE WHEN b.extras_type = 'no_ball' THEN 1 ELSE 0 END) AS no_balls

@@ -342,6 +342,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             <MdAdd size={20} /> Start New Match
           </Button>
 
+
           {/* Loading skeleton */}
           {historyLoading && (
             <div className="space-y-3">

@@ -14,25 +14,7 @@ const roleBadge: Record<PlayerRole, { label: string; abbr: string; color: string
   keeper:        { label: 'Keeper',      abbr: 'WK',   color: '#16A34A',               icon: <GiGloves size={11} /> },
 };
 
-/* ── Deterministic avatar gradient from name ── */
-const avatarGradients = [
-  ['#4DBBEB', '#5B9BD5'],  // sky blue
-  ['#6366F1', '#818CF8'],  // indigo
-  ['#8B5CF6', '#A78BFA'],  // purple
-  ['#EC4899', '#F472B6'],  // pink
-  ['#F59E0B', '#FBBF24'],  // amber
-  ['#10B981', '#34D399'],  // emerald
-  ['#EF4444', '#F87171'],  // red
-  ['#14B8A6', '#2DD4BF'],  // teal
-];
-
-function nameToGradient(name: string): [string, string] {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return avatarGradients[Math.abs(hash) % avatarGradients.length] as [string, string];
-}
+import { nameToGradient } from '@/lib/avatar';
 
 /* ── Types ── */
 export interface PlayerPickerPlayer {

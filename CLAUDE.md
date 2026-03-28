@@ -92,8 +92,10 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │           ├── lib/                # constants, utils (balance calculations)
 │           └── scoring/            # Live Scoring (standalone full-screen page)
 │               ├── page.tsx        # Landing, wizard, match routing
-│               ├── components/     # ScoringScreen, ButtonGrid, WicketSheet, etc.
-│               └── lib/            # scoring-utils.ts (type converters)
+│               ├── components/     # ScoringScreen, ButtonGrid, WicketSheet, PracticeLeaderboard, etc.
+│               ├── leaderboard/    # Practice Stats leaderboard (hamburger menu item)
+│               │   └── page.tsx
+│               └── lib/            # scoring-utils.ts (type converters), avatar.ts (shared)
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
 ├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, PageFooter, etc.
