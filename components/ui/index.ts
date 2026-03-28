@@ -53,4 +53,7 @@ export type { SegmentOption, SegmentedControlProps } from './segmented-control';
 export { Text, textVariants } from './text';
 export type { TextProps } from './text';
 
+export { CardMenu } from './card-menu';
+export type { CardMenuItem, CardMenuProps } from './card-menu';
+
 export { Toaster } from './toast';

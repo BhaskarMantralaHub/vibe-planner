@@ -1,53 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { EmptyState, Text } from '@/components/ui';
+import { EmptyState, Text, CardMenu, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui';
 import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
-function SponsorMenu({ anchorRef, onEdit, onDelete, onClose }: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit: () => void; onDelete: () => void; onClose: () => void;
-}) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: Math.min(rect.right - 150, window.innerWidth - 158) });
-    }
-    const close = () => onClose();
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
-  }, [anchorRef, onClose]);
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[99]" onClick={onClose} />
-      <div className="fixed z-[100] w-[150px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
-        style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <button onClick={() => { onEdit(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--text)' }}>
-          <MdEdit size={15} style={{ color: 'var(--blue)' }} /> Edit
-        </button>
-        <button onClick={() => { onDelete(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--red)' }}>
-          <MdDeleteOutline size={15} /> Delete
-        </button>
-      </div>
-    </>,
-    document.body,
-  );
-}
+// SponsorMenu replaced by shared CardMenu
 
 export default function SponsorshipSection() {
   const { userAccess, user } = useAuthStore();
@@ -63,6 +27,7 @@ export default function SponsorshipSection() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [deletingSponsor, setDeletingSponsor] = useState<{ id: string; name: string } | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -122,7 +87,7 @@ export default function SponsorshipSection() {
   const handleEdit = (s: typeof activeSponsors[0]) => {
     setEditingId(s.id); setName(s.sponsor_name); setAmount(String(s.amount));
     setDate(s.sponsored_date); setNotes(s.notes || '');
-    setShowForm(true); setOpenMenu(null);
+    setShowForm(true);
   };
 
   return (
@@ -203,10 +168,14 @@ export default function SponsorshipSection() {
                     <FaEllipsisV size={12} />
                   </button>
                   {openMenu === s.id && (
-                    <SponsorMenu anchorRef={menuBtnRef}
-                      onEdit={() => handleEdit(s)}
-                      onDelete={() => { deleteSponsorship(s.id, adminName); setOpenMenu(null); }}
-                      onClose={() => setOpenMenu(null)} />
+                    <CardMenu
+                      anchorRef={menuBtnRef}
+                      onClose={() => setOpenMenu(null)}
+                      items={[
+                        { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(s) },
+                        { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingSponsor({ id: s.id, name: s.sponsor_name }), dividerBefore: true },
+                      ]}
+                    />
                   )}
                 </>
               )}
@@ -281,6 +250,33 @@ export default function SponsorshipSection() {
           )}
         </div>
       )}
+      {/* Delete Sponsorship confirmation */}
+      <Dialog open={!!deletingSponsor} onOpenChange={(open) => { if (!open) setDeletingSponsor(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Sponsorship</DialogTitle>
+            <DialogDescription>
+              Remove sponsorship from <b>{deletingSponsor?.name}</b>? This can be restored from the deleted section.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (!deletingSponsor) return;
+                deleteSponsorship(deletingSponsor.id, adminName);
+                setDeletingSponsor(null);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

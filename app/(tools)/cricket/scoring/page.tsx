@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
@@ -8,9 +8,9 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, Drawer, DrawerHandle, DrawerTitle, DrawerBody, SegmentedControl } from '@/components/ui';
+import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever } from 'react-icons/md';
+import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
@@ -48,8 +48,9 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const isDeleted = !!(item as Record<string, unknown>).deleted_at;
   const isActive = item.status === 'scoring' || item.status === 'innings_break';
   const isCompleted = item.status === 'completed';
@@ -88,7 +89,8 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
             </Text>
             {(onDelete || onRestore || onPermanentDelete || onRevert) && (
               <button
-                onClick={(e) => { e.stopPropagation(); setActionsOpen(true); }}
+                ref={menuBtnRef}
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
                 className={cn(
                   'flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer transition-colors',
                   isActive ? 'text-white/70 hover:bg-white/10' : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]',
@@ -165,100 +167,21 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
         </div>
       </div>
 
-      {/* Actions Drawer */}
-      <Drawer open={actionsOpen} onOpenChange={setActionsOpen}>
-        <DrawerHandle />
-        <DrawerTitle>Actions</DrawerTitle>
-        <DrawerBody className="px-4 pb-6 pt-2">
-          <div className="space-y-1">
-            {/* View Scorecard — always available */}
-            <button
-              onClick={() => { setActionsOpen(false); onTap(); }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
-                <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
-              </div>
-              <div className="text-left">
-                <Text size="sm" weight="semibold">View Scorecard</Text>
-                <Text as="p" size="2xs" color="dim">Full match details</Text>
-              </div>
-            </button>
-
-            {/* Revert — only for abruptly ended matches (no result) */}
-            {onRevert && (
-              <button
-                onClick={async () => { setActionsOpen(false); await onRevert(); }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
-                  <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
-                </div>
-                <div className="text-left">
-                  <Text size="sm" weight="semibold" color="cricket">Resume Scoring</Text>
-                  <Text as="p" size="2xs" color="dim">Continue this match</Text>
-                </div>
-              </button>
-            )}
-
-            {/* Restore — only for deleted matches */}
-            {isDeleted && onRestore && (
-              <button
-                onClick={async () => { setActionsOpen(false); setRestoring(true); await onRestore(); setRestoring(false); }}
-                disabled={restoring}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
-                  <MdRestoreFromTrash size={18} style={{ color: 'var(--cricket)' }} />
-                </div>
-                <div className="text-left">
-                  <Text size="sm" weight="semibold" color="cricket">{restoring ? 'Restoring...' : 'Restore Match'}</Text>
-                  <Text as="p" size="2xs" color="dim">Move back to match history</Text>
-                </div>
-              </button>
-            )}
-
-            {/* Soft Delete — only for non-deleted matches */}
-            {!isDeleted && onDelete && (
-              <button
-                onClick={() => { setActionsOpen(false); setDeleteOpen(true); }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                  <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
-                </div>
-                <div className="text-left">
-                  <Text size="sm" weight="semibold" color="danger">Delete Match</Text>
-                  <Text as="p" size="2xs" color="dim">Move to recently deleted</Text>
-                </div>
-              </button>
-            )}
-
-            {/* Permanent Delete — only for already deleted matches */}
-            {isDeleted && onPermanentDelete && (
-              <button
-                onClick={() => { setActionsOpen(false); setPermanentDeleteOpen(true); }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
-              >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
-                  <MdDeleteForever size={18} style={{ color: 'var(--red)' }} />
-                </div>
-                <div className="text-left">
-                  <Text size="sm" weight="semibold" color="danger">Delete Forever</Text>
-                  <Text as="p" size="2xs" color="dim">Permanently remove all data</Text>
-                </div>
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setActionsOpen(false)}
-            className="w-full mt-3 py-3 rounded-xl text-[15px] font-semibold cursor-pointer"
-            style={{ background: 'var(--surface)', color: 'var(--text)' }}
-          >
-            Cancel
-          </button>
-        </DrawerBody>
-      </Drawer>
+      {/* Actions Menu */}
+      {menuOpen && (
+        <CardMenu
+          anchorRef={menuBtnRef}
+          onClose={() => setMenuOpen(false)}
+          width={180}
+          items={[
+            { label: 'View Scorecard', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: onTap },
+            ...(onRevert ? [{ label: 'Resume Scoring', icon: <MdPlayArrow size={15} />, color: 'var(--cricket)', onClick: () => onRevert() }] : []),
+            ...(isDeleted && onRestore ? [{ label: restoring ? 'Restoring...' : 'Restore', icon: <MdRestoreFromTrash size={15} />, color: 'var(--cricket)', onClick: async () => { setRestoring(true); await onRestore(); setRestoring(false); } }] : []),
+            ...(!isDeleted && onDelete ? [{ label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeleteOpen(true), dividerBefore: true }] : []),
+            ...(isDeleted && onPermanentDelete ? [{ label: 'Delete Forever', icon: <MdDeleteForever size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleteOpen(true), dividerBefore: true }] : []),
+          ]}
+        />
+      )}
 
       {/* Delete Dialog */}
       {onDelete && (
@@ -555,7 +478,15 @@ function ActiveMatch({ onBack }: { onBack: () => void }) {
 
 /* ── Page Root ── */
 export default function ScoringPage() {
-  const [view, setView] = useState<'landing' | 'wizard' | 'match'>('landing');
+  const [view, setViewState] = useState<'landing' | 'wizard' | 'match'>(() => {
+    if (typeof window === 'undefined') return 'landing';
+    const saved = sessionStorage.getItem('scoring-view');
+    return saved === 'match' || saved === 'wizard' ? saved : 'landing';
+  });
+  const setView = (v: 'landing' | 'wizard' | 'match') => {
+    sessionStorage.setItem('scoring-view', v);
+    setViewState(v);
+  };
   const { match } = useScoringStore();
   const { loadAll, players } = useCricketStore();
   const { user } = useAuthStore();
@@ -568,7 +499,18 @@ export default function ScoringPage() {
     }
   }, [user, players.length, loadAll]);
 
-  // No auto-nav — user stays on landing until they explicitly tap Continue/Resume
+  // On refresh: if view was 'match' and there's an active match, re-hydrate from DB
+  useEffect(() => {
+    if (view !== 'match') return;
+    const { match: m, dbMatchId } = useScoringStore.getState();
+    if (m && (m.status === 'scoring' || m.status === 'innings_break') && dbMatchId && isCloudMode()) {
+      useScoringStore.getState().resumeMatch(dbMatchId);
+    } else if (!m || (m.status !== 'scoring' && m.status !== 'innings_break')) {
+      // No active match but view was 'match' — fall back to landing
+      setView('landing');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthGate variant="cricket">

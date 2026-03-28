@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import { EmptyState, Text } from '@/components/ui';
+import { EmptyState, Text, CardMenu } from '@/components/ui';
 import { FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import { createPortal } from 'react-dom';
@@ -75,57 +75,7 @@ function getCountdown(dateStr: string, timeStr: string) {
   return `${hours}h away`;
 }
 
-/* ── Three-Dot Menu ── */
-function MatchMenu({ anchorRef, onEdit, onDelete, onRecordResult, onClose }: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit: () => void;
-  onDelete: () => void;
-  onRecordResult: () => void;
-  onClose: () => void;
-}) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      const menuWidth = 170;
-      const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
-      setPos({ top: rect.bottom + 4, left: Math.max(8, left) });
-    }
-    const close = () => onClose();
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [anchorRef, onClose]);
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[99]" onClick={onClose} />
-      <div className="fixed z-[100] w-[170px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
-        style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <button onClick={() => { onRecordResult(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--text)' }}>
-          <MdScoreboard size={15} style={{ color: 'var(--cricket)' }} /> Record Result
-        </button>
-        <button onClick={() => { onEdit(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--text)' }}>
-          <MdEdit size={15} style={{ color: 'var(--blue)' }} /> Edit
-        </button>
-        <button onClick={() => { onDelete(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--red)' }}>
-          <MdDeleteOutline size={15} /> Delete
-        </button>
-      </div>
-    </>,
-    document.body,
-  );
-}
+// MatchMenu replaced by shared CardMenu
 
 /* ── Delete Confirm ── */
 function DeleteConfirm({ opponent, onConfirm, onCancel }: { opponent: string; onConfirm: () => void; onCancel: () => void }) {
@@ -472,26 +422,15 @@ export default function MatchSchedule() {
 
       {/* Portal-based menus */}
       {openMenu && (
-        <MatchMenu
+        <CardMenu
           anchorRef={menuBtnRef}
-          onEdit={() => {
-            const match = matches.find((m) => m.id === openMenu);
-            if (match) {
-              setEditingMatch(match);
-              setShowForm(true);
-            }
-            setOpenMenu(null);
-          }}
-          onDelete={() => {
-            const match = matches.find((m) => m.id === openMenu);
-            if (match) setDeletingMatch({ id: match.id, opponent: match.opponent });
-            setOpenMenu(null);
-          }}
-          onRecordResult={() => {
-            handleRecordResult();
-            setOpenMenu(null);
-          }}
           onClose={() => setOpenMenu(null)}
+          width={170}
+          items={[
+            { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: () => handleRecordResult() },
+            { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => { const m = matches.find((m) => m.id === openMenu); if (m) { setEditingMatch(m); setShowForm(true); } } },
+            { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => { const m = matches.find((m) => m.id === openMenu); if (m) setDeletingMatch({ id: m.id, opponent: m.opponent }); }, dividerBefore: true },
+          ]}
         />
       )}
 

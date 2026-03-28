@@ -10,12 +10,11 @@ import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose, MdPersonAdd } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose } from '@/components/ui/drawer';
-import { EmptyState, Text } from '@/components/ui';
+import { EmptyState, Text, CardMenu } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import PlayerProfile from './PlayerProfile';
@@ -29,81 +28,6 @@ function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: strin
     if (bIsSelf && !aIsSelf) return 1;
   }
   return a.name.localeCompare(b.name);
-}
-
-/* ── Three-dot Card Menu (portal) ── */
-function PlayerCardMenu({ anchorRef, onEdit, onDelete, onToggleAdmin, onMoveToGuest, onClose }: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit: () => void;
-  onDelete: () => void;
-  onToggleAdmin: () => void;
-  onMoveToGuest?: () => void;
-  onClose: () => void;
-}) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      const menuWidth = 150;
-      const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
-      setPos({ top: rect.bottom + 4, left: Math.max(8, left) });
-    }
-    const close = () => onClose();
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [anchorRef, onClose]);
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[99]" onClick={onClose} />
-      <div
-        className="fixed z-[100] w-[150px] rounded-xl overflow-hidden shadow-2xl animate-[scaleIn_0.1s]"
-        style={{ top: pos.top, left: pos.left, background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <button
-          onClick={() => { onEdit(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--text)' }}
-        >
-          <MdEdit size={15} style={{ color: 'var(--blue)' }} />
-          Edit
-        </button>
-        <button
-          onClick={() => { onToggleAdmin(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--toolkit)' }}
-        >
-          <FaCrown size={13} style={{ color: 'var(--toolkit)' }} />
-          Admin Access
-        </button>
-        {onMoveToGuest && (
-          <button
-            onClick={() => { onMoveToGuest(); onClose(); }}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-            style={{ color: 'var(--muted)' }}
-          >
-            <MdBadge size={15} style={{ color: 'var(--muted)' }} />
-            Move to Guest
-          </button>
-        )}
-        <div className="border-t border-[var(--border)] my-0.5 mx-2" />
-        <button
-          onClick={() => { onDelete(); onClose(); }}
-          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
-          style={{ color: 'var(--red)' }}
-        >
-          <MdDeleteOutline size={15} />
-          Remove
-        </button>
-      </div>
-    </>,
-    document.body,
-  );
 }
 
 /* ── Delete Confirmation (portal) ── */
@@ -238,6 +162,7 @@ export default function PlayerManager() {
     }
   }, [isAdmin, adminModal, activePlayers.length]); // re-fetch after granting/revoking or player changes
   const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const guestMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
   const FORM_STORAGE_KEY = 'cricket_player_form_draft';
@@ -493,7 +418,7 @@ export default function PlayerManager() {
     setPlayerRole(p.player_role ?? ''); setBattingStyle(p.batting_style ?? '');
     setBowlingStyle(p.bowling_style ?? ''); setDesignation(p.designation ?? '');
     setPhotoFile(null); setPhotoPreview(p.photo_url ?? null); setPhotoRemoved(false);
-    setShowPlayerForm(true); setOpenMenu(null);
+    setShowPlayerForm(true);
   };
 
   const handleCopy = (value: string, fieldKey: string) => {
@@ -799,13 +724,15 @@ export default function PlayerManager() {
                       </button>
 
                       {openMenu === p.id && (
-                        <PlayerCardMenu
+                        <CardMenu
                           anchorRef={menuBtnRef}
-                          onEdit={() => handleEdit(p)}
-                          onToggleAdmin={() => handleAdminAccess(p)}
-                          onMoveToGuest={() => { setMovingToGuest(p); setOpenMenu(null); }}
-                          onDelete={() => { setDeletingPlayer(p); setOpenMenu(null); }}
                           onClose={() => setOpenMenu(null)}
+                          items={[
+                            { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                            { label: 'Admin Access', icon: <FaCrown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
+                            { label: 'Move to Guest', icon: <MdBadge size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
+                            { label: 'Remove', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
+                          ]}
                         />
                       )}
                     </>
@@ -1023,7 +950,7 @@ export default function PlayerManager() {
           {showGuests && (
             <div className="px-3 pb-3 space-y-2">
               {guestPlayers.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
+                <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5 relative">
                   <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
                     style={{ backgroundColor: 'color-mix(in srgb, var(--cricket) 6%, transparent)', color: 'color-mix(in srgb, var(--cricket-accent) 35%, transparent)', border: '1.5px solid color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
                     {p.name.charAt(0).toUpperCase()}
@@ -1033,41 +960,22 @@ export default function PlayerManager() {
                     <Text as="p" size="2xs" color="dim">Guest player</Text>
                   </div>
                   <button
-                    onClick={() => setOpenGuestMenu(openGuestMenu === p.id ? null : p.id)}
+                    ref={openGuestMenu === p.id ? guestMenuBtnRef : null}
+                    onClick={(e) => { e.stopPropagation(); setOpenGuestMenu(openGuestMenu === p.id ? null : p.id); }}
                     className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
                   >
                     <FaEllipsisV size={13} />
                   </button>
-                  <Drawer open={openGuestMenu === p.id} onOpenChange={(open) => { if (!open) setOpenGuestMenu(null); }}>
-                    <DrawerHandle />
-                    <DrawerHeader>
-                      <DrawerTitle>{p.name}</DrawerTitle>
-                    </DrawerHeader>
-                    <DrawerBody>
-                      <div className="space-y-1">
-                        <button
-                          onClick={() => { setPromotingGuest(p); setOpenGuestMenu(null); }}
-                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
-                        >
-                          <MdSportsCricket size={18} style={{ color: 'var(--cricket)' }} />
-                          <div>
-                            <Text as="p" size="sm" weight="medium">Add to Squad</Text>
-                            <Text as="p" size="2xs" color="dim">Promote to full squad member</Text>
-                          </div>
-                        </button>
-                        <button
-                          onClick={() => { setDeletingGuest(p); setOpenGuestMenu(null); }}
-                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
-                        >
-                          <MdDeleteOutline size={18} style={{ color: 'var(--red)' }} />
-                          <div>
-                            <Text as="p" size="sm" weight="medium" color="danger">Delete</Text>
-                            <Text as="p" size="2xs" color="dim">Permanently remove guest</Text>
-                          </div>
-                        </button>
-                      </div>
-                    </DrawerBody>
-                  </Drawer>
+                  {openGuestMenu === p.id && (
+                    <CardMenu
+                      anchorRef={guestMenuBtnRef}
+                      onClose={() => setOpenGuestMenu(null)}
+                      items={[
+                        { label: 'Add to Squad', icon: <MdPersonAdd size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
+                        { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
+                      ]}
+                    />
+                  )}
                 </div>
               ))}
             </div>
