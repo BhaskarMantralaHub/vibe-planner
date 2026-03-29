@@ -1055,7 +1055,7 @@ export const useScoringStore = create<ScoringState>()(
       return false;
     }
     toast.success('Match deleted');
-    // Refresh both lists
+    set({ leaderboard: {} }); // Clear cached stats
     await get().loadMatchHistory();
     await get().loadDeletedMatches();
     return true;
@@ -1069,6 +1069,7 @@ export const useScoringStore = create<ScoringState>()(
     if (error) { console.error('[scoring] restoreMatch failed:', error); toast.error('Failed to restore'); return false; }
     if (!data) { toast.error('Not authorized'); return false; }
     toast.success('Match restored');
+    set({ leaderboard: {} }); // Clear cached stats
     await get().loadMatchHistory();
     await get().loadDeletedMatches();
     return true;
@@ -1082,6 +1083,7 @@ export const useScoringStore = create<ScoringState>()(
     if (error) { console.error('[scoring] permanentDelete failed:', error); toast.error('Failed to permanently delete'); return false; }
     if (!data) { toast.error('Not authorized — admin only'); return false; }
     toast.success('Match permanently deleted');
+    set({ leaderboard: {} }); // Clear cached stats
     await get().loadDeletedMatches();
     return true;
   },

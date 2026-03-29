@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useScoringStore } from '@/stores/scoring-store';
+import { useCricketStore } from '@/stores/cricket-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { isCloudMode } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { Text, SegmentedControl, Skeleton, Card } from '@/components/ui';
 import type { LeaderboardEntry } from '@/types/scoring';
@@ -131,7 +134,7 @@ function Legend({ category }: { category: string }) {
 }
 
 /* ── Category-specific table ── */
-function StatsTable({ category, entries, loading }: { category: string; entries: LeaderboardEntry[]; loading: boolean }) {
+function StatsTable({ category, entries, loading, myPlayerId }: { category: string; entries: LeaderboardEntry[]; loading: boolean; myPlayerId: string | null }) {
   if (loading) return <TableSkeleton />;
   if (entries.length === 0) return (
     <div className="px-3 py-8 text-center">
@@ -178,8 +181,13 @@ function StatsTable({ category, entries, loading }: { category: string; entries:
             </tr>
           </thead>
           <tbody>
-            {entries.slice(0, MAX_ROWS).map((e, i) => (
-              <tr key={e.player_id} className={`border-b border-[var(--border)]/15 hover:bg-[var(--hover-bg)] transition-colors ${i % 2 === 1 ? 'bg-[var(--surface)]/40' : ''}`}>
+            {entries.slice(0, MAX_ROWS).map((e, i) => {
+              const isMe = myPlayerId === e.player_id;
+              return (
+              <tr key={e.player_id} className={cn(
+                'border-b border-[var(--border)]/15 hover:bg-[var(--hover-bg)] transition-colors',
+                isMe ? 'bg-[var(--cricket)]/8 border-l-2 border-l-[var(--cricket)]' : i % 2 === 1 ? 'bg-[var(--surface)]/40' : '',
+              )}>
                 <td className="pl-2 pr-1 py-1.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-1 py-1.5"><PlayerCell entry={e} /></td>
                 <td className={`py-1.5 ${SC}`}><Stat value={e.matches ?? 0} /></td>
@@ -210,7 +218,8 @@ function StatsTable({ category, entries, loading }: { category: string; entries:
                   <td className={`py-1.5 pr-2 ${SC}`}><Stat value={e.score ?? 0} bold /></td>
                 </>}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -231,8 +240,31 @@ const MATCH_FILTERS = [
 
 export default function PracticeLeaderboard() {
   const { leaderboard, leaderboardLoading, fetchLeaderboard, leaderboardMatchLimit, setLeaderboardMatchLimit } = useScoringStore();
+  const { players, loadAll } = useCricketStore();
+  const { user } = useAuthStore();
   const [category, setCategory] = useState('batting');
+
+  // Ensure players are loaded (needed for current user highlighting)
+  useEffect(() => {
+    if (isCloudMode() && user && players.length === 0) {
+      loadAll(user.id);
+    }
+  }, [user, players.length, loadAll]);
   const matchFilter = leaderboardMatchLimit === null ? 'all' : String(leaderboardMatchLimit);
+
+  // Find current user's cricket_players ID for row highlighting
+  // Match by user_id first, then fallback to email (user_id may not be linked yet)
+  const myPlayerId = (() => {
+    if (!user) return null;
+    const byUserId = players.find((p) => p.user_id === user.id && p.is_active);
+    if (byUserId) return byUserId.id;
+    const email = user.email?.toLowerCase();
+    if (email) {
+      const byEmail = players.find((p) => p.email?.toLowerCase() === email && p.is_active);
+      if (byEmail) return byEmail.id;
+    }
+    return null;
+  })();
 
   // Always fetch on mount (fresh data), then use cache for tab switches
   const mountedRef = useRef(false);
@@ -295,8 +327,32 @@ export default function PracticeLeaderboard() {
 
       {/* Table */}
       <Card padding="none" className="overflow-hidden">
-        <StatsTable category={category} entries={entries} loading={isLoading} />
+        <StatsTable category={category} entries={entries} loading={isLoading} myPlayerId={myPlayerId} />
       </Card>
+
+      {/* "Your position" card when user is ranked but outside top 10 */}
+      {myPlayerId && entries.length > MAX_ROWS && (() => {
+        const myIdx = entries.findIndex((e) => e.player_id === myPlayerId);
+        if (myIdx < 0 || myIdx < MAX_ROWS) return null;
+        const myEntry = entries[myIdx];
+        const [g1, g2] = nameToGradient(myEntry.name);
+        return (
+          <div className="mt-2 rounded-xl border border-[var(--cricket)]/30 px-3 py-2.5 flex items-center gap-2.5"
+            style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--card))' }}>
+            <Text size="2xs" weight="bold" color="cricket" className="flex-shrink-0">#{myIdx + 1}</Text>
+            {myEntry.photo_url ? (
+              <img src={myEntry.photo_url} alt={myEntry.name} className="flex-shrink-0 h-7 w-7 rounded-full object-cover ring-1 ring-[var(--border)]" />
+            ) : (
+              <div className="flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}>
+                {myEntry.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <Text size="xs" weight="semibold" truncate className="flex-1 min-w-0">{myEntry.name}</Text>
+            <Text size="2xs" color="cricket" weight="semibold">You</Text>
+          </div>
+        );
+      })()}
     </div>
   );
 }
