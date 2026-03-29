@@ -229,12 +229,13 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 /* ── Landing Page ── */
 function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
   onNewMatch: () => void;
-  onContinue?: () => void;
-  onResumeMatch: (matchId: string) => void;
+  onContinue?: () => Promise<void> | void;
+  onResumeMatch: (matchId: string) => Promise<void> | void;
 }) {
   const router = useRouter();
   const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch, revertMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
+  const [resuming, setResuming] = useState<string | boolean>(false); // true for local, matchId string for DB
   const isAdmin = userAccess.includes('admin');
 
   // Load matches from DB on mount (AuthGate guarantees user is authenticated)
@@ -343,7 +344,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                 </button>
               </div>
               <div className="px-4 pb-3">
-                <Button variant="primary" brand="cricket" size="lg" fullWidth onClick={onContinue}>
+                <Button variant="primary" brand="cricket" size="lg" fullWidth
+                  loading={resuming === true}
+                  onClick={async () => {
+                    if (resuming) return;
+                    setResuming(true);
+                    await onContinue!();
+                    setResuming(false);
+                  }}>
                   Continue Scoring
                 </Button>
               </div>
@@ -414,7 +422,13 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                       brand="cricket"
                       size="lg"
                       fullWidth
-                      onClick={() => onResumeMatch(m.id)}
+                      loading={resuming === m.id}
+                      onClick={async () => {
+                        if (resuming) return;
+                        setResuming(m.id);
+                        await onResumeMatch(m.id);
+                        setResuming(false);
+                      }}
                     >
                       Resume Scoring
                     </Button>
