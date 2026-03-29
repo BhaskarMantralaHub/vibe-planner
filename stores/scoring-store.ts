@@ -839,15 +839,21 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   getCurrentOverBalls: () => {
-    const { match, balls } = get();
+    const { match, balls, innings } = get();
     if (!match) return [];
     const idx = match.current_innings;
     const inningsBalls = balls.filter((b) => b.innings === idx);
     const legalBalls = inningsBalls.filter((b) => b.is_legal).length;
-    const currentOver = legalBalls === 0 ? 0 : (legalBalls % 6 === 0 ? Math.floor(legalBalls / 6) - 1 : Math.floor(legalBalls / 6));
-    // If we just finished an over (legalBalls % 6 === 0), show the completed over
-    // Otherwise show the in-progress over
-    const overNum = legalBalls % 6 === 0 && legalBalls > 0 ? currentOver : Math.floor(legalBalls / 6);
+    // Current over number = where the next ball will be bowled
+    // If a new bowler has been selected (bowler_id set after over ends), show the new over
+    const currentOverNum = Math.floor(legalBalls / 6);
+    // Check if we're between overs (just completed, bowler selected for next)
+    // If legalBalls is exactly on an over boundary AND bowler is set, show new (empty) over
+    if (legalBalls > 0 && legalBalls % 6 === 0 && innings[idx].bowler_id) {
+      return inningsBalls.filter((b) => b.over_number === currentOverNum);
+    }
+    // Mid-over or no balls yet — show current over's balls
+    const overNum = legalBalls > 0 && legalBalls % 6 === 0 ? currentOverNum - 1 : currentOverNum;
     return inningsBalls.filter((b) => b.over_number === overNum);
   },
 

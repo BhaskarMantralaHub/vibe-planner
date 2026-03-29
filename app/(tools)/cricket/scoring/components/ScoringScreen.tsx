@@ -613,7 +613,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
 
       {/* ── Over Timeline ── */}
       <div className="mt-1.5">
-        <OverTimeline balls={currentOverBalls} />
+        <OverTimeline balls={currentOverBalls} overNumber={Math.floor(currentInnings.total_overs)} />
       </div>
 
       {/* ── Free Hit Banner ── */}

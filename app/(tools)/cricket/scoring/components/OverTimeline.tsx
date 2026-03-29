@@ -14,6 +14,7 @@ interface BallResult {
 interface OverTimelineProps {
   balls: BallResult[];
   previousOverRuns?: number;
+  overNumber?: number;
 }
 
 /* ── Minimal 3-tone palette: gray (runs), theme (boundaries), red (wicket), warm (extras) ── */
@@ -56,7 +57,7 @@ function BallCircle({ ball }: { ball: BallResult }) {
   );
 }
 
-function OverTimeline({ balls, previousOverRuns }: OverTimelineProps) {
+function OverTimeline({ balls, previousOverRuns, overNumber }: OverTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to the latest ball
@@ -86,7 +87,7 @@ function OverTimeline({ balls, previousOverRuns }: OverTimelineProps) {
       {/* Header row */}
       <div className="flex items-center justify-between mb-2">
         <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
-          This Over
+          {overNumber != null ? `Over ${overNumber + 1}` : 'This Over'}
         </Text>
         <Text size="xs" weight="semibold" tabular>
           {overRuns} runs
