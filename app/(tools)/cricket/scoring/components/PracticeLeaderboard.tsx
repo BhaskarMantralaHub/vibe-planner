@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useScoringStore } from '@/stores/scoring-store';
+import { cn } from '@/lib/utils';
 import { Text, SegmentedControl, Skeleton, Card } from '@/components/ui';
 import type { LeaderboardEntry } from '@/types/scoring';
 import { MdSportsCricket } from 'react-icons/md';
@@ -267,16 +268,30 @@ export default function PracticeLeaderboard() {
         options={CATEGORIES}
         active={category}
         onChange={setCategory}
-        className="mb-2"
-      />
-
-      {/* Match filter */}
-      <SegmentedControl
-        options={MATCH_FILTERS}
-        active={matchFilter}
-        onChange={handleFilterChange}
         className="mb-3"
       />
+
+      {/* Match filter — compact bordered pills */}
+      <div className="flex items-center gap-2 mb-3">
+        <Text size="2xs" color="dim" weight="semibold" className="flex-shrink-0">Matches:</Text>
+        <div className="flex gap-1">
+          {MATCH_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => handleFilterChange(f.key)}
+              className={cn(
+                'px-2.5 py-0.5 rounded-full cursor-pointer transition-all text-[11px] leading-tight',
+                matchFilter === f.key
+                  ? 'font-semibold text-white border border-transparent'
+                  : 'font-medium text-[var(--muted)] border border-[var(--border)] hover:border-[var(--cricket)] hover:text-[var(--text)]',
+              )}
+              style={matchFilter === f.key ? { background: 'var(--cricket)' } : { background: 'var(--surface)' }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Table */}
       <Card padding="none" className="overflow-hidden">
