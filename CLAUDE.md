@@ -220,6 +220,7 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - **End match**: Awaited — UPDATE match status/result
 - **Handoff**: Awaited — `claim_scorer` RPC with row lock
 - **Match resume** (new device / page refresh): Call `get_match_scorecard` to hydrate store (includes striker/bowler IDs), then `claim_scorer` for RLS write access. "Continue Scoring" always re-hydrates from DB to avoid stale localStorage.
+- **Stale match detection**: On landing mount, auto-verifies local match with server via `resumeMatch`. If match was completed/deleted on another device, `reset()` clears localStorage + sessionStorage. Sync button on active match card for manual check. "Resume Scoring" button on DB active match cards for multi-device handoff. Only one active match allowed at a time (blocks "Start New Match" when any active match exists in local store or DB).
 - **End match result logic**: Only declares winner when both innings completed naturally (`is_completed` on both). Mid-innings abort = "No result". `endInnings` on 2nd innings delegates to `endMatch` for proper result computation. `match_winner` always derived from scores.
 - **Revert match**: Admin can revert abruptly ended (no winner) matches. Smart status: if 2nd innings has players → `scoring`, if 1st innings completed → `innings_break`, else `scoring`.
 - **Spectators**: Subscribe to Supabase Realtime on `practice_matches` + `practice_innings` for live score updates (planned)
