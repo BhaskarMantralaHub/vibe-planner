@@ -1158,8 +1158,21 @@ export const useScoringStore = create<ScoringState>()(
     const { data, error } = await supabase.rpc('get_match_scorecard', { target_match_id: matchId });
     if (error || !data) { console.error('[scoring] resumeMatch failed:', error); return false; }
 
-    const sc = data as { match: Record<string, unknown>; players: Record<string, unknown>[]; innings: Record<string, unknown>[]; balls: Record<string, unknown>[] };
+    const sc = data as { match: Record<string, unknown> | null; players: Record<string, unknown>[]; innings: Record<string, unknown>[]; balls: Record<string, unknown>[] };
     const dbMatch = sc.match;
+
+    // Match permanently deleted (CASCADE) — row is gone
+    if (!dbMatch) {
+      get().reset();
+      return false;
+    }
+
+    // Match completed or soft-deleted on another device — clear local state
+    if (dbMatch.status === 'completed' || dbMatch.deleted_at) {
+      get().reset();
+      return false;
+    }
+
     const idMap: Record<string, string> = {};
     const reverseMap: Record<string, string> = {};
     const teamAPlayers: ScoringPlayer[] = [];
@@ -1243,6 +1256,9 @@ export const useScoringStore = create<ScoringState>()(
       dbMatchId: null,
       idMap: {},
     });
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('scoring-view');
+    }
   },
 }),
     {

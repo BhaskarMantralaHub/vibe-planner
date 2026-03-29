@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { useScoringStore } from '@/stores/scoring-store';
@@ -10,7 +11,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow } from 'react-icons/md';
+import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow, MdSync } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
@@ -241,6 +242,17 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
     if (isCloudMode()) {
       loadMatchHistory();
       if (isAdmin) loadDeletedMatches();
+
+      // Verify local match is still active on server — clear stale localStorage if not
+      const { dbMatchId, match: localMatch } = useScoringStore.getState();
+      if (localMatch && dbMatchId && (localMatch.status === 'scoring' || localMatch.status === 'innings_break')) {
+        useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
+          if (!ok) {
+            // Match was completed/deleted on another device — local state already reset by resumeMatch
+            sessionStorage.removeItem('scoring-view');
+          }
+        });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -302,14 +314,33 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
           {/* Local active match — Continue Scoring (scorer's device) */}
           {hasLocalMatch && match && currentInnings && onContinue && (
             <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--card))' }}>
-              <div className="px-4 pt-3 pb-2">
-                <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">Your Active Match</Text>
-                <Text as="h3" size="md" weight="bold" className="mt-1">
-                  {match.team_a.name} vs {match.team_b.name}
-                </Text>
-                <Text size="sm" color="muted" tabular className="mt-0.5">
-                  {currentInnings.total_runs}/{currentInnings.total_wickets} ({currentInnings.total_overs.toFixed(1)} ov)
-                </Text>
+              <div className="px-4 pt-3 pb-2 flex items-start justify-between">
+                <div>
+                  <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">Your Active Match</Text>
+                  <Text as="h3" size="md" weight="bold" className="mt-1">
+                    {match.team_a.name} vs {match.team_b.name}
+                  </Text>
+                  <Text size="sm" color="muted" tabular className="mt-0.5">
+                    {currentInnings.total_runs}/{currentInnings.total_wickets} ({currentInnings.total_overs.toFixed(1)} ov)
+                  </Text>
+                </div>
+                <button
+                  onClick={async () => {
+                    const { dbMatchId: mid } = useScoringStore.getState();
+                    if (!mid || !isCloudMode()) return;
+                    const ok = await useScoringStore.getState().resumeMatch(mid);
+                    if (!ok) {
+                      toast.info('Match was ended or deleted on another device');
+                      loadMatchHistory();
+                    } else {
+                      toast.success('Synced with server');
+                    }
+                  }}
+                  className="flex-shrink-0 rounded-lg p-2 cursor-pointer text-[var(--cricket)] hover:bg-[var(--cricket)]/10 transition-colors"
+                  title="Sync with server"
+                >
+                  <MdSync size={18} />
+                </button>
               </div>
               <div className="px-4 pb-3">
                 <Button variant="primary" brand="cricket" size="lg" fullWidth onClick={onContinue}>
@@ -370,14 +401,24 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               </Text>
               <div className="space-y-2">
                 {activeDbMatches.map((m) => (
-                  <MatchCard
-                    key={m.id}
-                    item={m}
-                    onTap={() => onResumeMatch(m.id)}
-                    onDelete={isAdmin ? async () => {
-                      await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
-                    } : undefined}
-                  />
+                  <div key={m.id} className="space-y-1.5">
+                    <MatchCard
+                      item={m}
+                      onTap={() => onResumeMatch(m.id)}
+                      onDelete={isAdmin ? async () => {
+                        await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                      } : undefined}
+                    />
+                    <Button
+                      variant="primary"
+                      brand="cricket"
+                      size="lg"
+                      fullWidth
+                      onClick={() => onResumeMatch(m.id)}
+                    >
+                      Resume Scoring
+                    </Button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -502,9 +543,11 @@ export default function ScoringPage() {
     if (view !== 'match') return;
     const { match: m, dbMatchId } = useScoringStore.getState();
     if (m && (m.status === 'scoring' || m.status === 'innings_break') && dbMatchId && isCloudMode()) {
-      useScoringStore.getState().resumeMatch(dbMatchId);
+      // Re-hydrate from DB — if match was completed/deleted on another device, resumeMatch resets and returns false
+      useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
+        if (!ok) setView('landing');
+      });
     } else if (!m || (m.status !== 'scoring' && m.status !== 'innings_break')) {
-      // No active match but view was 'match' — fall back to landing
       setView('landing');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -519,7 +562,13 @@ export default function ScoringPage() {
             onNewMatch={() => setView('wizard')}
             onContinue={match ? async () => {
               const { dbMatchId } = useScoringStore.getState();
-              if (dbMatchId) await useScoringStore.getState().resumeMatch(dbMatchId);
+              if (dbMatchId) {
+                const ok = await useScoringStore.getState().resumeMatch(dbMatchId);
+                if (!ok) {
+                  toast.info('Match was already ended on another device');
+                  return;
+                }
+              }
               setView('match');
             } : undefined}
             onResumeMatch={async (matchId) => {
