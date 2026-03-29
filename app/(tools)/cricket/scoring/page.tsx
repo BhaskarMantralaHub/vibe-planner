@@ -288,20 +288,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
       <div className="mx-auto max-w-md space-y-6">
 
           {/* Page header */}
-          <div className="relative rounded-2xl overflow-hidden px-5 py-5"
-            style={{ background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}>
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 -translate-y-1/3 translate-x-1/4"
-              style={{ background: 'radial-gradient(circle, white, transparent 70%)' }} />
-            <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full opacity-10 translate-y-1/3 -translate-x-1/4"
-              style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
-            <div className="relative flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-                <MdSportsCricket size={22} className="text-white" />
-              </div>
-              <div>
-                <Text as="h1" size="lg" weight="bold" color="white">Live Scoring</Text>
-                <Text as="p" size="2xs" color="white" className="opacity-70">Ball-by-ball match scoring</Text>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+              <MdSportsCricket size={20} className="text-white" />
+            </div>
+            <div>
+              <Text as="h1" size="lg" weight="bold">Live Scoring</Text>
+              <Text as="p" size="2xs" color="muted">Ball-by-ball match scoring</Text>
             </div>
           </div>
 
@@ -325,16 +319,28 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
             </div>
           )}
 
-          {/* Start New Match */}
-          <Button
-            variant={hasLocalMatch ? 'secondary' : 'primary'}
-            brand="cricket"
-            size="xl"
-            fullWidth
-            onClick={onNewMatch}
-          >
-            <MdAdd size={20} /> Start New Match
-          </Button>
+          {/* Start New Match — hidden while loading, blocked when active match exists */}
+          {!historyLoading && (
+            hasLocalMatch || activeDbMatches.length > 0 ? (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-center">
+                <Text as="p" size="xs" color="muted">
+                  {hasLocalMatch
+                    ? 'You have a match in progress. Continue scoring or end it first.'
+                    : 'There is an active match. End or delete it before starting a new one.'}
+                </Text>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                brand="cricket"
+                size="xl"
+                fullWidth
+                onClick={onNewMatch}
+              >
+                <MdAdd size={20} /> Start New Match
+              </Button>
+            )
+          )}
 
 
           {/* Loading skeleton */}
