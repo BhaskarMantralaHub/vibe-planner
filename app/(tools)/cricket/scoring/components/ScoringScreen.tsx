@@ -803,7 +803,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
                   </div>
                 </div>
                 <div className="px-2 py-1.5 space-y-1">
-                  {team.players.map((p) => (
+                  {[...team.players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
                     <PlayerPickerRow
                       key={p.id}
                       player={{ ...p, photo_url: p.player_id ? photoMap.get(p.player_id) ?? null : null }}

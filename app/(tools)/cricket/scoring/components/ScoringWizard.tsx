@@ -139,7 +139,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
   useEffect(() => { fetchGuestSuggestions(); }, [fetchGuestSuggestions]);
 
   const activePlayers = useMemo(
-    () => rosterPlayers.filter((p) => p.is_active),
+    () => rosterPlayers.filter((p) => p.is_active).sort((a, b) => a.name.localeCompare(b.name)),
     [rosterPlayers]
   );
 
