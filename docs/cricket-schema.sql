@@ -113,6 +113,38 @@ CREATE POLICY "Admin can delete expenses" ON cricket_expenses FOR DELETE USING (
 CREATE TRIGGER set_cricket_expenses_updated_at BEFORE UPDATE ON cricket_expenses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ── Expense Splits (equal share per player) ─────────────────
+CREATE TABLE IF NOT EXISTS cricket_expense_splits (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expense_id   UUID NOT NULL REFERENCES cricket_expenses(id) ON DELETE CASCADE,
+  player_id    UUID NOT NULL REFERENCES cricket_players(id),
+  share_amount NUMERIC(10,2) NOT NULL
+);
+
+ALTER TABLE cricket_expense_splits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read splits" ON cricket_expense_splits FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Admin can manage splits" ON cricket_expense_splits FOR INSERT WITH CHECK (is_cricket_admin());
+CREATE POLICY "Admin can delete splits" ON cricket_expense_splits FOR DELETE USING (is_cricket_admin());
+
+-- ── Settlements (player-to-player payments) ─────────────────
+CREATE TABLE IF NOT EXISTS cricket_settlements (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  season_id    UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  from_player  UUID NOT NULL REFERENCES cricket_players(id),
+  to_player    UUID NOT NULL REFERENCES cricket_players(id),
+  amount       NUMERIC(10,2) NOT NULL,
+  settled_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_settlements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Cricket users can read settlements" ON cricket_settlements FOR SELECT USING (has_cricket_access());
+CREATE POLICY "Admin can manage settlements" ON cricket_settlements FOR INSERT WITH CHECK (is_cricket_admin());
+CREATE POLICY "Admin can delete settlements" ON cricket_settlements FOR DELETE USING (is_cricket_admin());
+
 -- ── Season Fees (per-player fee tracking) ───────────────────
 CREATE TABLE IF NOT EXISTS cricket_season_fees (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -251,6 +283,7 @@ RETURNS TRIGGER AS $$
 DECLARE
   raw_access TEXT;
   user_access TEXT[];
+  user_features TEXT[];
   user_approved BOOLEAN;
   meta JSONB;
 BEGIN
@@ -260,6 +293,13 @@ BEGIN
     user_access := ARRAY[raw_access];
   ELSE
     user_access := '{toolkit}';
+  END IF;
+
+  -- Set default features based on signup role
+  IF raw_access = 'cricket' THEN
+    user_features := '{cricket}';
+  ELSE
+    user_features := '{vibe-planner,id-tracker}';
   END IF;
 
   user_approved := COALESCE(
@@ -279,14 +319,15 @@ BEGIN
     meta := NULL;
   END IF;
 
-  INSERT INTO public.profiles (id, email, full_name, access, approved, player_meta)
+  INSERT INTO public.profiles (id, email, full_name, access, approved, player_meta, features)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
     user_access,
     user_approved,
-    meta
+    meta,
+    user_features
   );
 
   -- Auto-approved cricket player: claim pre-added player record

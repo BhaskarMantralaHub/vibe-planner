@@ -128,8 +128,8 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
 
   return (
     <div className={cn('flex flex-col items-center', className)}>
-      {/* Hero image */}
-      <div className="relative overflow-hidden rounded-2xl mx-[-16px] w-[calc(100%+32px)]" style={{ height: 180 }}>
+      {/* Hero image — compact */}
+      <div className="relative overflow-hidden rounded-2xl mx-[-16px] w-[calc(100%+32px)]" style={{ height: 140 }}>
         <img
           src="/toss.png"
           alt="Cricket toss ceremony"
@@ -143,7 +143,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
       </div>
 
       {/* Title */}
-      <div className="text-center mt-[-8px] mb-6 relative z-10">
+      <div className="text-center mt-[-8px] mb-3 relative z-10">
         <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
           The Ritual
         </Text>
@@ -153,7 +153,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
       </div>
 
       {/* Coin */}
-      <div className="relative mb-6" style={{ perspective: '800px' }}>
+      <div className="relative mb-3" style={{ perspective: '800px' }}>
         <div
           ref={coinRef}
           onClick={handleFlip}
@@ -213,7 +213,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
 
         {/* Shadow under coin */}
         <div
-          className="mx-auto mt-3 rounded-full bg-black/20 blur-md transition-all duration-500"
+          className="mx-auto mt-2 rounded-full bg-black/20 blur-md transition-all duration-500"
           style={{
             width: isFlipping ? '50px' : '100px',
             height: '10px',
@@ -223,7 +223,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
       </div>
 
       {/* Result text */}
-      <div className="text-center h-[48px] flex flex-col items-center justify-center mb-6">
+      <div className="text-center h-[40px] flex flex-col items-center justify-center mb-3">
         {result && !isFlipping && (
           <Text as="p" size="xl" weight="bold" style={{ color: result === 'heads' ? '#fbbf24' : '#94a3b8' }}>
             {result === 'heads' ? 'HEADS!' : 'TAILS!'}
