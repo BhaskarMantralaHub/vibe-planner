@@ -236,6 +236,8 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `WicketSheet.tsx` — multi-step Dialog: dismissal type → fielder → new batsman (handles all-out)
 - `ExtrasSheet.tsx` — Dialog for wide/no-ball/bye with run selection
 - `EndOfOverSheet.tsx` — Dialog showing bowling figures + next bowler selection
+- `CoinFlipPage.tsx` — 3D coin flip animation with Web Audio sound effects, Continue/Flip Again buttons (wizard step 4a)
+- `TossPage.tsx` — premium toss result page: hero image, team card tap targets, bat/bowl decision with gradient highlights (wizard step 4b)
 - `FreeHitBanner.tsx` — subtle cricket-themed banner after no-ball
 - `PostMatchSummary.tsx` — result screen with gradient hero, both innings scores, scorecard link
 - `scoring-utils.ts` — type converters between store (ScoringBall) and UI (BallResult, TimelineEntry, InningsSummary)
