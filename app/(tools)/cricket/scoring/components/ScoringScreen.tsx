@@ -13,7 +13,6 @@ import { ButtonGrid } from './ButtonGrid';
 import { FreeHitBanner } from './FreeHitBanner';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
 import { WicketSheet } from './WicketSheet';
-import { RetireSheet } from './RetireSheet';
 import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
 import { EndOfOverSheet } from './EndOfOverSheet';
 import { BallByBallLog } from './BallByBallLog';
@@ -46,8 +45,7 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   const balls = useScoringStore((s) => s.balls);
   const isFreeHit = useScoringStore((s) => s.isFreeHit);
 
-  const actionStack = useScoringStore((s) => s.actionStack);
-  const redoActionStack = useScoringStore((s) => s.redoActionStack);
+  const redoStack = useScoringStore((s) => s.redoStack);
 
   const {
     recordBall,
@@ -56,7 +54,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     endMatch,
     setBowler,
     setNextBatsman,
-    retireBatsman,
     getCurrentInnings,
     getCurrentOverBalls,
     getBattingStats,
@@ -64,7 +61,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     getBattingTeamPlayers,
     getBowlingTeamPlayers,
     getYetToBat,
-    getRetiredBatsmen,
     getAvailableBowlers,
   } = useScoringStore.getState();
 
@@ -80,7 +76,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
   /* ── Local UI state ── */
   const [wicketOpen, setWicketOpen] = useState(false);
-  const [retireOpen, setRetireOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
@@ -292,9 +287,8 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
   const handleUndo = useCallback(() => {
     undoLastBall();
-    // Close any open sheets — undo may reverse end-of-over, wicket, or retirement
+    // Close any open sheets — undo may reverse end-of-over or wicket
     setWicketOpen(false);
-    setRetireOpen(false);
     setExtrasOpen(false);
     setEndOfOverOpen(false);
   }, [undoLastBall]);
@@ -302,11 +296,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   const handleRedo = useCallback(() => {
     redoLastBall();
   }, [redoLastBall]);
-
-  const handleRetireConfirm = useCallback((retiredId: string, replacementId: string) => {
-    retireBatsman(retiredId, replacementId);
-    setRetireOpen(false);
-  }, [retireBatsman]);
 
   const handleEndMatch = useCallback(() => {
     setEndMatchOpen(true);
@@ -339,9 +328,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   const battingTeamPlayers = getBattingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
   const bowlingTeamPlayers = getBowlingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
   const yetToBat = getYetToBat().map((p) => ({ id: p.id, name: displayName(p) }));
-  const retiredBatsmen = getRetiredBatsmen().map((p) => ({
-    id: p.id, name: displayName(p), retiredRuns: p.retiredRuns, retiredBalls: p.retiredBalls,
-  }));
 
   const currentBatsmen: [{ id: string; name: string }, { id: string; name: string }] | null =
     strikerPlayer && nonStrikerPlayer
@@ -797,9 +783,8 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onEndMatch={handleEndMatch}
-              onRetire={canScore ? () => setRetireOpen(true) : undefined}
-              canUndo={actionStack.length > 0}
-              canRedo={redoActionStack.length > 0}
+              canUndo={balls.length > 0}
+              canRedo={redoStack.length > 0}
             />
           </>
         )
@@ -867,27 +852,15 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
       {/* ── Sheets (use portals, render to document.body) ── */}
       {currentBatsmen && (
-        <>
-          <WicketSheet
-            open={wicketOpen}
-            onOpenChange={setWicketOpen}
-            battingTeam={[...yetToBat, ...currentBatsmen]}
-            bowlingTeam={bowlingTeamPlayers}
-            currentBowlerId={currentInnings.bowler_id ?? undefined}
-            currentBatsmen={currentBatsmen}
-            retiredBatsmen={retiredBatsmen}
-            onConfirm={handleWicketConfirm}
-          />
-          <RetireSheet
-            open={retireOpen}
-            onOpenChange={setRetireOpen}
-            striker={currentBatsmen[0]}
-            nonStriker={currentBatsmen[1]}
-            yetToBat={yetToBat}
-            retiredBatsmen={retiredBatsmen}
-            onConfirm={handleRetireConfirm}
-          />
-        </>
+        <WicketSheet
+          open={wicketOpen}
+          onOpenChange={setWicketOpen}
+          battingTeam={[...yetToBat, ...currentBatsmen]}
+          bowlingTeam={bowlingTeamPlayers}
+          currentBowlerId={currentInnings.bowler_id ?? undefined}
+          currentBatsmen={currentBatsmen}
+          onConfirm={handleWicketConfirm}
+        />
       )}
 
       <ExtrasSheet
