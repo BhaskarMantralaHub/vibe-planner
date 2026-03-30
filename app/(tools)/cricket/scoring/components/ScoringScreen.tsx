@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { PageFooter } from '@/components/PageFooter';
 import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
+import { isCloudMode, getSupabaseClient } from '@/lib/supabase/client';
 import { Scoreboard } from './Scoreboard';
 import { OverTimeline } from './OverTimeline';
 import { ButtonGrid } from './ButtonGrid';
@@ -15,11 +16,12 @@ import { FreeHitBanner } from './FreeHitBanner';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
 import { WicketSheet } from './WicketSheet';
 import { RetireSheet } from './RetireSheet';
+import { AddPlayerSheet } from './AddPlayerSheet';
 import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
 import { EndOfOverSheet } from './EndOfOverSheet';
 import { BallByBallLog } from './BallByBallLog';
 import { FullScorecard } from './FullScorecard';
-import type { WicketType } from '@/types/scoring';
+import type { WicketType, TeamSide } from '@/types/scoring';
 import {
   buildPlayerMap,
   displayName,
@@ -34,11 +36,10 @@ import {
 
 interface ScoringScreenProps {
   onBack?: () => void;
-  onHandoff?: () => void;
   onRefresh?: () => Promise<void>;
 }
 
-function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
+function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
   const router = useRouter();
 
   /* ── Store state ── */
@@ -49,6 +50,7 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
   const actionStack = useScoringStore((s) => s.actionStack);
   const redoActionStack = useScoringStore((s) => s.redoActionStack);
+  const takenOverBy = useScoringStore((s) => s.takenOverBy);
   const redoStack = useScoringStore((s) => s.redoStack);
 
   const {
@@ -67,6 +69,7 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     getYetToBat,
     getRetiredBatsmen,
     retireBatsman,
+    addPlayerToMatch,
     getAvailableBowlers,
   } = useScoringStore.getState();
 
@@ -83,6 +86,7 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   /* ── Local UI state ── */
   const [wicketOpen, setWicketOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
+  const [addPlayerOpen, setAddPlayerOpen] = useState<TeamSide | null>(null);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
@@ -192,6 +196,30 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     if (!match) return null;
     return buildInningsSummary(idx, match, currentInnings, battingStats, bowlingStats, balls, playerMap);
   }, [idx, match, currentInnings, battingStats, bowlingStats, balls, playerMap]);
+
+  /* ── Proactive scorer check — detect takeover on mount/resume ── */
+  useEffect(() => {
+    if (!match || match.status === 'completed' || takenOverBy) return;
+    const { dbMatchId } = useScoringStore.getState();
+    if (!dbMatchId || !isCloudMode()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    // Check if we're still the active scorer
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase.from('practice_matches')
+          .select('active_scorer_id, scorer_name')
+          .eq('id', dbMatchId)
+          .single() as { data: { active_scorer_id: string | null; scorer_name: string | null } | null };
+        if (data?.active_scorer_id && data.active_scorer_id !== user.id) {
+          useScoringStore.setState({ takenOverBy: data.scorer_name || 'Another player' });
+        }
+      } catch (err) { console.error('[scoring] proactive scorer check failed:', err); }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── End of over detection ── */
   const legalBallCount = useMemo(() => {
@@ -341,10 +369,10 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     setEndMatchOpen(true);
   }, []);
 
-  const confirmEndMatch = useCallback(() => {
+  const confirmEndMatch = useCallback(async () => {
     setShowResultScreen(true);
-    endMatch();
     setEndMatchOpen(false);
+    await endMatch();
   }, [endMatch]);
 
   const handleSelectBowler = useCallback((bowlerId: string) => {
@@ -569,18 +597,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
           {onRefresh && (
             <RefreshButton onRefresh={onRefresh} variant="bordered" title="Refresh scores" />
           )}
-          {match.status !== 'completed' && (
-            <button
-              onClick={onHandoff}
-              className={cn(
-                'px-3 py-1.5 rounded-lg cursor-pointer',
-                'border border-[var(--cricket)]/30',
-                'active:scale-[0.92] transition-all hover:bg-[var(--cricket)]/10',
-              )}
-            >
-              <Text size="xs" weight="medium" color="cricket">Handoff</Text>
-            </button>
-          )}
         </div>
       </div>
 
@@ -764,9 +780,9 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
                   brand="cricket"
                   size="xl"
                   fullWidth
-                  onClick={() => {
+                  onClick={async () => {
                     setShowResultScreen(true);
-                    useScoringStore.getState().endMatch();
+                    await useScoringStore.getState().endMatch();
                   }}
                 >
                   View Match Result
@@ -859,9 +875,10 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
       {activeTab === 'squads' && (
         <div className="px-4 space-y-4 pb-4">
-          {[match.team_a, match.team_b].map((team, idx) => {
-            const teamSide = idx === 0 ? 'team_a' : 'team_b';
+          {[match.team_a, match.team_b].map((team, tidx) => {
+            const teamSide: TeamSide = tidx === 0 ? 'team_a' : 'team_b';
             const isBatting = innings[match.current_innings].batting_team === teamSide;
+            const isActive = match.status === 'scoring' || match.status === 'innings_break';
             return (
               <div key={teamSide} className="rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
                 <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]/50"
@@ -886,10 +903,43 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
                     />
                   ))}
                 </div>
+                {isActive && (
+                  <div className="px-3 py-2 border-t border-[var(--border)]/40">
+                    <button
+                      onClick={() => setAddPlayerOpen(teamSide)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-3 py-2 text-[var(--muted)] hover:border-[var(--cricket)]/40 hover:text-[var(--cricket)] transition-colors cursor-pointer active:scale-[0.98]"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      <Text size="xs" weight="medium" color="muted">Add Player</Text>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Add Player Sheet */}
+      {addPlayerOpen && (
+        <AddPlayerSheet
+          open={!!addPlayerOpen}
+          onOpenChange={(v) => { if (!v) setAddPlayerOpen(null); }}
+          teamSide={addPlayerOpen}
+          teamName={addPlayerOpen === 'team_a' ? match.team_a.name : match.team_b.name}
+          existingPlayerIds={new Set([
+            ...match.team_a.players.map((p) => p.player_id).filter(Boolean) as string[],
+            ...match.team_b.players.map((p) => p.player_id).filter(Boolean) as string[],
+          ])}
+          rosterPlayers={rosterPlayers.filter((p) => p.is_active).map((p) => ({
+            id: p.id, name: p.name, jersey_number: p.jersey_number ?? null,
+            photo_url: p.photo_url ?? null, is_guest: p.is_guest ?? false,
+          }))}
+          guestSuggestions={useScoringStore.getState().guestSuggestions}
+          onAddPlayer={addPlayerToMatch}
+        />
       )}
 
       {/* Undo is now integrated into ButtonGrid's extras row */}
@@ -958,6 +1008,29 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
             </Button>
             <Button variant="danger" onClick={confirmEndMatch}>
               End Match
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scorer Takeover Detection — another player claimed scoring rights */}
+      <Dialog open={!!takenOverBy} onOpenChange={() => { /* Non-dismissable */ }}>
+        <DialogContent showClose={false} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Scoring Taken Over</DialogTitle>
+            <DialogDescription>
+              <Text as="span" weight="semibold" style={{ color: 'var(--cricket)' }}>{takenOverBy}</Text> has taken over scoring for this match. Your changes since the takeover may not have been saved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="primary" brand="cricket" fullWidth onClick={async () => {
+              useScoringStore.setState({ takenOverBy: null });
+              useScoringStore.getState().reset();
+              // Await refresh so landing page shows current DB state (not stale cache)
+              await useScoringStore.getState().loadMatchHistory();
+              if (onBack) onBack();
+            }}>
+              Back to Home
             </Button>
           </DialogFooter>
         </DialogContent>

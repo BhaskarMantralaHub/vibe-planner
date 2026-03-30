@@ -105,7 +105,7 @@ DROP POLICY IF EXISTS "Scorer can update match" ON practice_matches;
 CREATE POLICY "Scorer can update match"
   ON practice_matches FOR UPDATE USING (
     has_cricket_access() AND (
-      active_scorer_id = auth.uid() OR created_by = auth.uid() OR is_cricket_admin()
+      active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid())
     )
   );
 DROP POLICY IF EXISTS "Creator or admin can delete match" ON practice_matches;
@@ -165,7 +165,7 @@ CREATE POLICY "Scorer can manage match players"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Scorer can update match players" ON practice_match_players;
@@ -174,7 +174,7 @@ CREATE POLICY "Scorer can update match players"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Scorer can delete match players" ON practice_match_players;
@@ -186,7 +186,7 @@ CREATE POLICY "Scorer can delete match players"
       OR EXISTS (
         SELECT 1 FROM practice_matches WHERE id = match_id
           AND status IN ('setup', 'scoring', 'innings_break')
-          AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+          AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
       )
     )
   );
@@ -242,7 +242,7 @@ CREATE POLICY "Scorer can create innings"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Scorer can update innings" ON practice_innings;
@@ -251,7 +251,7 @@ CREATE POLICY "Scorer can update innings"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Admin can delete innings" ON practice_innings;
@@ -323,7 +323,7 @@ CREATE POLICY "Scorer can record balls"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Scorer can update balls" ON practice_balls;
@@ -332,7 +332,7 @@ CREATE POLICY "Scorer can update balls"
     has_cricket_access() AND EXISTS (
       SELECT 1 FROM practice_matches WHERE id = match_id
         AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
     )
   );
 DROP POLICY IF EXISTS "Admin can delete balls" ON practice_balls;

@@ -52,6 +52,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
+  const [resumeConfirmOpen, setResumeConfirmOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -179,7 +180,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           >
             <button
               disabled={resumeLoading}
-              onClick={onResume}
+              onClick={() => item.scorer_name ? setResumeConfirmOpen(true) : onResume()}
               className={cn(
                 'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 px-4',
                 'font-semibold text-sm transition-all duration-150 active:scale-[0.98]',
@@ -255,6 +256,26 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
             <DialogFooter>
               <Button variant="secondary" onClick={() => setPermanentDeleteOpen(false)}>Cancel</Button>
               <Button variant="danger" onClick={async () => { setPermanentDeleteOpen(false); await onPermanentDelete(); }}>Delete Forever</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Resume Scoring Confirmation Dialog */}
+      {onResume && (
+        <Dialog open={resumeConfirmOpen} onOpenChange={setResumeConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Take Over Scoring?</DialogTitle>
+              <DialogDescription>
+                <Text as="span" weight="semibold" style={{ color: 'var(--cricket)' }}>{item.scorer_name}</Text> is currently scoring this match. Please ask {item.scorer_name?.split(' ')[0]} to stop scoring first, then continue.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setResumeConfirmOpen(false)}>Cancel</Button>
+              <Button variant="primary" brand="cricket" onClick={() => { setResumeConfirmOpen(false); onResume(); }}>
+                Yes, Continue
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -667,7 +688,12 @@ export default function ScoringPage() {
             } : undefined}
             onResumeMatch={async (matchId) => {
               const ok = await useScoringStore.getState().resumeMatch(matchId);
-              if (ok) setView('match');
+              if (ok) {
+                setView('match');
+              } else {
+                toast.error('Could not resume match — it may have been ended or deleted');
+                useScoringStore.getState().loadMatchHistory();
+              }
             }}
             onViewScorecard={async (matchId) => {
               const ok = await useScoringStore.getState().viewScorecard(matchId);
