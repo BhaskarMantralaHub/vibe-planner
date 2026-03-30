@@ -20,11 +20,40 @@ The app supports multiple user roles with isolated experiences:
 | `admin` | All tools + Admin | Manual DB flag | Viber's Toolkit |
 
 - Roles stored in `profiles.access` (text array, e.g. `{toolkit,cricket,admin}`)
+- **Features** stored in `profiles.features` (text array, e.g. `{vibe-planner,id-tracker}`, `{cricket}`)
 - `profiles.approved` boolean — cricket signups start as `false` until admin approves
 - Signup URL determines role: `/` → toolkit, `/cricket` → cricket
-- `RoleGate` component enforces route-level protection
+- `RoleGate` component enforces route-level protection (checks both role AND feature)
 - `AuthGate` accepts `variant` prop (`toolkit` | `cricket`) for themed login pages
 - Shell header and HamburgerMenu adapt branding based on URL path and user role
+
+### Feature Toggles (Per-User Tool Visibility)
+
+**Two separate concerns — roles vs features:**
+- `profiles.access` = **roles/privileges** (controls RLS data access, admin capabilities)
+- `profiles.features` = **tool visibility** (controls which tools appear in UI)
+- `admin` in access grants management privileges but does NOT auto-grant tool visibility
+- Only the **superadmin** (`NEXT_PUBLIC_SUPER_ADMIN_EMAIL`) can toggle features per user
+
+**Feature values:** `vibe-planner`, `id-tracker`, `cricket`
+
+**Default mapping on signup:**
+| Signup path | `access` | `features` |
+|-------------|----------|------------|
+| `/` (toolkit) | `{toolkit}` | `{vibe-planner, id-tracker}` |
+| `/cricket` | `{cricket}` | `{cricket}` |
+
+**How it works:**
+- `auth-store.ts` loads `userFeatures` from `profiles.features` on login
+- Fallback: if `features` is null/empty, derives from `access` (backward compat)
+- `hasFeature(f)` — checks features array, NO admin override
+- `hasAccess(r)` — checks access array, admin IS an override (for RLS)
+- `HamburgerMenu` filters tools by `userFeatures` (feature-gated tools) or `userAccess` (role-gated tools like Admin)
+- `RoleGate` accepts optional `feature` prop — checks both role AND feature
+- `lib/nav.tsx` — each Tool has a `feature` field mapping to the feature toggle value
+- Admin page: superadmin sees feature badges (VP/ID/CR pills) per user + "Manage Features" drawer with toggle switches
+
+**Migration:** `docs/feature-toggles-migration.sql` — adds column, populates defaults, idempotent
 
 ### Signup & Access Flows
 
@@ -96,6 +125,8 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │               ├── leaderboard/    # Practice Stats leaderboard (hamburger menu item)
 │               │   └── page.tsx
 │               └── lib/            # scoring-utils.ts (type converters), avatar.ts (shared)
+│       └── toss/                   # Coin Toss standalone page (hamburger menu item)
+│           └── page.tsx
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
 ├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, PageFooter, etc.
@@ -128,7 +159,7 @@ npx serve out      # Preview production build
 
 ## Database Schema
 
-Table `profiles`: `id` (UUID, FK to auth.users), `email`, `full_name`, `is_admin`, `disabled`, `access` (text array, e.g. `{toolkit,cricket,admin}`), `approved` (boolean), `created_at`.
+Table `profiles`: `id` (UUID, FK to auth.users), `email`, `full_name`, `is_admin`, `disabled`, `access` (text array — roles/privileges, e.g. `{toolkit,cricket,admin}`), `features` (text array — tool visibility, e.g. `{vibe-planner,id-tracker,cricket}`), `approved` (boolean), `created_at`.
 
 Table `vibes`: `id` (UUID), `user_id`, `text`, `status`, `category`, `time_spent`, `notes`, `due_date`, `position`, `completed_at`, `deleted_at`, `created_at`, `updated_at`.
 Statuses: `spark`, `in_progress`, `scheduled`, `done`. Soft delete via `deleted_at`.
@@ -331,7 +362,7 @@ Components auto-detect brand from `BrandProvider`. Cricket pages use orange, too
 - **All Supabase calls are client-side** via `@supabase/ssr` browser client
 - **Zustand stores** — `auth-store.ts` (auth state, login/signup/reset, role/access), `vibe-store.ts` (vibes CRUD, UI state), `id-tracker-store.ts` (ID documents CRUD), `cricket-store.ts` (players, seasons, expenses, splits, settlements, gallery/moments)
 - **Moments feed** — Gallery/GalleryPost/GalleryUpload components use `motion/react` for animations (double-tap heart, post entrance), `vaul` for bottom sheet menus (post actions, comment actions, liked-by, confirm delete, upload), `@formkit/auto-animate` for comment list animations, `lucide-react` for icons
-- **Role-based access** — `profiles.access` array determines tool visibility; `RoleGate` component for route protection; `AuthGate` variant prop for themed login
+- **Role-based access** — `profiles.access` for RLS/privileges, `profiles.features` for tool visibility; `RoleGate` checks both role AND feature; `AuthGate` variant prop for themed login; superadmin toggles features per user from admin page
 - **RLS enforced** — every query filters by `user_id`, server-side RLS as backup
 - **Soft delete** — `deleted_at` column, Recently Deleted UI with restore (vibes, practice matches); `is_active` flag for cricket players. Practice matches support soft-delete → restore → permanent delete (CASCADE) with admin-only Recently Deleted section.
 - **Public pages** — `/cricket/dues/` public share page bypasses auth, uses SECURITY DEFINER RPC function
@@ -445,10 +476,36 @@ npx next build          # Must pass before pushing
 
 ### Automated Backups
 - **GitHub Actions workflow** (`.github/workflows/backup.yml`) runs daily at 11 PM PT
-- Exports all 16 tables as JSON to private repo `vibe-planner-backups`
+- Exports all 20 tables as JSON to private repo `vibe-planner-backups`
 - Keeps last 30 days, auto-deletes older backups
 - Can trigger manually: Actions → Daily Supabase Backup → Run workflow
 - Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VIBE_PLANNER_BACKUP` (GitHub PAT)
+
+### Backed Up Tables (20)
+When creating a new table, you **MUST** add it to both `.github/workflows/backup.yml` and `.github/workflows/restore.yml`.
+
+| # | Table | Category |
+|---|-------|----------|
+| 1 | `profiles` | Core |
+| 2 | `vibes` | Vibe Planner |
+| 3 | `id_documents` | ID Tracker |
+| 4 | `cricket_players` | Cricket |
+| 5 | `cricket_seasons` | Cricket |
+| 6 | `cricket_expenses` | Cricket |
+| 7 | `cricket_expense_splits` | Cricket |
+| 8 | `cricket_settlements` | Cricket |
+| 9 | `cricket_season_fees` | Cricket |
+| 10 | `cricket_sponsorships` | Cricket |
+| 11 | `cricket_gallery` | Moments |
+| 12 | `cricket_gallery_tags` | Moments |
+| 13 | `cricket_gallery_comments` | Moments |
+| 14 | `cricket_gallery_likes` | Moments |
+| 15 | `cricket_comment_reactions` | Moments |
+| 16 | `cricket_notifications` | Moments |
+| 17 | `practice_matches` | Live Scoring |
+| 18 | `practice_match_players` | Live Scoring |
+| 19 | `practice_innings` | Live Scoring |
+| 20 | `practice_balls` | Live Scoring |
 
 ### Restore Process (if Supabase project is lost)
 1. **Create new Supabase project** — note the new URL and keys
@@ -496,6 +553,7 @@ When making changes, ALWAYS update these files if affected:
 3. **`CLAUDE.md`** — if architecture, commands, or workflow changes
 4. **`README.md`** — if features, tech stack, or project structure changes
 5. **`.env.example`** — if any new environment variables are added
+6. **`.github/workflows/backup.yml` + `restore.yml`** — if any new tables are created, add them to the backup/restore table lists and update the Backed Up Tables count in CLAUDE.md
 
 ## SQL Changes — MANDATORY Agent Review
 
