@@ -8,6 +8,8 @@ import { Button, Input, Label, Text, SegmentedControl } from '@/components/ui';
 import type { ScoringTeam, ScoringPlayer, TeamSide, TossDecision } from '@/types/scoring';
 import type { CricketPlayer } from '@/types/cricket';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
+import { CoinFlipPage } from './CoinFlipPage';
+import { TossPage } from './TossPage';
 import { MdSportsCricket, MdArrowBack, MdArrowForward, MdCheck, MdPersonAdd, MdClose } from 'react-icons/md';
 
 const TOTAL_STEPS = 5;
@@ -160,7 +162,8 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
   const [teamBSelectedIds, setTeamBSelectedIds] = useState<Set<string>>(new Set());
   const [teamBGuests, setTeamBGuests] = useState<ScoringPlayer[]>([]);
 
-  // Step 4: Toss
+  // Step 4: Toss (coin flip → toss result)
+  const [coinFlipped, setCoinFlipped] = useState(false);
   const [tossWinner, setTossWinner] = useState<TeamSide>('team_a');
   const [tossDecision, setTossDecision] = useState<TossDecision>('bat');
 
@@ -246,6 +249,10 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
   };
 
   const handleBack = () => {
+    if (step === 4 && coinFlipped) {
+      setCoinFlipped(false);
+      return;
+    }
     if (step > 1) {
       setStep(step - 1);
     } else {
@@ -463,40 +470,24 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
           </div>
         )}
 
-        {/* Step 4: Toss */}
+        {/* Step 4: Toss — coin flip then toss result */}
         {step === 4 && (
-          <div className="mx-auto max-w-md space-y-6">
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-                <MdSportsCricket size={32} className="text-white" />
-              </div>
-              <Text size="xl" weight="semibold">Who won the toss?</Text>
-              <SegmentedControl
-                options={[
-                  { key: 'team_a', label: teamAName || 'Team A' },
-                  { key: 'team_b', label: teamBName || 'Team B' },
-                ]}
-                active={tossWinner}
-                onChange={(k) => setTossWinner(k as TeamSide)}
-                className="w-full"
-              />
-            </div>
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-              <Text size="xl" weight="semibold">Elected to?</Text>
-              <SegmentedControl
-                options={[
-                  { key: 'bat', label: 'Bat' },
-                  { key: 'bowl', label: 'Bowl' },
-                ]}
-                active={tossDecision}
-                onChange={(k) => setTossDecision(k as TossDecision)}
-                className="w-full"
-              />
-              <Text size="sm" color="muted">
-                {(tossWinner === 'team_a' ? (teamAName || 'Team A') : (teamBName || 'Team B'))} won the toss and elected to {tossDecision} first
-              </Text>
-            </div>
-          </div>
+          !coinFlipped ? (
+            <CoinFlipPage
+              onContinue={() => setCoinFlipped(true)}
+              className="mx-auto max-w-md"
+            />
+          ) : (
+            <TossPage
+              teamAName={teamAName || 'Team A'}
+              teamBName={teamBName || 'Team B'}
+              tossWinner={tossWinner}
+              tossDecision={tossDecision}
+              onTossWinnerChange={(w) => setTossWinner(w)}
+              onTossDecisionChange={(d) => setTossDecision(d)}
+              className="mx-auto max-w-md"
+            />
+          )
         )}
 
         {/* Step 5: Opening Batsmen */}
@@ -550,7 +541,8 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
         )}
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom bar — hidden during coin flip (CoinFlipPage has its own buttons) */}
+      {!(step === 4 && !coinFlipped) && (
       <div className="fixed bottom-0 left-0 right-0 border-t border-[var(--border)] bg-[var(--surface)]/95 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-md gap-3">
           <Button
@@ -582,6 +574,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
           </Button>
         </div>
       </div>
+      )}
     </div>
   );
 }
