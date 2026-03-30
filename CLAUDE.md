@@ -127,6 +127,8 @@ Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cric
 │               └── lib/            # scoring-utils.ts (type converters), avatar.ts (shared)
 │       └── toss/                   # Coin Toss standalone page (hamburger menu item)
 │           └── page.tsx
+│       └── schedule/               # League Schedule standalone page (hamburger menu item)
+│           └── page.tsx
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
 ├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, PageFooter, etc.
