@@ -23,8 +23,8 @@ function TossPage({
 
   return (
     <div className={cn('flex flex-col gap-0', className)}>
-      {/* Hero image — full bleed with gradient fade */}
-      <div className="relative overflow-hidden rounded-2xl mx-[-16px]" style={{ height: 200 }}>
+      {/* Hero image — compact */}
+      <div className="relative overflow-hidden rounded-2xl mx-[-16px]" style={{ height: 140 }}>
         <img
           src="/toss.png"
           alt="Cricket toss ceremony"
@@ -32,12 +32,12 @@ function TossPage({
         />
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, transparent 40%, var(--bg) 100%)' }}
+          style={{ background: 'linear-gradient(to bottom, transparent 30%, var(--bg) 100%)' }}
         />
       </div>
 
       {/* Headline — overlaps the gradient fade */}
-      <div className="text-center mt-[-8px] mb-5 relative z-10">
+      <div className="text-center mt-[-8px] mb-3 relative z-10">
         <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
           Coin has been tossed
         </Text>
@@ -56,7 +56,7 @@ function TossPage({
               key={side}
               onClick={() => onTossWinnerChange(side)}
               className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-2 rounded-2xl py-5 cursor-pointer',
+                'flex-1 flex flex-col items-center justify-center gap-2 rounded-2xl py-4 cursor-pointer',
                 'transition-all duration-200 active:scale-[0.95] select-none',
                 isSelected
                   ? 'border-2 border-[var(--cricket)]'
@@ -102,8 +102,8 @@ function TossPage({
           transition: 'max-height 350ms cubic-bezier(0.4,0,0.2,1), opacity 300ms ease',
         }}
       >
-        <div className="pt-6">
-          <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="text-center mb-3">
+        <div className="pt-4">
+          <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="text-center mb-2">
             {winnerName} elected to...
           </Text>
           <div className="flex gap-3">
@@ -114,7 +114,7 @@ function TossPage({
                   key={decision}
                   onClick={() => onTossDecisionChange(decision)}
                   className={cn(
-                    'flex-1 h-14 rounded-2xl border flex items-center justify-center cursor-pointer',
+                    'flex-1 h-12 rounded-2xl border flex items-center justify-center cursor-pointer',
                     'transition-all duration-200 active:scale-[0.95] select-none',
                     isSelected
                       ? 'border-transparent text-white'
@@ -136,7 +136,7 @@ function TossPage({
       </div>
 
       {/* Confirmation sentence */}
-      <div className="text-center px-2 pt-4">
+      <div className="text-center px-2 pt-3">
         <Text as="p" size="sm" weight="medium" color="muted">
           <span style={{ color: 'var(--cricket)', fontWeight: 600 }}>{winnerName}</span>
           {' '}won the toss and elected to{' '}
