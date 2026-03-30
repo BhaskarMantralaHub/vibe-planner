@@ -16,17 +16,16 @@ interface BowlerFigures {
 
 interface EndOfOverSheetProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
   overNumber: number;
   overRuns: number;
   bowlers: BowlerFigures[];
   onSelectBowler: (bowlerId: string) => void;
 }
 
-function EndOfOverSheet({ open, onOpenChange, overNumber, overRuns, bowlers, onSelectBowler }: EndOfOverSheetProps) {
+function EndOfOverSheet({ open, overNumber, overRuns, bowlers, onSelectBowler }: EndOfOverSheetProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+    <Dialog open={open} onOpenChange={() => { /* Prevent dismissal — must select a bowler */ }}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogTitle>End of Over {overNumber}</DialogTitle>
 
         <div className="flex flex-col gap-4">
@@ -77,10 +76,7 @@ function EndOfOverSheet({ open, onOpenChange, overNumber, overRuns, bowlers, onS
               <button
                 key={b.id}
                 disabled={b.justBowled}
-                onClick={() => {
-                  onSelectBowler(b.id);
-                  onOpenChange(false);
-                }}
+                onClick={() => onSelectBowler(b.id)}
                 className={cn(
                   'flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer select-none',
                   'border border-[var(--border)] bg-[var(--surface)]',

@@ -194,12 +194,36 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   }, [balls, idx]);
 
   const prevLegalBallCountRef = useRef(legalBallCount);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
     const prev = prevLegalBallCountRef.current;
     prevLegalBallCountRef.current = legalBallCount;
 
-    // Detect: legal balls crossed a multiple of 6
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      // On mount: if at an over boundary and bowler hasn't been changed yet,
+      // re-show the selection (handles page refresh before bowler was chosen)
+      if (
+        match?.status === 'scoring' &&
+        legalBallCount > 0 &&
+        legalBallCount % 6 === 0 &&
+        !currentInnings.is_completed
+      ) {
+        // Check if the current bowler is the same as the last over's bowler
+        // If so, the user hasn't selected a new bowler yet — show the modal
+        const lastOverNum = Math.floor((legalBallCount - 1) / 6);
+        const lastOverBowler = balls.find(
+          (b) => b.innings === idx && b.is_legal && b.over_number === lastOverNum
+        )?.bowler_id;
+        if (lastOverBowler && currentInnings.bowler_id === lastOverBowler) {
+          setEndOfOverOpen(true);
+        }
+      }
+      return;
+    }
+
+    // Normal flow: detect legal balls crossing a multiple of 6
     if (
       legalBallCount > 0 &&
       legalBallCount % 6 === 0 &&
@@ -366,6 +390,11 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
     // Mark as justBowled if NOT in available list (can't bowl consecutive overs)
     justBowled: !availableBowlerIds.has(b.id),
   }));
+
+  // Safety valve: if ALL bowlers are justBowled (tiny team), allow all to prevent stuck modal
+  if (allBowlerFigures.length > 0 && allBowlerFigures.every((b) => b.justBowled)) {
+    allBowlerFigures.forEach((b) => { b.justBowled = false; });
+  }
 
   // Completed over number for sheet title
   const completedOverNumber = legalBallCount > 0 ? Math.ceil(legalBallCount / 6) : 0;
@@ -874,7 +903,6 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
 
       <EndOfOverSheet
         open={endOfOverOpen}
-        onOpenChange={setEndOfOverOpen}
         overNumber={completedOverNumber}
         overRuns={lastOverRuns}
         bowlers={allBowlerFigures}
