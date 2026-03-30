@@ -1,4 +1,4 @@
-import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard, MdLeaderboard } from 'react-icons/md';
+import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard, MdLeaderboard, MdSportsCricket } from 'react-icons/md';
 
 export type Tool = {
   name: string;
@@ -6,6 +6,7 @@ export type Tool = {
   icon: React.ReactNode;
   description: string;
   roles?: string[];
+  feature?: string;
 };
 
 export const tools: Tool[] = [
@@ -15,6 +16,7 @@ export const tools: Tool[] = [
     icon: <MdDashboard size={22} />,
     description: 'Capture sparks. Plan actions. Track flow.',
     roles: ['toolkit', 'admin'],
+    feature: 'vibe-planner',
   },
   {
     name: 'ID Tracker',
@@ -22,6 +24,7 @@ export const tools: Tool[] = [
     icon: <MdBadge size={22} />,
     description: 'Track IDs & get expiry reminders.',
     roles: ['toolkit', 'admin'],
+    feature: 'id-tracker',
   },
   {
     name: 'Cricket',
@@ -29,6 +32,7 @@ export const tools: Tool[] = [
     icon: <MdAccountBalanceWallet size={22} />,
     description: 'Team expenses & dues.',
     roles: ['cricket', 'admin'],
+    feature: 'cricket',
   },
   {
     name: 'Live Scoring',
@@ -36,6 +40,7 @@ export const tools: Tool[] = [
     icon: <MdScoreboard size={22} />,
     description: 'Score matches ball-by-ball.',
     roles: ['cricket', 'admin'],
+    feature: 'cricket',
   },
   {
     name: 'Practice Stats',
@@ -43,6 +48,15 @@ export const tools: Tool[] = [
     icon: <MdLeaderboard size={22} />,
     description: 'Batting, bowling & fielding leaderboards.',
     roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
+  {
+    name: 'Coin Toss',
+    href: '/cricket/toss',
+    icon: <MdSportsCricket size={22} />,
+    description: 'Fair, cryptographic coin flip.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
   },
   {
     name: 'Admin',

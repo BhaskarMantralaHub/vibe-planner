@@ -640,10 +640,15 @@ export const useScoringStore = create<ScoringState>()(
 
   undoLastBall: () => {
     const { match, innings, balls, redoStack, actionStack, redoActionStack } = get();
-    if (!match || actionStack.length === 0) return;
+    if (!match) return;
 
-    const lastAction = actionStack[actionStack.length - 1];
-    const newActionStack = actionStack.slice(0, -1);
+    // If actionStack is empty but balls exist (e.g., after page refresh clears actionStack),
+    // synthesize a ball action from the last ball so undo still works
+    const lastAction: ScoringAction | undefined = actionStack.length > 0
+      ? actionStack[actionStack.length - 1]
+      : balls.length > 0 ? { type: 'ball', ballId: balls[balls.length - 1].id } : undefined;
+    if (!lastAction) return;
+    const newActionStack = actionStack.length > 0 ? actionStack.slice(0, -1) : [];
 
     // ── Undo a retirement ──
     if (lastAction.type === 'retire') {

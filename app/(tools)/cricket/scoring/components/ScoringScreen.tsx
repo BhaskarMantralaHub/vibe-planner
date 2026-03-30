@@ -814,7 +814,9 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onEndMatch={handleEndMatch}
-              canUndo={actionStack.length > 0}
+              /* canUndo must check balls.length too — actionStack is cleared on page refresh/resumeMatch
+                 but balls persist. Without this, undo is disabled after refresh even with balls to undo. */
+              canUndo={actionStack.length > 0 || balls.length > 0}
               canRedo={redoStack.length > 0 || redoActionStack.length > 0}
             />
           </>
@@ -907,6 +909,8 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
         overRuns={lastOverRuns}
         bowlers={allBowlerFigures}
         onSelectBowler={handleSelectBowler}
+        onUndo={handleUndo}
+        onExit={onBack}
       />
 
       {/* End Match Confirmation */}

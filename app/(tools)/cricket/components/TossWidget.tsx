@@ -133,39 +133,39 @@ export default function TossWidget() {
   const tailsCount = history.filter((h) => h === 'tails').length;
 
   return (
-    <div className="min-h-[calc(100vh-52px)] flex flex-col items-center px-4 py-6 relative overflow-hidden">
+    <div className="flex flex-col items-center px-4 py-4 relative overflow-hidden">
 
       {/* Hero — image with coin overlaid */}
-      <div className="relative w-full max-w-lg mx-auto mb-6">
+      <div className="relative w-full max-w-lg mx-auto mb-3">
         {/* Image */}
         <img
           src="/toss.png"
           alt="Cricket Toss"
-          className="w-full max-h-[25vh] lg:max-h-[35vh] object-cover object-top rounded-2xl shadow-xl"
+          className="w-full max-h-[18vh] lg:max-h-[30vh] object-cover object-top rounded-2xl shadow-xl"
           style={{ filter: isFlipping ? 'brightness(1.1)' : 'brightness(1)', transition: 'filter 0.5s' }}
         />
 
       </div>
 
       {/* Title below image */}
-      <div className="text-center mb-4">
-        <h1 className="text-[12px] uppercase tracking-[3px] text-[var(--muted)] font-medium mb-1">
+      <div className="text-center mb-2">
+        <h1 className="text-[11px] uppercase tracking-[3px] text-[var(--muted)] font-medium mb-0.5">
           🏏 ICC Cricket Standard
         </h1>
-        <h2 className="text-[24px] lg:text-[32px] font-bold bg-gradient-to-r from-[var(--cricket)] via-[var(--blue)] to-[var(--cricket-accent)] bg-clip-text text-transparent">
+        <h2 className="text-[22px] lg:text-[32px] font-bold bg-gradient-to-r from-[var(--cricket)] via-[var(--blue)] to-[var(--cricket-accent)] bg-clip-text text-transparent">
           Coin Toss
         </h2>
       </div>
 
       {/* Coin */}
-      <div className="relative mb-4 lg:mb-8" style={{ perspective: '800px' }}>
+      <div className="relative mb-3 lg:mb-8" style={{ perspective: '800px' }}>
         {/* Particles on result */}
         {showParticles && <Particles result={result} />}
 
         <div
           ref={coinRef}
           onClick={handleToss}
-          className="relative w-[140px] h-[140px] lg:w-[220px] lg:h-[220px] cursor-pointer"
+          className="relative w-[110px] h-[110px] lg:w-[220px] lg:h-[220px] cursor-pointer"
           data-result={result}
           style={{
             transformStyle: 'preserve-3d',
@@ -191,7 +191,7 @@ export default function TossWidget() {
             }}
           >
             <div className="text-center select-none">
-              <div className="text-[56px] lg:text-[88px] font-black leading-none" style={{ color: '#5c3a1e', textShadow: '0 2px 4px rgba(0,0,0,0.2), 0 -1px 0 rgba(255,255,255,0.15)' }}>H</div>
+              <div className="text-[44px] lg:text-[88px] font-black leading-none" style={{ color: '#5c3a1e', textShadow: '0 2px 4px rgba(0,0,0,0.2), 0 -1px 0 rgba(255,255,255,0.15)' }}>H</div>
               <div className="text-[10px] lg:text-[11px] font-bold text-[#7a5530] tracking-[3px] uppercase -mt-1">Heads</div>
             </div>
           </div>
@@ -210,7 +210,7 @@ export default function TossWidget() {
             }}
           >
             <div className="text-center select-none">
-              <div className="text-[56px] lg:text-[88px] font-black leading-none" style={{ color: '#374151', textShadow: '0 2px 4px rgba(0,0,0,0.15), 0 -1px 0 rgba(255,255,255,0.3)' }}>T</div>
+              <div className="text-[44px] lg:text-[88px] font-black leading-none" style={{ color: '#374151', textShadow: '0 2px 4px rgba(0,0,0,0.15), 0 -1px 0 rgba(255,255,255,0.3)' }}>T</div>
               <div className="text-[10px] lg:text-[11px] font-bold text-[#4b5563] tracking-[3px] uppercase -mt-1">Tails</div>
             </div>
           </div>
@@ -218,20 +218,20 @@ export default function TossWidget() {
 
         {/* Shadow under coin */}
         <div
-          className="mx-auto mt-4 rounded-full bg-black/20 blur-md transition-all duration-500"
+          className="mx-auto mt-2 rounded-full bg-black/20 blur-md transition-all duration-500"
           style={{
-            width: isFlipping ? '60px' : '120px',
-            height: '12px',
+            width: isFlipping ? '50px' : '90px',
+            height: '10px',
             opacity: isFlipping ? 0.3 : 0.6,
           }}
         />
       </div>
 
       {/* Result text */}
-      <div className="text-center mb-4 lg:mb-8 h-[50px] lg:h-[80px] flex flex-col items-center justify-center">
+      <div className="text-center mb-2 lg:mb-8 h-[40px] lg:h-[80px] flex flex-col items-center justify-center">
         {result && !isFlipping && (
           <div className="animate-[bounceIn_0.5s_ease-out]">
-            <div className="text-[28px] lg:text-[44px] font-black uppercase tracking-wider"
+            <div className="text-[24px] lg:text-[44px] font-black uppercase tracking-wider"
               style={{ color: result === 'heads' ? '#fbbf24' : '#94a3b8' }}>
               {result === 'heads' ? 'HEADS!' : 'TAILS!'}
             </div>

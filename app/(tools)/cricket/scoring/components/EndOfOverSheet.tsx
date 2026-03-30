@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
@@ -20,12 +21,15 @@ interface EndOfOverSheetProps {
   overRuns: number;
   bowlers: BowlerFigures[];
   onSelectBowler: (bowlerId: string) => void;
+  onUndo?: () => void;
+  onExit?: () => void;
 }
 
-function EndOfOverSheet({ open, overNumber, overRuns, bowlers, onSelectBowler }: EndOfOverSheetProps) {
+function EndOfOverSheet({ open, overNumber, overRuns, bowlers, onSelectBowler, onUndo, onExit }: EndOfOverSheetProps) {
+  const [undoing, setUndoing] = useState(false);
   return (
     <Dialog open={open} onOpenChange={() => { /* Prevent dismissal — must select a bowler */ }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto" showClose={false} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogTitle>End of Over {overNumber}</DialogTitle>
 
         <div className="flex flex-col gap-4">
@@ -91,6 +95,28 @@ function EndOfOverSheet({ open, overNumber, overRuns, bowlers, onSelectBowler }:
                 </Text>
               </button>
             ))}
+          </div>
+
+          {/* Undo + Exit */}
+          <div className="flex items-center justify-between pt-1">
+            {onUndo ? (
+              <button
+                onClick={() => { if (undoing) return; setUndoing(true); onUndo(); }}
+                disabled={undoing}
+                className={cn('cursor-pointer', undoing && 'opacity-50 cursor-not-allowed')}
+              >
+                <Text size="xs" weight="medium" color="cricket" className="underline underline-offset-2">
+                  {undoing ? 'Undoing...' : 'Undo Last Ball'}
+                </Text>
+              </button>
+            ) : <span />}
+            {onExit ? (
+              <button onClick={onExit} className="cursor-pointer">
+                <Text size="xs" weight="medium" color="muted" className="underline underline-offset-2">
+                  Back to Home
+                </Text>
+              </button>
+            ) : <span />}
           </div>
         </div>
       </DialogContent>
