@@ -10,7 +10,7 @@ import type { PlayerRole } from '@/types/cricket';
 const roleBadge: Record<PlayerRole, { label: string; abbr: string; color: string; icon: React.ReactNode }> = {
   batsman:       { label: 'Batsman',     abbr: 'BAT',  color: 'var(--cricket)',         icon: <MdSportsCricket size={11} /> },
   bowler:        { label: 'Bowler',      abbr: 'BOWL', color: '#3B82F6',               icon: <GiTennisBall size={10} /> },
-  'all-rounder': { label: 'All-Rounder', abbr: 'AR',   color: 'var(--cricket-accent)',  icon: <MdSportsCricket size={11} /> },
+  'all-rounder': { label: 'All-Rounder', abbr: 'Allrounder', color: 'var(--cricket-accent)',  icon: <MdSportsCricket size={11} /> },
   keeper:        { label: 'Keeper',      abbr: 'WK',   color: '#16A34A',               icon: <GiGloves size={11} /> },
 };
 

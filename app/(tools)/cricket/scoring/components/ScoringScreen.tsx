@@ -87,6 +87,8 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
   const [wicketOpen, setWicketOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [addPlayerOpen, setAddPlayerOpen] = useState<TeamSide | null>(null);
+  const [removePlayerConfirm, setRemovePlayerConfirm] = useState<{ id: string; name: string; teamSide: TeamSide } | null>(null);
+  const [changeBowlerOpen, setChangeBowlerOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
@@ -683,17 +685,36 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
 
         <div className="mx-3 border-t border-[var(--border)]/40" />
 
-        {/* Bowler */}
-        <div className="px-3 py-2 flex items-center gap-2">
-          <Text size="2xs" weight="semibold" color="muted" uppercase className="flex-shrink-0">Bowl</Text>
-          <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer ? displayName(bowlerPlayer) : 'TBD'}</Text>
-          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-            <Text size="xs" color="muted" tabular>{currentBowlerStats?.overs ?? '0.0'}ov</Text>
-            <Text size="xs" weight="semibold" tabular>{currentBowlerStats?.wickets ?? 0}w</Text>
-            <Text size="xs" color="muted" tabular>{currentBowlerStats?.runs ?? 0}r</Text>
-            <Text size="xs" color="muted" tabular>{currentBowlerStats ? currentBowlerStats.economy.toFixed(1) : '0.0'}er</Text>
-          </div>
-        </div>
+        {/* Bowler — tappable to change before first ball of the over */}
+        {(() => {
+          const inningsBallCount = balls.filter((b) => b.innings === idx).length;
+          const canChangeBowler = !currentInnings.is_completed && inningsBallCount === 0;
+          return (
+            <button
+              type="button"
+              onClick={canChangeBowler ? () => setChangeBowlerOpen(true) : undefined}
+              className={cn(
+                'w-full px-3 py-2 flex items-center gap-2',
+                canChangeBowler && 'cursor-pointer active:scale-[0.98] transition-all',
+              )}
+            >
+              <Text size="2xs" weight="semibold" color="muted" uppercase className="flex-shrink-0">Bowl</Text>
+              <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer ? displayName(bowlerPlayer) : 'TBD'}</Text>
+              {canChangeBowler && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" style={{ color: 'var(--muted)' }}>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              )}
+              <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+                <Text size="xs" color="muted" tabular>{currentBowlerStats?.overs ?? '0.0'}ov</Text>
+                <Text size="xs" weight="semibold" tabular>{currentBowlerStats?.wickets ?? 0}w</Text>
+                <Text size="xs" color="muted" tabular>{currentBowlerStats?.runs ?? 0}r</Text>
+                <Text size="xs" color="muted" tabular>{currentBowlerStats ? currentBowlerStats.economy.toFixed(1) : '0.0'}er</Text>
+              </div>
+            </button>
+          );
+        })()}
       </div>
 
       {/* ── Over Timeline ── */}
@@ -885,23 +906,47 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
                   style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), transparent)' }}>
                   <Text size="sm" weight="bold">{team.name}</Text>
                   <div className="flex items-center gap-2">
-                    {isBatting && match.status === 'scoring' && (
-                      <Text size="2xs" weight="bold" color="cricket" uppercase>Batting</Text>
+                    {isActive && (
+                      <Text size="2xs" weight="bold" color={isBatting ? 'cricket' : 'muted'} uppercase>
+                        {isBatting ? 'Batting' : 'Bowling'}
+                      </Text>
                     )}
                     <Text size="2xs" color="muted">{team.players.length} players</Text>
                   </div>
                 </div>
                 <div className="px-2 py-1.5 space-y-1">
-                  {[...team.players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
-                    <PlayerPickerRow
-                      key={p.id}
-                      player={{ ...p, photo_url: p.player_id ? photoMap.get(p.player_id) ?? null : null }}
-                      selected={false}
-                      onToggle={() => {}}
-                      mode="highlight"
-                      badge={team.captain_id === p.id ? 'C' : undefined}
-                    />
-                  ))}
+                  {[...team.players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+                    const removable = isActive && useScoringStore.getState().canRemovePlayer(p.id);
+                    const rosterPlayer = p.player_id ? rosterPlayers.find((rp) => rp.id === p.player_id) : null;
+                    return (
+                      <div key={p.id} className="flex items-center gap-1">
+                        <div className="flex-1">
+                          <PlayerPickerRow
+                            player={{
+                              ...p,
+                              photo_url: p.player_id ? photoMap.get(p.player_id) ?? null : null,
+                              player_role: rosterPlayer?.player_role ?? null,
+                            }}
+                            selected={false}
+                            onToggle={() => {}}
+                            mode="highlight"
+                            badge={team.captain_id === p.id ? 'C' : undefined}
+                          />
+                        </div>
+                        {removable && (
+                          <button
+                            onClick={() => setRemovePlayerConfirm({ id: p.id, name: displayName(p), teamSide })}
+                            className="flex-shrink-0 p-1.5 rounded-lg cursor-pointer transition-all active:scale-[0.9] hover:bg-[var(--red)]/10"
+                            title="Remove player"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--red)' }}>
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {isActive && (
                   <div className="px-3 py-2 border-t border-[var(--border)]/40">
@@ -940,6 +985,110 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
           guestSuggestions={useScoringStore.getState().guestSuggestions}
           onAddPlayer={addPlayerToMatch}
         />
+      )}
+
+      {/* Change Bowler Dialog */}
+      <Dialog open={changeBowlerOpen} onOpenChange={setChangeBowlerOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto" showClose>
+          <DialogTitle>Change Opening Bowler</DialogTitle>
+          <div className="flex flex-col gap-1.5 mt-1">
+            {getBowlingTeamPlayers().map((p) => {
+              const isCurrentBowler = p.id === currentInnings.bowler_id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setBowler(p.id);
+                    setChangeBowlerOpen(false);
+                    toast.success(`${displayName(p)} will bowl`);
+                  }}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer select-none',
+                    'border transition-all duration-150 active:scale-[0.96]',
+                    isCurrentBowler
+                      ? 'border-[var(--cricket)] bg-[var(--cricket)]/10'
+                      : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--cricket)]/50',
+                  )}
+                >
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
+                    style={{
+                      background: isCurrentBowler ? 'var(--cricket)' : 'color-mix(in srgb, var(--cricket) 15%, var(--card))',
+                      color: isCurrentBowler ? 'white' : 'var(--cricket)',
+                    }}
+                  >
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                  <Text size="sm" weight={isCurrentBowler ? 'bold' : 'medium'}>{displayName(p)}</Text>
+                  {isCurrentBowler && <Text size="2xs" color="cricket" className="ml-auto">Current</Text>}
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Player Confirmation */}
+      {removePlayerConfirm && (
+        <Dialog open={!!removePlayerConfirm} onOpenChange={(v) => { if (!v) setRemovePlayerConfirm(null); }}>
+          <DialogContent showClose>
+            <DialogHeader>
+              <DialogTitle>Remove {removePlayerConfirm.name}?</DialogTitle>
+              <DialogDescription>
+                This player hasn&apos;t participated yet. You can remove them or move to the other team.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col gap-2.5 mt-3">
+              <Button
+                variant="primary"
+                brand="cricket"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  const { id, teamSide: fromTeam } = removePlayerConfirm;
+                  const toTeam: TeamSide = fromTeam === 'team_a' ? 'team_b' : 'team_a';
+                  const team = fromTeam === 'team_a' ? match.team_a : match.team_b;
+                  const player = team.players.find((p) => p.id === id);
+                  setRemovePlayerConfirm(null);
+                  if (!player) return;
+                  useScoringStore.getState().removePlayerFromMatch(fromTeam, id).then(async (ok) => {
+                    if (!ok) return;
+                    const addOk = await useScoringStore.getState().addPlayerToMatch(toTeam, { ...player, id: crypto.randomUUID() });
+                    if (!addOk) {
+                      // Recovery: add back to original team
+                      await useScoringStore.getState().addPlayerToMatch(fromTeam, { ...player, id: crypto.randomUUID() });
+                      toast.error('Move failed — player restored to original team');
+                    }
+                  });
+                }}
+              >
+                Move to {removePlayerConfirm.teamSide === 'team_a' ? match.team_b.name : match.team_a.name}
+              </Button>
+              <div className="flex items-center gap-2 w-full">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => setRemovePlayerConfirm(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => {
+                    const { teamSide, id } = removePlayerConfirm;
+                    setRemovePlayerConfirm(null);
+                    useScoringStore.getState().removePlayerFromMatch(teamSide, id);
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Undo is now integrated into ButtonGrid's extras row */}

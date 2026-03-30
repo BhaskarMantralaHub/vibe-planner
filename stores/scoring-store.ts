@@ -275,6 +275,8 @@ interface ScoringState {
   setNextBatsman: (playerId: string) => void;
   retireBatsman: (retiredId: string, replacementId: string) => void;
   addPlayerToMatch: (teamSide: TeamSide, player: ScoringPlayer) => Promise<boolean>;
+  removePlayerFromMatch: (teamSide: TeamSide, playerId: string) => Promise<boolean>;
+  canRemovePlayer: (playerId: string) => boolean;
 
   // Actions - Innings
   endInnings: () => Promise<void>;
@@ -1121,6 +1123,90 @@ export const useScoringStore = create<ScoringState>()(
     }
 
     toast.success(`${player.name} added to match`);
+    return true;
+  },
+
+  canRemovePlayer: (playerId) => {
+    const { match, innings, balls } = get();
+    if (!match) return false;
+    const idx = match.current_innings;
+    const inn = innings[idx];
+
+    // Can't remove players currently at the crease or bowling
+    if (inn.striker_id === playerId || inn.non_striker_id === playerId || inn.bowler_id === playerId) return false;
+
+    // Can't remove players who participated in any ball (as striker, non-striker, or bowler)
+    for (const b of balls) {
+      if (b.striker_id === playerId || b.non_striker_id === playerId || b.bowler_id === playerId) return false;
+      if (b.dismissed_id === playerId || b.fielder_id === playerId) return false;
+    }
+
+    // Can't remove a player who was the replacement for a retired player (they're actively batting)
+    for (const inn2 of innings) {
+      if (inn2.retired_players.some((r) => r.replacedById === playerId && !r.returned)) return false;
+    }
+
+    return true;
+  },
+
+  removePlayerFromMatch: async (teamSide, playerId) => {
+    const { match, dbMatchId, idMap } = get();
+    if (!match) return false;
+
+    // Find the player
+    const team = teamSide === 'team_a' ? match.team_a : match.team_b;
+    const player = team.players.find((p) => p.id === playerId);
+    if (!player) return false;
+
+    // Safety check
+    if (!get().canRemovePlayer(playerId)) {
+      toast.error('Cannot remove a player who has participated');
+      return false;
+    }
+
+    // Remove from local state + clean up any retired_players entries referencing this player
+    const updatedMatch = { ...match };
+    const updatedTeam = { ...team, players: team.players.filter((p) => p.id !== playerId) };
+    if (teamSide === 'team_a') updatedMatch.team_a = updatedTeam;
+    else updatedMatch.team_b = updatedTeam;
+
+    const { innings } = get();
+    const updatedInnings = [...innings] as [ScoringInnings, ScoringInnings];
+    for (let i = 0; i < 2; i++) {
+      const inn = updatedInnings[i];
+      if (inn.retired_players.some((r) => r.playerId === playerId)) {
+        updatedInnings[i] = {
+          ...inn,
+          retired_players: inn.retired_players.filter((r) => r.playerId !== playerId),
+        };
+      }
+    }
+    set({ match: updatedMatch, innings: updatedInnings });
+
+    // Delete from DB
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return false;
+      const serverId = idMap[playerId];
+      if (serverId) {
+        const { error } = await supabase
+          .from('practice_match_players')
+          .delete()
+          .eq('id', serverId);
+        if (error) {
+          console.error('[scoring] removePlayerFromMatch failed:', error);
+          toast.error('Failed to remove player');
+          set({ match }); // revert
+          return false;
+        }
+        // Clean up idMap
+        const newIdMap = { ...idMap };
+        delete newIdMap[playerId];
+        set({ idMap: newIdMap });
+      }
+    }
+
+    toast.success(`${player.name} removed from match`);
     return true;
   },
 

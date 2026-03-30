@@ -314,7 +314,33 @@ A ball MUST NOT be recorded unless ALL of:
 
 ---
 
-## 13. Forbidden States (Must NEVER Occur)
+## 13. Add / Remove Players (Mid-Match)
+
+### REQ-SQUAD-01: Add player to active match
+- Players can be added to either team during `scoring` or `innings_break` status.
+- Both roster players and guest players can be added.
+- DB insert is awaited (not fire-and-forget) — server ID needed for ball references.
+- Player immediately appears in yet-to-bat or available bowlers lists.
+
+### REQ-SQUAD-02: Remove player from active match
+- A player can only be removed if they have NOT participated in any ball (as striker, non-striker, bowler, fielder, or dismissed).
+- Players currently at the crease or bowling cannot be removed.
+- Players in `retired_players` (either innings) cannot be removed.
+
+### REQ-SQUAD-03: Move player between teams
+- Confirmation dialog offers "Move to {other team}" as primary action.
+- Implemented as remove + add with a new client ID.
+- Dialog closes immediately; async operations run in background.
+
+### REQ-SQUAD-04: UI behavior
+- "Add Player" button shown at bottom of each team card in Squads tab (active match only).
+- Remove (X) icon shown next to each removable player in Squads tab.
+- AddPlayerSheet stays open after adding (allows adding multiple players).
+- Batting/Bowling labels shown for both teams during scoring and innings_break.
+
+---
+
+## 14. Forbidden States (Must NEVER Occur)
 
 1. Ball recorded when `is_completed = true`.
 2. Ball recorded without striker, non-striker, AND bowler.

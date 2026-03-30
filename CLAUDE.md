@@ -273,7 +273,9 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - `TossPage.tsx` — premium toss result page: hero image, team card tap targets, bat/bowl decision with gradient highlights (wizard step 4b)
 - `FreeHitBanner.tsx` — subtle cricket-themed banner after no-ball
 - `PostMatchSummary.tsx` — result screen with gradient hero, both innings scores, scorecard link
-- `scoring-utils.ts` — type converters between store (ScoringBall) and UI (BallResult, TimelineEntry, InningsSummary)
+- `RetireSheet.tsx` — retire batsman dialog (pick who retires + pick replacement from yet-to-bat or can-return)
+- `AddPlayerSheet.tsx` — add late-joining players mid-match (roster with photos + guest players + search)
+- `scoring-utils.ts` — type converters between store (ScoringBall) and UI (BallResult, TimelineEntry, InningsSummary, RetirementData)
 - `PageFooter.tsx` — shared "Designed by Bhaskar Mantrala" footer (used across cricket + scoring)
 
 #### Match Lifecycle
