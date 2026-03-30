@@ -14,6 +14,8 @@ import type {
   BowlingStats,
   MatchHistoryItem,
   LeaderboardEntry,
+  ScoringAction,
+  RetiredPlayer,
 } from '@/types/scoring';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -37,6 +39,7 @@ function makeEmptyInnings(battingTeam: TeamSide): ScoringInnings {
     bowler_id: null,
     is_completed: false,
     target: null,
+    retired_players: [],
   };
 }
 
@@ -75,6 +78,102 @@ function syncToDb(label: string, fn: () => Promise<{ error: unknown }>) {
   });
 }
 
+/** Serialize retired_players for DB sync (client IDs to server IDs) */
+function serializeRetiredPlayers(
+  retired: RetiredPlayer[],
+  idMap: Record<string, string>,
+): string {
+  return JSON.stringify(retired.map((r) => ({
+    ...r,
+    playerId: toServerId(idMap, r.playerId),
+    replacedById: toServerId(idMap, r.replacedById),
+  })));
+}
+
+type ScorecardRpc = {
+  match: Record<string, unknown> | null;
+  players: Record<string, unknown>[];
+  innings: Record<string, unknown>[];
+  balls: Record<string, unknown>[];
+};
+
+/** Hydrate match/innings/balls from DB scorecard RPC into client-side types */
+function hydrateMatchFromDb(sc: ScorecardRpc): {
+  match: ScoringMatch;
+  innings: [ScoringInnings, ScoringInnings];
+  balls: ScoringBall[];
+  idMap: Record<string, string>;
+} | null {
+  const dbMatch = sc.match;
+  if (!dbMatch) return null;
+
+  const idMap: Record<string, string> = {};
+  const reverseMap: Record<string, string> = {};
+  const teamAPlayers: ScoringPlayer[] = [];
+  const teamBPlayers: ScoringPlayer[] = [];
+
+  for (const p of sc.players) {
+    const clientId = genId();
+    idMap[clientId] = p.id as string;
+    reverseMap[p.id as string] = clientId;
+    const sp: ScoringPlayer = {
+      id: clientId, name: p.name as string, jersey_number: p.jersey_number as number | null,
+      player_id: (p.player_id as string) ?? null, is_guest: p.is_guest as boolean,
+    };
+    if (p.team === 'team_a') teamAPlayers.push(sp); else teamBPlayers.push(sp);
+  }
+
+  const toClient = (sid: string | null): string | null => sid ? (reverseMap[sid] ?? sid) : null;
+
+  const match: ScoringMatch = {
+    id: genId(), title: dbMatch.title as string,
+    team_a: { name: dbMatch.team_a_name as string, captain_id: null, players: teamAPlayers },
+    team_b: { name: dbMatch.team_b_name as string, captain_id: null, players: teamBPlayers },
+    overs_per_innings: dbMatch.overs_per_innings as number, match_date: dbMatch.match_date as string,
+    toss_winner: dbMatch.toss_winner as TeamSide | null, toss_decision: dbMatch.toss_decision as TossDecision | null,
+    status: dbMatch.status as ScoringMatch['status'], current_innings: dbMatch.current_innings as number,
+    scorer_id: null, scorer_name: dbMatch.scorer_name as string | null,
+    active_scorer_id: dbMatch.active_scorer_id as string | null,
+    result_summary: dbMatch.result_summary as string | null, mvp_player_id: null,
+  };
+
+  const innings: [ScoringInnings, ScoringInnings] = [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')];
+  for (const di of sc.innings) {
+    const i = di.innings_number as 0 | 1;
+    const dbRetired = (di.retired_players as RetiredPlayer[] | null) ?? [];
+    const retiredPlayers: RetiredPlayer[] = dbRetired.map((r) => ({
+      playerId: reverseMap[r.playerId] ?? r.playerId,
+      replacedById: reverseMap[r.replacedById] ?? r.replacedById,
+      runs: r.runs, balls: r.balls, returned: r.returned,
+    }));
+
+    innings[i] = {
+      batting_team: di.batting_team as TeamSide, total_runs: di.total_runs as number,
+      total_wickets: di.total_wickets as number, total_overs: parseFloat(String(di.total_overs)),
+      extras: { wide: di.extras_wide as number, no_ball: di.extras_no_ball as number, bye: di.extras_bye as number, leg_bye: di.extras_leg_bye as number },
+      striker_id: toClient(di.striker_id as string | null), non_striker_id: toClient(di.non_striker_id as string | null),
+      bowler_id: toClient(di.bowler_id as string | null), is_completed: di.is_completed as boolean, target: di.target as number | null,
+      retired_players: retiredPlayers,
+    };
+  }
+
+  const balls: ScoringBall[] = sc.balls.map((b) => ({
+    id: genId(), innings: b.innings_number as number, sequence: b.sequence as number,
+    over_number: b.over_number as number, ball_in_over: b.ball_in_over as number,
+    striker_id: reverseMap[b.striker_id as string] ?? (b.striker_id as string),
+    non_striker_id: reverseMap[b.non_striker_id as string] ?? (b.non_striker_id as string),
+    bowler_id: reverseMap[b.bowler_id as string] ?? (b.bowler_id as string),
+    runs_bat: b.runs_bat as number, runs_extras: b.runs_extras as number,
+    extras_type: b.extras_type as ExtrasType | null, is_wicket: b.is_wicket as boolean,
+    wicket_type: b.wicket_type as WicketType | null,
+    dismissed_id: b.dismissed_id ? (reverseMap[b.dismissed_id as string] ?? (b.dismissed_id as string)) : null,
+    fielder_id: b.fielder_id ? (reverseMap[b.fielder_id as string] ?? (b.fielder_id as string)) : null,
+    is_legal: b.is_legal as boolean, is_free_hit: b.is_free_hit as boolean,
+  }));
+
+  return { match, innings, balls, idMap };
+}
+
 interface ScoringState {
   // Match data
   match: ScoringMatch | null;
@@ -88,8 +187,10 @@ interface ScoringState {
   isFreeHit: boolean;
   lastBallId: string | null;
 
-  // Redo stack
+  // Unified action stack (balls + retirements) for undo/redo
+  actionStack: ScoringAction[];
   redoStack: ScoringBall[];
+  redoActionStack: ScoringAction[];
 
   // Cloud sync state
   dbMatchId: string | null;
@@ -126,6 +227,7 @@ interface ScoringState {
   swapStrike: () => void;
   setBowler: (playerId: string) => void;
   setNextBatsman: (playerId: string) => void;
+  retireBatsman: (retiredId: string, replacementId: string) => void;
 
   // Actions - Innings
   endInnings: () => void;
@@ -143,6 +245,7 @@ interface ScoringState {
   getBattingTeamPlayers: () => ScoringPlayer[];
   getBowlingTeamPlayers: () => ScoringPlayer[];
   getYetToBat: () => ScoringPlayer[];
+  getRetiredBatsmen: () => (ScoringPlayer & { retiredRuns: number; retiredBalls: number })[];
   getAvailableBowlers: () => ScoringPlayer[];
 
   // Cloud
@@ -153,6 +256,7 @@ interface ScoringState {
   loadMatchHistory: (loadMore?: boolean, fromDate?: string, toDate?: string) => Promise<void>;
   loadDeletedMatches: () => Promise<void>;
   resumeMatch: (matchId: string) => Promise<boolean>;
+  viewScorecard: (matchId: string) => Promise<boolean>;
 
   // Deleted matches (admin)
   deletedMatches: MatchHistoryItem[];
@@ -187,7 +291,9 @@ export const useScoringStore = create<ScoringState>()(
   wizardStep: 1,
   isFreeHit: false,
   lastBallId: null,
+  actionStack: [],
   redoStack: [],
+  redoActionStack: [],
   dbMatchId: null,
   idMap: {},
   matchHistory: [],
@@ -416,8 +522,8 @@ export const useScoringStore = create<ScoringState>()(
 
     // Check if innings is completed
     const maxOvers = match.overs_per_innings;
-    const maxWickets = (idx === 0 ? match.team_a : match.team_b).players.length - 1;
     const battingTeamSize = inn.batting_team === 'team_a' ? match.team_a.players.length : match.team_b.players.length;
+    // All-out when dismissed count means < 2 batsmen available (retired players who can return are NOT dismissed)
     const allOut = totalWickets >= battingTeamSize - 1;
     const oversComplete = newLegalBalls >= maxOvers * 6;
     const targetReached = inn.target !== null && totalRuns >= inn.target;
@@ -464,13 +570,16 @@ export const useScoringStore = create<ScoringState>()(
       }
     }
 
+    const { actionStack } = get();
     set({
       balls: newBalls,
       innings: updated,
       match: { ...match, status: matchStatus, result_summary: resultSummary },
       isFreeHit: nextFreeHit,
       lastBallId: ball.id,
+      actionStack: [...actionStack, { type: 'ball', ballId: ball.id }],
       redoStack: [],
+      redoActionStack: [],
     });
 
     // Cloud sync — fire-and-forget
@@ -530,9 +639,52 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   undoLastBall: () => {
-    const { match, innings, balls, redoStack } = get();
-    if (!match || balls.length === 0) return;
+    const { match, innings, balls, redoStack, actionStack, redoActionStack } = get();
+    if (!match || actionStack.length === 0) return;
 
+    const lastAction = actionStack[actionStack.length - 1];
+    const newActionStack = actionStack.slice(0, -1);
+
+    // ── Undo a retirement ──
+    if (lastAction.type === 'retire') {
+      const idx = match.current_innings;
+      const inn = innings[idx];
+      const updated = [...innings] as [ScoringInnings, ScoringInnings];
+
+      // Restore previous crease state and remove the retirement entry
+      const newRetired = inn.retired_players.filter(
+        (r) => !(r.playerId === lastAction.retiredId && r.replacedById === lastAction.replacedById),
+      );
+      updated[idx] = {
+        ...inn,
+        striker_id: lastAction.previousStrikerId,
+        non_striker_id: lastAction.previousNonStrikerId,
+        retired_players: newRetired,
+      };
+
+      set({
+        innings: updated,
+        actionStack: newActionStack,
+        redoActionStack: [...redoActionStack, lastAction],
+      });
+
+      // Cloud sync — update innings crease + retired_players
+      const { dbMatchId, idMap } = get();
+      if (isCloudMode() && dbMatchId) {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+        const updInn = updated[idx];
+        syncToDb('undo retire', () => supabase.from('practice_innings').update({
+          striker_id: updInn.striker_id ? toServerId(idMap, updInn.striker_id) : null,
+          non_striker_id: updInn.non_striker_id ? toServerId(idMap, updInn.non_striker_id) : null,
+          retired_players: serializeRetiredPlayers(updInn.retired_players, idMap),
+        }).eq('match_id', dbMatchId).eq('innings_number', idx));
+      }
+      return;
+    }
+
+    // ── Undo a ball (existing logic) ──
+    if (balls.length === 0) return;
     const lastBall = balls[balls.length - 1];
     const idx = lastBall.innings;
     const inn = innings[idx];
@@ -549,7 +701,7 @@ export const useScoringStore = create<ScoringState>()(
 
     for (const b of inningsBalls) {
       totalRuns += b.runs_bat + b.runs_extras;
-      if (b.is_wicket) totalWickets++;
+      if (b.is_wicket && b.wicket_type !== 'retired') totalWickets++;
       if (b.extras_type) extras[b.extras_type] += b.runs_extras;
     }
 
@@ -577,7 +729,9 @@ export const useScoringStore = create<ScoringState>()(
       match: { ...match, status: revertedStatus, result_summary: match.status === 'completed' ? null : match.result_summary },
       isFreeHit: wasFreeHit,
       lastBallId: prevBall?.id ?? null,
+      actionStack: newActionStack,
       redoStack: [...redoStack, lastBall],
+      redoActionStack: [...redoActionStack, lastAction],
     });
 
     // Cloud sync — soft-delete ball + update innings
@@ -614,6 +768,22 @@ export const useScoringStore = create<ScoringState>()(
   },
 
   redoLastBall: () => {
+    const { redoActionStack } = get();
+    if (redoActionStack.length === 0) return;
+
+    const lastRedoAction = redoActionStack[redoActionStack.length - 1];
+    const newRedoActionStack = redoActionStack.slice(0, -1);
+
+    // ── Redo a retirement ──
+    if (lastRedoAction.type === 'retire') {
+      const { redoStack: currentRedoStack } = get();
+      get().retireBatsman(lastRedoAction.retiredId, lastRedoAction.replacedById);
+      // retireBatsman clears redo stacks, so restore them minus the last action
+      set({ redoActionStack: newRedoActionStack, redoStack: currentRedoStack });
+      return;
+    }
+
+    // ── Redo a ball ──
     const { redoStack } = get();
     if (redoStack.length === 0) return;
 
@@ -629,8 +799,8 @@ export const useScoringStore = create<ScoringState>()(
       fielder_id: ball.fielder_id ?? undefined,
     });
 
-    // recordBall clears redoStack, so restore it minus the last item
-    set({ redoStack: redoStack.slice(0, -1) });
+    // recordBall clears redoStack/redoActionStack, so restore them minus the last items
+    set({ redoStack: redoStack.slice(0, -1), redoActionStack: newRedoActionStack });
   },
 
   swapStrike: () => {
@@ -676,10 +846,16 @@ export const useScoringStore = create<ScoringState>()(
     const idx = match.current_innings;
     const inn = innings[idx];
     const updated = [...innings] as [ScoringInnings, ScoringInnings];
+
+    // If a retired player is returning, mark them as returned
+    const retiredPlayers = inn.retired_players.map((r) =>
+      r.playerId === playerId && !r.returned ? { ...r, returned: true } : r,
+    );
+
     if (!inn.striker_id) {
-      updated[idx] = { ...inn, striker_id: playerId };
+      updated[idx] = { ...inn, striker_id: playerId, retired_players: retiredPlayers };
     } else if (!inn.non_striker_id) {
-      updated[idx] = { ...inn, non_striker_id: playerId };
+      updated[idx] = { ...inn, non_striker_id: playerId, retired_players: retiredPlayers };
     }
     set({ innings: updated });
     const { dbMatchId, idMap } = get();
@@ -689,6 +865,88 @@ export const useScoringStore = create<ScoringState>()(
       syncToDb('setNextBatsman', () => supabase.from('practice_innings').update({
         striker_id: updated[idx].striker_id ? toServerId(idMap, updated[idx].striker_id!) : null,
         non_striker_id: updated[idx].non_striker_id ? toServerId(idMap, updated[idx].non_striker_id!) : null,
+        retired_players: serializeRetiredPlayers(updated[idx].retired_players, idMap),
+      }).eq('match_id', dbMatchId).eq('innings_number', idx));
+    }
+  },
+
+  retireBatsman: (retiredId, replacementId) => {
+    const { match, innings, balls, actionStack } = get();
+    if (!match) return;
+    const idx = match.current_innings;
+    const inn = innings[idx];
+
+    // Determine which slot the retiring batsman is in
+    const isStriker = inn.striker_id === retiredId;
+    const isNonStriker = inn.non_striker_id === retiredId;
+    if (!isStriker && !isNonStriker) return;
+
+    // Compute runs/balls for the retiring batsman at this point
+    const inningsBalls = balls.filter((b) => b.innings === idx);
+    let runs = 0, ballsFaced = 0;
+    for (const b of inningsBalls) {
+      if (b.striker_id === retiredId) {
+        runs += b.runs_bat;
+        if (b.is_legal) ballsFaced++;
+        if (b.extras_type === 'no_ball') ballsFaced++;
+      }
+    }
+
+    // Mark previous retirements as returned: the retiring player (re-retirement) AND
+    // the replacement player if they were previously retired (returning to crease)
+    const existingRetired = inn.retired_players.map((r) => {
+      if (!r.returned && (r.playerId === retiredId || r.playerId === replacementId)) {
+        return { ...r, returned: true };
+      }
+      return r;
+    });
+
+    const newRetiredEntry: RetiredPlayer = {
+      playerId: retiredId,
+      replacedById: replacementId,
+      runs,
+      balls: ballsFaced,
+      returned: false,
+    };
+
+    const updated = [...innings] as [ScoringInnings, ScoringInnings];
+    updated[idx] = {
+      ...inn,
+      striker_id: isStriker ? replacementId : inn.striker_id,
+      non_striker_id: isNonStriker ? replacementId : inn.non_striker_id,
+      retired_players: [...existingRetired, newRetiredEntry],
+    };
+
+    const retireAction: ScoringAction = {
+      type: 'retire',
+      retiredId,
+      replacedById: replacementId,
+      slot: isStriker ? 'striker' : 'non_striker',
+      previousStrikerId: inn.striker_id,
+      previousNonStrikerId: inn.non_striker_id,
+      runs,
+      balls: ballsFaced,
+    };
+
+    set({
+      innings: updated,
+      actionStack: [...actionStack, retireAction],
+      redoActionStack: [],
+      redoStack: [],
+    });
+
+    // Cloud sync — update innings crease + retired_players
+    const { dbMatchId, idMap } = get();
+    if (isCloudMode() && dbMatchId) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      const updInn = updated[idx];
+      syncToDb('retireBatsman', () => supabase.from('practice_innings').update({
+        striker_id: updInn.striker_id ? toServerId(idMap, updInn.striker_id) : null,
+        non_striker_id: updInn.non_striker_id ? toServerId(idMap, updInn.non_striker_id) : null,
+        retired_players: JSON.stringify(updInn.retired_players.map((r) => ({
+          ...r, playerId: toServerId(idMap, r.playerId), replacedById: toServerId(idMap, r.replacedById),
+        }))),
       }).eq('match_id', dbMatchId).eq('innings_number', idx));
     }
   },
@@ -886,11 +1144,16 @@ export const useScoringStore = create<ScoringState>()(
           if (b.runs_bat === 4) fours++;
           if (b.runs_bat === 6) sixes++;
         }
-        if (b.is_wicket && b.dismissed_id === player.id) {
+        if (b.is_wicket && b.wicket_type !== 'retired' && b.dismissed_id === player.id) {
           isOut = true;
           howOut = b.wicket_type ?? 'out';
         }
       }
+
+      // Check if currently retired (not dismissed, not at crease)
+      const isRetired = !isOut && inn.retired_players.some(
+        (r) => r.playerId === player.id && !r.returned,
+      );
 
       stats.push({
         player,
@@ -900,7 +1163,7 @@ export const useScoringStore = create<ScoringState>()(
         sixes,
         strike_rate: ballsFaced > 0 ? parseFloat(((runs / ballsFaced) * 100).toFixed(1)) : 0,
         is_out: isOut,
-        how_out: howOut,
+        how_out: isRetired ? 'retired' : howOut,
       });
     }
     return stats;
@@ -929,7 +1192,7 @@ export const useScoringStore = create<ScoringState>()(
       for (const b of inningsBalls) {
         if (b.bowler_id !== player.id) continue;
         runsConceded += b.runs_bat + b.runs_extras;
-        if (b.is_wicket) wickets++;
+        if (b.is_wicket && b.wicket_type !== 'retired') wickets++;
         if (b.is_legal) legalBalls++;
         if (b.extras_type === 'wide') wides++;
         if (b.extras_type === 'no_ball') noBalls++;
@@ -991,15 +1254,38 @@ export const useScoringStore = create<ScoringState>()(
     if (inn.striker_id) haveBatted.add(inn.striker_id);
     if (inn.non_striker_id) haveBatted.add(inn.non_striker_id);
 
-    // Exclude dismissed players
+    // Exclude dismissed players (but NOT retired — they're tracked separately)
     const dismissed = new Set<string>();
     for (const b of inningsBalls) {
-      if (b.is_wicket && b.dismissed_id) dismissed.add(b.dismissed_id);
+      if (b.is_wicket && b.wicket_type !== 'retired' && b.dismissed_id) dismissed.add(b.dismissed_id);
     }
 
-    return battingTeam.players.filter(
-      (p) => !haveBatted.has(p.id) && !dismissed.has(p.id)
+    // Exclude currently retired players (they appear in getRetiredBatsmen instead)
+    const currentlyRetired = new Set(
+      inn.retired_players.filter((r) => !r.returned).map((r) => r.playerId),
     );
+
+    return battingTeam.players.filter(
+      (p) => !haveBatted.has(p.id) && !dismissed.has(p.id) && !currentlyRetired.has(p.id)
+    );
+  },
+
+  getRetiredBatsmen: () => {
+    const { match, innings } = get();
+    if (!match) return [];
+    const idx = match.current_innings;
+    const inn = innings[idx];
+    const battingTeam = inn.batting_team === 'team_a' ? match.team_a : match.team_b;
+
+    // Return currently retired players (not yet returned) with their stats at retirement
+    return inn.retired_players
+      .filter((r) => !r.returned)
+      .map((r) => {
+        const player = battingTeam.players.find((p) => p.id === r.playerId);
+        if (!player) return null;
+        return { ...player, retiredRuns: r.runs, retiredBalls: r.balls };
+      })
+      .filter(Boolean) as (ScoringPlayer & { retiredRuns: number; retiredBalls: number })[];
   },
 
   getAvailableBowlers: () => {
@@ -1164,79 +1450,21 @@ export const useScoringStore = create<ScoringState>()(
     const { data, error } = await supabase.rpc('get_match_scorecard', { target_match_id: matchId });
     if (error || !data) { console.error('[scoring] resumeMatch failed:', error); return false; }
 
-    const sc = data as { match: Record<string, unknown> | null; players: Record<string, unknown>[]; innings: Record<string, unknown>[]; balls: Record<string, unknown>[] };
+    const sc = data as ScorecardRpc;
     const dbMatch = sc.match;
 
     // Match permanently deleted (CASCADE) — row is gone
-    if (!dbMatch) {
-      get().reset();
-      return false;
-    }
+    if (!dbMatch) { get().reset(); return false; }
 
     // Match completed or soft-deleted on another device — clear local state
-    if (dbMatch.status === 'completed' || dbMatch.deleted_at) {
-      get().reset();
-      return false;
-    }
+    if (dbMatch.status === 'completed' || dbMatch.deleted_at) { get().reset(); return false; }
 
-    const idMap: Record<string, string> = {};
-    const reverseMap: Record<string, string> = {};
-    const teamAPlayers: ScoringPlayer[] = [];
-    const teamBPlayers: ScoringPlayer[] = [];
+    const hydrated = hydrateMatchFromDb(sc);
+    if (!hydrated) { get().reset(); return false; }
 
-    for (const p of sc.players) {
-      const clientId = genId();
-      idMap[clientId] = p.id as string;
-      reverseMap[p.id as string] = clientId;
-      const sp: ScoringPlayer = {
-        id: clientId, name: p.name as string, jersey_number: p.jersey_number as number | null,
-        player_id: (p.player_id as string) ?? null, is_guest: p.is_guest as boolean,
-      };
-      if (p.team === 'team_a') teamAPlayers.push(sp); else teamBPlayers.push(sp);
-    }
-
-    const toClient = (sid: string | null): string | null => sid ? (reverseMap[sid] ?? sid) : null;
-
-    const match: ScoringMatch = {
-      id: genId(), title: dbMatch.title as string,
-      team_a: { name: dbMatch.team_a_name as string, captain_id: null, players: teamAPlayers },
-      team_b: { name: dbMatch.team_b_name as string, captain_id: null, players: teamBPlayers },
-      overs_per_innings: dbMatch.overs_per_innings as number, match_date: dbMatch.match_date as string,
-      toss_winner: dbMatch.toss_winner as TeamSide | null, toss_decision: dbMatch.toss_decision as TossDecision | null,
-      status: dbMatch.status as ScoringMatch['status'], current_innings: dbMatch.current_innings as number,
-      scorer_id: null, scorer_name: dbMatch.scorer_name as string | null,
-      active_scorer_id: dbMatch.active_scorer_id as string | null,
-      result_summary: dbMatch.result_summary as string | null, mvp_player_id: null,
-    };
-
-    const innings: [ScoringInnings, ScoringInnings] = [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')];
-    for (const di of sc.innings) {
-      const i = di.innings_number as 0 | 1;
-      innings[i] = {
-        batting_team: di.batting_team as TeamSide, total_runs: di.total_runs as number,
-        total_wickets: di.total_wickets as number, total_overs: parseFloat(String(di.total_overs)),
-        extras: { wide: di.extras_wide as number, no_ball: di.extras_no_ball as number, bye: di.extras_bye as number, leg_bye: di.extras_leg_bye as number },
-        striker_id: toClient(di.striker_id as string | null), non_striker_id: toClient(di.non_striker_id as string | null),
-        bowler_id: toClient(di.bowler_id as string | null), is_completed: di.is_completed as boolean, target: di.target as number | null,
-      };
-    }
-
-    const balls: ScoringBall[] = sc.balls.map((b) => ({
-      id: genId(), innings: b.innings_number as number, sequence: b.sequence as number,
-      over_number: b.over_number as number, ball_in_over: b.ball_in_over as number,
-      striker_id: reverseMap[b.striker_id as string] ?? (b.striker_id as string),
-      non_striker_id: reverseMap[b.non_striker_id as string] ?? (b.non_striker_id as string),
-      bowler_id: reverseMap[b.bowler_id as string] ?? (b.bowler_id as string),
-      runs_bat: b.runs_bat as number, runs_extras: b.runs_extras as number,
-      extras_type: b.extras_type as ExtrasType | null, is_wicket: b.is_wicket as boolean,
-      wicket_type: b.wicket_type as WicketType | null,
-      dismissed_id: b.dismissed_id ? (reverseMap[b.dismissed_id as string] ?? (b.dismissed_id as string)) : null,
-      fielder_id: b.fielder_id ? (reverseMap[b.fielder_id as string] ?? (b.fielder_id as string)) : null,
-      is_legal: b.is_legal as boolean, is_free_hit: b.is_free_hit as boolean,
-    }));
-
+    const { match, innings, balls, idMap } = hydrated;
     const lastBall = balls.length > 0 ? balls[balls.length - 1] : null;
-    set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: lastBall?.extras_type === 'no_ball', lastBallId: lastBall?.id ?? null, redoStack: [], wizardStep: 1 });
+    set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: lastBall?.extras_type === 'no_ball', lastBallId: lastBall?.id ?? null, actionStack: [], redoStack: [], redoActionStack: [], wizardStep: 1 });
 
     // Claim scorer so RLS allows writes
     const scorerName = match.scorer_name ?? 'Scorer';
@@ -1250,6 +1478,21 @@ export const useScoringStore = create<ScoringState>()(
     return true;
   },
 
+  viewScorecard: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('get_match_scorecard', { target_match_id: matchId });
+    if (error || !data) { console.error('[scoring] viewScorecard failed:', error); return false; }
+
+    const hydrated = hydrateMatchFromDb(data as ScorecardRpc);
+    if (!hydrated) return false;
+
+    const { match, innings, balls, idMap } = hydrated;
+    set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: false, lastBallId: null, actionStack: [], redoStack: [], redoActionStack: [], wizardStep: 1 });
+    return true;
+  },
+
   reset: () => {
     set({
       match: null,
@@ -1258,7 +1501,9 @@ export const useScoringStore = create<ScoringState>()(
       wizardStep: 1,
       isFreeHit: false,
       lastBallId: null,
+      actionStack: [],
       redoStack: [],
+      redoActionStack: [],
       dbMatchId: null,
       idMap: {},
     });
@@ -1275,7 +1520,9 @@ export const useScoringStore = create<ScoringState>()(
         balls: state.balls,
         isFreeHit: state.isFreeHit,
         lastBallId: state.lastBallId,
+        actionStack: state.actionStack,
         redoStack: state.redoStack,
+        redoActionStack: state.redoActionStack,
         wizardStep: state.wizardStep,
         dbMatchId: state.dbMatchId,
         idMap: state.idMap,

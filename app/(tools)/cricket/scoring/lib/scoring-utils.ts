@@ -174,7 +174,7 @@ export function buildTimeline(
     for (const b of overBalls) {
       timeline.push({ kind: 'ball', data: scoringBallToBallEntry(b, playerMap) });
       runningTotal += b.runs_bat + b.runs_extras;
-      if (b.is_wicket) runningWickets++;
+      if (b.is_wicket && b.wicket_type !== 'retired') runningWickets++;
     }
 
     // Emit over summary if over is complete (6 legal balls)
@@ -323,7 +323,7 @@ function computeFallOfWickets(
 
   for (const b of inningsBalls) {
     runningScore += b.runs_bat + b.runs_extras;
-    if (b.is_wicket) {
+    if (b.is_wicket && b.wicket_type !== 'retired') {
       wicketCount++;
       const dismissed = b.dismissed_id ? playerMap.get(b.dismissed_id) : playerMap.get(b.striker_id);
       fow.push({

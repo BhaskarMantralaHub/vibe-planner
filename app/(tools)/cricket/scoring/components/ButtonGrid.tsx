@@ -8,6 +8,7 @@ interface ButtonGridProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onEndMatch?: () => void;
+  onRetire?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
 }
@@ -17,7 +18,7 @@ interface ButtonGridProps {
  * circular run buttons, gradient boundary pills, dramatic
  * wicket bar, and compact extras row.
  */
-function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, canUndo = false, canRedo = false }: ButtonGridProps) {
+function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, onRetire, canUndo = false, canRedo = false }: ButtonGridProps) {
   return (
     <div
       className="mx-4 rounded-2xl overflow-hidden"
@@ -178,8 +179,26 @@ function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, canUndo = false, canR
           </button>
         </div>
 
-        {/* Undo / Redo / End row */}
+        {/* Retire / Undo / Redo / End row */}
         <div className="flex items-center gap-1.5">
+          {onRetire && (
+            <button
+              onClick={onRetire}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none',
+                'transition-all duration-150 active:scale-[0.92]',
+                'border border-teal-500/40 bg-teal-500/8',
+              )}
+              style={{ height: 40 }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-500">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="text-[11px] font-semibold text-teal-500">Retire</span>
+            </button>
+          )}
           {onUndo && (
             <button
               onClick={onUndo}

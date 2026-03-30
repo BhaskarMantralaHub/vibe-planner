@@ -45,6 +45,8 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   const balls = useScoringStore((s) => s.balls);
   const isFreeHit = useScoringStore((s) => s.isFreeHit);
 
+  const actionStack = useScoringStore((s) => s.actionStack);
+  const redoActionStack = useScoringStore((s) => s.redoActionStack);
   const redoStack = useScoringStore((s) => s.redoStack);
 
   const {
@@ -783,8 +785,8 @@ function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onEndMatch={handleEndMatch}
-              canUndo={balls.length > 0}
-              canRedo={redoStack.length > 0}
+              canUndo={actionStack.length > 0}
+              canRedo={redoStack.length > 0 || redoActionStack.length > 0}
             />
           </>
         )

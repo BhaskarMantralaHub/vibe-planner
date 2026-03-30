@@ -223,6 +223,8 @@ CREATE TABLE IF NOT EXISTS practice_innings (
   target              INTEGER,
   is_completed        BOOLEAN NOT NULL DEFAULT false,
 
+  retired_players     JSONB NOT NULL DEFAULT '[]',
+
   created_at          TIMESTAMPTZ DEFAULT now(),
   updated_at          TIMESTAMPTZ DEFAULT now(),
 
@@ -552,7 +554,8 @@ BEGIN
         'extras_bye', i.extras_bye, 'extras_leg_bye', i.extras_leg_bye,
         'striker_id', i.striker_id, 'non_striker_id', i.non_striker_id,
         'bowler_id', i.bowler_id,
-        'target', i.target, 'is_completed', i.is_completed
+        'target', i.target, 'is_completed', i.is_completed,
+        'retired_players', COALESCE(i.retired_players, '[]'::jsonb)
       ) ORDER BY i.innings_number), '[]'::json)
       FROM practice_innings i WHERE i.match_id = target_match_id
     ),
@@ -894,7 +897,7 @@ BEGIN
       SELECT
         cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
         COUNT(DISTINCT b.match_id) AS matches,
-        SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets,
+        SUM(CASE WHEN b.is_wicket AND COALESCE(b.wicket_type, '') != 'retired' THEN 1 ELSE 0 END) AS total_wickets,
         COUNT(*) FILTER (WHERE b.is_legal) AS legal_balls,
         SUM(b.runs_bat + CASE WHEN b.extras_type IN ('wide', 'no_ball') THEN b.runs_extras ELSE 0 END) AS runs_conceded,
         CASE WHEN COUNT(*) FILTER (WHERE b.is_legal) > 0
@@ -966,7 +969,7 @@ BEGIN
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bat ON true
       LEFT JOIN LATERAL (
-        SELECT SUM(CASE WHEN b.is_wicket THEN 1 ELSE 0 END) AS total_wickets
+        SELECT SUM(CASE WHEN b.is_wicket AND COALESCE(b.wicket_type, '') != 'retired' THEN 1 ELSE 0 END) AS total_wickets
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.bowler_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL

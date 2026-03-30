@@ -38,6 +38,14 @@ export type ScoringBall = {
   is_free_hit: boolean;
 };
 
+export type RetiredPlayer = {
+  playerId: string;
+  replacedById: string;
+  runs: number;
+  balls: number;
+  returned: boolean;
+};
+
 export type ScoringInnings = {
   batting_team: TeamSide;
   total_runs: number;
@@ -49,6 +57,7 @@ export type ScoringInnings = {
   bowler_id: string | null;
   is_completed: boolean;
   target: number | null; // set for 2nd innings
+  retired_players: RetiredPlayer[];
 };
 
 export type ScoringMatch = {
@@ -68,6 +77,19 @@ export type ScoringMatch = {
   result_summary: string | null;
   mvp_player_id: string | null;
 };
+
+export type ScoringAction =
+  | { type: 'ball'; ballId: string }
+  | {
+      type: 'retire';
+      retiredId: string;
+      replacedById: string;
+      slot: 'striker' | 'non_striker';
+      previousStrikerId: string | null;
+      previousNonStrikerId: string | null;
+      runs: number;
+      balls: number;
+    };
 
 export type BattingStats = {
   player: ScoringPlayer;

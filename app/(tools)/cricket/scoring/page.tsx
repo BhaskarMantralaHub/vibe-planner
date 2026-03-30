@@ -23,7 +23,7 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 
   return (
     <button
-      onClick={async () => { setLoading(true); await onLoadMore(); setLoading(false); }}
+      onClick={async () => { setLoading(true); try { await onLoadMore(); } finally { setLoading(false); } }}
       disabled={loading}
       className={cn(
         'w-full mt-3 py-2.5 rounded-xl text-center cursor-pointer transition-all active:scale-[0.98]',
@@ -265,7 +265,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             // Match was completed/deleted on another device — local state already reset by resumeMatch
             sessionStorage.removeItem('scoring-view');
           }
-        });
+        }).catch(() => { /* network error on stale check — ignore, match stays local */ });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -550,14 +550,22 @@ function ActiveMatch({ onBack }: { onBack: () => void }) {
   if (!match) return null;
 
   const handleRefresh = async () => {
-    const { dbMatchId } = useScoringStore.getState();
+    const { dbMatchId, match: m } = useScoringStore.getState();
     if (!dbMatchId || !isCloudMode()) return;
-    const ok = await useScoringStore.getState().resumeMatch(dbMatchId);
-    if (ok) {
-      toast.success('Scores updated');
-    } else {
-      toast.error('Match is no longer available');
-      onBack();
+    try {
+      // Active matches use resumeMatch (preserves scorer claim), completed use viewScorecard (no scorer claim)
+      const isActive = m?.status === 'scoring' || m?.status === 'innings_break';
+      const ok = isActive
+        ? await useScoringStore.getState().resumeMatch(dbMatchId)
+        : await useScoringStore.getState().viewScorecard(dbMatchId);
+      if (ok) {
+        toast.success('Scores updated');
+      } else {
+        toast.error('Match is no longer available');
+        onBack();
+      }
+    } catch {
+      toast.error('Could not refresh — check your connection');
     }
   };
 
@@ -602,8 +610,8 @@ export default function ScoringPage() {
         if (!ok) setView('landing');
       }).catch(() => setView('landing'));
     } else if (m.status === 'completed') {
-      // Completed match: resumeMatch re-hydrates from DB
-      useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
+      // Completed match: viewScorecard re-hydrates without scorer claim (avoids RLS error)
+      useScoringStore.getState().viewScorecard(dbMatchId).then((ok) => {
         if (!ok) setView('landing');
       }).catch(() => setView('landing'));
     } else {
@@ -635,7 +643,7 @@ export default function ScoringPage() {
               if (ok) setView('match');
             }}
             onViewScorecard={async (matchId) => {
-              const ok = await useScoringStore.getState().resumeMatch(matchId);
+              const ok = await useScoringStore.getState().viewScorecard(matchId);
               if (ok) setView('match');
               else toast.error('Could not load scorecard');
             }}

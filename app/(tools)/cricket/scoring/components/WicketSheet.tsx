@@ -4,11 +4,18 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, Button, Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
-type DismissalType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | 'hit_wicket' | 'retired';
+type DismissalType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | 'hit_wicket';
 
 interface Player {
   id: string;
   name: string;
+}
+
+interface RetiredBatsmanOption {
+  id: string;
+  name: string;
+  retiredRuns: number;
+  retiredBalls: number;
 }
 
 interface WicketSheetProps {
@@ -18,6 +25,7 @@ interface WicketSheetProps {
   bowlingTeam: Player[];
   currentBowlerId?: string;
   currentBatsmen: [Player, Player]; // striker, non-striker
+  retiredBatsmen?: RetiredBatsmanOption[];
   onConfirm: (data: {
     dismissal: DismissalType;
     batsmanOut: string;
@@ -33,10 +41,9 @@ const dismissalTypes: { key: DismissalType; label: string; emoji: string }[] = [
   { key: 'run_out', label: 'Run Out', emoji: '\uD83C\uDFC3' },
   { key: 'stumped', label: 'Stumped', emoji: '\u26A1' },
   { key: 'hit_wicket', label: 'Hit Wicket', emoji: '\uD83D\uDCA5' },
-  { key: 'retired', label: 'Retired', emoji: '\uD83D\uDEAA' },
 ];
 
-function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowlerId, currentBatsmen, onConfirm }: WicketSheetProps) {
+function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowlerId, currentBatsmen, retiredBatsmen = [], onConfirm }: WicketSheetProps) {
   const [step, setStep] = useState<'dismissal' | 'fielder' | 'run_out' | 'new_batsman'>('dismissal');
   const [dismissal, setDismissal] = useState<DismissalType | null>(null);
   const [batsmanOut, setBatsmanOut] = useState<string | null>(null);
@@ -81,8 +88,8 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowl
     } else if (type === 'run_out') {
       setStep('run_out');
     } else {
-      // For bowled, lbw, hit_wicket, retired — skip fielder, go to new batsman
-      if (yetToBat.length === 0) {
+      // For bowled, lbw, hit_wicket — skip fielder, go to new batsman
+      if (yetToBat.length === 0 && retiredBatsmen.length === 0) {
         // All out — confirm immediately
         setBatsmanOut(currentBatsmen[0].id);
         setTimeout(() => confirmWicketDirect(type, currentBatsmen[0].id), 0);
@@ -106,7 +113,7 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowl
 
   const handleFielderSelect = (playerId: string) => {
     setFielder(playerId);
-    if (yetToBat.length === 0) {
+    if (yetToBat.length === 0 && retiredBatsmen.length === 0) {
       confirmWicketDirect(dismissal!, batsmanOut ?? currentBatsmen[0].id, playerId);
     } else {
       setStep('new_batsman');
@@ -117,7 +124,7 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowl
     setBatsmanOut(batId);
     setFielder(fId);
     setRunsCompleted(runs);
-    if (yetToBat.length === 0) {
+    if (yetToBat.length === 0 && retiredBatsmen.length === 0) {
       confirmWicketDirect('run_out', batId, fId, runs);
     } else {
       setStep('new_batsman');
@@ -211,7 +218,7 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowl
         {step === 'new_batsman' && (
           <div className="flex flex-col gap-1.5">
             <Text size="md" weight="semibold" className="mb-1">New Batsman</Text>
-            {yetToBat.length === 0 ? (
+            {yetToBat.length === 0 && retiredBatsmen.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-4">
                 <Text size="sm" color="muted">No batsmen remaining — all out!</Text>
                 <Button
@@ -224,20 +231,47 @@ function WicketSheet({ open, onOpenChange, battingTeam, bowlingTeam, currentBowl
                 </Button>
               </div>
             ) : (
-              yetToBat.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => confirmWicket(p.id)}
-                  className={cn(
-                    'flex items-center px-4 py-3 rounded-xl cursor-pointer select-none',
-                    'border border-[var(--border)] bg-[var(--surface)]',
-                    'transition-all duration-150 active:scale-[0.96]',
-                    'hover:border-[var(--cricket)]/50',
-                  )}
-                >
-                  <Text size="md" weight="medium">{p.name}</Text>
-                </button>
-              ))
+              <>
+                {yetToBat.length > 0 && (
+                  <>
+                    <Text size="xs" weight="semibold" color="muted" uppercase className="mt-1">Yet to Bat</Text>
+                    {yetToBat.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => confirmWicket(p.id)}
+                        className={cn(
+                          'flex items-center px-4 py-3 rounded-xl cursor-pointer select-none',
+                          'border border-[var(--border)] bg-[var(--surface)]',
+                          'transition-all duration-150 active:scale-[0.96]',
+                          'hover:border-[var(--cricket)]/50',
+                        )}
+                      >
+                        <Text size="md" weight="medium">{p.name}</Text>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {retiredBatsmen.length > 0 && (
+                  <>
+                    <Text size="xs" weight="semibold" color="muted" uppercase className="mt-2">Can Return</Text>
+                    {retiredBatsmen.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => confirmWicket(p.id)}
+                        className={cn(
+                          'flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer select-none',
+                          'border border-amber-500/30 bg-amber-500/5',
+                          'transition-all duration-150 active:scale-[0.96]',
+                          'hover:border-amber-500/50',
+                        )}
+                      >
+                        <Text size="md" weight="medium">{p.name}</Text>
+                        <Text size="xs" color="muted" tabular>{p.retiredRuns}({p.retiredBalls})</Text>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </div>
         )}

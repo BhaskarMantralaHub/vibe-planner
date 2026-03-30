@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MatchHistoryItem } from '@/types/scoring';
 
@@ -19,8 +19,13 @@ vi.mock('@/lib/supabase/client', () => ({
 
 // Scoring store mock state
 const mockLoadMatchHistory = vi.fn();
+const mockLoadDeletedMatches = vi.fn();
 const mockDeleteMatch = vi.fn();
 const mockResumeMatch = vi.fn();
+const mockViewScorecard = vi.fn();
+const mockRestoreMatch = vi.fn();
+const mockPermanentDeleteMatch = vi.fn();
+const mockRevertMatch = vi.fn();
 let mockScoringState: Record<string, unknown> = {};
 
 vi.mock('@/stores/scoring-store', () => ({
@@ -78,12 +83,6 @@ const COMPLETED_MATCH = makeMatch({ id: 'completed-1', status: 'completed' });
 
 /* ── Dynamically import page to pick up mocks ── */
 
-// We need to import the page AFTER mocks are set up.
-// The page exports ScoringPage as default, but we need the inner components.
-// Since MatchCard and ScoringLanding are not exported, we test via the page.
-// However, since the page wraps in AuthGate/RoleGate and uses state to switch views,
-// we render the full page and test the landing view.
-
 async function importPage() {
   const mod = await import('@/app/(tools)/cricket/scoring/page');
   return mod.default;
@@ -101,9 +100,17 @@ function setupDefaults(overrides: {
     match: overrides.match ?? null,
     innings: overrides.innings ?? [],
     matchHistory: overrides.matchHistory ?? [],
+    deletedMatches: [],
+    historyLoading: false,
+    dbMatchId: null,
     loadMatchHistory: mockLoadMatchHistory,
+    loadDeletedMatches: mockLoadDeletedMatches,
     deleteMatch: mockDeleteMatch,
+    restoreMatch: mockRestoreMatch,
+    permanentDeleteMatch: mockPermanentDeleteMatch,
+    revertMatch: mockRevertMatch,
     resumeMatch: mockResumeMatch,
+    viewScorecard: mockViewScorecard,
   };
   mockAuthState = {
     user: { id: 'user-1', user_metadata: { full_name: 'Admin User' } },
@@ -119,42 +126,38 @@ describe('MatchCard + ScoringLanding', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockResumeMatch.mockResolvedValue(true);
+    mockViewScorecard.mockResolvedValue(true);
     mockDeleteMatch.mockResolvedValue(true);
     setupDefaults();
     ScoringPage = await importPage();
   });
 
-  // 6. loadMatchHistory is called on component mount
   it('calls loadMatchHistory on mount', () => {
     render(<ScoringPage />);
     expect(mockLoadMatchHistory).toHaveBeenCalledTimes(1);
   });
 
-  // 9. Empty state shows when no matches exist
   it('shows empty state when no matches exist', () => {
     render(<ScoringPage />);
     expect(screen.getByText('No matches yet')).toBeInTheDocument();
     expect(screen.getByText('Start a new match to begin scoring')).toBeInTheDocument();
   });
 
-  // 7. Active matches show in "Active Matches" section
   it('shows active matches under Active Matches heading', () => {
     setupDefaults({ matchHistory: [ACTIVE_MATCH] });
     render(<ScoringPage />);
     expect(screen.getByText('Active Matches')).toBeInTheDocument();
-    expect(screen.getByText('Sunrisers vs Tigers')).toBeInTheDocument();
-    expect(screen.getByText('Live Match')).toBeInTheDocument();
+    // Team names render as separate elements in the card header
+    expect(screen.getByText('Sunrisers')).toBeInTheDocument();
   });
 
-  // 8. Completed matches show in "Previous Matches" section
   it('shows completed matches under Previous Matches heading', () => {
     setupDefaults({ matchHistory: [COMPLETED_MATCH] });
     render(<ScoringPage />);
     expect(screen.getByText('Previous Matches')).toBeInTheDocument();
-    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText('Sunrisers won by 5 wickets')).toBeInTheDocument();
   });
 
-  // Both sections when mixed
   it('separates active and completed matches into correct sections', () => {
     setupDefaults({ matchHistory: [ACTIVE_MATCH, COMPLETED_MATCH] });
     render(<ScoringPage />);
@@ -162,75 +165,74 @@ describe('MatchCard + ScoringLanding', () => {
     expect(screen.getByText('Previous Matches')).toBeInTheDocument();
   });
 
-  // 1. Tapping the card body calls onTap (triggers resumeMatch)
-  it('tapping card body calls resumeMatch', async () => {
+  // Tapping completed card body calls viewScorecard
+  it('tapping completed card body calls viewScorecard', async () => {
     const user = userEvent.setup();
     setupDefaults({ matchHistory: [COMPLETED_MATCH] });
     render(<ScoringPage />);
 
-    const card = screen.getByText('Sunrisers vs Tigers').closest('[class*="rounded-xl"]')!;
+    // Find the card by its result text and navigate up to the clickable card div
+    const resultText = screen.getByText('Sunrisers won by 5 wickets');
+    const card = resultText.closest('[class*="rounded-2xl"]')!;
     await user.click(card);
-    expect(mockResumeMatch).toHaveBeenCalledWith('completed-1');
+    expect(mockViewScorecard).toHaveBeenCalledWith('completed-1');
   });
 
-  // 5. Delete button only shows for admin users
-  it('does not show Delete Match for non-admin users', () => {
-    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: false });
-    render(<ScoringPage />);
-    expect(screen.queryByText('Delete Match')).not.toBeInTheDocument();
-  });
-
-  it('shows Delete Match for admin users', () => {
-    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
-    render(<ScoringPage />);
-    expect(screen.getByText('Delete Match')).toBeInTheDocument();
-  });
-
-  // 2. Tapping "Delete Match" opens the Dialog (doesn't navigate)
-  it('tapping Delete Match opens confirmation dialog without navigating', async () => {
+  // Three-dot menu renders with correct items for admin
+  it('three-dot menu shows Delete option for admin users', async () => {
     const user = userEvent.setup();
     setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
     render(<ScoringPage />);
 
-    await user.click(screen.getByText('Delete Match'));
+    // Click the three-dot menu button
+    const menuBtn = screen.getByTitle('Options');
+    await user.click(menuBtn);
+
+    // CardMenu should render with Delete option
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByText('View Scorecard')).toBeInTheDocument();
+  });
+
+  it('does not show three-dot menu for non-admin on completed matches', () => {
+    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: false });
+    render(<ScoringPage />);
+    expect(screen.queryByTitle('Options')).not.toBeInTheDocument();
+  });
+
+  // Delete flow: menu → delete → dialog → confirm
+  it('delete flow from three-dot menu opens dialog and deletes', async () => {
+    const user = userEvent.setup();
+    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
+    render(<ScoringPage />);
+
+    // Open menu
+    await user.click(screen.getByTitle('Options'));
+    // Click Delete
+    await user.click(screen.getByText('Delete'));
 
     // Dialog opens
     expect(screen.getByText('Delete Match?')).toBeInTheDocument();
-    // Did NOT trigger resumeMatch (no navigation)
-    expect(mockResumeMatch).not.toHaveBeenCalled();
-  });
 
-  // 3. Dialog "Cancel" closes without deleting
-  it('clicking Cancel in delete dialog closes without deleting', async () => {
-    const user = userEvent.setup();
-    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
-    render(<ScoringPage />);
-
-    await user.click(screen.getByText('Delete Match'));
-    expect(screen.getByText('Delete Match?')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    // Dialog closed — title gone
-    expect(screen.queryByText('Delete Match?')).not.toBeInTheDocument();
-    // deleteMatch not called
-    expect(mockDeleteMatch).not.toHaveBeenCalled();
-  });
-
-  // 4. Dialog "Delete" calls onDelete and closes
-  it('clicking Delete in dialog calls deleteMatch and closes dialog', async () => {
-    const user = userEvent.setup();
-    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
-    render(<ScoringPage />);
-
-    await user.click(screen.getByText('Delete Match'));
+    // Confirm delete
     await user.click(screen.getByRole('button', { name: 'Delete' }));
-
     expect(mockDeleteMatch).toHaveBeenCalledWith('completed-1', 'Admin User');
     expect(screen.queryByText('Delete Match?')).not.toBeInTheDocument();
   });
 
-  // 10. No React key warnings — each MatchCard has unique key
+  it('cancel in delete dialog does not call deleteMatch', async () => {
+    const user = userEvent.setup();
+    setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
+    render(<ScoringPage />);
+
+    await user.click(screen.getByTitle('Options'));
+    await user.click(screen.getByText('Delete'));
+    expect(screen.getByText('Delete Match?')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Delete Match?')).not.toBeInTheDocument();
+    expect(mockDeleteMatch).not.toHaveBeenCalled();
+  });
+
   it('renders multiple matches without key warnings', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const match2 = makeMatch({ id: 'completed-2', team_a_name: 'Lions', team_b_name: 'Hawks', status: 'completed' });
@@ -238,7 +240,6 @@ describe('MatchCard + ScoringLanding', () => {
     setupDefaults({ matchHistory: [ACTIVE_MATCH, match3, COMPLETED_MATCH, match2], isAdmin: true });
     render(<ScoringPage />);
 
-    // No "key" warning in console.error
     const keyWarnings = consoleSpy.mock.calls.filter((args) =>
       args.some((arg) => typeof arg === 'string' && arg.includes('key')),
     );
@@ -246,49 +247,42 @@ describe('MatchCard + ScoringLanding', () => {
     consoleSpy.mockRestore();
   });
 
-  // 11. onResumeMatch async callback handles errors gracefully
-  it('does not switch to match view when resumeMatch fails', async () => {
+  it('does not switch to match view when viewScorecard fails', async () => {
     const user = userEvent.setup();
-    mockResumeMatch.mockResolvedValue(false); // simulate failure
+    mockViewScorecard.mockResolvedValue(false);
     setupDefaults({ matchHistory: [COMPLETED_MATCH] });
     render(<ScoringPage />);
 
-    const card = screen.getByText('Sunrisers vs Tigers').closest('[class*="rounded-xl"]')!;
+    const resultText = screen.getByText('Sunrisers won by 5 wickets');
+    const card = resultText.closest('[class*="rounded-2xl"]')!;
     await user.click(card);
 
-    expect(mockResumeMatch).toHaveBeenCalledWith('completed-1');
-    // Should stay on landing — heading still visible (two "Live Scoring" texts: header + hero)
-    expect(screen.getAllByText('Live Scoring')).toHaveLength(2);
+    expect(mockViewScorecard).toHaveBeenCalledWith('completed-1');
+    // Should stay on landing — heading still visible
+    expect(screen.getByText('Live Scoring')).toBeInTheDocument();
+    expect(screen.getByText('Previous Matches')).toBeInTheDocument();
   });
 
-  // 12. No hydration issues — no nested buttons
-  it('delete button is not nested inside another button', () => {
+  // Card wrapper is a div, not a button (no hydration nesting issues)
+  it('card wrapper is a div not a nested button', () => {
     setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
     render(<ScoringPage />);
 
-    const deleteBtn = screen.getByText('Delete Match');
-    // The delete element is a <button>
-    expect(deleteBtn.tagName).toBe('BUTTON');
-    // Its parent chain should NOT have another <button> ancestor until the card div
-    let el: HTMLElement | null = deleteBtn.parentElement;
-    while (el && !el.classList.toString().includes('rounded-xl')) {
-      expect(el.tagName).not.toBe('BUTTON');
-      el = el.parentElement;
-    }
-    // The card wrapper is a <div>, not a <button>
-    expect(el?.tagName).toBe('DIV');
+    const resultText = screen.getByText('Sunrisers won by 5 wickets');
+    const card = resultText.closest('[class*="rounded-2xl"]');
+    expect(card?.tagName).toBe('DIV');
   });
 
-  // Verify e.stopPropagation on delete — card onClick not called
-  it('delete button stopPropagation prevents card navigation', async () => {
+  // Three-dot menu click doesn't trigger card navigation
+  it('three-dot menu click does not trigger card navigation', async () => {
     const user = userEvent.setup();
     setupDefaults({ matchHistory: [COMPLETED_MATCH], isAdmin: true });
     render(<ScoringPage />);
 
-    await user.click(screen.getByText('Delete Match'));
+    await user.click(screen.getByTitle('Options'));
 
-    // Dialog opened, but resumeMatch was NOT called
-    expect(screen.getByText('Delete Match?')).toBeInTheDocument();
-    expect(mockResumeMatch).not.toHaveBeenCalled();
+    // Menu opened, but viewScorecard was NOT called
+    expect(screen.getByText('View Scorecard')).toBeInTheDocument();
+    expect(mockViewScorecard).not.toHaveBeenCalled();
   });
 });
