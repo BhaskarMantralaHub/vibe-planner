@@ -166,15 +166,92 @@ export function buildTimeline(
     overGroups.get(b.over_number)!.push(b);
   }
 
+  // Pre-compute: for each retirement, find the global ball index after which it happened
+  // Track per-player ball counts and match against retirement.balls
+  const retirementsByBallIdx = new Map<number, typeof innings.retired_players>();
+  for (const r of innings.retired_players) {
+    let insertIdx: number;
+
+    if (r.balls === 0) {
+      // Non-striker retirement (never faced a ball) — find the last ball where they were non-striker
+      insertIdx = -1; // will be placed before all balls if no match found
+      for (let i = inningsBalls.length - 1; i >= 0; i--) {
+        if (inningsBalls[i].non_striker_id === r.playerId) {
+          insertIdx = i;
+          break;
+        }
+      }
+    } else {
+      let playerBalls = 0;
+      insertIdx = inningsBalls.length - 1; // default: end
+      for (let i = 0; i < inningsBalls.length; i++) {
+        const b = inningsBalls[i];
+        if (b.striker_id === r.playerId && (b.is_legal || b.extras_type === 'no_ball')) {
+          playerBalls++;
+          if (playerBalls === r.balls) {
+            insertIdx = i;
+            break;
+          }
+        }
+      }
+    }
+
+    const existing = retirementsByBallIdx.get(insertIdx) ?? [];
+    existing.push(r);
+    retirementsByBallIdx.set(insertIdx, existing);
+  }
+
+  // Emit any retirements that happened before the first ball (insertIdx = -1)
+  const earlyRetirements = retirementsByBallIdx.get(-1);
+  if (earlyRetirements) {
+    for (const r of earlyRetirements) {
+      const retiredPlayer = playerMap.get(r.playerId);
+      const replacementPlayer = playerMap.get(r.replacedById);
+      if (retiredPlayer) {
+        timeline.push({
+          kind: 'retirement',
+          data: {
+            playerName: displayName(retiredPlayer),
+            replacementName: replacementPlayer ? displayName(replacementPlayer) : '?',
+            runs: r.runs,
+            balls: r.balls,
+          },
+        });
+      }
+    }
+  }
+
   let runningTotal = 0;
   let runningWickets = 0;
+  let globalBallIdx = 0;
 
   for (const [overNum, overBalls] of overGroups) {
-    // Emit ball entries for this over
+    // Emit ball entries for this over, injecting retirement cards at the right position
     for (const b of overBalls) {
       timeline.push({ kind: 'ball', data: scoringBallToBallEntry(b, playerMap) });
       runningTotal += b.runs_bat + b.runs_extras;
       if (b.is_wicket && b.wicket_type !== 'retired') runningWickets++;
+
+      // Insert any retirements that happened after this ball
+      const retirementsHere = retirementsByBallIdx.get(globalBallIdx);
+      if (retirementsHere) {
+        for (const r of retirementsHere) {
+          const retiredPlayer = playerMap.get(r.playerId);
+          const replacementPlayer = playerMap.get(r.replacedById);
+          if (retiredPlayer) {
+            timeline.push({
+              kind: 'retirement',
+              data: {
+                playerName: displayName(retiredPlayer),
+                replacementName: replacementPlayer ? displayName(replacementPlayer) : '?',
+                runs: r.runs,
+                balls: r.balls,
+              },
+            });
+          }
+        }
+      }
+      globalBallIdx++;
     }
 
     // Emit over summary if over is complete (6 legal balls)

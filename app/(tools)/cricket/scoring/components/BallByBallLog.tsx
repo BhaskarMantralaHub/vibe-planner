@@ -40,11 +40,19 @@ interface MatchResultData {
   team2: { name: string; runs: number; wickets: number; overs: string };
 }
 
+interface RetirementData {
+  playerName: string;
+  replacementName: string;
+  runs: number;
+  balls: number;
+}
+
 type TimelineEntry =
   | { kind: 'ball'; data: BallEntry }
   | { kind: 'overSummary'; data: OverSummary }
   | { kind: 'inningsBreak'; data: InningsBreakData }
-  | { kind: 'matchResult'; data: MatchResultData };
+  | { kind: 'matchResult'; data: MatchResultData }
+  | { kind: 'retirement'; data: RetirementData };
 
 /* ── Ball color map (matches OverTimeline 3-tone palette) ── */
 const ballTypeColor: Record<BallEntry['type'], { bg: string; text: string }> = {
@@ -218,6 +226,30 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
   );
 }
 
+function RetirementCard({ data }: { data: RetirementData }) {
+  return (
+    <div className="mx-2 my-1 px-3 py-2 rounded-xl border border-teal-500/30 bg-teal-500/5">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-teal-500/15 flex-shrink-0">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-500">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <Text as="p" size="xs" weight="semibold" className="text-teal-500">
+            {data.playerName} retired ({data.runs} runs, {data.balls}b)
+          </Text>
+          <Text as="p" size="2xs" color="muted">
+            {data.replacementName} comes in
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface BallByBallLogProps {
   timeline: TimelineEntry[];
 }
@@ -315,6 +347,9 @@ function BallByBallLog({ timeline }: BallByBallLogProps) {
           }
           if (entry.kind === 'matchResult') {
             return <MatchResultCard key={i} data={entry.data} />;
+          }
+          if (entry.kind === 'retirement') {
+            return <RetirementCard key={i} data={entry.data} />;
           }
           return <OverSummaryCard key={i} data={entry.data} />;
         })}

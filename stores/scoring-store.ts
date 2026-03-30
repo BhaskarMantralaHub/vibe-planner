@@ -717,6 +717,22 @@ export const useScoringStore = create<ScoringState>()(
       if (b.extras_type) extras[b.extras_type] += b.runs_extras;
     }
 
+    // Clean up retired_players: if undo restores a player to the crease, remove their LAST retirement entry
+    const restoredStrikerId = lastBall.striker_id;
+    const restoredNonStrikerId = lastBall.non_striker_id;
+    const playersToClean = new Set([restoredStrikerId, restoredNonStrikerId].filter(Boolean));
+    const cleanedRetired: typeof inn.retired_players = [];
+    const removedForPlayer = new Set<string>();
+    // Iterate in reverse to remove only the LAST retirement per restored player
+    for (let i = inn.retired_players.length - 1; i >= 0; i--) {
+      const r = inn.retired_players[i];
+      if (playersToClean.has(r.playerId) && !removedForPlayer.has(r.playerId)) {
+        removedForPlayer.add(r.playerId);
+        continue; // skip (remove) this entry
+      }
+      cleanedRetired.unshift(r); // preserve order
+    }
+
     const updated = [...innings] as [ScoringInnings, ScoringInnings];
     updated[idx] = {
       ...inn,
@@ -724,10 +740,11 @@ export const useScoringStore = create<ScoringState>()(
       total_wickets: totalWickets,
       total_overs: ballsToOvers(legalBalls),
       extras,
-      striker_id: lastBall.striker_id,
-      non_striker_id: lastBall.non_striker_id,
+      striker_id: restoredStrikerId,
+      non_striker_id: restoredNonStrikerId,
       bowler_id: lastBall.bowler_id,
       is_completed: false,
+      retired_players: cleanedRetired,
     };
 
     // Check if previous ball was no_ball for free hit state
@@ -769,6 +786,7 @@ export const useScoringStore = create<ScoringState>()(
         non_striker_id: updInn.non_striker_id ? toServerId(idMap, updInn.non_striker_id) : null,
         bowler_id: updInn.bowler_id ? toServerId(idMap, updInn.bowler_id) : null,
         is_completed: false,
+        retired_players: serializeRetiredPlayers(updInn.retired_players, idMap),
       }).eq('match_id', dbMatchId).eq('innings_number', idx));
 
       if (revertedStatus !== match.status) {
