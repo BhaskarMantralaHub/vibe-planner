@@ -550,16 +550,15 @@ function ActiveMatch({ onBack }: { onBack: () => void }) {
   if (!match) return null;
 
   const handleRefresh = async () => {
-    const { dbMatchId, match: m } = useScoringStore.getState();
+    const { dbMatchId } = useScoringStore.getState();
     if (!dbMatchId || !isCloudMode()) return;
-    // Active matches use resumeMatch (preserves scorer claim + unsynced local state check)
-    // Completed matches use viewScorecard (no scorer claim needed)
-    const isActive = m?.status === 'scoring' || m?.status === 'innings_break';
-    const ok = isActive
-      ? await useScoringStore.getState().resumeMatch(dbMatchId)
-      : await useScoringStore.getState().viewScorecard(dbMatchId);
-    if (ok) toast.success('Scores updated');
-    else toast.error('Could not refresh scores');
+    const ok = await useScoringStore.getState().resumeMatch(dbMatchId);
+    if (ok) {
+      toast.success('Scores updated');
+    } else {
+      toast.error('Match is no longer available');
+      onBack();
+    }
   };
 
   return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} />;
@@ -601,12 +600,12 @@ export default function ScoringPage() {
       // Active match: resumeMatch re-hydrates + claims scorer; resets if completed/deleted on another device
       useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
         if (!ok) setView('landing');
-      });
+      }).catch(() => setView('landing'));
     } else if (m.status === 'completed') {
-      // Completed match: viewScorecard re-hydrates without scorer claim (avoids RLS error)
-      useScoringStore.getState().viewScorecard(dbMatchId).then((ok) => {
+      // Completed match: resumeMatch re-hydrates from DB
+      useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
         if (!ok) setView('landing');
-      });
+      }).catch(() => setView('landing'));
     } else {
       setView('landing');
     }
@@ -636,7 +635,7 @@ export default function ScoringPage() {
               if (ok) setView('match');
             }}
             onViewScorecard={async (matchId) => {
-              const ok = await useScoringStore.getState().viewScorecard(matchId);
+              const ok = await useScoringStore.getState().resumeMatch(matchId);
               if (ok) setView('match');
               else toast.error('Could not load scorecard');
             }}
