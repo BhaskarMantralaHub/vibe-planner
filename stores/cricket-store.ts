@@ -317,12 +317,23 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   },
 
   updatePlayer: (id, updates) => {
+    const originalPlayer = get().players.find((p) => p.id === id);
     set({ players: get().players.map((p) => p.id === id ? { ...p, ...updates } : p) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_players').update(updates).eq('id', id).then(({ error }: { error: unknown }) => {
-        if (error) { console.error('[cricket] updatePlayer failed:', error); toast.error('Couldn\'t save changes. Check your connection and try again.'); }
-        else toast.success('Player updated');
+      supabase?.from('cricket_players').update(updates).eq('id', id).select().then(({ data, error }: { data: CricketPlayer[] | null; error: unknown }) => {
+        if (error) {
+          console.error('[cricket] updatePlayer failed:', error);
+          if (originalPlayer) set({ players: get().players.map((p) => p.id === id ? originalPlayer : p) });
+          toast.error('Couldn\'t save changes. Check your connection and try again.');
+        } else if (!data || data.length === 0) {
+          console.error('[cricket] updatePlayer: 0 rows updated — possible RLS restriction');
+          if (originalPlayer) set({ players: get().players.map((p) => p.id === id ? originalPlayer : p) });
+          toast.error('Update failed — the player may have been removed or your permissions changed.');
+        } else {
+          set({ players: get().players.map((p) => p.id === id ? { ...p, ...data[0] } : p) });
+          toast.success('Player updated');
+        }
       });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });

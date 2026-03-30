@@ -399,7 +399,7 @@ describe('Players (cloud)', () => {
     consoleSpy.mockRestore();
   });
 
-  it('updatePlayer calls supabase .update().eq()', () => {
+  it('updatePlayer calls supabase .update().eq().select()', () => {
     const builder = configureFromSingle('cricket_players');
 
     useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
@@ -407,6 +407,94 @@ describe('Players (cloud)', () => {
     expect(mockClient.from).toHaveBeenCalledWith('cricket_players');
     expect(builder.update).toHaveBeenCalledWith({ name: 'Renamed' });
     expect(builder.eq).toHaveBeenCalledWith('id', 'p1');
+    expect(builder.select).toHaveBeenCalled();
+  });
+
+  it('updatePlayer optimistically updates local state', () => {
+    const serverRow = { ...PLAYERS[0], name: 'Renamed' };
+    configureFromSingle('cricket_players', [serverRow]);
+
+    useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
+
+    const updated = useCricketStore.getState().players.find((p) => p.id === 'p1');
+    expect(updated?.name).toBe('Renamed');
+  });
+
+  it('updatePlayer reconciles server data on success', async () => {
+    const serverRow = { ...PLAYERS[0], name: 'Renamed', updated_at: '2026-03-29T00:00:00Z' };
+    configureFromSingle('cricket_players', [serverRow]);
+
+    useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
+    await flush();
+
+    const updated = useCricketStore.getState().players.find((p) => p.id === 'p1');
+    expect(updated?.name).toBe('Renamed');
+    expect(updated?.updated_at).toBe('2026-03-29T00:00:00Z');
+  });
+
+  it('updatePlayer rolls back on Supabase error', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    configureFromSingle('cricket_players', null, 'update error');
+
+    useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
+    await flush();
+
+    // Rolled back to original after error
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.name).toBe('Bhaskar Bachi');
+    expect(consoleSpy).toHaveBeenCalledWith('[cricket] updatePlayer failed:', 'update error');
+    consoleSpy.mockRestore();
+  });
+
+  it('updatePlayer rolls back on 0 rows (RLS silent failure)', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    configureFromSingle('cricket_players', []);
+
+    useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
+    await flush();
+
+    // Rolled back to original — 0 rows means RLS blocked the update
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.name).toBe('Bhaskar Bachi');
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('0 rows updated'));
+    consoleSpy.mockRestore();
+  });
+
+  it('updatePlayer surgical rollback preserves concurrent changes to other players', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Use a deferred promise so we can modify p2 before the rollback fires
+    let resolveUpdate!: (v: unknown) => void;
+    const deferredBuilder: Record<string, unknown> = {};
+    const methods = [
+      'select', 'insert', 'update', 'delete', 'upsert',
+      'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike',
+      'in', 'is', 'order', 'limit', 'range', 'maybeSingle',
+    ];
+    for (const m of methods) {
+      deferredBuilder[m] = vi.fn().mockReturnValue(deferredBuilder);
+    }
+    deferredBuilder.then = vi.fn((resolve: (v: unknown) => void) => {
+      resolveUpdate = resolve;
+      return new Promise((r) => { resolveUpdate = (v) => { resolve(v); r(v); }; });
+    });
+    mockClient.from = vi.fn().mockReturnValue(deferredBuilder);
+
+    // Edit p1 (will fail after we resolve)
+    useCricketStore.getState().updatePlayer('p1', { name: 'Renamed' });
+    // Optimistic update applied — p1 is renamed
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.name).toBe('Renamed');
+
+    // Meanwhile, p2 gets modified by another action
+    useCricketStore.setState({
+      players: useCricketStore.getState().players.map((p) => p.id === 'p2' ? { ...p, name: 'Mani Updated' } : p),
+    });
+
+    // Now resolve with error — triggers rollback
+    resolveUpdate({ data: null, error: 'update error' });
+    await flush();
+
+    // p1 rolled back to original, but p2's concurrent change is preserved
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.name).toBe('Bhaskar Bachi');
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p2')?.name).toBe('Mani Updated');
+    consoleSpy.mockRestore();
   });
 
   it('removePlayer calls supabase .update({is_active:false, designation:null}).eq()', () => {

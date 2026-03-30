@@ -342,7 +342,7 @@ export default function PlayerManager() {
     }
 
     setSubmitting(false);
-    toast.success(editingPlayer ? 'Player updated' : 'Player added');
+    if (!editingPlayer) toast.success('Player added');
     resetForm(); setShowPlayerForm(false);
   };
 
@@ -417,6 +417,7 @@ export default function PlayerManager() {
     setEmail(p.email ?? ''); setCricclubId(p.cricclub_id ?? ''); setShirtSize(p.shirt_size ?? '');
     setPlayerRole(p.player_role ?? ''); setBattingStyle(p.batting_style ?? '');
     setBowlingStyle(p.bowling_style ?? ''); setDesignation(p.designation ?? '');
+    setIsGuestPlayer(p.is_guest ?? false);
     setPhotoFile(null); setPhotoPreview(p.photo_url ?? null); setPhotoRemoved(false);
     setShowPlayerForm(true);
   };
@@ -971,6 +972,7 @@ export default function PlayerManager() {
                       anchorRef={guestMenuBtnRef}
                       onClose={() => setOpenGuestMenu(null)}
                       items={[
+                        { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
                         { label: 'Add to Squad', icon: <MdPersonAdd size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
                         { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
                       ]}
