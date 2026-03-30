@@ -291,6 +291,7 @@ Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-co
 | `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
 | `FilterDropdown` | `filter-dropdown.tsx` | Category filter with counts, brand-aware (toolkit/cricket) |
 | `CardMenu` | `card-menu.tsx` | Portal-based three-dot dropdown menu. `items` array with `label`, `icon`, `color`, `onClick`, `dividerBefore`. Auto-closes on click + scroll + resize. `anchorRef` for positioning, `width` prop. |
+| `RefreshButton` | `refresh-button.tsx` | `onRefresh` (async callback), `variant` (bordered/glass), `size`, `title`. Self-managed spinner + disabled state. |
 | `Text` | `text.tsx` | `size` (2xs/xs/sm/md/lg/xl/2xl), `weight`, `color`, `tracking`, `uppercase`, `truncate`, `tabular`, `as` (span/p/h1-h4/label) |
 | `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
 
@@ -375,6 +376,7 @@ Before writing ANY UI code, check `components/ui/` for an existing shared compon
 - `EmptyState` — ALL empty data screens
 - `FilterDropdown` — ALL category filters with counts
 - `CardMenu` — ALL three-dot dropdown menus (never hand-roll portal menus)
+- `RefreshButton` — ALL manual refresh actions (self-managed spinner, `bordered` or `glass` variant)
 - `CapsuleTabs` — ALL primary tab navigation (expandable capsule with icon+text, gradient, animation)
 - `SegmentedControl` — ALL sub-view toggles (matching capsule design: gradient, rounded-full, glow)
 - `toast` (sonner) — ALL user feedback notifications
