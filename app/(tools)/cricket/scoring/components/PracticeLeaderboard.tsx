@@ -6,7 +6,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import { Text, SegmentedControl, Skeleton, Card } from '@/components/ui';
+import { Text, SegmentedControl, Skeleton, Card, RefreshButton } from '@/components/ui';
 import type { LeaderboardEntry } from '@/types/scoring';
 import { MdSportsCricket } from 'react-icons/md';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
@@ -303,10 +303,10 @@ export default function PracticeLeaderboard() {
         className="mb-3"
       />
 
-      {/* Match filter — compact bordered pills */}
+      {/* Match filter — compact bordered pills + refresh */}
       <div className="flex items-center gap-2 mb-3">
         <Text size="2xs" color="dim" weight="semibold" className="flex-shrink-0">Matches:</Text>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-1">
           {MATCH_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -323,6 +323,7 @@ export default function PracticeLeaderboard() {
             </button>
           ))}
         </div>
+        <RefreshButton onRefresh={async () => { await fetchLeaderboard(category); }} variant="bordered" title="Refresh stats" />
       </div>
 
       {/* Table */}

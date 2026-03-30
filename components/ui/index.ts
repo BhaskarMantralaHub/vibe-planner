@@ -56,4 +56,7 @@ export type { TextProps } from './text';
 export { CardMenu } from './card-menu';
 export type { CardMenuItem, CardMenuProps } from './card-menu';
 
+export { RefreshButton } from './refresh-button';
+export type { RefreshButtonProps } from './refresh-button';
+
 export { Toaster } from './toast';

@@ -9,7 +9,7 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl } from '@/components/ui';
+import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl, RefreshButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow, MdSync } from 'react-icons/md';
 import { FaEllipsisV } from 'react-icons/fa';
@@ -39,13 +39,14 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert }: {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading }: {
   item: MatchHistoryItem;
   onTap: () => void;
   onDelete?: () => Promise<void>;
   onRestore?: () => Promise<void>;
   onPermanentDelete?: () => Promise<void>;
   onRevert?: () => Promise<void>;
+  scorecardLoading?: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
@@ -175,7 +176,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           onClose={() => setMenuOpen(false)}
           width={180}
           items={[
-            { label: 'View Scorecard', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: onTap },
+            { label: scorecardLoading ? 'Loading...' : 'View Scorecard', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: onTap },
             ...(onRevert ? [{ label: 'Resume Scoring', icon: <MdPlayArrow size={15} />, color: 'var(--cricket)', onClick: () => onRevert() }] : []),
             ...(isDeleted && onRestore ? [{ label: restoring ? 'Restoring...' : 'Restore', icon: <MdRestoreFromTrash size={15} />, color: 'var(--cricket)', onClick: async () => { setRestoring(true); await onRestore(); setRestoring(false); } }] : []),
             ...(!isDeleted && onDelete ? [{ label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeleteOpen(true), dividerBefore: true }] : []),
@@ -227,16 +228,28 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 }
 
 /* ── Landing Page ── */
-function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
+function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard }: {
   onNewMatch: () => void;
   onContinue?: () => Promise<void> | void;
   onResumeMatch: (matchId: string) => Promise<void> | void;
+  onViewScorecard: (matchId: string) => Promise<void> | void;
 }) {
   const router = useRouter();
   const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch, revertMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const [resuming, setResuming] = useState<string | boolean>(false); // true for local, matchId string for DB
+  const [scorecardLoading, setScorecardLoading] = useState<string | false>(false); // matchId when loading scorecard
   const isAdmin = userAccess.includes('admin');
+
+  const handleViewScorecard = async (matchId: string) => {
+    if (scorecardLoading) return;
+    setScorecardLoading(matchId);
+    try {
+      await onViewScorecard(matchId);
+    } finally {
+      setScorecardLoading(false);
+    }
+  };
 
   // Load matches from DB on mount (AuthGate guarantees user is authenticated)
   useEffect(() => {
@@ -306,10 +319,19 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
               style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
               <MdSportsCricket size={20} className="text-white" />
             </div>
-            <div>
+            <div className="flex-1">
               <Text as="h1" size="lg" weight="bold">Live Scoring</Text>
               <Text as="p" size="2xs" color="muted">Ball-by-ball match scoring</Text>
             </div>
+            <RefreshButton
+              onRefresh={async () => {
+                await loadMatchHistory(false);
+                if (isAdmin) await loadDeletedMatches();
+                toast.success('Matches refreshed');
+              }}
+              variant="bordered"
+              title="Refresh matches"
+            />
           </div>
 
           {/* Local active match — Continue Scoring (scorer's device) */}
@@ -349,8 +371,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                   onClick={async () => {
                     if (resuming) return;
                     setResuming(true);
-                    await onContinue!();
-                    setResuming(false);
+                    try { await onContinue!(); } finally { setResuming(false); }
                   }}>
                   Continue Scoring
                 </Button>
@@ -426,8 +447,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                       onClick={async () => {
                         if (resuming) return;
                         setResuming(m.id);
-                        await onResumeMatch(m.id);
-                        setResuming(false);
+                        try { await onResumeMatch(m.id); } finally { setResuming(false); }
                       }}
                     >
                       Resume Scoring
@@ -466,7 +486,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                     <MatchCard
                       key={m.id}
                       item={m}
-                      onTap={() => onResumeMatch(m.id)}
+                      onTap={() => handleViewScorecard(m.id)}
+                      scorecardLoading={scorecardLoading === m.id}
                       onRestore={async () => { await restoreMatch(m.id); }}
                       onPermanentDelete={async () => { await permanentDeleteMatch(m.id); }}
                     />
@@ -483,7 +504,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
                       <MatchCard
                         key={m.id}
                         item={m}
-                        onTap={() => onResumeMatch(m.id)}
+                        onTap={() => handleViewScorecard(m.id)}
+                        scorecardLoading={scorecardLoading === m.id}
                         onDelete={isAdmin ? async () => {
                           await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                         } : undefined}
@@ -526,7 +548,21 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch }: {
 function ActiveMatch({ onBack }: { onBack: () => void }) {
   const { match } = useScoringStore();
   if (!match) return null;
-  return <ScoringScreen onBack={onBack} />;
+
+  const handleRefresh = async () => {
+    const { dbMatchId, match: m } = useScoringStore.getState();
+    if (!dbMatchId || !isCloudMode()) return;
+    // Active matches use resumeMatch (preserves scorer claim + unsynced local state check)
+    // Completed matches use viewScorecard (no scorer claim needed)
+    const isActive = m?.status === 'scoring' || m?.status === 'innings_break';
+    const ok = isActive
+      ? await useScoringStore.getState().resumeMatch(dbMatchId)
+      : await useScoringStore.getState().viewScorecard(dbMatchId);
+    if (ok) toast.success('Scores updated');
+    else toast.error('Could not refresh scores');
+  };
+
+  return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} />;
 }
 
 /* ── Page Root ── */
@@ -552,16 +588,26 @@ export default function ScoringPage() {
     }
   }, [user, players.length, loadAll]);
 
-  // On refresh: if view was 'match' and there's an active match, re-hydrate from DB
+  // On refresh: if view was 'match', re-hydrate from DB
   useEffect(() => {
     if (view !== 'match') return;
     const { match: m, dbMatchId } = useScoringStore.getState();
-    if (m && (m.status === 'scoring' || m.status === 'innings_break') && dbMatchId && isCloudMode()) {
-      // Re-hydrate from DB — if match was completed/deleted on another device, resumeMatch resets and returns false
+    if (!m || !dbMatchId || !isCloudMode()) {
+      if (!m) setView('landing');
+      return;
+    }
+    const isActive = m.status === 'scoring' || m.status === 'innings_break';
+    if (isActive) {
+      // Active match: resumeMatch re-hydrates + claims scorer; resets if completed/deleted on another device
       useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
         if (!ok) setView('landing');
       });
-    } else if (!m || (m.status !== 'scoring' && m.status !== 'innings_break')) {
+    } else if (m.status === 'completed') {
+      // Completed match: viewScorecard re-hydrates without scorer claim (avoids RLS error)
+      useScoringStore.getState().viewScorecard(dbMatchId).then((ok) => {
+        if (!ok) setView('landing');
+      });
+    } else {
       setView('landing');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -588,6 +634,11 @@ export default function ScoringPage() {
             onResumeMatch={async (matchId) => {
               const ok = await useScoringStore.getState().resumeMatch(matchId);
               if (ok) setView('match');
+            }}
+            onViewScorecard={async (matchId) => {
+              const ok = await useScoringStore.getState().viewScorecard(matchId);
+              if (ok) setView('match');
+              else toast.error('Could not load scorecard');
             }}
           />
         )}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
+import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, RefreshButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { PageFooter } from '@/components/PageFooter';
 import { useScoringStore } from '@/stores/scoring-store';
@@ -13,6 +13,7 @@ import { ButtonGrid } from './ButtonGrid';
 import { FreeHitBanner } from './FreeHitBanner';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
 import { WicketSheet } from './WicketSheet';
+import { RetireSheet } from './RetireSheet';
 import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
 import { EndOfOverSheet } from './EndOfOverSheet';
 import { BallByBallLog } from './BallByBallLog';
@@ -33,9 +34,10 @@ import {
 interface ScoringScreenProps {
   onBack?: () => void;
   onHandoff?: () => void;
+  onRefresh?: () => Promise<void>;
 }
 
-function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
+function ScoringScreen({ onBack, onHandoff, onRefresh }: ScoringScreenProps) {
   const router = useRouter();
 
   /* ── Store state ── */
@@ -44,7 +46,8 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   const balls = useScoringStore((s) => s.balls);
   const isFreeHit = useScoringStore((s) => s.isFreeHit);
 
-  const redoStack = useScoringStore((s) => s.redoStack);
+  const actionStack = useScoringStore((s) => s.actionStack);
+  const redoActionStack = useScoringStore((s) => s.redoActionStack);
 
   const {
     recordBall,
@@ -53,6 +56,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
     endMatch,
     setBowler,
     setNextBatsman,
+    retireBatsman,
     getCurrentInnings,
     getCurrentOverBalls,
     getBattingStats,
@@ -60,6 +64,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
     getBattingTeamPlayers,
     getBowlingTeamPlayers,
     getYetToBat,
+    getRetiredBatsmen,
     getAvailableBowlers,
   } = useScoringStore.getState();
 
@@ -75,6 +80,7 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
 
   /* ── Local UI state ── */
   const [wicketOpen, setWicketOpen] = useState(false);
+  const [retireOpen, setRetireOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
@@ -286,8 +292,9 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
 
   const handleUndo = useCallback(() => {
     undoLastBall();
-    // Close any open sheets — undo may reverse end-of-over or wicket
+    // Close any open sheets — undo may reverse end-of-over, wicket, or retirement
     setWicketOpen(false);
+    setRetireOpen(false);
     setExtrasOpen(false);
     setEndOfOverOpen(false);
   }, [undoLastBall]);
@@ -295,6 +302,11 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   const handleRedo = useCallback(() => {
     redoLastBall();
   }, [redoLastBall]);
+
+  const handleRetireConfirm = useCallback((retiredId: string, replacementId: string) => {
+    retireBatsman(retiredId, replacementId);
+    setRetireOpen(false);
+  }, [retireBatsman]);
 
   const handleEndMatch = useCallback(() => {
     setEndMatchOpen(true);
@@ -327,6 +339,9 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
   const battingTeamPlayers = getBattingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
   const bowlingTeamPlayers = getBowlingTeamPlayers().map((p) => ({ id: p.id, name: displayName(p) }));
   const yetToBat = getYetToBat().map((p) => ({ id: p.id, name: displayName(p) }));
+  const retiredBatsmen = getRetiredBatsmen().map((p) => ({
+    id: p.id, name: displayName(p), retiredRuns: p.retiredRuns, retiredBalls: p.retiredBalls,
+  }));
 
   const currentBatsmen: [{ id: string; name: string }, { id: string; name: string }] | null =
     strikerPlayer && nonStrikerPlayer
@@ -399,9 +414,24 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
       <div className="min-h-[100dvh]" style={{ background: 'var(--bg)' }}>
         {/* Gradient hero */}
         <div
-          className="px-4 pt-12 pb-8 text-center"
+          className="relative px-4 pt-12 pb-8 text-center"
           style={{ background: 'linear-gradient(180deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}
         >
+          {/* Back + Refresh buttons */}
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+            <button
+              onClick={() => { useScoringStore.getState().reset(); if (onBack) onBack(); }}
+              className="flex items-center gap-1 cursor-pointer active:scale-[0.92] transition-all"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              <Text size="sm" weight="medium" color="white" className="opacity-70">Back</Text>
+            </button>
+            {onRefresh && (
+              <RefreshButton onRefresh={onRefresh} variant="glass" title="Refresh scores" />
+            )}
+          </div>
           <Text as="p" size="xs" weight="semibold" color="white" uppercase tracking="wider" className="opacity-70 mb-3">
             Match Result
           </Text>
@@ -502,16 +532,21 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
         </Text>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={onHandoff}
-            className={cn(
-              'px-3 py-1.5 rounded-lg cursor-pointer',
-              'border border-[var(--cricket)]/30',
-              'active:scale-[0.92] transition-all hover:bg-[var(--cricket)]/10',
-            )}
-          >
-            <Text size="xs" weight="medium" color="cricket">Handoff</Text>
-          </button>
+          {onRefresh && (
+            <RefreshButton onRefresh={onRefresh} variant="bordered" title="Refresh scores" />
+          )}
+          {match.status !== 'completed' && (
+            <button
+              onClick={onHandoff}
+              className={cn(
+                'px-3 py-1.5 rounded-lg cursor-pointer',
+                'border border-[var(--cricket)]/30',
+                'active:scale-[0.92] transition-all hover:bg-[var(--cricket)]/10',
+              )}
+            >
+              <Text size="xs" weight="medium" color="cricket">Handoff</Text>
+            </button>
+          )}
         </div>
       </div>
 
@@ -762,8 +797,9 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               onEndMatch={handleEndMatch}
-              canUndo={balls.length > 0}
-              canRedo={redoStack.length > 0}
+              onRetire={canScore ? () => setRetireOpen(true) : undefined}
+              canUndo={actionStack.length > 0}
+              canRedo={redoActionStack.length > 0}
             />
           </>
         )
@@ -831,15 +867,27 @@ function ScoringScreen({ onBack, onHandoff }: ScoringScreenProps) {
 
       {/* ── Sheets (use portals, render to document.body) ── */}
       {currentBatsmen && (
-        <WicketSheet
-          open={wicketOpen}
-          onOpenChange={setWicketOpen}
-          battingTeam={[...yetToBat, ...currentBatsmen]}
-          bowlingTeam={bowlingTeamPlayers}
-          currentBowlerId={currentInnings.bowler_id ?? undefined}
-          currentBatsmen={currentBatsmen}
-          onConfirm={handleWicketConfirm}
-        />
+        <>
+          <WicketSheet
+            open={wicketOpen}
+            onOpenChange={setWicketOpen}
+            battingTeam={[...yetToBat, ...currentBatsmen]}
+            bowlingTeam={bowlingTeamPlayers}
+            currentBowlerId={currentInnings.bowler_id ?? undefined}
+            currentBatsmen={currentBatsmen}
+            retiredBatsmen={retiredBatsmen}
+            onConfirm={handleWicketConfirm}
+          />
+          <RetireSheet
+            open={retireOpen}
+            onOpenChange={setRetireOpen}
+            striker={currentBatsmen[0]}
+            nonStriker={currentBatsmen[1]}
+            yetToBat={yetToBat}
+            retiredBatsmen={retiredBatsmen}
+            onConfirm={handleRetireConfirm}
+          />
+        </>
       )}
 
       <ExtrasSheet
