@@ -5,6 +5,7 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Text, SegmentedControl, Skeleton, Card, RefreshButton } from '@/components/ui';
 import type { LeaderboardEntry } from '@/types/scoring';
@@ -323,7 +324,7 @@ export default function PracticeLeaderboard() {
             </button>
           ))}
         </div>
-        <RefreshButton onRefresh={async () => { await fetchLeaderboard(category); }} variant="bordered" title="Refresh stats" />
+        <RefreshButton onRefresh={async () => { await fetchLeaderboard(category); toast.success('Stats refreshed'); }} variant="bordered" title="Refresh stats" />
       </div>
 
       {/* Table */}
