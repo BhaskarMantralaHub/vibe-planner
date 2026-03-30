@@ -19,11 +19,21 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
       if (e.key === 'Escape') onClose();
     }
     if (isOpen) {
-      // Lock body scroll when menu is open
+      // Lock body scroll — position:fixed is required for iOS Safari
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
       document.body.style.overflow = 'hidden';
       document.addEventListener('keydown', handleKey);
       return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
         document.body.style.overflow = '';
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
         document.removeEventListener('keydown', handleKey);
       };
     }
@@ -42,19 +52,21 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — touch-action:none prevents iOS scroll-through */}
       <div
         className={`fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${
           isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
+        style={{ touchAction: 'none' }}
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel — overscroll-contain prevents scroll chaining to body */}
       <div
-        className={`fixed top-0 left-0 z-50 h-full w-72 bg-[var(--card)] shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${
+        className={`fixed top-0 left-0 z-50 h-full w-72 bg-[var(--card)] shadow-2xl transition-transform duration-300 ease-in-out flex flex-col overscroll-contain ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={{ touchAction: 'pan-y' }}
       >
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
@@ -76,7 +88,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
         </div>
 
         {/* Tools — scrollable */}
-        <nav className="flex-1 overflow-y-auto overscroll-contain px-6 flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-6 flex flex-col gap-1">
           {visibleTools.map((tool) => (
             <Link key={tool.name} href={tool.href} onClick={onClose}>
               <div className="flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
