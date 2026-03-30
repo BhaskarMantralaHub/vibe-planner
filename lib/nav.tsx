@@ -1,4 +1,4 @@
-import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard, MdLeaderboard, MdSportsCricket } from 'react-icons/md';
+import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard, MdLeaderboard, MdSportsCricket, MdDateRange } from 'react-icons/md';
 
 export type Tool = {
   name: string;
@@ -47,6 +47,14 @@ export const tools: Tool[] = [
     href: '/cricket/scoring/leaderboard',
     icon: <MdLeaderboard size={22} />,
     description: 'Batting, bowling & fielding leaderboards.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
+  {
+    name: 'League Schedule',
+    href: '/cricket/schedule',
+    icon: <MdDateRange size={22} />,
+    description: 'Upcoming matches & fixtures.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },

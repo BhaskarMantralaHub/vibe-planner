@@ -6,10 +6,8 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { FaUsers, FaReceipt, FaChartPie, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
-import { MdSportsCricket, MdSportsScore } from 'react-icons/md';
-import { GiCoinflip } from 'react-icons/gi';
-import { PiCricketFill } from 'react-icons/pi';
+import { FaUsers, FaReceipt, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
+import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -23,13 +21,11 @@ import ExpenseList from './components/ExpenseList';
 import ShareButton from './components/ShareButton';
 import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
-import TossWidget from './components/TossWidget';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
 import Gallery from './components/Gallery';
-import MatchSchedule from './components/MatchSchedule';
 
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'gallery' | 'matches' | 'toss' | 'share';
+type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'gallery' | 'share';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -91,13 +87,12 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
   );
 }
 
-/* ── 5-Tab Navigation with Segmented Sub-views ── */
-type Tab = 'players' | 'finances' | 'matches' | 'moments' | 'more';
+/* ── 4-Tab Navigation with Segmented Sub-views ── */
+type Tab = 'players' | 'finances' | 'moments' | 'more';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'players', label: 'Players' },
   { key: 'finances', label: 'Finances' },
-  { key: 'matches', label: 'Matches' },
   { key: 'moments', label: 'Moments' },
   { key: 'more', label: '...' },
 ];
@@ -106,7 +101,6 @@ const TABS: { key: Tab; label: string }[] = [
 function viewToTab(view: View): Tab {
   if (view === 'players' || view === 'fees') return 'players';
   if (view === 'expenses' || view === 'charts' || view === 'sponsors') return 'finances';
-  if (view === 'matches' || view === 'toss') return 'matches';
   if (view === 'gallery') return 'moments';
   return 'more';
 }
@@ -115,7 +109,6 @@ function viewToTab(view: View): Tab {
 function tabToView(tab: Tab): View {
   if (tab === 'players') return 'players';
   if (tab === 'finances') return 'expenses';
-  if (tab === 'matches') return 'matches';
   if (tab === 'moments') return 'gallery';
   return 'share';
 }
@@ -155,7 +148,6 @@ import type { CapsuleTab } from '@/components/ui';
 const CAPSULE_TABS: CapsuleTab[] = [
   { key: 'players', label: 'Players', icon: <FaUsers size={16} /> },
   { key: 'finances', label: 'Finances', icon: <FaReceipt size={16} /> },
-  { key: 'matches', label: 'Matches', icon: <PiCricketFill size={18} /> },
   { key: 'moments', label: 'Moments', icon: <FaCamera size={15} /> },
   { key: 'more', label: '...', icon: <FaShareAlt size={14} /> },
 ];
@@ -169,7 +161,7 @@ function CricketDashboard() {
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'gallery', 'matches', 'toss', 'share'].includes(hash)) return hash;
+      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'gallery', 'share'].includes(hash)) return hash;
     }
     return 'players';
   });
@@ -203,7 +195,7 @@ function CricketDashboard() {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'matches', '7': 'toss', '8': 'share' };
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'share' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -381,15 +373,6 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {activeTab === 'matches' && (
-            <SegmentedControl
-              options={[{ key: 'matches', label: 'Schedule' }, { key: 'toss', label: 'Toss' }]}
-              active={activeView}
-              onChange={(key) => handleViewChange(key as View)}
-              className="mb-4"
-            />
-          )}
-
           {/* More menu */}
           <MoreMenu open={showMore} onClose={() => setShowMore(false)} onSelect={handleViewChange} />
 
@@ -412,7 +395,7 @@ function CricketDashboard() {
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
-          {activeView !== 'toss' && activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && activeView !== 'matches' && (
+          {activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -435,8 +418,6 @@ function CricketDashboard() {
             {activeView === 'fees' && <FeeTracker />}
             {activeView === 'sponsors' && <SponsorshipSection />}
             {activeView === 'gallery' && <Gallery />}
-            {activeView === 'matches' && <MatchSchedule />}
-            {activeView === 'toss' && <TossWidget />}
             {activeView === 'share' && <ShareButton />}
           </div>
         </>

@@ -43,7 +43,7 @@ function CapsuleTabs({ tabs, active, onChange, className }: CapsuleTabsProps) {
               border: '1.5px solid transparent',
             }}
           >
-            <span className="flex-shrink-0 transition-transform duration-300">{t.icon}</span>
+            <span className="flex-shrink-0 w-5 flex items-center justify-center transition-transform duration-300">{t.icon}</span>
             <span className={`whitespace-nowrap text-[12px] font-bold transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
               isActive
                 ? 'opacity-100 translate-x-0 delay-75'
