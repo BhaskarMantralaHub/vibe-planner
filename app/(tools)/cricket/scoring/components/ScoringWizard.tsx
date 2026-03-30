@@ -5,6 +5,7 @@ import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button, Input, Label, Text, SegmentedControl } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import type { ScoringTeam, ScoringPlayer, TeamSide, TossDecision } from '@/types/scoring';
 import type { CricketPlayer } from '@/types/cricket';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
@@ -300,7 +301,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
       <StepDots current={step} total={TOTAL_STEPS} />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-28">
+      <div className={cn('flex-1 overflow-y-auto px-4', step === 4 && !coinFlipped ? 'pb-4' : 'pb-28')}>
         {/* Step 1: Match Details */}
         {step === 1 && (
           <div className="mx-auto max-w-md space-y-5">

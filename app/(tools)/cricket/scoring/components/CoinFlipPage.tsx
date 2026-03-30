@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Text, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 type CoinResult = 'heads' | 'tails' | null;
 
-function fairToss(): CoinResult {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  return array[0] % 2 === 0 ? 'heads' : 'tails';
+function fairToss(): 'heads' | 'tails' {
+  try {
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return array[0] % 2 === 0 ? 'heads' : 'tails';
+  } catch {
+    return Math.random() < 0.5 ? 'heads' : 'tails';
+  }
 }
 
 function playCoinSound() {
@@ -102,6 +106,11 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
   const [result, setResult] = useState<CoinResult>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const coinRef = useRef<HTMLDivElement>(null);
+  const flipTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    return () => { if (flipTimeoutRef.current) clearTimeout(flipTimeoutRef.current); };
+  }, []);
 
   const handleFlip = useCallback(() => {
     if (isFlipping) return;
@@ -110,7 +119,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
     playCoinSound();
 
     const outcome = fairToss();
-    setTimeout(() => {
+    flipTimeoutRef.current = setTimeout(() => {
       setResult(outcome);
       setIsFlipping(false);
       playResultSound();
@@ -148,8 +157,10 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
         <div
           ref={coinRef}
           onClick={handleFlip}
+          data-result={result}
           className="relative w-[120px] h-[120px] cursor-pointer"
           style={{
+            WebkitTransformStyle: 'preserve-3d',
             transformStyle: 'preserve-3d',
             animation: isFlipping
               ? 'coinFlip 2s ease-out forwards'
@@ -164,6 +175,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
           <div
             className="absolute inset-0 rounded-full flex items-center justify-center"
             style={{
+              WebkitBackfaceVisibility: 'hidden',
               backfaceVisibility: 'hidden',
               background: 'radial-gradient(circle at 35% 35%, #e8c87a, #b8860b 50%, #8b6914 100%)',
               boxShadow: result === 'heads' && !isFlipping
@@ -182,6 +194,7 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
           <div
             className="absolute inset-0 rounded-full flex items-center justify-center"
             style={{
+              WebkitBackfaceVisibility: 'hidden',
               backfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
               background: 'radial-gradient(circle at 35% 35%, #e8e8e8, #a0a0a0 50%, #707070 100%)',
