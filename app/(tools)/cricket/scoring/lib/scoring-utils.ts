@@ -247,6 +247,8 @@ export function buildInningsSummary(
       } else {
         dismissal = bs.how_out ?? 'out';
       }
+    } else if (bs.how_out === 'retired') {
+      dismissal = 'retired';
     }
 
     return {

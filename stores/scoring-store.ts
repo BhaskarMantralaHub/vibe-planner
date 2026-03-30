@@ -140,7 +140,9 @@ function hydrateMatchFromDb(sc: ScorecardRpc): {
   const innings: [ScoringInnings, ScoringInnings] = [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')];
   for (const di of sc.innings) {
     const i = di.innings_number as 0 | 1;
-    const dbRetired = (di.retired_players as RetiredPlayer[] | null) ?? [];
+    const rawRetired = di.retired_players;
+    const dbRetired: RetiredPlayer[] = Array.isArray(rawRetired) ? rawRetired
+      : typeof rawRetired === 'string' ? JSON.parse(rawRetired) : [];
     const retiredPlayers: RetiredPlayer[] = dbRetired.map((r) => ({
       playerId: reverseMap[r.playerId] ?? r.playerId,
       replacedById: reverseMap[r.replacedById] ?? r.replacedById,
@@ -484,9 +486,14 @@ export const useScoringStore = create<ScoringState>()(
     }
 
     // Determine if strike should swap
-    // Strike swaps on: odd bat runs, end of over (handled separately)
-    const totalRunsForStrike = runsBat + (extrasType === 'bye' || extrasType === 'leg_bye' ? runsExtras : 0);
-    const shouldSwap = totalRunsForStrike % 2 === 1;
+    // Strike swaps on: odd physical runs
+    // - Bat runs (including runs off no-ball) count directly
+    // - Bye/leg-bye extras are physical runs
+    // - Wide: penalty (1 run) doesn't swap, but additional runs do (batsmen physically ran)
+    const physicalRuns = runsBat
+      + (extrasType === 'bye' || extrasType === 'leg_bye' ? runsExtras : 0)
+      + (extrasType === 'wide' ? Math.max(0, runsExtras - 1) : 0);
+    const shouldSwap = physicalRuns % 2 === 1;
 
     let strikerId: string | null = inn.striker_id;
     let nonStrikerId: string | null = inn.non_striker_id;
@@ -1127,11 +1134,13 @@ export const useScoringStore = create<ScoringState>()(
     const battingTeam = inn.batting_team === 'team_a' ? match.team_a : match.team_b;
     const inningsBalls = balls.filter((b) => b.innings === inningsIdx);
 
-    // Determine which players have batted
+    // Determine which players have batted (include current batsmen even if no balls faced yet)
     const batterIds = new Set<string>();
     for (const b of inningsBalls) {
       batterIds.add(b.striker_id);
     }
+    if (inn.striker_id) batterIds.add(inn.striker_id);
+    if (inn.non_striker_id) batterIds.add(inn.non_striker_id);
 
     const stats: BattingStats[] = [];
     for (const player of battingTeam.players) {
