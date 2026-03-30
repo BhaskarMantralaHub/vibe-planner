@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { AuthGate } from '@/components/AuthGate';
+import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
@@ -452,7 +453,9 @@ function CricketDashboard() {
 export default function CricketPage() {
   return (
     <AuthGate variant="cricket">
-      <CricketDashboard />
+      <RoleGate allowed={['cricket', 'admin']} feature="cricket">
+        <CricketDashboard />
+      </RoleGate>
     </AuthGate>
   );
 }

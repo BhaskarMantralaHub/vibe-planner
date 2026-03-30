@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useVibeStore } from '@/stores/vibe-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/AuthGate';
+import { RoleGate } from '@/components/RoleGate';
 import { LocalBanner } from '@/components/LocalBanner';
 import { Skeleton } from '@/components/ui';
 import Header from './components/Header';
@@ -93,7 +94,9 @@ function VibePlannerContent() {
 export default function VibePlannerPage() {
   return (
     <AuthGate>
-      <VibePlannerContent />
+      <RoleGate allowed={['toolkit', 'admin']} feature="vibe-planner">
+        <VibePlannerContent />
+      </RoleGate>
     </AuthGate>
   );
 }

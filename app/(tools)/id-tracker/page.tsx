@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useIDTrackerStore } from '@/stores/id-tracker-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { AuthGate } from '@/components/AuthGate';
+import { RoleGate } from '@/components/RoleGate';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -1150,7 +1151,9 @@ function IDTrackerContent() {
 export default function IDTrackerPage() {
   return (
     <AuthGate>
-      <IDTrackerContent />
+      <RoleGate allowed={['toolkit', 'admin']} feature="id-tracker">
+        <IDTrackerContent />
+      </RoleGate>
     </AuthGate>
   );
 }

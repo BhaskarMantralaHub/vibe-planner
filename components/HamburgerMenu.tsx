@@ -30,10 +30,11 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   }, [isOpen, onClose]);
 
   const access = userAccess.length > 0 ? userAccess : ['toolkit'];
-  const features = userFeatures.length > 0 ? userFeatures : ['vibe-planner', 'id-tracker'];
+  // userFeatures is derived from access in auth-store when empty/null (backward compat)
+  // No separate fallback here — auth-store handles the derivation
   const visibleTools = tools.filter((t) => {
     // Tools with a feature key: check features array (no admin override)
-    if (t.feature) return features.includes(t.feature);
+    if (t.feature) return userFeatures.includes(t.feature);
     // Tools without a feature key (e.g., Admin): fall back to role check
     if (!t.roles) return true;
     return t.roles.some((r) => access.includes(r));
