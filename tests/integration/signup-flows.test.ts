@@ -81,6 +81,7 @@ function resetAll() {
     isCloud: true,
     needsPasswordReset: false,
     userAccess: [],
+    userFeatures: [],
     userApproved: true,
   });
 
@@ -735,6 +736,7 @@ describe('Signup & Access Flows (Integration)', () => {
       useAuthStore.setState({
         user: { id: 'u1', email: 'test@example.com' } as any,
         userAccess: ['toolkit', 'admin'],
+        userFeatures: ['vibe-planner', 'id-tracker'],
         userApproved: true,
         authError: 'some error',
       });
@@ -746,6 +748,7 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(state.authMode).toBe('login');
       expect(state.authError).toBe('');
       expect(state.userAccess).toEqual([]);
+      expect(state.userFeatures).toEqual([]);
       expect(state.userApproved).toBe(true);
       expect(mockSignOut).toHaveBeenCalled();
     });

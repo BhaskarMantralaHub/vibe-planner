@@ -61,6 +61,28 @@ CREATE UNIQUE INDEX idx_cricket_players_guest_name_unique
 CREATE TRIGGER set_cricket_players_updated_at BEFORE UPDATE ON cricket_players
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- WHY: When admin updates a player's name in cricket_players, the corresponding
+--      profiles.full_name must stay in sync. Without this, the admin page (which
+--      reads from profiles) shows stale signup-time names while the cricket page
+--      shows the updated names. Using a SECURITY DEFINER trigger ensures:
+--      1. Runs in the same transaction as the player update (atomic)
+--      2. Catches ALL update paths (UI, direct SQL, bulk imports)
+--      3. Bypasses RLS safely (no client-side permission concerns)
+CREATE OR REPLACE FUNCTION sync_player_name_to_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.name IS DISTINCT FROM OLD.name AND NEW.user_id IS NOT NULL THEN
+    UPDATE profiles SET full_name = NEW.name WHERE id = NEW.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS sync_player_name_trigger ON cricket_players;
+CREATE TRIGGER sync_player_name_trigger
+  AFTER UPDATE ON cricket_players
+  FOR EACH ROW EXECUTE FUNCTION sync_player_name_to_profile();
+
 -- ── Seasons ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cricket_seasons (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -328,7 +350,8 @@ BEGIN
     user_approved,
     meta,
     user_features
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
 
   -- Auto-approved cricket player: claim pre-added player record
   -- Links user_id and overwrites with player's own signup preferences

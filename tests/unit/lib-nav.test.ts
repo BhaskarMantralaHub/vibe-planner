@@ -76,4 +76,51 @@ describe('lib/nav', () => {
     const names = tools.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it('toolkit tools have vibe-planner or id-tracker feature', () => {
+    const toolkitTools = tools.filter((t) => t.roles?.includes('toolkit'));
+    for (const tool of toolkitTools) {
+      expect(['vibe-planner', 'id-tracker']).toContain(tool.feature);
+    }
+  });
+
+  it('cricket tools have cricket feature', () => {
+    const cricketTools = tools.filter((t) => t.roles?.includes('cricket'));
+    for (const tool of cricketTools) {
+      expect(tool.feature).toBe('cricket');
+    }
+  });
+
+  it('Admin tool has no feature (role-gated only)', () => {
+    const admin = tools.find((t) => t.name === 'Admin');
+    expect(admin!.feature).toBeUndefined();
+  });
+
+  it('feature-based filtering shows only tools matching user features', () => {
+    const cricketFeatures = ['cricket'];
+    const visibleForCricket = tools.filter((t) => {
+      if (t.feature) return cricketFeatures.includes(t.feature);
+      return false;
+    });
+    const names = visibleForCricket.map((t) => t.name);
+    expect(names).toContain('Cricket');
+    expect(names).toContain('Live Scoring');
+    expect(names).toContain('Practice Stats');
+    expect(names).not.toContain('Vibe Planner');
+    expect(names).not.toContain('ID Tracker');
+    expect(names).not.toContain('Admin');
+  });
+
+  it('admin user with no features sees no feature-gated tools', () => {
+    const adminFeatures: string[] = [];
+    const adminAccess = ['admin'];
+    const visible = tools.filter((t) => {
+      if (t.feature) return adminFeatures.includes(t.feature);
+      if (!t.roles) return true;
+      return t.roles.some((r) => adminAccess.includes(r));
+    });
+    // Only Admin tool visible (role-gated, no feature)
+    expect(visible.length).toBe(1);
+    expect(visible[0].name).toBe('Admin');
+  });
 });

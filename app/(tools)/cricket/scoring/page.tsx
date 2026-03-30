@@ -39,7 +39,7 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading }: {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading, onResume, resumeLoading }: {
   item: MatchHistoryItem;
   onTap: () => void;
   onDelete?: () => Promise<void>;
@@ -47,6 +47,8 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
   onPermanentDelete?: () => Promise<void>;
   onRevert?: () => Promise<void>;
   scorecardLoading?: boolean;
+  onResume?: () => void;
+  resumeLoading?: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
@@ -167,6 +169,40 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
             {item.scorer_name ? `Scored by ${item.scorer_name}` : 'Practice Match'}
           </Text>
         </div>
+
+        {/* Resume Scoring CTA — only for active matches viewed by other players */}
+        {onResume && (
+          <div
+            className="px-4 py-3 border-t"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              disabled={resumeLoading}
+              onClick={onResume}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 px-4',
+                'font-semibold text-sm transition-all duration-150 active:scale-[0.98]',
+                'border-2 cursor-pointer',
+                resumeLoading
+                  ? 'opacity-60 cursor-not-allowed border-[var(--cricket)]/40 text-[var(--cricket)]/60'
+                  : 'border-[var(--cricket)] text-[var(--cricket)] hover:bg-[var(--cricket)]/8',
+              )}
+            >
+              {resumeLoading ? (
+                <>
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-[var(--cricket)]/40 border-t-[var(--cricket)] animate-spin" />
+                  Connecting…
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                  Resume Scoring
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Actions Menu */}
@@ -430,29 +466,20 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
               </Text>
               <div className="space-y-2">
                 {activeDbMatches.map((m) => (
-                  <div key={m.id} className="space-y-1.5">
-                    <MatchCard
-                      item={m}
-                      onTap={() => onResumeMatch(m.id)}
-                      onDelete={isAdmin ? async () => {
-                        await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
-                      } : undefined}
-                    />
-                    <Button
-                      variant="primary"
-                      brand="cricket"
-                      size="lg"
-                      fullWidth
-                      loading={resuming === m.id}
-                      onClick={async () => {
-                        if (resuming) return;
-                        setResuming(m.id);
-                        try { await onResumeMatch(m.id); } finally { setResuming(false); }
-                      }}
-                    >
-                      Resume Scoring
-                    </Button>
-                  </div>
+                  <MatchCard
+                    key={m.id}
+                    item={m}
+                    onTap={() => onResumeMatch(m.id)}
+                    onDelete={isAdmin ? async () => {
+                      await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
+                    } : undefined}
+                    onResume={async () => {
+                      if (resuming) return;
+                      setResuming(m.id);
+                      try { await onResumeMatch(m.id); } finally { setResuming(false); }
+                    }}
+                    resumeLoading={resuming === m.id}
+                  />
                 ))}
               </div>
             </div>
@@ -622,7 +649,7 @@ export default function ScoringPage() {
 
   return (
     <AuthGate variant="cricket">
-      <RoleGate allowed={['cricket', 'admin']}>
+      <RoleGate allowed={['cricket', 'admin']} feature="cricket">
         {/* Landing — renders within Shell (hamburger menu visible) */}
         {view === 'landing' && (
           <ScoringLanding

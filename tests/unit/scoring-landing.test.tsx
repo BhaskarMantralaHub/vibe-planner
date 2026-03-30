@@ -115,6 +115,7 @@ function setupDefaults(overrides: {
   mockAuthState = {
     user: { id: 'user-1', user_metadata: { full_name: 'Admin User' } },
     userAccess: overrides.isAdmin ? ['cricket', 'admin'] : ['cricket'],
+    userFeatures: ['cricket'],
   };
 }
 

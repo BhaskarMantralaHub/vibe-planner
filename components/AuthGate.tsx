@@ -31,16 +31,17 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
       const { data: isPlayer } = await supabase.rpc('check_cricket_player_email', { check_email: user.email });
       if (isPlayer) {
         // Auto-approve: add cricket access, keep approved=true, link player record
-        const { userAccess } = useAuthStore.getState();
+        const { userAccess, userFeatures } = useAuthStore.getState();
         const newAccess = [...new Set([...userAccess, 'cricket'])];
-        await supabase.from('profiles').update({ access: newAccess, approved: true }).eq('id', user.id);
+        const newFeatures = [...new Set([...userFeatures, 'cricket'])];
+        await supabase.from('profiles').update({ access: newAccess, approved: true, features: newFeatures }).eq('id', user.id);
         // Link player record
         await supabase.from('cricket_players')
           .update({ user_id: user.id })
           .ilike('email', user.email!.trim())
           .eq('is_active', true);
         // Update local state and reload
-        useAuthStore.setState({ userAccess: newAccess, userApproved: true });
+        useAuthStore.setState({ userAccess: newAccess, userFeatures: newFeatures, userApproved: true });
         // Create welcome post (only reached for genuinely new cricket users —
         // the race condition guard in AuthGate prevents existing users from
         // reaching RequestAccess while profile is still loading)

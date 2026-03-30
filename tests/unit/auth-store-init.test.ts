@@ -66,6 +66,7 @@ function resetStore() {
     isCloud: false,
     needsPasswordReset: false,
     userAccess: [],
+    userFeatures: [],
     userApproved: true,
   });
 }
@@ -181,7 +182,7 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
 
       mockGetSession.mockResolvedValue({ data: { session: mockSession } });
       mockQuery.single.mockResolvedValue({
-        data: { disabled: false, access: ['cricket', 'admin'], approved: true },
+        data: { disabled: false, access: ['cricket', 'admin'], approved: true, features: ['cricket'] },
         error: null,
       });
 
@@ -192,6 +193,7 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       expect(state.user).toEqual(mockUser);
       expect(state.loading).toBe(false);
       expect(state.userAccess).toEqual(['cricket', 'admin']);
+      expect(state.userFeatures).toEqual(['cricket']);
     });
   });
 
@@ -252,13 +254,13 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       expect(state.authMode).toBe('pending-approval');
     });
 
-    it('profile approved with access=[cricket] -> user set, userAccess=[cricket]', async () => {
+    it('profile approved with access=[cricket] -> user set, userAccess=[cricket], features derived', async () => {
       const mockUser = { id: 'cricket-1', email: 'cricket@example.com' };
       const mockSession = { user: mockUser, access_token: 'tok' };
 
       mockGetSession.mockResolvedValue({ data: { session: mockSession } });
       mockQuery.single.mockResolvedValue({
-        data: { disabled: false, access: ['cricket'], approved: true },
+        data: { disabled: false, access: ['cricket'], approved: true, features: ['cricket'] },
         error: null,
       });
 
@@ -268,17 +270,18 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockUser);
       expect(state.userAccess).toEqual(['cricket']);
+      expect(state.userFeatures).toEqual(['cricket']);
       expect(state.userApproved).toBe(true);
       expect(state.loading).toBe(false);
     });
 
-    it('profile access null -> defaults to [toolkit]', async () => {
+    it('profile access null -> defaults to [toolkit], features derived', async () => {
       const mockUser = { id: 'null-access-1', email: 'noaccess@example.com' };
       const mockSession = { user: mockUser, access_token: 'tok' };
 
       mockGetSession.mockResolvedValue({ data: { session: mockSession } });
       mockQuery.single.mockResolvedValue({
-        data: { disabled: false, access: null, approved: true },
+        data: { disabled: false, access: null, approved: true, features: null },
         error: null,
       });
 
@@ -288,10 +291,12 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockUser);
       expect(state.userAccess).toEqual(['toolkit']);
+      // Features derived from access when null
+      expect(state.userFeatures).toEqual(['vibe-planner', 'id-tracker']);
       expect(state.loading).toBe(false);
     });
 
-    it('profile query returns null (no profile row) -> defaults to [toolkit]', async () => {
+    it('profile query returns null (no profile row) -> defaults to [toolkit], features derived', async () => {
       const mockUser = { id: 'no-profile-1', email: 'noprofile@example.com' };
       const mockSession = { user: mockUser, access_token: 'tok' };
 
@@ -304,7 +309,53 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockUser);
       expect(state.userAccess).toEqual(['toolkit']);
+      // Features derived from access when profile is null
+      expect(state.userFeatures).toEqual(['vibe-planner', 'id-tracker']);
       expect(state.loading).toBe(false);
+    });
+
+    it('features from DB used when present (no derivation)', async () => {
+      const mockUser = { id: 'explicit-features-1', email: 'features@example.com' };
+      const mockSession = { user: mockUser, access_token: 'tok' };
+
+      mockGetSession.mockResolvedValue({ data: { session: mockSession } });
+      mockQuery.single.mockResolvedValue({
+        data: { disabled: false, access: ['toolkit', 'cricket'], approved: true, features: ['vibe-planner'] },
+        error: null,
+      });
+
+      useAuthStore.getState().init();
+      await vi.advanceTimersByTimeAsync(10);
+
+      const state = useAuthStore.getState();
+      // Uses DB features directly, not derived from access
+      expect(state.userFeatures).toEqual(['vibe-planner']);
+    });
+
+    it('empty features array triggers derivation from access', async () => {
+      const mockUser = { id: 'empty-features-1', email: 'empty@example.com' };
+      const mockSession = { user: mockUser, access_token: 'tok' };
+
+      mockGetSession.mockResolvedValue({ data: { session: mockSession } });
+      mockQuery.single.mockResolvedValue({
+        data: { disabled: false, access: ['cricket'], approved: true, features: [] },
+        error: null,
+      });
+
+      useAuthStore.getState().init();
+      await vi.advanceTimersByTimeAsync(10);
+
+      const state = useAuthStore.getState();
+      expect(state.userFeatures).toEqual(['cricket']);
+    });
+
+    it('hasFeature returns true only for features in userFeatures (no admin override)', () => {
+      useAuthStore.setState({ userAccess: ['cricket', 'admin'], userFeatures: ['cricket'] });
+      const store = useAuthStore.getState();
+      expect(store.hasFeature('cricket')).toBe(true);
+      expect(store.hasFeature('vibe-planner')).toBe(false);
+      // admin in access does NOT grant features
+      expect(store.hasFeature('id-tracker')).toBe(false);
     });
   });
 

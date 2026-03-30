@@ -6,10 +6,11 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Search, Users, Shield, ShieldCheck, UserX, AlertTriangle, Ban,
   MoreVertical, Crown, ShieldOff, UserCheck, Lock,
-  Activity, CheckCircle, Zap, BarChart3
+  Activity, CheckCircle, Zap, BarChart3, Settings2
 } from 'lucide-react';
 import { AuthGate } from '@/components/AuthGate';
-import { Text } from '@/components/ui';
+import { Text, Drawer, DrawerHandle, DrawerHeader, DrawerBody, DrawerTitle } from '@/components/ui';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -18,6 +19,8 @@ interface Profile {
   is_admin: boolean;
   disabled: boolean;
   created_at: string;
+  access: string[];
+  features: string[];
 }
 
 interface UserStats {
@@ -88,6 +91,7 @@ function AdminContent() {
   const [maxUsers, setMaxUsers] = useState(15);
   const [editingMaxUsers, setEditingMaxUsers] = useState(false);
   const [maxUsersInput, setMaxUsersInput] = useState('15');
+  const [featureDrawerProfile, setFeatureDrawerProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -115,7 +119,24 @@ function AdminContent() {
         .select('*')
         .order('created_at', { ascending: true });
 
-      setProfiles(allProfiles || []);
+      // Fetch cricket player names (source of truth — admin can update these)
+      // Overlay onto profiles so admin page shows up-to-date names
+      const { data: players } = await supabase
+        .from('cricket_players')
+        .select('user_id, name')
+        .not('user_id', 'is', null);
+
+      const playerNameMap = new Map<string, string>();
+      players?.forEach((p: { user_id: string; name: string }) => {
+        playerNameMap.set(p.user_id, p.name);
+      });
+
+      const merged = (allProfiles || []).map((p: Profile) => {
+        const playerName = playerNameMap.get(p.id);
+        return playerName ? { ...p, full_name: playerName } : p;
+      });
+
+      setProfiles(merged);
 
       // Fetch vibe stats per user
       const { data: vibes } = await supabase
@@ -444,6 +465,20 @@ function AdminContent() {
                       </span>
                     )}
                   </div>
+                  {/* Feature badges */}
+                  {(profile.features?.length > 0) && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {profile.features.includes('vibe-planner') && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">VP</span>
+                      )}
+                      {profile.features.includes('id-tracker') && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">ID</span>
+                      )}
+                      {profile.features.includes('cricket') && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--cricket)]/15 text-[var(--cricket)] font-semibold">CR</span>
+                      )}
+                    </div>
+                  )}
                   <Text as="div" size="sm" color="muted" truncate>{profile.email}</Text>
                   <Text as="div" size="xs" color="dim" className="mt-0.5">
                     Joined {fmtDate(profile.created_at)} · {timeAgo(profile.created_at)}
@@ -510,6 +545,7 @@ function AdminContent() {
                       await supabase.from('profiles').update({ disabled: newStatus }).eq('id', profile.id);
                       setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, disabled: newStatus } : p));
                     }}
+                    onManageFeatures={() => setFeatureDrawerProfile(profile)}
                   />
                 )}
               </div>
@@ -558,9 +594,102 @@ function AdminContent() {
           );
         })()}
       </div>
+
+      {/* Feature Toggle Drawer */}
+      <Drawer open={!!featureDrawerProfile} onOpenChange={(open) => { if (!open) setFeatureDrawerProfile(null); }}>
+        <DrawerHandle />
+        <DrawerHeader>
+          <DrawerTitle>Manage Features</DrawerTitle>
+          <Text size="sm" color="muted">{featureDrawerProfile?.full_name || featureDrawerProfile?.email}</Text>
+        </DrawerHeader>
+        <DrawerBody>
+          {featureDrawerProfile && (
+            <div className="space-y-3 pb-4">
+              {FEATURE_TOGGLES.map((ft) => {
+                const enabled = (featureDrawerProfile.features ?? []).includes(ft.key);
+                return (
+                  <div key={ft.key} className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white"
+                        style={{ background: enabled ? ft.gradient : 'var(--muted)' }}
+                      >
+                        {ft.icon}
+                      </div>
+                      <div>
+                        <Text size="md" weight="medium">{ft.label}</Text>
+                        <Text size="xs" color="muted">{ft.description}</Text>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const supabase = getSupabaseClient();
+                        if (!supabase || !featureDrawerProfile) return;
+                        const current = featureDrawerProfile.features ?? [];
+                        const updated = enabled
+                          ? current.filter((f) => f !== ft.key)
+                          : [...current, ft.key];
+                        const { error } = await supabase
+                          .from('profiles')
+                          .update({ features: updated })
+                          .eq('id', featureDrawerProfile.id);
+                        if (error) {
+                          toast.error('Failed to update features');
+                          return;
+                        }
+                        // Update local state
+                        setProfiles(prev => prev.map(p =>
+                          p.id === featureDrawerProfile.id ? { ...p, features: updated } : p
+                        ));
+                        setFeatureDrawerProfile(prev => prev ? { ...prev, features: updated } : null);
+                        toast.success(`${ft.label} ${enabled ? 'disabled' : 'enabled'}`);
+                      }}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        enabled ? 'bg-[var(--toolkit)]' : 'bg-[var(--border)]'
+                      }`}
+                      style={enabled ? { background: ft.toggleColor } : undefined}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DrawerBody>
+      </Drawer>
     </div>
   );
 }
+
+const FEATURE_TOGGLES = [
+  {
+    key: 'vibe-planner',
+    label: 'Vibe Planner',
+    description: 'Kanban board for tasks',
+    gradient: 'linear-gradient(135deg, var(--toolkit), var(--toolkit-accent))',
+    toggleColor: 'var(--toolkit)',
+    icon: <span className="text-sm">📋</span>,
+  },
+  {
+    key: 'id-tracker',
+    label: 'ID Tracker',
+    description: 'Identity document tracker',
+    gradient: 'linear-gradient(135deg, var(--toolkit), var(--toolkit-accent))',
+    toggleColor: 'var(--toolkit)',
+    icon: <span className="text-sm">🪪</span>,
+  },
+  {
+    key: 'cricket',
+    label: 'Cricket',
+    description: 'Team expenses & scoring',
+    gradient: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+    toggleColor: 'var(--cricket)',
+    icon: <span className="text-sm">🏏</span>,
+  },
+];
 
 function StatCard({ label, value, subtext, color, icon: Icon }: { label: string; value: number; subtext?: string; color: string; icon: React.ComponentType<{ size?: number; className?: string }> }) {
   return (
@@ -586,7 +715,12 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
   );
 }
 
-function UserMenu({ profile, onToggleAdmin, onToggleDisable }: { profile: Profile; onToggleAdmin: () => void; onToggleDisable: () => void }) {
+function UserMenu({ profile, onToggleAdmin, onToggleDisable, onManageFeatures }: {
+  profile: Profile;
+  onToggleAdmin: () => void;
+  onToggleDisable: () => void;
+  onManageFeatures: () => void;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -601,6 +735,16 @@ function UserMenu({ profile, onToggleAdmin, onToggleDisable }: { profile: Profil
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-10 z-50 bg-[var(--card)] border border-[var(--border)] rounded-xl p-1.5 shadow-xl min-w-[180px] animate-[scaleIn_0.15s]">
+            {/* Manage Features */}
+            <button
+              onClick={() => { onManageFeatures(); setOpen(false); }}
+              className="flex items-center gap-2 w-full px-3 py-2.5 text-[14px] rounded-lg transition-colors cursor-pointer text-[var(--text)] hover:bg-[var(--hover-bg)]"
+            >
+              <Settings2 size={16} />
+              <span>Manage Features</span>
+            </button>
+            <div className="border-t border-[var(--border)] my-1" />
+
             {/* Hide Make Admin for disabled users */}
             {!(profile.disabled && !profile.is_admin) && (
               <>

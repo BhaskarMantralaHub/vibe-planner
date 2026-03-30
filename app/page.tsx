@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 
 export default function Home() {
-  const { user, loading, isCloud, userAccess, init } = useAuthStore();
+  const { user, loading, isCloud, userFeatures, init } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,13 +21,15 @@ export default function Home() {
       return;
     }
 
-    // Redirect based on user's access
-    if (userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')) {
+    // Redirect based on user's enabled features
+    if (userFeatures.includes('vibe-planner')) {
+      router.replace('/vibe-planner');
+    } else if (userFeatures.includes('cricket')) {
       router.replace('/cricket');
     } else {
       router.replace('/vibe-planner');
     }
-  }, [user, loading, isCloud, userAccess, router]);
+  }, [user, loading, isCloud, userFeatures, router]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

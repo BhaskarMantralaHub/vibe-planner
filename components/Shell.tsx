@@ -105,7 +105,11 @@ function PendingApprovals() {
         }
       }
 
-      await supabase.from('profiles').update({ approved: true }).eq('id', p.id);
+      // Set default features for approved user based on their access
+      const defaultFeatures: string[] = [];
+      if (access.includes('toolkit')) defaultFeatures.push('vibe-planner', 'id-tracker');
+      if (access.includes('cricket')) defaultFeatures.push('cricket');
+      await supabase.from('profiles').update({ approved: true, features: defaultFeatures }).eq('id', p.id);
       setPending((prev) => prev.filter((u) => u.id !== p.id));
 
       // Auto-post welcome message in Moments via DB function

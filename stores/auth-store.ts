@@ -26,6 +26,7 @@ interface AuthState {
   isCloud: boolean;
   needsPasswordReset: boolean;
   userAccess: string[];
+  userFeatures: string[];
   userApproved: boolean;
 
   init: () => void;
@@ -37,6 +38,7 @@ interface AuthState {
   setAuthMode: (mode: AuthMode) => void;
   clearError: () => void;
   hasAccess: (role: string) => boolean;
+  hasFeature: (feature: string) => boolean;
 }
 
 export const RESET_FLAG_KEY = 'vibe_needs_password_reset';
@@ -77,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isCloud: false,
   needsPasswordReset: readResetFlag(),
   userAccess: [],
+  userFeatures: [],
   userApproved: true,
 
   init: () => {
@@ -106,7 +109,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       const { data: profile } = await supabase
         .from('profiles')
-        .select('disabled, access, approved')
+        .select('disabled, access, approved, features')
         .eq('id', session.user.id)
         .single();
 
@@ -125,8 +128,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      // Derive features from access if not yet set (backward compat for pre-migration users)
+      let features: string[] = profile?.features ?? [];
+      if (features.length === 0) {
+        if (access.includes('toolkit')) features = [...features, 'vibe-planner', 'id-tracker'];
+        if (access.includes('cricket')) features = [...features, 'cricket'];
+      }
+
       // Player record linking + preference override handled by handle_new_user() DB trigger
-      set({ user: session.user, loading: false, userAccess: access, userApproved: approved });
+      set({ user: session.user, loading: false, userAccess: access, userFeatures: features, userApproved: approved });
     };
 
     const setupAuthListener = () => {
@@ -399,12 +409,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // remounts, calls init() → getSession() finds the still-active session → re-authenticates
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut();
-    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userApproved: true });
+    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true });
   },
 
   hasAccess: (role: string) => {
     const { userAccess } = get();
     return userAccess.includes(role) || userAccess.includes('admin');
+  },
+
+  hasFeature: (feature: string) => {
+    return get().userFeatures.includes(feature);
   },
 
   setAuthMode: (mode: AuthMode) => {

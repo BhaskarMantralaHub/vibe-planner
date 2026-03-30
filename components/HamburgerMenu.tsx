@@ -12,7 +12,7 @@ interface HamburgerMenuProps {
 }
 
 export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
-  const { user, userAccess } = useAuthStore();
+  const { user, userAccess, userFeatures } = useAuthStore();
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -30,7 +30,11 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   }, [isOpen, onClose]);
 
   const access = userAccess.length > 0 ? userAccess : ['toolkit'];
+  const features = userFeatures.length > 0 ? userFeatures : ['vibe-planner', 'id-tracker'];
   const visibleTools = tools.filter((t) => {
+    // Tools with a feature key: check features array (no admin override)
+    if (t.feature) return features.includes(t.feature);
+    // Tools without a feature key (e.g., Admin): fall back to role check
     if (!t.roles) return true;
     return t.roles.some((r) => access.includes(r));
   });

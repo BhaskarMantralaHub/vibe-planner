@@ -332,6 +332,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           toast.error('Update failed — the player may have been removed or your permissions changed.');
         } else {
           set({ players: get().players.map((p) => p.id === id ? { ...p, ...data[0] } : p) });
+          // Name sync to profiles.full_name is handled by DB trigger (sync_player_name_to_profile)
           toast.success('Player updated');
         }
       });

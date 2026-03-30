@@ -9,7 +9,7 @@ import PracticeLeaderboard from '../components/PracticeLeaderboard';
 export default function LeaderboardPage() {
   return (
     <AuthGate variant="cricket">
-      <RoleGate allowed={['cricket', 'admin']}>
+      <RoleGate allowed={['cricket', 'admin']} feature="cricket">
         <div className="px-4 py-4 space-y-4">
           {/* Page header */}
           <div className="flex items-center gap-3">
