@@ -99,10 +99,11 @@ function playResultSound() {
 
 interface CoinFlipPageProps {
   onContinue: () => void;
+  onSkip?: () => void;
   className?: string;
 }
 
-function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
+function CoinFlipPage({ onContinue, onSkip, className }: CoinFlipPageProps) {
   const [result, setResult] = useState<CoinResult>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const coinRef = useRef<HTMLDivElement>(null);
@@ -258,6 +259,14 @@ function CoinFlipPage({ onContinue, className }: CoinFlipPageProps) {
               Flip Again
             </Button>
           </>
+        )}
+        {onSkip && !isFlipping && (
+          <button
+            onClick={onSkip}
+            className="mt-1 py-2 cursor-pointer select-none transition-all active:scale-[0.96]"
+          >
+            <Text size="xs" weight="medium" color="muted">Skip Toss</Text>
+          </button>
         )}
       </div>
     </div>

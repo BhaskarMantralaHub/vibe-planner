@@ -476,6 +476,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
           !coinFlipped ? (
             <CoinFlipPage
               onContinue={() => setCoinFlipped(true)}
+              onSkip={() => setCoinFlipped(true)}
               className="mx-auto max-w-md"
             />
           ) : (
