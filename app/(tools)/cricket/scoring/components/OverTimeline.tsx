@@ -23,8 +23,8 @@ const ballColors: Record<BallType, { bg: string; text: string; label: string }> 
   '1':  { bg: '#6B7280', text: 'white',   label: '1' },        // medium gray
   '2':  { bg: '#6B7280', text: 'white',   label: '2' },
   '3':  { bg: '#6B7280', text: 'white',   label: '3' },
-  '4':  { bg: '#1A75A8', text: 'white',   label: '4' },        // cricket theme
-  '6':  { bg: '#1A75A8', text: 'white',   label: '6' },        // cricket theme (same)
+  '4':  { bg: '#2563EB', text: 'white',   label: '4' },        // blue-600 — solid blue for FOUR
+  '6':  { bg: '#7C3AED', text: 'white',   label: '6' },        // violet-600 — purple for SIX
   W:    { bg: '#DC2626', text: 'white',   label: 'W' },        // red — only hot color
   Wd:   { bg: '#D97706', text: 'white',   label: 'Wd' },       // warm amber (all extras)
   NB:   { bg: '#D97706', text: 'white',   label: 'NB' },       // same amber
@@ -81,15 +81,19 @@ function OverTimeline({ balls, previousOverRuns, overNumber }: OverTimelineProps
 
   return (
     <div
-      className="mx-4 rounded-xl border border-[var(--border)] px-3 py-2"
-      style={{ background: 'var(--surface)' }}
+      className="mx-4 rounded-xl px-4 py-3"
+      style={{
+        background: 'color-mix(in srgb, var(--cricket) 4%, var(--card))',
+        border: '1px solid color-mix(in srgb, var(--cricket) 10%, var(--border))',
+        boxShadow: '0 1px 6px rgba(0,0,0,0.04)',
+      }}
     >
       {/* Header row */}
-      <div className="flex items-center justify-between mb-2">
-        <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
+      <div className="flex items-center justify-between mb-2.5">
+        <Text size="xs" weight="bold" color="cricket" uppercase tracking="wider">
           {overNumber != null ? `Over ${overNumber + 1}` : 'This Over'}
         </Text>
-        <Text size="xs" weight="semibold" tabular>
+        <Text size="sm" weight="bold" tabular>
           {overRuns} runs
         </Text>
       </div>
@@ -107,8 +111,8 @@ function OverTimeline({ balls, previousOverRuns, overNumber }: OverTimelineProps
         {Array.from({ length: emptySlots }).map((_, i) => (
           <div
             key={`empty-${i}`}
-            className="flex-shrink-0 rounded-full border-2 border-dashed border-[var(--border)]"
-            style={{ width: BALL_SIZE, height: BALL_SIZE }}
+            className="flex-shrink-0 rounded-full border-2 border-dashed"
+            style={{ width: BALL_SIZE, height: BALL_SIZE, borderColor: 'color-mix(in srgb, var(--cricket) 15%, var(--border))' }}
           />
         ))}
       </div>

@@ -6,15 +6,18 @@ import { cn } from '@/lib/utils';
 const textVariants = cva('', {
   variants: {
     size: {
-      '2xs': 'text-[11px] leading-[1rem]',        // badges, timestamps, fine print
+      '2xs': 'text-[11px] leading-[0.875rem]',    // badges, timestamps, fine print
       'xs':  'text-[12px] leading-[1rem]',         // captions, metadata
-      'sm':  'text-[13px] leading-[1.25rem]',      // secondary labels, card subtitles
+      'sm':  'text-[13px] leading-[1.125rem]',     // secondary labels, card subtitles
       'md':  'text-[14px] leading-[1.25rem]',      // body text (DEFAULT)
-      'lg':  'text-[16px] leading-[1.5rem]',       // emphasized body, section titles
-      'xl':  'text-[20px] leading-[1.75rem]',      // page headings
-      '2xl': 'text-[24px] leading-[2rem]',         // hero headings
+      'lg':  'text-[16px] leading-[1.375rem]',     // emphasized body, section titles
+      'xl':  'text-[20px] leading-[1.625rem]',     // page headings
+      '2xl': 'text-[24px] leading-[1.75rem]',      // hero headings
+      '3xl': 'text-[32px] leading-[2.25rem]',      // display / score numbers
+      '4xl': 'text-[40px] leading-[2.75rem]',      // hero score numbers
     },
     weight: {
+      light:    'font-light',       // timestamps, metadata, fine print
       normal:   'font-normal',      // body text, descriptions
       medium:   'font-medium',      // labels, nav items, secondary headings
       semibold: 'font-semibold',    // primary headings, card titles, important values
@@ -51,6 +54,12 @@ const textVariants = cva('', {
       true: 'tabular-nums',
     },
   },
+  compoundVariants: [
+    { uppercase: true, size: '2xs', class: 'tracking-wider' },
+    { uppercase: true, size: 'xs', class: 'tracking-wider' },
+    { uppercase: true, size: 'sm', class: 'tracking-wide' },
+    { uppercase: true, size: 'md', class: 'tracking-wide' },
+  ],
   defaultVariants: {
     size: 'md',
     weight: 'normal',

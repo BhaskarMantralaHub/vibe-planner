@@ -55,8 +55,11 @@ interface InningsSummary {
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="px-3 py-2 rounded-t-xl"
-      style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
+      className="px-4 py-2.5 rounded-t-xl"
+      style={{
+        background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B) 0%, var(--cricket) 60%, color-mix(in srgb, var(--cricket) 80%, white) 100%)',
+        boxShadow: '0 2px 8px color-mix(in srgb, var(--cricket) 20%, transparent)',
+      }}
     >
       {children}
     </div>
@@ -65,7 +68,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function BattingTable({ innings }: { innings: InningsSummary }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] overflow-hidden">
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
       {/* Header */}
       <SectionHeader>
         <div className="flex items-center justify-between">
@@ -79,7 +82,7 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
           </Text>
           <div className="flex gap-3">
             {['R', 'B', '4s', '6s', 'SR'].map((h) => (
-              <Text key={h} size="2xs" weight="semibold" color="white" tabular className="w-6 text-right opacity-80">
+              <Text key={h} size="2xs" weight="bold" color="white" tabular className="w-6 text-right opacity-70">
                 {h}
               </Text>
             ))}
@@ -88,17 +91,16 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
       </SectionHeader>
 
       {/* Batsman rows */}
-      <div style={{ background: 'var(--surface)' }}>
+      <div style={{ background: 'var(--card)' }}>
         {innings.batsmen.map((b, i) => {
           const isNotOut = b.dismissal === 'not out';
           return (
-            <div key={i}>
-              {i > 0 && <div className="mx-3 border-t border-[var(--border)]/30" />}
-              <div className="px-3 py-2">
+            <div key={i} style={{ background: i % 2 === 1 ? 'color-mix(in srgb, var(--surface) 50%, var(--card))' : 'var(--card)', borderBottom: '1px solid color-mix(in srgb, var(--border) 25%, transparent)' }}>
+              <div className="px-4 py-3">
                 {/* Name + dismissal */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <Text size="sm" weight="semibold" truncate>
+                    <Text size="sm" weight="bold" truncate>
                       {b.name}
                     </Text>
                     {b.isStriker && (
@@ -106,7 +108,7 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <Text size="sm" weight="bold" tabular className="w-6 text-right">{b.runs}</Text>
+                    <Text size="md" weight="bold" tabular className="w-6 text-right">{b.runs}</Text>
                     <Text size="sm" weight="medium" color="muted" tabular className="w-6 text-right">{b.balls}</Text>
                     <Text size="sm" weight="medium" color="muted" tabular className="w-6 text-right">{b.fours}</Text>
                     <Text size="sm" weight="medium" color="muted" tabular className="w-6 text-right">{b.sixes}</Text>
@@ -114,7 +116,7 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
                   </div>
                 </div>
                 {/* Dismissal text */}
-                <Text size="2xs" weight="medium" color={isNotOut ? 'success' : 'dim'} className="mt-0.5">
+                <Text size="2xs" weight="medium" color={isNotOut ? 'success' : 'dim'} className="mt-1">
                   {b.dismissal}
                 </Text>
               </div>
@@ -123,8 +125,7 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
         })}
 
         {/* Extras */}
-        <div className="mx-3 border-t border-[var(--border)]/30" />
-        <div className="px-3 py-2 flex items-center justify-between">
+        <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 25%, transparent)' }}>
           <Text size="xs" weight="medium" color="muted">
             Extras
             <Text size="2xs" color="dim">
@@ -135,27 +136,23 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
         </div>
 
         {/* Total */}
-        <div className="mx-3 border-t border-[var(--border)]/30" />
-        <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, transparent)' }}>
-          <Text size="sm" weight="bold">
+        <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))' }}>
+          <Text size="md" weight="bold">
             Total
             <Text size="xs" weight="medium" color="muted">
               {' '}({innings.totalWickets} wkts, {innings.totalOvers} overs)
             </Text>
           </Text>
-          <Text size="lg" weight="bold" tabular>{innings.totalRuns}</Text>
+          <Text size="xl" weight="bold" tabular>{innings.totalRuns}</Text>
         </div>
 
         {/* Did not bat */}
         {innings.didNotBat.length > 0 && (
-          <>
-            <div className="mx-3 border-t border-[var(--border)]/30" />
-            <div className="px-3 py-2">
-              <Text size="2xs" weight="medium" color="dim">
-                Did not bat: {innings.didNotBat.join(', ')}
-              </Text>
-            </div>
-          </>
+          <div className="px-4 py-2.5" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 25%, transparent)' }}>
+            <Text size="2xs" weight="medium" color="dim">
+              Did not bat: {innings.didNotBat.join(', ')}
+            </Text>
+          </div>
         )}
       </div>
 
@@ -165,7 +162,7 @@ function BattingTable({ innings }: { innings: InningsSummary }) {
 
 function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] overflow-hidden">
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
       {/* Header */}
       <SectionHeader>
         <div className="flex items-center justify-between">
@@ -174,11 +171,11 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
       </SectionHeader>
 
       {/* Column headers */}
-      <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: 'var(--surface)' }}>
-        <Text size="2xs" weight="semibold" color="muted" className="flex-1">Bowler</Text>
+      <div className="px-4 py-2 flex items-center justify-between" style={{ background: 'color-mix(in srgb, var(--cricket) 4%, var(--surface))', borderBottom: '1px solid color-mix(in srgb, var(--border) 40%, transparent)' }}>
+        <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider" className="flex-1">Bowler</Text>
         <div className="flex gap-1.5">
           {['O', 'M', 'R', 'W', 'Econ'].map((h) => (
-            <Text key={h} size="2xs" weight="semibold" color="muted" tabular className={cn(h === 'Econ' ? 'w-9' : 'w-6', 'text-right')}>
+            <Text key={h} size="2xs" weight="bold" color="dim" uppercase tracking="wider" tabular className={cn(h === 'Econ' ? 'w-9' : 'w-6', 'text-right')}>
               {h}
             </Text>
           ))}
@@ -186,16 +183,15 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
       </div>
 
       {/* Bowler rows */}
-      <div style={{ background: 'var(--surface)' }}>
+      <div style={{ background: 'var(--card)' }}>
         {bowlers.map((b, i) => (
-          <div key={i}>
-            <div className="mx-3 border-t border-[var(--border)]/30" />
-            <div className="px-3 py-2 flex items-start justify-between gap-2">
+          <div key={i} style={{ background: i % 2 === 1 ? 'color-mix(in srgb, var(--surface) 50%, var(--card))' : 'var(--card)', borderBottom: '1px solid color-mix(in srgb, var(--border) 25%, transparent)' }}>
+            <div className="px-4 py-3 flex items-start justify-between gap-2">
               {/* Name + extras */}
               <div className="min-w-0 flex-1">
-                <Text size="sm" weight="semibold" truncate>{b.name}</Text>
+                <Text size="sm" weight="bold" truncate>{b.name}</Text>
                 {b.extras && (
-                  <Text size="2xs" weight="medium" color="muted">{b.extras}</Text>
+                  <Text size="2xs" weight="medium" color="muted" className="mt-0.5">{b.extras}</Text>
                 )}
               </div>
               {/* Stats */}
@@ -203,7 +199,7 @@ function BowlingTable({ bowlers }: { bowlers: BowlerFigure[] }) {
                 <Text size="sm" weight="medium" tabular className="w-6 text-right">{b.overs}</Text>
                 <Text size="sm" weight="medium" color="muted" tabular className="w-6 text-right">{b.maidens}</Text>
                 <Text size="sm" weight="medium" tabular className="w-6 text-right">{b.runs}</Text>
-                <Text size="sm" weight="bold" tabular className="w-6 text-right">{b.wickets}</Text>
+                <Text size="md" weight="bold" tabular className="w-6 text-right">{b.wickets}</Text>
                 <Text size="sm" weight="medium" color="muted" tabular className="w-9 text-right">{b.economy}</Text>
               </div>
             </div>
@@ -239,20 +235,20 @@ function FullScorecard({ innings }: FullScorecardProps) {
 
       {/* ── Fall of Wickets ── */}
       {innings.fallOfWickets.length > 0 && (
-        <div className="rounded-xl border border-[var(--border)] overflow-hidden">
-          <div className="px-3 py-2 rounded-t-xl" style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+          <SectionHeader>
             <Text size="sm" weight="bold" color="white">Fall of Wickets</Text>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 p-2" style={{ background: 'var(--surface)' }}>
+          </SectionHeader>
+          <div className="grid grid-cols-2 gap-2 p-3" style={{ background: 'var(--card)' }}>
             {innings.fallOfWickets.map((fow) => (
-              <div key={fow.wicketNum} className="flex items-center gap-2.5 rounded-xl bg-[var(--card)] border border-[var(--border)]/30 px-3 py-2.5">
+              <div key={fow.wicketNum} className="flex items-center gap-2.5 rounded-xl px-3 py-3" style={{ background: 'color-mix(in srgb, var(--red) 4%, var(--surface))', border: '1px solid color-mix(in srgb, var(--red) 10%, var(--border))' }}>
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+                  style={{ background: 'linear-gradient(135deg, var(--red-deep), var(--red))', boxShadow: '0 2px 6px rgba(220,38,38,0.2)' }}>
                   {fow.playerName.charAt(0)}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <Text size="xs" weight="semibold" truncate>{fow.playerName}</Text>
-                  <Text size="2xs" weight="medium" color="muted" tabular>
+                  <Text size="xs" weight="bold" truncate>{fow.playerName}</Text>
+                  <Text size="2xs" weight="semibold" color="muted" tabular>
                     {fow.wicketNum} - {fow.score}, Ov {fow.over}
                   </Text>
                 </div>

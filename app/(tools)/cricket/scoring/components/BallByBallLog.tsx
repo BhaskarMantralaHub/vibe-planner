@@ -60,8 +60,8 @@ const ballTypeColor: Record<BallEntry['type'], { bg: string; text: string }> = {
   single: { bg: '#6B7280', text: 'white' },
   double: { bg: '#6B7280', text: 'white' },
   triple: { bg: '#6B7280', text: 'white' },
-  four:   { bg: '#1A75A8', text: 'white' },
-  six:    { bg: '#1A75A8', text: 'white' },
+  four:   { bg: '#2563EB', text: 'white' },   // blue-600 — solid blue for FOUR
+  six:    { bg: '#7C3AED', text: 'white' },   // violet-600 — purple for SIX (premium, celebratory)
   wide:   { bg: '#D97706', text: 'white' },
   noball: { bg: '#D97706', text: 'white' },
   bye:    { bg: '#D97706', text: 'white' },
@@ -114,14 +114,20 @@ function BallPill({ entry }: { entry: BallEntry }) {
   const c = ballTypeColor[entry.type];
   const label = ballLabel(entry);
   const isSmall = ['Wd', 'NB', 'LB'].includes(label);
+  const isWicket = entry.type === 'wicket';
+  const isBoundary = entry.type === 'four' || entry.type === 'six';
   return (
     <div
       className="flex-shrink-0 flex items-center justify-center rounded-full"
-      style={{ width: 36, height: 36, backgroundColor: c.bg }}
+      style={{
+        width: 40, height: 40,
+        backgroundColor: c.bg,
+        boxShadow: isWicket ? '0 2px 8px rgba(220,38,38,0.3)' : entry.type === 'six' ? '0 2px 8px rgba(124,58,237,0.3)' : entry.type === 'four' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+      }}
     >
       <span
         className="font-bold tabular-nums leading-none"
-        style={{ color: c.text, fontSize: label === '\u00B7' ? 22 : isSmall ? 11 : 14 }}
+        style={{ color: c.text, fontSize: label === '\u00B7' ? 24 : isSmall ? 11 : 16 }}
       >
         {label}
       </span>
@@ -131,24 +137,28 @@ function BallPill({ entry }: { entry: BallEntry }) {
 
 function BallRow({ entry }: { entry: BallEntry }) {
   const isWicket = entry.type === 'wicket';
+  const isBoundary = entry.type === 'four' || entry.type === 'six';
   const tag = eventTag(entry);
   return (
     <div
-      className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+      className="flex items-center gap-3 px-3 py-3"
       style={{
         background: isWicket
-          ? 'color-mix(in srgb, #EF4444 8%, transparent)'
-          : 'transparent',
-        borderLeft: isWicket ? '3px solid #EF4444' : '3px solid transparent',
+          ? 'color-mix(in srgb, var(--red) 6%, var(--card))'
+          : isBoundary
+            ? 'color-mix(in srgb, var(--cricket) 3%, transparent)'
+            : 'transparent',
+        borderLeft: isWicket ? '3px solid var(--red)' : isBoundary ? '3px solid var(--cricket)' : '3px solid transparent',
+        borderBottom: '1px solid color-mix(in srgb, var(--border) 20%, transparent)',
       }}
     >
       <BallPill entry={entry} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <Text size="xs" weight="semibold" color="muted" tabular className="flex-shrink-0">
+          <Text size="xs" weight="bold" color="cricket" tabular className="flex-shrink-0">
             {entry.overBall}
           </Text>
-          <Text size="sm" weight={tag ? 'semibold' : 'normal'} className="flex-1 min-w-0" truncate>
+          <Text size="sm" weight={tag ? 'semibold' : 'normal'} className="flex-1 min-w-0">
             {ballDescription(entry)}
           </Text>
         </div>
@@ -156,16 +166,13 @@ function BallRow({ entry }: { entry: BallEntry }) {
           <Text
             size="xs"
             weight="bold"
-            color={isWicket ? 'danger' : entry.type === 'four' ? 'accent' : entry.type === 'six' ? 'success' : 'muted'}
+            color={isWicket ? 'danger' : isBoundary ? 'cricket' : 'muted'}
             className="mt-0.5"
           >
             {isWicket ? `OUT! ${entry.batter} — ${entry.wicketText ?? 'dismissed'}` : tag}
           </Text>
         )}
       </div>
-      <Text size="2xs" color="dim" tabular className="flex-shrink-0 mt-0.5">
-        {entry.timestamp}
-      </Text>
     </div>
   );
 }
@@ -173,29 +180,36 @@ function BallRow({ entry }: { entry: BallEntry }) {
 function OverSummaryCard({ data }: { data: OverSummary }) {
   return (
     <div
-      className="mx-1 my-2 rounded-xl border border-[var(--cricket)]/20 p-3"
-      style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' }}
+      className="mx-1 my-2.5 rounded-xl p-3.5"
+      style={{
+        background: 'color-mix(in srgb, var(--cricket) 6%, var(--card))',
+        border: '1px solid color-mix(in srgb, var(--cricket) 15%, var(--border))',
+        boxShadow: '0 1px 6px rgba(0,0,0,0.04)',
+      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2.5">
         <Text size="sm" weight="bold" color="cricket">
           Over {data.overNumber}
         </Text>
-        <Text size="sm" weight="bold" tabular>
+        <span
+          className="px-2.5 py-0.5 rounded-full text-[12px] font-bold tabular-nums"
+          style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }}
+        >
           {data.totalRuns} runs
-        </Text>
+        </span>
       </div>
 
       {/* Body — batsmen + bowler */}
       <div className="flex gap-4">
         {/* Batsmen */}
-        <div className="flex-1 space-y-0.5">
+        <div className="flex-1 space-y-1">
           {data.batsmen.map((b, i) => (
             <div key={i} className="flex items-center gap-2">
               <Text size="xs" weight="medium" truncate className="flex-1">
                 {b.name}
               </Text>
-              <Text size="xs" weight="semibold" tabular>
+              <Text size="xs" weight="bold" tabular>
                 {b.runs} ({b.balls})
               </Text>
             </div>
@@ -203,13 +217,13 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
         </div>
 
         {/* Divider */}
-        <div className="w-px bg-[var(--border)]" />
+        <div className="w-px" style={{ background: 'color-mix(in srgb, var(--cricket) 15%, var(--border))' }} />
 
         {/* Bowler */}
-        <div className="flex-1 space-y-0.5">
+        <div className="flex-1 space-y-1">
           <div className="flex items-center gap-1">
-            <Text size="2xs" weight="medium" color="muted">Bowler:</Text>
-            <Text size="xs" weight="semibold">{data.bowlerName}</Text>
+            <Text size="2xs" weight="medium" color="dim">Bowler:</Text>
+            <Text size="xs" weight="bold">{data.bowlerName}</Text>
           </div>
           <Text size="2xs" weight="medium" color="muted" tabular>{data.bowlerFigures}</Text>
           <Text size="2xs" weight="medium" color="muted" tabular>Run Rate: {data.runRate}</Text>
@@ -217,8 +231,8 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
       </div>
 
       {/* Team score */}
-      <div className="mt-2 pt-2 border-t border-[var(--border)]">
-        <Text size="xs" weight="bold" tabular>
+      <div className="mt-2.5 pt-2 flex items-center justify-between" style={{ borderTop: '1px solid color-mix(in srgb, var(--cricket) 10%, var(--border))' }}>
+        <Text size="xs" weight="bold">
           {data.teamName}: {data.teamScore}
         </Text>
       </div>
@@ -228,23 +242,28 @@ function OverSummaryCard({ data }: { data: OverSummary }) {
 
 function RetirementCard({ data }: { data: RetirementData }) {
   return (
-    <div className="mx-2 my-1 px-3 py-2 rounded-xl border border-teal-500/30 bg-teal-500/5">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-teal-500/15 flex-shrink-0">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-500">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </div>
-        <div className="flex-1 min-w-0">
-          <Text as="p" size="xs" weight="semibold" className="text-teal-500">
-            {data.playerName} retired ({data.runs} runs, {data.balls}b)
-          </Text>
-          <Text as="p" size="2xs" color="muted">
-            {data.replacementName} comes in
-          </Text>
-        </div>
+    <div
+      className="mx-1 my-2 px-4 py-3 rounded-xl flex items-center gap-3"
+      style={{
+        background: 'linear-gradient(135deg, color-mix(in srgb, #14B8A6 10%, var(--card)), color-mix(in srgb, #14B8A6 5%, var(--card)))',
+        border: '1px solid color-mix(in srgb, #14B8A6 25%, var(--border))',
+        borderLeft: '3px solid #14B8A6',
+      }}
+    >
+      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, #14B8A6 15%, var(--surface))' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <Text as="p" size="sm" weight="bold" style={{ color: '#14B8A6' }}>
+          {data.playerName} retired ({data.runs} runs, {data.balls}b)
+        </Text>
+        <Text as="p" size="xs" color="muted" className="mt-0.5">
+          {data.replacementName} comes in
+        </Text>
       </div>
     </div>
   );

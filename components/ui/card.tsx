@@ -16,6 +16,12 @@ const cardVariants = cva(
         default: 'shadow-xl',
         hover: 'shadow-xl hover:shadow-2xl transition-shadow',
       },
+      surface: {
+        solid: '',
+        gradient: 'bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] border-[var(--border)]/60',
+        glass: 'backdrop-blur-xl bg-[var(--glass)] border-[var(--border)]/40 shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+        elevated: 'bg-[var(--elevated)] shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+      },
       animate: {
         true: 'animate-slide-in',
       },
@@ -23,15 +29,16 @@ const cardVariants = cva(
     defaultVariants: {
       padding: 'lg',
       shadow: 'default',
+      surface: 'solid',
     },
   }
 );
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {}
 
-function Card({ className, padding, shadow, animate, children, ...props }: CardProps) {
+function Card({ className, padding, shadow, surface, animate, children, ...props }: CardProps) {
   return (
-    <div className={cn(cardVariants({ padding, shadow, animate }), className)} {...props}>
+    <div className={cn(cardVariants({ padding, shadow, surface, animate }), className)} {...props}>
       {children}
     </div>
   );

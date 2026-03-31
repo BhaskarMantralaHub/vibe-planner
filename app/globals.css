@@ -24,6 +24,12 @@
   --hover-bg: rgba(255, 255, 255, 0.06);
   --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   --card-hover-shadow: 0 12px 30px rgba(77, 187, 235, 0.25);
+  --elevated: #222650;
+  --glass: rgba(28, 31, 63, 0.75);
+  --inner-glow: rgba(255, 255, 255, 0.04);
+  --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.2);
+  --green-deep: #15803D;
+  --red-deep: #B91C1C;
 
   /* Status card gradients — each has a distinct hue */
   --spark-from: #111B2E;
@@ -85,6 +91,13 @@
   --hover-bg: rgba(0, 0, 0, 0.04);
   --card-shadow: 0 2px 8px rgba(108, 99, 255, 0.08);
   --card-hover-shadow: 0 12px 30px rgba(26, 117, 168, 0.15);
+  --elevated: #FFFFFF;
+  --glass: rgba(255, 255, 255, 0.75);
+  --inner-glow: rgba(255, 255, 255, 0.5);
+  --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --cricket-deep: #0C3D66;
+  --green-deep: #15803D;
+  --red-deep: #B91C1C;
 
   /* Cricket team theme — change these to rebrand the entire cricket app */
   --cricket: #1A75A8;

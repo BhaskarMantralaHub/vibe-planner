@@ -6,11 +6,11 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        purple: 'bg-[var(--purple)]/15 text-[var(--purple)]',
-        orange: 'bg-[var(--orange)]/15 text-[var(--orange)]',
-        red: 'bg-[var(--red)]/15 text-[var(--red)]',
-        green: 'bg-[var(--green)]/15 text-[var(--green)]',
-        blue: 'bg-[var(--blue)]/15 text-[var(--blue)]',
+        purple: 'bg-[var(--purple)]/20 text-[var(--purple)]',
+        orange: 'bg-[var(--orange)]/20 text-[var(--orange)]',
+        red: 'bg-[var(--red)]/20 text-[var(--red)]',
+        green: 'bg-[var(--green)]/20 text-[var(--green)]',
+        blue: 'bg-[var(--blue)]/20 text-[var(--blue)]',
         muted: 'bg-[var(--surface)] text-[var(--dim)] border border-[var(--border)]',
       },
       size: {

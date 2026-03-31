@@ -14,189 +14,146 @@ interface ButtonGridProps {
 }
 
 /**
- * Premium cricket scoring pad — dark elevated card with
- * circular run buttons, gradient boundary pills, dramatic
- * wicket bar, and compact extras row.
+ * Premium cricket scoring pad — compact layout optimized for
+ * keeping scoreboard visible above the fold. Larger touch targets,
+ * stronger visual hierarchy between primary (runs) and secondary (extras/actions).
  */
 function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, onRetire, canUndo = false, canRedo = false }: ButtonGridProps) {
   return (
     <div
       className="mx-4 rounded-2xl overflow-hidden"
       style={{
-        background: 'linear-gradient(180deg, color-mix(in srgb, var(--cricket) 8%, var(--surface)), var(--surface))',
-        border: '1px solid color-mix(in srgb, var(--cricket) 15%, var(--border))',
+        background: 'var(--card)',
+        border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06), inset 0 1px 0 0 var(--inner-glow)',
       }}
     >
-      {/* ── Run Buttons: circular, like cricket balls ── */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-center justify-center gap-4">
-          {/* Dot ball — muted */}
+      {/* ── Primary: Runs + Boundaries (2 rows) ── */}
+      <div className="px-3 pt-3 pb-2">
+        {/* Row 1: dot + 1 + 2 + 3 — all equal width */}
+        <div className="grid grid-cols-4 gap-2 mb-2">
+          {/* Dot */}
           <button
             onClick={() => onScore('runs', 0)}
-            className={cn(
-              'flex items-center justify-center rounded-full cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.88]',
-              'border-2 border-[var(--border)]',
-            )}
+            className="flex items-center justify-center rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-[0.88]"
             style={{
-              width: 48, height: 48,
-              background: 'var(--card)',
+              height: 52,
+              background: 'color-mix(in srgb, var(--border) 30%, var(--surface))',
+              border: '1.5px solid var(--border)',
             }}
           >
-            <span className="text-[22px] leading-none font-bold tabular-nums" style={{ color: 'var(--muted)' }}>
-              ·
-            </span>
+            <span className="text-[24px] leading-none font-bold" style={{ color: 'var(--muted)' }}>·</span>
           </button>
 
-          {/* 1, 2, 3 — themed circles */}
+          {/* 1, 2, 3 */}
           {[1, 2, 3].map((v) => (
             <button
               key={v}
               onClick={() => onScore('runs', v)}
-              className={cn(
-                'flex items-center justify-center rounded-full cursor-pointer select-none',
-                'transition-all duration-150 active:scale-[0.88]',
-                'border-2',
-              )}
+              className="flex items-center justify-center rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-[0.88]"
               style={{
-                width: 48, height: 48,
-                background: 'color-mix(in srgb, var(--cricket) 10%, var(--card))',
-                borderColor: 'color-mix(in srgb, var(--cricket) 30%, transparent)',
+                height: 52,
+                background: 'color-mix(in srgb, var(--cricket) 8%, var(--surface))',
+                border: '1.5px solid color-mix(in srgb, var(--cricket) 25%, var(--border))',
               }}
             >
-              <span className="text-[18px] leading-none font-bold tabular-nums" style={{ color: 'var(--text)' }}>
-                {v}
-              </span>
+              <span className="text-[22px] leading-none font-bold tabular-nums" style={{ color: 'var(--text)' }}>{v}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ── Boundary Row: FOUR + SIX ── */}
-      <div className="px-4 pb-2">
-        <div className="grid grid-cols-2 gap-2">
-          {/* FOUR */}
+        {/* Row 2: FOUR + SIX — full width gradient pills */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <button
             onClick={() => onScore('runs', 4)}
-            className={cn(
-              'flex items-center justify-center gap-1.5 rounded-xl cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.92]',
-            )}
+            className="flex items-center justify-center gap-2 rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-[0.92]"
             style={{
-              height: 48,
+              height: 50,
               background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-              boxShadow: '0 3px 12px color-mix(in srgb, var(--cricket) 25%, transparent)',
+              boxShadow: '0 3px 12px color-mix(in srgb, var(--cricket) 30%, transparent)',
             }}
           >
-            <span className="text-[20px] leading-none font-extrabold tabular-nums text-white">4</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/70">FOUR</span>
+            <span className="text-[22px] leading-none font-extrabold tabular-nums text-white">4</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">FOUR</span>
           </button>
 
-          {/* SIX */}
           <button
             onClick={() => onScore('runs', 6)}
-            className={cn(
-              'flex items-center justify-center gap-1.5 rounded-xl cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.92]',
-            )}
+            className="flex items-center justify-center gap-2 rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-[0.92]"
             style={{
-              height: 48,
-              background: 'linear-gradient(135deg, var(--green, #15803D), color-mix(in srgb, var(--green, #22C55E) 80%, white))',
-              boxShadow: '0 3px 12px color-mix(in srgb, var(--green, #22C55E) 25%, transparent)',
+              height: 50,
+              background: 'linear-gradient(135deg, var(--green-deep), var(--green))',
+              boxShadow: '0 3px 12px color-mix(in srgb, var(--green) 30%, transparent)',
             }}
           >
-            <span className="text-[20px] leading-none font-extrabold tabular-nums text-white">6</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/70">SIX</span>
+            <span className="text-[22px] leading-none font-extrabold tabular-nums text-white">6</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/70">SIX</span>
           </button>
         </div>
-      </div>
 
-      {/* ── WICKET — dramatic full-width ── */}
-      <div className="px-4 pb-2">
+        {/* Row 3: WICKET — dramatic full-width */}
         <button
           onClick={() => onScore('wicket')}
-          className={cn(
-            'w-full flex items-center justify-center gap-2 rounded-xl cursor-pointer select-none',
-            'transition-all duration-150 active:scale-[0.95]',
-          )}
+          className="w-full flex items-center justify-center gap-2.5 rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-[0.95]"
           style={{
-            height: 48,
-            background: 'linear-gradient(135deg, var(--red, #B91C1C), color-mix(in srgb, var(--red, #EF4444) 80%, white))',
-            boxShadow: '0 3px 12px color-mix(in srgb, var(--red, #EF4444) 25%, transparent)',
+            height: 50,
+            background: 'linear-gradient(135deg, var(--red-deep), var(--red))',
+            boxShadow: '0 3px 12px color-mix(in srgb, var(--red) 30%, transparent)',
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="opacity-80">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="opacity-80">
             <rect x="5" y="3" width="2" height="18" rx="1" fill="white" />
             <rect x="11" y="3" width="2" height="18" rx="1" fill="white" />
             <rect x="17" y="3" width="2" height="18" rx="1" fill="white" />
             <rect x="4" y="5" width="16" height="2" rx="1" fill="white" opacity="0.6" />
           </svg>
-          <span className="text-[14px] font-bold uppercase tracking-[0.08em] text-white">
-            Wicket
-          </span>
+          <span className="text-[15px] font-bold uppercase tracking-[0.06em] text-white">Wicket</span>
         </button>
       </div>
 
-      {/* ── Extras + Actions ── */}
+      {/* ── Secondary: Extras + Actions (compact) ── */}
       <div
-        className="px-4 pt-2 pb-2 flex flex-col gap-1.5"
-        style={{ borderTop: '1px solid color-mix(in srgb, var(--cricket) 10%, var(--border))' }}
+        className="px-3 pt-2 pb-2.5"
+        style={{ borderTop: '1px solid color-mix(in srgb, var(--cricket) 8%, var(--border))' }}
       >
-        {/* Extras row */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onScore('wide')}
-            className={cn(
-              'flex-1 flex items-center justify-center rounded-lg cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.92]',
-              'border border-amber-500/50 bg-amber-500/10',
-            )}
-            style={{ height: 40 }}
-          >
-            <span className="text-[11px] font-semibold text-amber-500">Wide</span>
-          </button>
-          <button
-            onClick={() => onScore('noball')}
-            className={cn(
-              'flex-1 flex items-center justify-center rounded-lg cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.92]',
-              'border border-amber-500/50 bg-amber-500/10',
-            )}
-            style={{ height: 40 }}
-          >
-            <span className="text-[11px] font-semibold text-amber-500">No Ball</span>
-          </button>
-          <button
-            onClick={() => onScore('bye')}
-            className={cn(
-              'flex-1 flex items-center justify-center rounded-lg cursor-pointer select-none',
-              'transition-all duration-150 active:scale-[0.92]',
-              'border border-amber-500/50 bg-amber-500/10',
-            )}
-            style={{ height: 40 }}
-          >
-            <span className="text-[11px] font-semibold text-amber-500">Bye</span>
-          </button>
+        {/* Extras: Wide / No Ball / Bye — single compact row */}
+        <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+          {(['wide', 'noball', 'bye'] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => onScore(type)}
+              className="flex items-center justify-center rounded-lg cursor-pointer select-none transition-all duration-150 active:scale-[0.92]"
+              style={{
+                height: 36,
+                background: 'color-mix(in srgb, var(--orange) 8%, var(--surface))',
+                border: '1px solid color-mix(in srgb, var(--orange) 25%, var(--border))',
+              }}
+            >
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--orange)' }}>
+                {type === 'noball' ? 'No Ball' : type === 'wide' ? 'Wide' : 'Bye'}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* Retire / Undo / Redo / End row */}
-        <div className="flex items-center gap-1.5">
+        {/* Actions: Retire / Undo / Redo / End — compact row */}
+        <div className="grid grid-cols-4 gap-1.5">
           {onRetire && (
             <button
               onClick={onRetire}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none',
-                'transition-all duration-150 active:scale-[0.92]',
-                'border border-teal-500/40 bg-teal-500/8',
-              )}
-              style={{ height: 40 }}
+              className="flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none transition-all duration-150 active:scale-[0.92]"
+              style={{
+                height: 36,
+                background: 'color-mix(in srgb, #14B8A6 8%, var(--surface))',
+                border: '1px solid color-mix(in srgb, #14B8A6 25%, var(--border))',
+              }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-500">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              <span className="text-[11px] font-semibold text-teal-500">Retire</span>
+              <span className="text-[10px] font-semibold" style={{ color: '#14B8A6' }}>Retire</span>
             </button>
           )}
           {onUndo && (
@@ -204,17 +161,19 @@ function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, onRetire, canUndo = f
               onClick={onUndo}
               disabled={!canUndo}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none',
-                'transition-all duration-150 active:scale-[0.92]',
-                'border border-[var(--border)] bg-[var(--card)]',
+                'flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none transition-all duration-150 active:scale-[0.92]',
                 !canUndo && 'opacity-30 cursor-not-allowed active:scale-100',
               )}
-              style={{ height: 40 }}
+              style={{
+                height: 36,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+              }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--muted)' }}>
                 <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
               </svg>
-              <span className="text-[11px] font-medium" style={{ color: 'var(--muted)' }}>Undo</span>
+              <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>Undo</span>
             </button>
           )}
           {onRedo && (
@@ -222,33 +181,35 @@ function ButtonGrid({ onScore, onUndo, onRedo, onEndMatch, onRetire, canUndo = f
               onClick={onRedo}
               disabled={!canRedo}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none',
-                'transition-all duration-150 active:scale-[0.92]',
-                'border border-[var(--border)] bg-[var(--card)]',
+                'flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none transition-all duration-150 active:scale-[0.92]',
                 !canRedo && 'opacity-30 cursor-not-allowed active:scale-100',
               )}
-              style={{ height: 40 }}
+              style={{
+                height: 36,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+              }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--muted)' }}>
                 <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
               </svg>
-              <span className="text-[11px] font-medium" style={{ color: 'var(--muted)' }}>Redo</span>
+              <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>Redo</span>
             </button>
           )}
           {onEndMatch && (
             <button
               onClick={onEndMatch}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none',
-                'transition-all duration-150 active:scale-[0.92]',
-                'border border-[var(--red)]/40 bg-[var(--red)]/8',
-              )}
-              style={{ height: 40 }}
+              className="flex items-center justify-center gap-1 rounded-lg cursor-pointer select-none transition-all duration-150 active:scale-[0.92]"
+              style={{
+                height: 36,
+                background: 'color-mix(in srgb, var(--red) 8%, var(--surface))',
+                border: '1px solid color-mix(in srgb, var(--red) 25%, var(--border))',
+              }}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-[var(--red)]">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="var(--red)">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
               </svg>
-              <span className="text-[11px] font-medium" style={{ color: 'var(--red)' }}>End</span>
+              <span className="text-[10px] font-semibold" style={{ color: 'var(--red)' }}>End</span>
             </button>
           )}
         </div>

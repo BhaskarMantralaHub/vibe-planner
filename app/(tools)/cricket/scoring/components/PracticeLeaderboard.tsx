@@ -24,13 +24,21 @@ const CATEGORIES = [
 
 /* ── Rank badge ── */
 function RankBadge({ rank }: { rank: number }) {
-  const s = rank === 1 ? { bg: 'linear-gradient(135deg, #FFD700, #FFA500)', text: '#7C5300' }
-    : rank === 2 ? { bg: 'linear-gradient(135deg, #C0C0C0, #A0A0A0)', text: '#3A3A3A' }
-    : rank === 3 ? { bg: 'linear-gradient(135deg, #CD7F32, #A0522D)', text: '#fff' }
-    : { bg: 'var(--surface)', text: 'var(--muted)' };
+  const s = rank === 1 ? { bg: 'linear-gradient(135deg, #FFD700, #FFA500)', text: '#7C5300', shadow: '0 2px 8px rgba(255,215,0,0.35)', emoji: '\uD83C\uDFC6' }
+    : rank === 2 ? { bg: 'linear-gradient(135deg, #C0C0C0, #A0A0A0)', text: '#3A3A3A', shadow: '0 2px 6px rgba(160,160,160,0.3)', emoji: '\uD83E\uDD48' }
+    : rank === 3 ? { bg: 'linear-gradient(135deg, #CD7F32, #A0522D)', text: '#fff', shadow: '0 2px 6px rgba(205,127,50,0.3)', emoji: '\uD83E\uDD49' }
+    : { bg: 'var(--surface)', text: 'var(--muted)', shadow: 'none', emoji: '' };
+  if (rank <= 3) {
+    return (
+      <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold"
+        style={{ background: s.bg, color: s.text, boxShadow: s.shadow }}>
+        {rank}
+      </div>
+    );
+  }
   return (
-    <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold"
-      style={{ background: s.bg, color: s.text, border: rank > 3 ? '1px solid var(--border)' : 'none' }}>
+    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold"
+      style={{ color: 'var(--dim)' }}>
       {rank}
     </div>
   );
@@ -44,18 +52,18 @@ function PlayerCell({ entry }: { entry: LeaderboardEntry }) {
   const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null;
 
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center gap-2.5 min-w-0">
       {entry.photo_url ? (
         <img src={entry.photo_url} alt={entry.name}
-          className="flex-shrink-0 h-7 w-7 rounded-full object-cover ring-1 ring-[var(--border)]" />
+          className="flex-shrink-0 h-8 w-8 rounded-full object-cover ring-2 ring-[var(--border)]/50" />
       ) : (
-        <div className="flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+        <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
           style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}>
           {entry.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
         </div>
       )}
       <div className="min-w-0">
-        <Text as="p" size="xs" weight="bold" truncate>
+        <Text as="p" size="sm" weight="bold" truncate>
           {firstName}{entry.is_guest && <Text as="span" size="2xs" color="dim" weight="normal"> (G)</Text>}
         </Text>
         {lastName && (
@@ -77,7 +85,7 @@ function TH({ children }: { children: React.ReactNode }) {
 
 /* ── Stat cell ── */
 function Stat({ value, bold }: { value: string | number; bold?: boolean }) {
-  return <Text as="p" size="xs" weight={bold ? 'bold' : 'normal'} tabular>{value}</Text>;
+  return <Text as="p" size={bold ? 'sm' : 'xs'} weight={bold ? 'bold' : 'normal'} color={bold ? 'default' : 'muted'} tabular>{value}</Text>;
 }
 
 /* ── Loading skeleton ── */
@@ -149,35 +157,35 @@ function StatsTable({ category, entries, loading, myPlayerId }: { category: stri
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-[var(--border)]/40" style={{ background: 'color-mix(in srgb, var(--surface) 80%, var(--border))' }}>
-              <th className="pl-2 pr-1 py-2 text-left w-7"><TH>#</TH></th>
-              <th className="px-1 py-2 text-left"><TH>Player</TH></th>
-              <th className={`py-2 ${SC}`}><TH>M</TH></th>
+            <tr style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--surface))', borderBottom: '2px solid color-mix(in srgb, var(--cricket) 20%, var(--border))' }}>
+              <th className="pl-3 pr-1 py-3 text-left w-8"><TH>#</TH></th>
+              <th className="px-1 py-3 text-left"><TH>Player</TH></th>
+              <th className={`py-3 ${SC}`}><TH>M</TH></th>
               {category === 'batting' && <>
-                <th className={`py-2 ${SC}`}><TH>R</TH></th>
-                <th className={`py-2 ${SC}`}><TH>B</TH></th>
-                <th className={`py-2 ${SCW}`}><TH>SR</TH></th>
-                <th className={`py-2 ${SC}`}><TH>4s</TH></th>
-                <th className={`py-2 pr-2 ${SC}`}><TH>6s</TH></th>
+                <th className={`py-3 ${SC}`}><TH>R</TH></th>
+                <th className={`py-3 ${SC}`}><TH>B</TH></th>
+                <th className={`py-3 ${SCW}`}><TH>SR</TH></th>
+                <th className={`py-3 ${SC}`}><TH>4s</TH></th>
+                <th className={`py-3 pr-3 ${SC}`}><TH>6s</TH></th>
               </>}
               {category === 'bowling' && <>
-                <th className={`py-2 ${SC}`}><TH>W</TH></th>
-                <th className={`py-2 ${SC}`}><TH>O</TH></th>
-                <th className={`py-2 ${SCW}`}><TH>Econ</TH></th>
-                <th className={`py-2 ${SC}`}><TH>Wd</TH></th>
-                <th className={`py-2 pr-2 ${SC}`}><TH>Nb</TH></th>
+                <th className={`py-3 ${SC}`}><TH>W</TH></th>
+                <th className={`py-3 ${SC}`}><TH>O</TH></th>
+                <th className={`py-3 ${SCW}`}><TH>Econ</TH></th>
+                <th className={`py-3 ${SC}`}><TH>Wd</TH></th>
+                <th className={`py-3 pr-3 ${SC}`}><TH>Nb</TH></th>
               </>}
               {category === 'fielding' && <>
-                <th className={`py-2 ${SC}`}><TH>Dis</TH></th>
-                <th className={`py-2 ${SC}`}><TH>Ct</TH></th>
-                <th className={`py-2 ${SC}`}><TH>RO</TH></th>
-                <th className={`py-2 pr-2 ${SC}`}><TH>St</TH></th>
+                <th className={`py-3 ${SC}`}><TH>Dis</TH></th>
+                <th className={`py-3 ${SC}`}><TH>Ct</TH></th>
+                <th className={`py-3 ${SC}`}><TH>RO</TH></th>
+                <th className={`py-3 pr-3 ${SC}`}><TH>St</TH></th>
               </>}
               {category === 'allround' && <>
-                <th className={`py-2 ${SCW}`}><TH>Runs</TH></th>
-                <th className={`py-2 ${SCW}`}><TH>Wkts</TH></th>
-                <th className={`py-2 ${SC}`}><TH>Ct</TH></th>
-                <th className={`py-2 pr-2 ${SC}`}><TH>Pts</TH></th>
+                <th className={`py-3 ${SCW}`}><TH>Runs</TH></th>
+                <th className={`py-3 ${SCW}`}><TH>Wkts</TH></th>
+                <th className={`py-3 ${SC}`}><TH>Ct</TH></th>
+                <th className={`py-3 pr-3 ${SC}`}><TH>Pts</TH></th>
               </>}
             </tr>
           </thead>
@@ -186,37 +194,49 @@ function StatsTable({ category, entries, loading, myPlayerId }: { category: stri
               const isMe = myPlayerId === e.player_id;
               return (
               <tr key={e.player_id} className={cn(
-                'border-b border-[var(--border)]/15 hover:bg-[var(--hover-bg)] transition-colors',
-                isMe ? 'bg-[var(--cricket)]/8 border-l-2 border-l-[var(--cricket)]' : i % 2 === 1 ? 'bg-[var(--surface)]/40' : '',
-              )}>
-                <td className="pl-2 pr-1 py-1.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-1 py-1.5"><PlayerCell entry={e} /></td>
-                <td className={`py-1.5 ${SC}`}><Stat value={e.matches ?? 0} /></td>
+                'transition-colors',
+                isMe
+                  ? 'border-l-3 border-l-[var(--cricket)]'
+                  : '',
+              )}
+              style={{
+                background: isMe
+                  ? 'color-mix(in srgb, var(--cricket) 8%, var(--card))'
+                  : i <= 2
+                    ? 'color-mix(in srgb, var(--cricket) 3%, var(--card))'
+                    : i % 2 === 0
+                      ? 'var(--card)'
+                      : 'color-mix(in srgb, var(--surface) 50%, var(--card))',
+                borderBottom: '1px solid color-mix(in srgb, var(--border) 25%, transparent)',
+              }}>
+                <td className="pl-3 pr-1 py-3"><RankBadge rank={i + 1} /></td>
+                <td className="px-1 py-3"><PlayerCell entry={e} /></td>
+                <td className={`py-3 ${SC}`}><Stat value={e.matches ?? 0} /></td>
                 {category === 'batting' && <>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_runs ?? 0} bold /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.balls_faced ?? 0} /></td>
-                  <td className={`py-1.5 ${SCW}`}><Stat value={e.strike_rate?.toFixed(1) ?? '0'} /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.fours ?? 0} /></td>
-                  <td className={`py-1.5 pr-2 ${SC}`}><Stat value={e.sixes ?? 0} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_runs ?? 0} bold /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.balls_faced ?? 0} /></td>
+                  <td className={`py-3 ${SCW}`}><Stat value={e.strike_rate?.toFixed(1) ?? '0'} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.fours ?? 0} /></td>
+                  <td className={`py-3 pr-3 ${SC}`}><Stat value={e.sixes ?? 0} /></td>
                 </>}
                 {category === 'bowling' && <>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_wickets ?? 0} bold /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={formatOvers(e.legal_balls ?? 0)} /></td>
-                  <td className={`py-1.5 ${SCW}`}><Stat value={e.economy?.toFixed(2) ?? '0'} /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.wides ?? 0} /></td>
-                  <td className={`py-1.5 pr-2 ${SC}`}><Stat value={e.no_balls ?? 0} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_wickets ?? 0} bold /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={formatOvers(e.legal_balls ?? 0)} /></td>
+                  <td className={`py-3 ${SCW}`}><Stat value={e.economy?.toFixed(2) ?? '0'} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.wides ?? 0} /></td>
+                  <td className={`py-3 pr-3 ${SC}`}><Stat value={e.no_balls ?? 0} /></td>
                 </>}
                 {category === 'fielding' && <>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_dismissals ?? ((e.total_catches ?? 0) + (e.total_runouts ?? 0) + (e.total_stumpings ?? 0))} bold /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_catches ?? 0} /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_runouts ?? 0} /></td>
-                  <td className={`py-1.5 pr-2 ${SC}`}><Stat value={e.total_stumpings ?? 0} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_dismissals ?? ((e.total_catches ?? 0) + (e.total_runouts ?? 0) + (e.total_stumpings ?? 0))} bold /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_catches ?? 0} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_runouts ?? 0} /></td>
+                  <td className={`py-3 pr-3 ${SC}`}><Stat value={e.total_stumpings ?? 0} /></td>
                 </>}
                 {category === 'allround' && <>
-                  <td className={`py-1.5 ${SCW}`}><Stat value={e.total_runs ?? 0} /></td>
-                  <td className={`py-1.5 ${SCW}`}><Stat value={e.total_wickets ?? 0} /></td>
-                  <td className={`py-1.5 ${SC}`}><Stat value={e.total_catches ?? 0} /></td>
-                  <td className={`py-1.5 pr-2 ${SC}`}><Stat value={e.score ?? 0} bold /></td>
+                  <td className={`py-3 ${SCW}`}><Stat value={e.total_runs ?? 0} /></td>
+                  <td className={`py-3 ${SCW}`}><Stat value={e.total_wickets ?? 0} /></td>
+                  <td className={`py-3 ${SC}`}><Stat value={e.total_catches ?? 0} /></td>
+                  <td className={`py-3 pr-3 ${SC}`}><Stat value={e.score ?? 0} bold /></td>
                 </>}
               </tr>
               );
@@ -304,21 +324,24 @@ export default function PracticeLeaderboard() {
         className="mb-3"
       />
 
-      {/* Match filter — compact bordered pills + refresh */}
+      {/* Match filter — compact pills + refresh */}
       <div className="flex items-center gap-2 mb-3">
         <Text size="2xs" color="dim" weight="semibold" className="flex-shrink-0">Matches:</Text>
-        <div className="flex gap-1 flex-1">
+        <div className="flex gap-1.5 flex-1">
           {MATCH_FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => handleFilterChange(f.key)}
               className={cn(
-                'px-2.5 py-0.5 rounded-full cursor-pointer transition-all text-[11px] leading-tight',
+                'px-3 py-1 rounded-full cursor-pointer transition-all duration-200 text-[11px] font-semibold whitespace-nowrap',
                 matchFilter === f.key
-                  ? 'font-semibold text-white border border-transparent'
-                  : 'font-medium text-[var(--muted)] border border-[var(--border)] hover:border-[var(--cricket)] hover:text-[var(--text)]',
+                  ? 'text-white'
+                  : 'text-[var(--muted)] hover:text-[var(--cricket)]',
               )}
-              style={matchFilter === f.key ? { background: 'var(--cricket)' } : { background: 'var(--surface)' }}
+              style={matchFilter === f.key
+                ? { background: 'var(--cricket)', boxShadow: '0 2px 8px color-mix(in srgb, var(--cricket) 35%, transparent)' }
+                : { background: 'color-mix(in srgb, var(--cricket) 6%, var(--surface))', border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))' }
+              }
             >
               {f.label}
             </button>
@@ -328,7 +351,7 @@ export default function PracticeLeaderboard() {
       </div>
 
       {/* Table */}
-      <Card padding="none" className="overflow-hidden">
+      <Card padding="none" surface="gradient" className="overflow-hidden">
         <StatsTable category={category} entries={entries} loading={isLoading} myPlayerId={myPlayerId} />
       </Card>
 

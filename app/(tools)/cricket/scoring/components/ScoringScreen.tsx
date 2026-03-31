@@ -6,6 +6,8 @@ import { Text, Button, SegmentedControl, Dialog, DialogContent, DialogTitle, Dia
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { PageFooter } from '@/components/PageFooter';
+import { MdSportsCricket } from 'react-icons/md';
+import { GiTennisBall } from 'react-icons/gi';
 import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode, getSupabaseClient } from '@/lib/supabase/client';
@@ -476,10 +478,12 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
 
     return (
       <div className="min-h-[100dvh]" style={{ background: 'var(--bg)' }}>
-        {/* Gradient hero */}
+        {/* Gradient hero — taller with glow */}
         <div
-          className="relative px-4 pt-12 pb-8 text-center"
-          style={{ background: 'linear-gradient(180deg, var(--cricket-deep, #1B3A6B), var(--cricket))' }}
+          className="relative px-4 pt-14 pb-6 text-center"
+          style={{
+            background: 'linear-gradient(180deg, var(--cricket-deep, #1B3A6B) 0%, var(--cricket) 70%, color-mix(in srgb, var(--cricket) 80%, white) 100%)',
+          }}
         >
           {/* Back + Refresh buttons */}
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
@@ -496,44 +500,127 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
               <RefreshButton onRefresh={onRefresh} variant="glass" title="Refresh scores" />
             )}
           </div>
-          <Text as="p" size="xs" weight="semibold" color="white" uppercase tracking="wider" className="opacity-70 mb-3">
+          <Text as="p" size="xs" weight="bold" color="white" uppercase tracking="wider" className="opacity-60 mb-3">
             Match Result
           </Text>
-          <Text as="h1" size="2xl" weight="bold" color="white">
+          <Text as="h1" size="xl" weight="bold" color="white" className="leading-snug mb-6">
             {match.result_summary ?? 'Match Complete'}
           </Text>
-        </div>
 
-        <div className="px-4 -mt-4">
-          {/* Score card */}
-          <div className="rounded-2xl border border-[var(--border)] overflow-hidden shadow-lg" style={{ background: 'var(--card)' }}>
+          {/* Score card — inside the hero gradient, white card */}
+          <div className="rounded-2xl overflow-hidden text-left mx-auto max-w-md" style={{ background: 'var(--card)', boxShadow: '0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 0 var(--inner-glow)' }}>
             {/* 1st innings */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Text size="md" weight="semibold">{team1Name}</Text>
-                <Text size="2xs" color="dim" weight="medium">(1st)</Text>
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Text size="md" weight="bold">{team1Name}</Text>
+                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--cricket) 10%, var(--surface))', color: 'var(--dim)' }}>1st</span>
               </div>
-              <Text size="lg" weight="bold" tabular>
-                {inn1.total_runs}/{inn1.total_wickets}
-                <Text size="xs" weight="normal" color="muted" tabular> ({formatOversDisplay(inn1.total_overs)})</Text>
-              </Text>
+              <div className="flex items-baseline gap-0.5">
+                <Text size="2xl" weight="bold" tabular>{inn1.total_runs}</Text>
+                <Text size="md" weight="medium" color="dim" tabular>/{inn1.total_wickets}</Text>
+                <Text size="xs" weight="normal" color="dim" tabular className="ml-1.5">({formatOversDisplay(inn1.total_overs)})</Text>
+              </div>
             </div>
-            <div className="mx-4 border-t border-[var(--border)]/30" />
+            <div className="mx-5" style={{ borderTop: '1px solid color-mix(in srgb, var(--cricket) 8%, var(--border))' }} />
             {/* 2nd innings */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Text size="md" weight="semibold">{team2Name}</Text>
-                <Text size="2xs" color="dim" weight="medium">(2nd)</Text>
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Text size="md" weight="bold">{team2Name}</Text>
+                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--cricket) 10%, var(--surface))', color: 'var(--dim)' }}>2nd</span>
               </div>
-              <Text size="lg" weight="bold" tabular>
-                {inn2.total_runs}/{inn2.total_wickets}
-                <Text size="xs" weight="normal" color="muted" tabular> ({formatOversDisplay(inn2.total_overs)})</Text>
-              </Text>
+              <div className="flex items-baseline gap-0.5">
+                <Text size="2xl" weight="bold" tabular>{inn2.total_runs}</Text>
+                <Text size="md" weight="medium" color="dim" tabular>/{inn2.total_wickets}</Text>
+                <Text size="xs" weight="normal" color="dim" tabular className="ml-1.5">({formatOversDisplay(inn2.total_overs)})</Text>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-4 mt-5">
+
+          {/* Match Highlights */}
+          {(() => {
+            const allBatting = [...getBattingStats(0), ...getBattingStats(1)];
+            const allBowling = [...getBowlingStats(0), ...getBowlingStats(1)];
+            const topScorer = allBatting.length > 0 ? allBatting.reduce((a, b) => a.runs > b.runs ? a : b) : null;
+            const bestBowler = allBowling.filter((b) => b.wickets > 0).length > 0
+              ? allBowling.filter((b) => b.wickets > 0).reduce((a, b) => a.wickets > b.wickets ? a : (a.wickets === b.wickets && parseFloat(String(a.economy)) < parseFloat(String(b.economy)) ? a : b))
+              : null;
+            const totalFours = allBatting.reduce((s, b) => s + b.fours, 0);
+            const totalSixes = allBatting.reduce((s, b) => s + b.sixes, 0);
+            const totalBalls = balls.filter((b) => b.is_legal).length;
+
+            return (topScorer || bestBowler) ? (
+              <div className="mt-5 space-y-3">
+                <Text size="xs" weight="bold" color="dim" uppercase tracking="wider" className="px-1">Match Highlights</Text>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Top Scorer */}
+                  {topScorer && (
+                    <div className="rounded-xl px-4 py-4" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))', border: '1px solid color-mix(in srgb, var(--cricket) 15%, var(--border))' }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <MdSportsCricket size={16} style={{ color: 'var(--cricket)' }} />
+                        <Text size="xs" weight="bold" color="cricket" uppercase tracking="wider">Top Scorer</Text>
+                      </div>
+                      <Text as="p" size="md" weight="bold" truncate>{displayName(topScorer.player)}</Text>
+                      <div className="flex items-baseline gap-1.5 mt-1.5">
+                        <Text size="2xl" weight="bold" tabular>{topScorer.runs}</Text>
+                        <Text size="sm" color="muted" tabular>({topScorer.balls}b)</Text>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <Text size="xs" weight="medium" color="muted" tabular>SR {topScorer.strike_rate.toFixed(1)}</Text>
+                        {topScorer.fours > 0 && <Text size="xs" weight="semibold" tabular style={{ color: '#2563EB' }}>4s: {topScorer.fours}</Text>}
+                        {topScorer.sixes > 0 && <Text size="xs" weight="semibold" tabular style={{ color: '#7C3AED' }}>6s: {topScorer.sixes}</Text>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Best Bowler */}
+                  {bestBowler && (
+                    <div className="rounded-xl px-4 py-4" style={{ background: 'color-mix(in srgb, #3B82F6 8%, var(--card))', border: '1px solid color-mix(in srgb, #3B82F6 15%, var(--border))' }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <GiTennisBall size={15} style={{ color: '#3B82F6' }} />
+                        <Text size="xs" weight="bold" uppercase tracking="wider" style={{ color: '#3B82F6' }}>Best Bowler</Text>
+                      </div>
+                      <Text as="p" size="md" weight="bold" truncate>{displayName(bestBowler.player)}</Text>
+                      <div className="flex items-baseline gap-1.5 mt-1.5">
+                        <Text size="2xl" weight="bold" tabular>{bestBowler.wickets}</Text>
+                        <Text size="sm" color="muted" tabular>/ {bestBowler.runs}</Text>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <Text size="xs" weight="medium" color="muted" tabular>{bestBowler.overs} ov</Text>
+                        <Text size="xs" weight="medium" color="muted" tabular>Econ {bestBowler.economy}</Text>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick stats row */}
+                <div className="grid grid-cols-4 rounded-xl py-3.5" style={{ background: 'color-mix(in srgb, var(--surface) 60%, var(--card))', border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)' }}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Text size="xl" weight="bold" tabular style={{ color: '#2563EB' }}>{totalFours}</Text>
+                    <Text size="2xs" weight="semibold" color="dim" uppercase>Fours</Text>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5 border-l" style={{ borderColor: 'color-mix(in srgb, var(--border) 40%, transparent)' }}>
+                    <Text size="xl" weight="bold" tabular style={{ color: '#7C3AED' }}>{totalSixes}</Text>
+                    <Text size="2xs" weight="semibold" color="dim" uppercase>Sixes</Text>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5 border-l" style={{ borderColor: 'color-mix(in srgb, var(--border) 40%, transparent)' }}>
+                    <Text size="xl" weight="bold" tabular>{totalBalls}</Text>
+                    <Text size="2xs" weight="semibold" color="dim" uppercase>Balls</Text>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5 border-l" style={{ borderColor: 'color-mix(in srgb, var(--border) 40%, transparent)' }}>
+                    <Text size="xl" weight="bold" tabular>{inn1.total_runs + inn2.total_runs}</Text>
+                    <Text size="2xs" weight="semibold" color="dim" uppercase>Runs</Text>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
 
           {/* Actions */}
-          <div className="flex flex-col gap-2 mt-6">
+          <div className="flex flex-col gap-3 mt-6">
             <Button
               variant="primary"
               brand="cricket"
@@ -613,33 +700,33 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
       />
 
       {/* ── Batsmen + Bowler ── */}
-      <div className="mx-4 mt-2 rounded-xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
+      <div className="mx-4 mt-3 rounded-xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: '0 2px 12px rgba(0,0,0,0.06), inset 0 1px 0 0 var(--inner-glow)', border: '1px solid color-mix(in srgb, var(--cricket) 10%, var(--border))' }}>
         {/* Striker */}
         {strikerPlayer ? (
           <button
             type="button"
             onClick={!currentInnings.is_completed ? handleSwapStrike : undefined}
-            className="w-full text-left px-3 py-2.5 border-l-[3px] cursor-pointer active:scale-[0.98] transition-all"
+            className="w-full text-left px-4 py-3 border-l-[3px] cursor-pointer active:scale-[0.98] transition-all"
             style={{
               borderLeftColor: 'var(--cricket)',
-              background: 'color-mix(in srgb, var(--cricket) 6%, transparent)',
+              background: 'color-mix(in srgb, var(--cricket) 6%, var(--card))',
             }}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-0.5 min-w-0 flex-1">
-                <Text size="sm" weight="bold" truncate>{displayName(strikerPlayer)}</Text>
-                {!currentInnings.is_completed && <Text size="xs" weight="bold" color="cricket" className="flex-shrink-0">*</Text>}
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <Text size="md" weight="bold" truncate>{displayName(strikerPlayer)}</Text>
+                {!currentInnings.is_completed && <Text size="sm" weight="bold" color="cricket" className="flex-shrink-0">*</Text>}
                 {currentInnings.is_completed && <Text size="2xs" weight="medium" color="success" className="flex-shrink-0 ml-1">not out</Text>}
               </div>
-              <Text size="lg" weight="bold" tabular className="flex-shrink-0">
-                {strikerStats?.runs ?? 0}
-                <Text size="xs" weight="normal" color="muted" tabular> ({strikerStats?.balls ?? 0})</Text>
-              </Text>
+              <div className="flex items-baseline gap-0.5 flex-shrink-0">
+                <Text size="xl" weight="bold" tabular>{strikerStats?.runs ?? 0}</Text>
+                <Text size="xs" weight="normal" color="muted" tabular>({strikerStats?.balls ?? 0})</Text>
+              </div>
             </div>
-            <div className="flex items-center gap-3 mt-0.5">
-              <Text size="xs" weight="medium" tabular>4s: {strikerStats?.fours ?? 0}</Text>
-              <Text size="xs" weight="medium" tabular>6s: {strikerStats?.sixes ?? 0}</Text>
-              <Text size="xs" weight="medium" color="muted" tabular>SR: {strikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
+            <div className="flex items-center gap-3 mt-1">
+              <Text size="xs" weight="medium" color="muted" tabular>4s: {strikerStats?.fours ?? 0}</Text>
+              <Text size="xs" weight="medium" color="muted" tabular>6s: {strikerStats?.sixes ?? 0}</Text>
+              <Text size="xs" weight="medium" color="dim" tabular>SR: {strikerStats?.strike_rate?.toFixed(1) ?? '0.0'}</Text>
             </div>
           </button>
         ) : currentInnings.is_completed ? null : (
@@ -683,8 +770,6 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
           </>
         )}
 
-        <div className="mx-3 border-t border-[var(--border)]/40" />
-
         {/* Bowler — tappable to change before first ball of the over */}
         {(() => {
           const inningsBallCount = balls.filter((b) => b.innings === idx).length;
@@ -694,11 +779,12 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
               type="button"
               onClick={canChangeBowler ? () => setChangeBowlerOpen(true) : undefined}
               className={cn(
-                'w-full px-3 py-2 flex items-center gap-2',
+                'w-full px-4 py-2.5 flex items-center gap-2',
                 canChangeBowler && 'cursor-pointer active:scale-[0.98] transition-all',
               )}
+              style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 40%, transparent)', background: 'color-mix(in srgb, var(--surface) 50%, var(--card))' }}
             >
-              <Text size="2xs" weight="semibold" color="muted" uppercase className="flex-shrink-0">Bowl</Text>
+              <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider" className="flex-shrink-0">Bowl</Text>
               <Text size="sm" weight="semibold" truncate className="min-w-0">{bowlerPlayer ? displayName(bowlerPlayer) : 'TBD'}</Text>
               {canChangeBowler && (
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" style={{ color: 'var(--muted)' }}>
@@ -726,17 +812,18 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
       {isFreeHit && <div className="mt-1"><FreeHitBanner visible /></div>}
 
       {/* ── Info Strip ── */}
-      <div className="flex items-center justify-center gap-2 px-4 py-1">
-        <Text size="2xs" weight="medium" color="muted" tabular>
-          P&apos;ship: <Text size="2xs" weight="semibold" tabular>{partnership.runs}</Text>({partnership.balls}b)
-        </Text>
+      <div className="flex items-center justify-center gap-3 px-4 py-1.5">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' }}>
+          <Text size="2xs" weight="medium" color="dim">P&apos;ship</Text>
+          <Text size="xs" weight="bold" tabular>{partnership.runs}</Text>
+          <Text size="2xs" weight="normal" color="dim" tabular>({partnership.balls}b)</Text>
+        </div>
         {prevOver && (
-          <>
-            <Text size="2xs" color="dim">|</Text>
-            <Text size="2xs" weight="medium" color="muted" tabular>
-              Prev: {prevOver.runs}r ({prevOver.bowlerName})
-            </Text>
-          </>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'color-mix(in srgb, var(--surface) 80%, var(--border))' }}>
+            <Text size="2xs" weight="medium" color="dim">Prev</Text>
+            <Text size="xs" weight="bold" tabular>{prevOver.runs}r</Text>
+            <Text size="2xs" weight="normal" color="dim" truncate>({prevOver.bowlerName})</Text>
+          </div>
         )}
       </div>
 
@@ -901,20 +988,23 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
             const isBatting = innings[match.current_innings].batting_team === teamSide;
             const isActive = match.status === 'scoring' || match.status === 'innings_break';
             return (
-              <div key={teamSide} className="rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
-                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)]/50"
-                  style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), transparent)' }}>
-                  <Text size="sm" weight="bold">{team.name}</Text>
+              <div key={teamSide} className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+                <div className="px-4 py-3 flex items-center justify-between"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B) 0%, var(--cricket) 60%, color-mix(in srgb, var(--cricket) 80%, white) 100%)',
+                    boxShadow: '0 2px 8px color-mix(in srgb, var(--cricket) 20%, transparent)',
+                  }}>
+                  <Text size="sm" weight="bold" color="white">{team.name}</Text>
                   <div className="flex items-center gap-2">
                     {isActive && (
-                      <Text size="2xs" weight="bold" color={isBatting ? 'cricket' : 'muted'} uppercase>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase" style={{ background: isBatting ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)', color: 'white' }}>
                         {isBatting ? 'Batting' : 'Bowling'}
-                      </Text>
+                      </span>
                     )}
-                    <Text size="2xs" color="muted">{team.players.length} players</Text>
+                    <Text size="2xs" color="white" weight="medium" className="opacity-70">{team.players.length} players</Text>
                   </div>
                 </div>
-                <div className="px-2 py-1.5 space-y-1">
+                <div className="px-2 py-2 space-y-1">
                   {[...team.players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
                     const removable = isActive && useScoringStore.getState().canRemovePlayer(p.id);
                     const rosterPlayer = p.player_id ? rosterPlayers.find((rp) => rp.id === p.player_id) : null;
@@ -949,15 +1039,20 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
                   })}
                 </div>
                 {isActive && (
-                  <div className="px-3 py-2 border-t border-[var(--border)]/40">
+                  <div className="px-3 py-2.5" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 30%, transparent)' }}>
                     <button
                       onClick={() => setAddPlayerOpen(teamSide)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--border)] px-3 py-2 text-[var(--muted)] hover:border-[var(--cricket)]/40 hover:text-[var(--cricket)] transition-colors cursor-pointer active:scale-[0.98]"
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 transition-all cursor-pointer active:scale-[0.98]"
+                      style={{
+                        border: '1.5px dashed color-mix(in srgb, var(--cricket) 30%, var(--border))',
+                        background: 'color-mix(in srgb, var(--cricket) 3%, var(--surface))',
+                        color: 'var(--cricket)',
+                      }}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                       </svg>
-                      <Text size="xs" weight="medium" color="muted">Add Player</Text>
+                      <Text size="xs" weight="semibold" color="cricket">Add Player</Text>
                     </button>
                   </div>
                 )}

@@ -73,7 +73,7 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
   return (
     <div className="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
       {stats.map((s) => (
-        <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-4 min-w-0">
+        <div key={s.label} className="rounded-xl border border-[var(--border)]/60 bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] p-3 sm:p-4 min-w-0 shadow-[inset_0_1px_0_0_var(--inner-glow)]">
           <div className="flex items-center gap-2 mb-1.5">
             <span style={{ color: s.color }}>{s.icon}</span>
             <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">{s.label}</Text>

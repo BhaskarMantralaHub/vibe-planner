@@ -71,7 +71,12 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
     <>
       <div
         onClick={onTap}
-        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden cursor-pointer select-none transition-all duration-150 active:scale-[0.98]"
+        className="w-full rounded-2xl overflow-hidden cursor-pointer select-none transition-all duration-200 active:scale-[0.98] hover:shadow-lg"
+        style={{
+          background: 'var(--card)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)',
+          border: '1px solid color-mix(in srgb, var(--cricket) 15%, var(--border))',
+        }}
       >
         {/* ── Top bar: gradient for live, subtle for completed ── */}
         <div
@@ -79,7 +84,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           style={{
             background: isActive
               ? 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))'
-              : 'color-mix(in srgb, var(--cricket) 6%, var(--surface))',
+              : 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 12%, var(--card)), color-mix(in srgb, var(--cricket) 6%, var(--card)))',
           }}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -120,35 +125,41 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 
           {/* Level 2: Scores — numbers dominate, names recede */}
           {inn1 && (
-            <div className="mt-3 rounded-xl overflow-hidden" style={{ background: 'var(--surface)' }}>
+            <div
+              className="mt-3 rounded-xl overflow-hidden"
+              style={{
+                background: 'color-mix(in srgb, var(--cricket) 4%, var(--bg))',
+                border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))',
+              }}
+            >
               {/* 1st innings */}
-              <div className="px-3 py-2.5 flex items-center justify-between">
-                <Text size="sm" weight="medium" color="muted" className="w-20 flex-shrink-0" truncate>
+              <div className="px-4 py-3 flex items-center justify-between">
+                <Text size="sm" weight="medium" color="muted" className="w-24 flex-shrink-0" truncate>
                   {inn1.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}
                 </Text>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-[22px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[26px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
                     {inn1.total_runs}
                   </span>
-                  <Text size="sm" weight="normal" color="dim" tabular>/{inn1.total_wickets}</Text>
-                  <Text size="2xs" weight="normal" color="dim" tabular className="ml-1">({inn1.total_overs} ov)</Text>
+                  <Text size="sm" weight="medium" color="dim" tabular>/{inn1.total_wickets}</Text>
+                  <Text size="xs" weight="normal" color="dim" tabular className="ml-1.5">({inn1.total_overs} ov)</Text>
                 </div>
               </div>
 
               {inn2 && (inn2.total_runs > 0 || inn2.total_wickets > 0) && (
                 <>
-                  <div className="mx-3 h-px" style={{ background: 'var(--border)' }} />
+                  <div className="mx-4 h-px" style={{ background: 'color-mix(in srgb, var(--cricket) 10%, var(--border))' }} />
                   {/* 2nd innings */}
-                  <div className="px-3 py-2.5 flex items-center justify-between">
-                    <Text size="sm" weight="medium" color="muted" className="w-20 flex-shrink-0" truncate>
+                  <div className="px-4 py-3 flex items-center justify-between">
+                    <Text size="sm" weight="medium" color="muted" className="w-24 flex-shrink-0" truncate>
                       {inn2.batting_team === 'team_a' ? item.team_a_name : item.team_b_name}
                     </Text>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-[22px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-[26px] font-extrabold tabular-nums leading-none" style={{ color: 'var(--text)' }}>
                         {inn2.total_runs}
                       </span>
-                      <Text size="sm" weight="normal" color="dim" tabular>/{inn2.total_wickets}</Text>
-                      <Text size="2xs" weight="normal" color="dim" tabular className="ml-1">({inn2.total_overs} ov)</Text>
+                      <Text size="sm" weight="medium" color="dim" tabular>/{inn2.total_wickets}</Text>
+                      <Text size="xs" weight="normal" color="dim" tabular className="ml-1.5">({inn2.total_overs} ov)</Text>
                     </div>
                   </div>
                 </>
@@ -158,15 +169,32 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 
           {/* Level 3: Result */}
           {isCompleted && item.result_summary && (
-            <Text as="p" size="sm" weight="bold" color={hasWin ? 'cricket' : 'muted'} className="mt-3">
-              {item.result_summary}
-            </Text>
+            <div className="mt-3">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-bold"
+                style={{
+                  background: hasWin
+                    ? 'color-mix(in srgb, var(--cricket) 12%, transparent)'
+                    : isTied
+                      ? 'color-mix(in srgb, var(--orange) 12%, transparent)'
+                      : 'color-mix(in srgb, var(--muted) 10%, transparent)',
+                  color: hasWin ? 'var(--cricket)' : isTied ? 'var(--orange)' : 'var(--muted)',
+                }}
+              >
+                {hasWin && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0 opacity-80">
+                    <path d="M5 3h14c.6 0 1 .4 1 1v3c0 3.3-2.7 6-6 6h-.3c-.5 1.6-1.6 2.9-3 3.6V19h3v2H10v-2h3v-2.4c-1.4-.7-2.5-2-3-3.6H7c-3.3 0-6-2.7-6-6V4c0-.6.4-1 1-1h3zm9 8c2.2 0 4-1.8 4-4V5h-4v6zM6 5H3v2c0 2.2 1.8 4 4 4V5H6z"/>
+                  </svg>
+                )}
+                {item.result_summary}
+              </span>
+            </div>
           )}
         </div>
 
         {/* Level 4: Meta */}
-        <div className="px-4 py-2 border-t border-[var(--border)]/15">
-          <Text size="xs" weight="medium" color="muted">
+        <div className="px-4 py-2" style={{ borderTop: '1px solid color-mix(in srgb, var(--cricket) 6%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 2%, var(--card))' }}>
+          <Text size="xs" weight="medium" color="dim">
             {item.scorer_name ? `Scored by ${item.scorer_name}` : 'Practice Match'}
           </Text>
         </div>
@@ -393,7 +421,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
 
           {/* Local active match — Continue Scoring (scorer's device) */}
           {hasLocalMatch && match && currentInnings && onContinue && (
-            <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, var(--card))' }}>
+            <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden shadow-[inset_0_1px_0_0_var(--inner-glow)]" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))' }}>
               <div className="px-4 pt-3 pb-2 flex items-start justify-between">
                 <div>
                   <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">Your Active Match</Text>
@@ -464,7 +492,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
           {historyLoading && (
             <div className="space-y-3">
               {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+                <div key={i} className="rounded-2xl border border-[var(--border)]/60 bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] overflow-hidden">
                   <Skeleton className="h-9 w-full" />
                   <div className="p-4 space-y-3">
                     <Skeleton className="h-5 w-48 rounded-lg" />
@@ -578,7 +606,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
 
           {/* Empty state — only when not loading, no filter, and truly no matches */}
           {!historyLoading && !hasLocalMatch && activeDbMatches.length === 0 && allCompleted.length === 0 && matchFilter === 'all' && (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+            <div className="rounded-2xl border border-[var(--border)]/60 bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] p-6 shadow-[inset_0_1px_0_0_var(--inner-glow)]">
               <EmptyState
                 icon={<MdSportsCricket size={32} style={{ color: 'var(--dim)' }} />}
                 title="No matches yet"
