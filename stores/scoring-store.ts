@@ -307,6 +307,15 @@ interface ScoringState {
   resumeMatch: (matchId: string) => Promise<boolean>;
   viewScorecard: (matchId: string) => Promise<boolean>;
 
+  // Spectator (read-only view of active matches — ephemeral, NOT persisted)
+  spectatorMatch: ScoringMatch | null;
+  spectatorInnings: [ScoringInnings, ScoringInnings];
+  spectatorBalls: ScoringBall[];
+  spectatorMatchId: string | null;
+  loadSpectatorView: (matchId: string) => Promise<boolean>;
+  clearSpectatorView: () => void;
+  refreshSpectatorView: () => Promise<boolean>;
+
   // Deleted matches (admin)
   deletedMatches: MatchHistoryItem[];
   historyLoading: boolean;
@@ -353,6 +362,10 @@ export const useScoringStore = create<ScoringState>()(
   leaderboard: {},
   leaderboardLoading: false,
   leaderboardMatchLimit: null,
+  spectatorMatch: null,
+  spectatorInnings: [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')],
+  spectatorBalls: [],
+  spectatorMatchId: null,
 
   setWizardStep: (step) => set({ wizardStep: step }),
 
@@ -1786,6 +1799,42 @@ export const useScoringStore = create<ScoringState>()(
     const { match, innings, balls, idMap } = hydrated;
     set({ match, innings, balls, dbMatchId: matchId, idMap, isFreeHit: false, lastBallId: null, actionStack: [], redoStack: [], redoActionStack: [], wizardStep: 1 });
     return true;
+  },
+
+  // ── Spectator (read-only) — separate state, never persisted ──
+
+  loadSpectatorView: async (matchId: string) => {
+    if (!isCloudMode()) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const { data, error } = await supabase.rpc('get_match_scorecard', { target_match_id: matchId });
+    if (error || !data) { console.error('[scoring] loadSpectatorView failed:', error); return false; }
+
+    const hydrated = hydrateMatchFromDb(data as ScorecardRpc);
+    if (!hydrated) return false;
+
+    set({
+      spectatorMatch: hydrated.match,
+      spectatorInnings: hydrated.innings,
+      spectatorBalls: hydrated.balls,
+      spectatorMatchId: matchId,
+    });
+    return true;
+  },
+
+  clearSpectatorView: () => {
+    set({
+      spectatorMatch: null,
+      spectatorInnings: [makeEmptyInnings('team_a'), makeEmptyInnings('team_b')],
+      spectatorBalls: [],
+      spectatorMatchId: null,
+    });
+  },
+
+  refreshSpectatorView: async () => {
+    const { spectatorMatchId } = get();
+    if (!spectatorMatchId) return false;
+    return get().loadSpectatorView(spectatorMatchId);
   },
 
   reset: () => {

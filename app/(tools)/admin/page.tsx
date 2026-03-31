@@ -206,13 +206,19 @@ function AdminContent() {
     // Can't make disabled user an admin
     if (target?.disabled && !currentStatus) return;
 
+    // Sync both is_admin boolean AND 'admin' in access array (cricket checks access array)
+    const currentAccess: string[] = target?.access ?? [];
+    const newAccess = !currentStatus
+      ? [...new Set([...currentAccess, 'admin'])]
+      : currentAccess.filter((a) => a !== 'admin');
+
     const { error } = await supabase
       .from('profiles')
-      .update({ is_admin: !currentStatus })
+      .update({ is_admin: !currentStatus, access: newAccess })
       .eq('id', profileId);
 
     if (!error) {
-      setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, is_admin: !currentStatus } : p));
+      setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, is_admin: !currentStatus, access: newAccess } : p));
     }
   };
 

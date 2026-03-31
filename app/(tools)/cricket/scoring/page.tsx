@@ -8,7 +8,7 @@ import { RoleGate } from '@/components/RoleGate';
 import { useScoringStore } from '@/stores/scoring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { isCloudMode } from '@/lib/supabase/client';
+import { isCloudMode, getSupabaseClient } from '@/lib/supabase/client';
 import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl, RefreshButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow, MdSync } from 'react-icons/md';
@@ -39,7 +39,7 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading, onResume, resumeLoading }: {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading, onResume, resumeLoading, onViewScoreboard, viewScoreboardLoading }: {
   item: MatchHistoryItem;
   onTap: () => void;
   onDelete?: () => Promise<void>;
@@ -49,6 +49,8 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
   scorecardLoading?: boolean;
   onResume?: () => void;
   resumeLoading?: boolean;
+  onViewScoreboard?: () => void;
+  viewScoreboardLoading?: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
@@ -199,37 +201,68 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           </Text>
         </div>
 
-        {/* Resume Scoring CTA — only for active matches viewed by other players */}
-        {onResume && (
+        {/* View Scoreboard + Resume Scoring — for active matches */}
+        {(onViewScoreboard || onResume) && (
           <div
             className="px-4 py-3 border-t"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+            style={{ borderColor: 'color-mix(in srgb, var(--cricket) 6%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 2%, var(--card))' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              disabled={resumeLoading}
-              onClick={() => item.scorer_name ? setResumeConfirmOpen(true) : onResume()}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 px-4',
-                'font-semibold text-sm transition-all duration-150 active:scale-[0.98]',
-                'border-2 cursor-pointer',
-                resumeLoading
-                  ? 'opacity-60 cursor-not-allowed border-[var(--cricket)]/40 text-[var(--cricket)]/60'
-                  : 'border-[var(--cricket)] text-[var(--cricket)] hover:bg-[var(--cricket)]/8',
+            <div className={cn('flex gap-2', onViewScoreboard && onResume ? 'flex-row' : 'flex-col')}>
+              {onViewScoreboard && (
+                <button
+                  disabled={viewScoreboardLoading}
+                  onClick={onViewScoreboard}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 px-3',
+                    'font-semibold text-[13px] transition-all duration-150 active:scale-[0.98] cursor-pointer',
+                    viewScoreboardLoading && 'opacity-60 cursor-not-allowed',
+                  )}
+                  style={{
+                    background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))',
+                    color: 'white',
+                    boxShadow: '0 2px 8px color-mix(in srgb, var(--cricket) 25%, transparent)',
+                  }}
+                >
+                  {viewScoreboardLoading ? (
+                    <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                  ) : (
+                    <>
+                      <MdScoreboard size={15} />
+                      View Score
+                    </>
+                  )}
+                </button>
               )}
-            >
-              {resumeLoading ? (
-                <>
-                  <span className="h-3.5 w-3.5 rounded-full border-2 border-[var(--cricket)]/40 border-t-[var(--cricket)] animate-spin" />
-                  Connecting…
-                </>
-              ) : (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-                  Resume Scoring
-                </>
+              {onResume && (
+                <button
+                  disabled={resumeLoading}
+                  onClick={() => item.scorer_name ? setResumeConfirmOpen(true) : onResume()}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 px-3',
+                    'font-semibold text-[13px] transition-all duration-150 active:scale-[0.98]',
+                    'cursor-pointer',
+                    resumeLoading
+                      ? 'opacity-60 cursor-not-allowed'
+                      : '',
+                  )}
+                  style={{
+                    background: 'color-mix(in srgb, var(--cricket) 8%, var(--surface))',
+                    border: '1.5px solid color-mix(in srgb, var(--cricket) 30%, var(--border))',
+                    color: 'var(--cricket)',
+                  }}
+                >
+                  {resumeLoading ? (
+                    <span className="h-3.5 w-3.5 rounded-full border-2 border-[var(--cricket)]/40 border-t-[var(--cricket)] animate-spin" />
+                  ) : (
+                    <>
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                      Start Scoring
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+            </div>
           </div>
         )}
       </div>
@@ -313,17 +346,19 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
 }
 
 /* ── Landing Page ── */
-function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard }: {
+function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard, onViewScoreboard }: {
   onNewMatch: () => void;
   onContinue?: () => Promise<void> | void;
   onResumeMatch: (matchId: string) => Promise<void> | void;
   onViewScorecard: (matchId: string) => Promise<void> | void;
+  onViewScoreboard: (matchId: string) => Promise<void> | void;
 }) {
   const router = useRouter();
   const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch, revertMatch } = useScoringStore();
   const { user, userAccess } = useAuthStore();
   const [resuming, setResuming] = useState<string | boolean>(false); // true for local, matchId string for DB
   const [scorecardLoading, setScorecardLoading] = useState<string | false>(false); // matchId when loading scorecard
+  const [verifyingLocal, setVerifyingLocal] = useState(true); // true until mount check completes
   const isAdmin = userAccess.includes('admin');
 
   const handleViewScorecard = async (matchId: string) => {
@@ -342,16 +377,44 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
       loadMatchHistory();
       if (isAdmin) loadDeletedMatches();
 
-      // Verify local match is still active on server — clear stale localStorage if not
+      // Verify local match is still active AND we're still the scorer
       const { dbMatchId, match: localMatch } = useScoringStore.getState();
       if (localMatch && dbMatchId && (localMatch.status === 'scoring' || localMatch.status === 'innings_break')) {
-        useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
-          if (!ok) {
-            // Match was completed/deleted on another device — local state already reset by resumeMatch
-            sessionStorage.removeItem('scoring-view');
-          }
-        }).catch(() => { /* network error on stale check — ignore, match stays local */ });
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          // Get current user ID directly from auth (not React state, which may not be loaded yet)
+          supabase.auth.getUser().then(({ data: { user: authUser } }: { data: { user: { id: string } | null } }) => {
+            if (!authUser) return;
+            // Lightweight check: is this match still active? Are we still the scorer?
+            supabase.from('practice_matches')
+              .select('status, active_scorer_id')
+              .eq('id', dbMatchId)
+              .single()
+              .then(({ data }: { data: { status: string; active_scorer_id: string | null } | null }) => {
+                if (!data || data.status === 'completed') {
+                  useScoringStore.getState().reset();
+                  sessionStorage.removeItem('scoring-view');
+                } else if (data.active_scorer_id && data.active_scorer_id !== authUser.id) {
+                  useScoringStore.getState().reset();
+                  sessionStorage.removeItem('scoring-view');
+                  loadMatchHistory();
+                } else {
+                  useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
+                    if (!ok) { sessionStorage.removeItem('scoring-view'); }
+                  });
+                }
+              })
+              .catch(() => { /* network error — keep local state */ })
+              .finally(() => setVerifyingLocal(false));
+          });
+        } else {
+          setVerifyingLocal(false);
+        }
+      } else {
+        setVerifyingLocal(false);
       }
+    } else {
+      setVerifyingLocal(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -419,8 +482,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             />
           </div>
 
-          {/* Local active match — Continue Scoring (scorer's device) */}
-          {hasLocalMatch && match && currentInnings && onContinue && (
+          {/* Local active match — Continue Scoring (scorer's device). Hidden while verifying scorer ownership. */}
+          {!verifyingLocal && hasLocalMatch && match && currentInnings && onContinue && (
             <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden shadow-[inset_0_1px_0_0_var(--inner-glow)]" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))' }}>
               <div className="px-4 pt-3 pb-2 flex items-start justify-between">
                 <div>
@@ -464,14 +527,18 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             </div>
           )}
 
-          {/* Start New Match — hidden while loading, blocked when active match exists */}
-          {!historyLoading && (
+          {/* Start New Match — hidden while loading or verifying, blocked when active match exists */}
+          {!historyLoading && !verifyingLocal && (
             hasLocalMatch || activeDbMatches.length > 0 ? (
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-center">
+              <div className="rounded-xl px-4 py-2.5 flex items-center gap-2.5"
+                style={{ background: 'color-mix(in srgb, var(--orange) 6%, var(--surface))', border: '1px solid color-mix(in srgb, var(--orange) 15%, var(--border))' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" style={{ color: 'var(--orange)' }}>
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
                 <Text as="p" size="xs" color="muted">
                   {hasLocalMatch
                     ? 'You have a match in progress. Continue scoring or end it first.'
-                    : 'There is an active match. End or delete it before starting a new one.'}
+                    : 'A match is in progress. End or delete it to start a new one.'}
                 </Text>
               </div>
             ) : (
@@ -518,7 +585,10 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                   <MatchCard
                     key={m.id}
                     item={m}
-                    onTap={() => onResumeMatch(m.id)}
+                    onTap={async () => {
+                      setScorecardLoading(m.id);
+                      try { await onViewScoreboard(m.id); } finally { setScorecardLoading(false); }
+                    }}
                     onDelete={isAdmin ? async () => {
                       await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
@@ -528,6 +598,11 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                       try { await onResumeMatch(m.id); } finally { setResuming(false); }
                     }}
                     resumeLoading={resuming === m.id}
+                    onViewScoreboard={async () => {
+                      setScorecardLoading(m.id);
+                      try { await onViewScoreboard(m.id); } finally { setScorecardLoading(false); }
+                    }}
+                    viewScoreboardLoading={scorecardLoading === m.id}
                   />
                 ))}
               </div>
@@ -648,14 +723,32 @@ function ActiveMatch({ onBack }: { onBack: () => void }) {
   return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} />;
 }
 
+/* ── Spectator View — read-only, uses separate spectator state ── */
+function SpectatorView({ onBack }: { onBack: () => void }) {
+  const spectatorMatch = useScoringStore((s) => s.spectatorMatch);
+  if (!spectatorMatch) return null;
+
+  const handleRefresh = async () => {
+    const ok = await useScoringStore.getState().refreshSpectatorView();
+    if (ok) {
+      toast.success('Scores updated');
+    } else {
+      toast.info('Match is no longer active');
+      onBack();
+    }
+  };
+
+  return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} readOnly />;
+}
+
 /* ── Page Root ── */
 export default function ScoringPage() {
-  const [view, setViewState] = useState<'landing' | 'wizard' | 'match'>(() => {
+  const [view, setViewState] = useState<'landing' | 'wizard' | 'match' | 'spectator'>(() => {
     if (typeof window === 'undefined') return 'landing';
     const saved = sessionStorage.getItem('scoring-view');
     return saved === 'match' || saved === 'wizard' ? saved : 'landing';
   });
-  const setView = (v: 'landing' | 'wizard' | 'match') => {
+  const setView = (v: 'landing' | 'wizard' | 'match' | 'spectator') => {
     sessionStorage.setItem('scoring-view', v);
     setViewState(v);
   };
@@ -728,11 +821,16 @@ export default function ScoringPage() {
               if (ok) setView('match');
               else toast.error('Could not load scorecard');
             }}
+            onViewScoreboard={async (matchId) => {
+              const ok = await useScoringStore.getState().loadSpectatorView(matchId);
+              if (ok) setView('spectator');
+              else toast.error('Could not load scoreboard');
+            }}
           />
         )}
 
-        {/* Wizard + Active Match — full-screen overlay (hides Shell) */}
-        {(view === 'wizard' || view === 'match') && (
+        {/* Wizard + Active Match + Spectator — full-screen overlay (hides Shell) */}
+        {(view === 'wizard' || view === 'match' || view === 'spectator') && (
           <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: 'var(--bg)' }}>
             <div
               className="absolute inset-0 overflow-y-auto overscroll-contain"
@@ -745,6 +843,7 @@ export default function ScoringPage() {
                 />
               )}
               {view === 'match' && <ActiveMatch onBack={() => setView('landing')} />}
+              {view === 'spectator' && <SpectatorView onBack={() => { useScoringStore.getState().clearSpectatorView(); setView('landing'); }} />}
             </div>
           </div>
         )}

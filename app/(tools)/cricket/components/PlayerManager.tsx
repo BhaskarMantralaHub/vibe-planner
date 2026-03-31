@@ -389,7 +389,7 @@ export default function PlayerManager() {
     if (!profile) return;
     const access: string[] = profile.access ?? [];
     if (!access.includes('admin')) {
-      const { error: updateErr } = await supabase.from('profiles').update({ access: [...access, 'admin'] }).eq('id', profile.id);
+      const { error: updateErr } = await supabase.from('profiles').update({ access: [...access, 'admin'], is_admin: true }).eq('id', profile.id);
       if (updateErr) { console.error('[cricket] grant admin update:', updateErr); }
     }
     setAdminModal(null);
@@ -408,7 +408,7 @@ export default function PlayerManager() {
 
     if (!profile) return;
     const access: string[] = profile.access ?? [];
-    await supabase.from('profiles').update({ access: access.filter((a) => a !== 'admin') }).eq('id', profile.id);
+    await supabase.from('profiles').update({ access: access.filter((a) => a !== 'admin'), is_admin: false }).eq('id', profile.id);
     setAdminModal(null);
   };
 

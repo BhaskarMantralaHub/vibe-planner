@@ -238,11 +238,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Check profile: disabled, approved, access
+    // Check profile: disabled, approved, access, features
     if (data?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('disabled, access, approved')
+        .select('disabled, access, approved, features')
         .eq('id', data.user.id)
         .single();
 
@@ -259,7 +259,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const access: string[] = profile?.access ?? ['toolkit'];
-      set({ userAccess: access, userApproved: profile?.approved !== false });
+
+      // Derive features from access if not yet set (backward compat for pre-migration users)
+      let features: string[] = profile?.features ?? [];
+      if (features.length === 0) {
+        if (access.includes('toolkit')) features = [...features, 'vibe-planner', 'id-tracker'];
+        if (access.includes('cricket')) features = [...features, 'cricket'];
+      }
+
+      set({ userAccess: access, userFeatures: features, userApproved: profile?.approved !== false });
 
       // Link cricket player record to this user if they signed up with a pre-added email
       if (data?.user?.email && access.includes('cricket')) {

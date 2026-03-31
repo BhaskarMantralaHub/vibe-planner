@@ -23,7 +23,7 @@ import { ExtrasSheet, type ExtrasType } from './ExtrasSheet';
 import { EndOfOverSheet } from './EndOfOverSheet';
 import { BallByBallLog } from './BallByBallLog';
 import { FullScorecard } from './FullScorecard';
-import type { WicketType, TeamSide } from '@/types/scoring';
+import type { WicketType, TeamSide, ScoringBall } from '@/types/scoring';
 import {
   buildPlayerMap,
   displayName,
@@ -39,21 +39,24 @@ import {
 interface ScoringScreenProps {
   onBack?: () => void;
   onRefresh?: () => Promise<void>;
+  readOnly?: boolean;
 }
 
-function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
+function ScoringScreen({ onBack, onRefresh, readOnly = false }: ScoringScreenProps) {
   const router = useRouter();
 
-  /* ── Store state ── */
-  const match = useScoringStore((s) => s.match);
-  const innings = useScoringStore((s) => s.innings);
-  const balls = useScoringStore((s) => s.balls);
-  const isFreeHit = useScoringStore((s) => s.isFreeHit);
+  /* ── Store state — spectator reads from separate fields ── */
+  const match = useScoringStore(readOnly ? (s) => s.spectatorMatch : (s) => s.match);
+  const innings = useScoringStore(readOnly ? (s) => s.spectatorInnings : (s) => s.innings);
+  const balls = useScoringStore(readOnly ? (s) => s.spectatorBalls : (s) => s.balls);
+  const isFreeHit = useScoringStore((s) => readOnly ? false : s.isFreeHit);
 
+  // Stable empty references for readOnly mode (avoids infinite re-render from new [] each call)
   const actionStack = useScoringStore((s) => s.actionStack);
   const redoActionStack = useScoringStore((s) => s.redoActionStack);
   const takenOverBy = useScoringStore((s) => s.takenOverBy);
   const redoStack = useScoringStore((s) => s.redoStack);
+  // In readOnly mode, these values are ignored — the Scoring tab + ButtonGrid are hidden
 
   const {
     recordBall,
@@ -94,30 +97,79 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard' | 'squads'>('scoring');
+  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard' | 'squads'>(readOnly ? 'ballbyball' : 'scoring');
   const [endMatchOpen, setEndMatchOpen] = useState(false);
   const [inningsBreak, setInningsBreak] = useState(false);
   const [inn2Striker, setInn2Striker] = useState<string | null>(null);
   const [inn2NonStriker, setInn2NonStriker] = useState<string | null>(null);
   const [inn2Bowler, setInn2Bowler] = useState<string | null>(null);
 
-  /* ── Derived data ── */
+  /* ── Derived data — computed from match/innings/balls (works for both scorer + spectator) ── */
   const idx = match?.current_innings ?? 0;
-  const currentInnings = useMemo(() => getCurrentInnings(), [innings, match]);
+  const currentInnings = useMemo(() => innings[idx], [innings, idx]);
 
   const playerMap = useMemo(() => {
     if (!match) return new Map();
     return buildPlayerMap(match);
   }, [match]);
 
-  // Over timeline balls
+  // Over timeline balls — computed locally (not via store getter that reads main state)
   const currentOverBalls = useMemo(() => {
-    return getCurrentOverBalls().map(scoringBallToBallResult);
-  }, [balls, match]);
+    if (!match) return [];
+    const inningsBalls = balls.filter((b) => b.innings === idx);
+    const legalBalls = inningsBalls.filter((b) => b.is_legal).length;
+    const currentOverNum = Math.floor(legalBalls / 6);
+    if (legalBalls > 0 && legalBalls % 6 === 0 && innings[idx].bowler_id) {
+      return inningsBalls.filter((b) => b.over_number === currentOverNum).map(scoringBallToBallResult);
+    }
+    return inningsBalls.filter((b) => b.over_number === (legalBalls > 0 ? currentOverNum : 0)).map(scoringBallToBallResult);
+  }, [balls, match, idx, innings]);
 
-  // Batting stats for display
-  const battingStats = useMemo(() => getBattingStats(idx), [balls, idx, innings]);
-  const bowlingStats = useMemo(() => getBowlingStats(idx), [balls, idx, innings]);
+  // Helper: compute batting stats from local data (spectator-safe, no store getters)
+  const localBattingStats_ = useCallback((innIdx: number) => {
+    if (!match) return [];
+    const inn = innings[innIdx];
+    const battingTeam = inn.batting_team === 'team_a' ? match.team_a : match.team_b;
+    const ib = balls.filter((b: ScoringBall) => b.innings === innIdx);
+    const bIds = new Set<string>();
+    for (const b of ib) bIds.add(b.striker_id);
+    if (inn.striker_id) bIds.add(inn.striker_id);
+    if (inn.non_striker_id) bIds.add(inn.non_striker_id);
+    return battingTeam.players.filter((p) => bIds.has(p.id)).map((player) => {
+      let runs = 0, bf = 0, fours = 0, sixes = 0, isOut = false;
+      let howOut: string | null = null;
+      for (const b of ib) {
+        if (b.striker_id === player.id) { runs += b.runs_bat; if (b.is_legal) bf++; if (b.extras_type === 'no_ball') bf++; if (b.runs_bat === 4) fours++; if (b.runs_bat === 6) sixes++; }
+        if (b.is_wicket && b.wicket_type !== 'retired' && b.dismissed_id === player.id) { isOut = true; howOut = b.wicket_type ?? 'out'; }
+      }
+      const isRetired = !isOut && inn.retired_players.some((r) => r.playerId === player.id && !r.returned);
+      return { player, runs, balls: bf, fours, sixes, strike_rate: bf > 0 ? parseFloat(((runs / bf) * 100).toFixed(1)) : 0, is_out: isOut, how_out: isRetired ? 'retired' : howOut };
+    });
+  }, [match, innings, balls]);
+
+  const localBowlingStats_ = useCallback((innIdx: number) => {
+    if (!match) return [];
+    const inn = innings[innIdx];
+    const bowlingTeam = inn.batting_team === 'team_a' ? match.team_b : match.team_a;
+    const ib = balls.filter((b: ScoringBall) => b.innings === innIdx);
+    const bIds = new Set<string>();
+    for (const b of ib) bIds.add(b.bowler_id);
+    if (inn.bowler_id) bIds.add(inn.bowler_id);
+    return bowlingTeam.players.filter((p) => bIds.has(p.id)).map((player) => {
+      let rc = 0, w = 0, lb = 0, wd = 0, nb = 0, maidens = 0;
+      const or = new Map<number, number>();
+      for (const b of ib) {
+        if (b.bowler_id !== player.id) continue;
+        rc += b.runs_bat + b.runs_extras; if (b.is_wicket && b.wicket_type !== 'retired') w++; if (b.is_legal) lb++; if (b.extras_type === 'wide') wd++; if (b.extras_type === 'no_ball') nb++;
+        if (b.is_legal) or.set(b.over_number, (or.get(b.over_number) ?? 0) + b.runs_bat + b.runs_extras);
+      }
+      for (const [, r] of or) { if (r === 0) maidens++; }
+      return { player, overs: `${Math.floor(lb / 6)}.${lb % 6}`, maidens, runs: rc, wickets: w, economy: lb > 0 ? (rc / lb) * 6 : 0, wides: wd, no_balls: nb };
+    });
+  }, [match, innings, balls]);
+
+  const battingStats = useMemo(() => readOnly ? localBattingStats_(idx) : getBattingStats(idx), [balls, idx, innings, readOnly, localBattingStats_]);
+  const bowlingStats = useMemo(() => readOnly ? localBowlingStats_(idx) : getBowlingStats(idx), [balls, idx, innings, readOnly, localBowlingStats_]);
 
   // Striker / non-striker display data
   const strikerStats = useMemo(
@@ -203,7 +255,7 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
 
   /* ── Proactive scorer check — detect takeover on mount/resume ── */
   useEffect(() => {
-    if (!match || match.status === 'completed' || takenOverBy) return;
+    if (!match || match.status === 'completed' || takenOverBy || readOnly) return;
     const { dbMatchId } = useScoringStore.getState();
     if (!dbMatchId || !isCloudMode()) return;
     const supabase = getSupabaseClient();
@@ -456,17 +508,17 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
   // Build scorecard for both innings (for post-match view)
   const scorecardInn1 = useMemo(() => {
     if (!match) return null;
-    const bs1 = getBattingStats(0);
-    const bw1 = getBowlingStats(0);
+    const bs1 = readOnly ? localBattingStats_(0) : getBattingStats(0);
+    const bw1 = readOnly ? localBowlingStats_(0) : getBowlingStats(0);
     return buildInningsSummary(0, match, innings[0], bs1, bw1, balls, playerMap);
-  }, [match, innings, balls, playerMap]);
+  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
 
   const scorecardInn2 = useMemo(() => {
     if (!match || !innings[1].total_overs) return null;
-    const bs2 = getBattingStats(1);
-    const bw2 = getBowlingStats(1);
+    const bs2 = readOnly ? localBattingStats_(1) : getBattingStats(1);
+    const bw2 = readOnly ? localBowlingStats_(1) : getBowlingStats(1);
     return buildInningsSummary(1, match, innings[1], bs2, bw2, balls, playerMap);
-  }, [match, innings, balls, playerMap]);
+  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
 
   if (match.status === 'completed' && showResultScreen) {
     const inn1 = innings[0];
@@ -830,18 +882,18 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
       {/* ── Segmented Control ── */}
       <SegmentedControl
         options={[
-          ...(match.status !== 'completed' ? [{ key: 'scoring', label: 'Scoring' }] : []),
+          ...(match.status !== 'completed' && !readOnly ? [{ key: 'scoring', label: 'Scoring' }] : []),
           { key: 'ballbyball', label: 'Ball by Ball' },
           { key: 'scorecard', label: 'Scorecard' },
           { key: 'squads', label: 'Squads' },
         ]}
-        active={match.status === 'completed' && activeTab === 'scoring' ? 'scorecard' : activeTab}
+        active={(match.status === 'completed' || readOnly) && activeTab === 'scoring' ? 'ballbyball' : activeTab}
         onChange={(key) => setActiveTab(key as 'scoring' | 'ballbyball' | 'scorecard' | 'squads')}
         className="mx-4 mb-2"
       />
 
       {/* ── Tab Content ── */}
-      {activeTab === 'scoring' && (
+      {activeTab === 'scoring' && !readOnly && (
         currentInnings.is_completed ? (
           /* ── Innings Complete Card ── */
           <div className="mx-4 rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
@@ -1023,7 +1075,7 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
                             badge={team.captain_id === p.id ? 'C' : undefined}
                           />
                         </div>
-                        {removable && (
+                        {removable && !readOnly && (
                           <button
                             onClick={() => setRemovePlayerConfirm({ id: p.id, name: displayName(p), teamSide })}
                             className="flex-shrink-0 p-1.5 rounded-lg cursor-pointer transition-all active:scale-[0.9] hover:bg-[var(--red)]/10"
@@ -1038,7 +1090,7 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
                     );
                   })}
                 </div>
-                {isActive && (
+                {isActive && !readOnly && (
                   <div className="px-3 py-2.5" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 30%, transparent)' }}>
                     <button
                       onClick={() => setAddPlayerOpen(teamSide)}
