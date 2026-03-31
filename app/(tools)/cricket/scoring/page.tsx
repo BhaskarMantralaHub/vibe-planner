@@ -377,12 +377,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
       loadMatchHistory();
       if (isAdmin) loadDeletedMatches();
 
-      // Verify local match is still active on server — clear stale localStorage if not
+      // Verify local match is still active on server — use viewScorecard (no scorer claim)
+      // to refresh data + active_scorer_id without taking over scoring rights
       const { dbMatchId, match: localMatch } = useScoringStore.getState();
       if (localMatch && dbMatchId && (localMatch.status === 'scoring' || localMatch.status === 'innings_break')) {
-        useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
+        useScoringStore.getState().viewScorecard(dbMatchId).then((ok) => {
           if (!ok) {
-            // Match was completed/deleted on another device — local state already reset by resumeMatch
+            // Match was completed/deleted on another device — reset local state
+            useScoringStore.getState().reset();
             sessionStorage.removeItem('scoring-view');
           }
         }).catch(() => { /* network error on stale check — ignore, match stays local */ });
@@ -522,12 +524,14 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             );
           })()}
 
-          {/* Start New Match — hidden while loading, blocked when active match exists */}
-          {!historyLoading && (
-            hasLocalMatch || activeDbMatches.length > 0 ? (
+          {/* Start New Match — hidden while loading, blocked only when user is active scorer */}
+          {!historyLoading && (() => {
+            const isActiveScorer = hasLocalMatch && match && (!match.active_scorer_id || match.active_scorer_id === user?.id);
+            const blocked = isActiveScorer || activeDbMatches.length > 0;
+            return blocked ? (
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-center">
                 <Text as="p" size="xs" color="muted">
-                  {hasLocalMatch
+                  {isActiveScorer
                     ? 'You have a match in progress. Continue scoring or end it first.'
                     : 'There is an active match. End or delete it before starting a new one.'}
                 </Text>
@@ -542,8 +546,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
               >
                 <MdAdd size={20} /> Start New Match
               </Button>
-            )
-          )}
+            );
+          })()}
 
 
           {/* Loading skeleton */}
