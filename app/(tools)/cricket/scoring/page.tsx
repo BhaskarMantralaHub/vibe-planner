@@ -453,24 +453,33 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             />
           </div>
 
-          {/* Local active match — Continue Scoring (scorer's device) */}
-          {hasLocalMatch && match && currentInnings && onContinue && (
+          {/* Local active match — Continue Scoring or View Scoreboard */}
+          {hasLocalMatch && match && currentInnings && onContinue && (() => {
+            const isActiveScorer = !match.active_scorer_id || match.active_scorer_id === user?.id;
+            return (
             <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden shadow-[inset_0_1px_0_0_var(--inner-glow)]" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))' }}>
               <div className="px-4 pt-3 pb-2 flex items-start justify-between">
                 <div>
-                  <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">Your Active Match</Text>
+                  <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">
+                    {isActiveScorer ? 'Your Active Match' : 'Active Match'}
+                  </Text>
                   <Text as="h3" size="md" weight="bold" className="mt-1">
                     {match.team_a.name} vs {match.team_b.name}
                   </Text>
                   <Text size="sm" color="muted" tabular className="mt-0.5">
                     {currentInnings.total_runs}/{currentInnings.total_wickets} ({currentInnings.total_overs.toFixed(1)} ov)
                   </Text>
+                  {!isActiveScorer && match.scorer_name && (
+                    <Text size="2xs" color="dim" className="mt-1">Scored by {match.scorer_name}</Text>
+                  )}
                 </div>
                 <button
                   onClick={async () => {
                     const { dbMatchId: mid } = useScoringStore.getState();
                     if (!mid || !isCloudMode()) return;
-                    const ok = await useScoringStore.getState().resumeMatch(mid);
+                    const ok = isActiveScorer
+                      ? await useScoringStore.getState().resumeMatch(mid)
+                      : await useScoringStore.getState().viewScorecard(mid);
                     if (!ok) {
                       toast.info('Match was ended or deleted on another device');
                       loadMatchHistory();
@@ -484,19 +493,34 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                   <MdSync size={18} />
                 </button>
               </div>
-              <div className="px-4 pb-3">
-                <Button variant="primary" brand="cricket" size="lg" fullWidth
-                  loading={resuming === true}
-                  onClick={async () => {
-                    if (resuming) return;
-                    setResuming(true);
-                    try { await onContinue!(); } finally { setResuming(false); }
-                  }}>
-                  Continue Scoring
-                </Button>
+              <div className="px-4 pb-3 flex flex-col gap-2">
+                {isActiveScorer ? (
+                  <Button variant="primary" brand="cricket" size="lg" fullWidth
+                    loading={resuming === true}
+                    onClick={async () => {
+                      if (resuming) return;
+                      setResuming(true);
+                      try { await onContinue!(); } finally { setResuming(false); }
+                    }}>
+                    Continue Scoring
+                  </Button>
+                ) : (
+                  <Button variant="primary" brand="cricket" size="lg" fullWidth
+                    loading={resuming === true}
+                    onClick={async () => {
+                      if (resuming) return;
+                      setResuming(true);
+                      try { await onViewScorecard(dbMatchId!); }
+                      catch { toast.error('Could not load scoreboard'); }
+                      finally { setResuming(false); }
+                    }}>
+                    View Scoreboard
+                  </Button>
+                )}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Start New Match — hidden while loading, blocked when active match exists */}
           {!historyLoading && (
