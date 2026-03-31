@@ -39,9 +39,10 @@ import {
 interface ScoringScreenProps {
   onBack?: () => void;
   onRefresh?: () => Promise<void>;
+  readOnly?: boolean;
 }
 
-function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
+function ScoringScreen({ onBack, onRefresh, readOnly = false }: ScoringScreenProps) {
   const router = useRouter();
 
   /* ── Store state ── */
@@ -94,7 +95,7 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasType, setExtrasType] = useState<ExtrasType>('wide');
   const [endOfOverOpen, setEndOfOverOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard' | 'squads'>('scoring');
+  const [activeTab, setActiveTab] = useState<'scoring' | 'ballbyball' | 'scorecard' | 'squads'>(readOnly ? 'ballbyball' : 'scoring');
   const [endMatchOpen, setEndMatchOpen] = useState(false);
   const [inningsBreak, setInningsBreak] = useState(false);
   const [inn2Striker, setInn2Striker] = useState<string | null>(null);
@@ -203,7 +204,7 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
 
   /* ── Proactive scorer check — detect takeover on mount/resume ── */
   useEffect(() => {
-    if (!match || match.status === 'completed' || takenOverBy) return;
+    if (!match || match.status === 'completed' || takenOverBy || readOnly) return;
     const { dbMatchId } = useScoringStore.getState();
     if (!dbMatchId || !isCloudMode()) return;
     const supabase = getSupabaseClient();
@@ -830,18 +831,18 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
       {/* ── Segmented Control ── */}
       <SegmentedControl
         options={[
-          ...(match.status !== 'completed' ? [{ key: 'scoring', label: 'Scoring' }] : []),
+          ...(match.status !== 'completed' && !readOnly ? [{ key: 'scoring', label: 'Scoring' }] : []),
           { key: 'ballbyball', label: 'Ball by Ball' },
           { key: 'scorecard', label: 'Scorecard' },
           { key: 'squads', label: 'Squads' },
         ]}
-        active={match.status === 'completed' && activeTab === 'scoring' ? 'scorecard' : activeTab}
+        active={(match.status === 'completed' || readOnly) && activeTab === 'scoring' ? 'ballbyball' : activeTab}
         onChange={(key) => setActiveTab(key as 'scoring' | 'ballbyball' | 'scorecard' | 'squads')}
         className="mx-4 mb-2"
       />
 
       {/* ── Tab Content ── */}
-      {activeTab === 'scoring' && (
+      {activeTab === 'scoring' && !readOnly && (
         currentInnings.is_completed ? (
           /* ── Innings Complete Card ── */
           <div className="mx-4 rounded-2xl border border-[var(--border)] overflow-hidden" style={{ background: 'var(--surface)' }}>
