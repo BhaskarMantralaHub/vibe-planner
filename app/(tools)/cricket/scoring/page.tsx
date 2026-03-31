@@ -39,7 +39,7 @@ function LoadMoreButton({ onLoadMore }: { onLoadMore: () => Promise<void> }) {
 }
 
 /* ── Match Card ── */
-function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading, onResume, resumeLoading, onViewScoreboard, viewScoreboardLoading }: {
+function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onRevert, scorecardLoading, onResume, resumeLoading }: {
   item: MatchHistoryItem;
   onTap: () => void;
   onDelete?: () => Promise<void>;
@@ -49,8 +49,6 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
   scorecardLoading?: boolean;
   onResume?: () => void;
   resumeLoading?: boolean;
-  onViewScoreboard?: () => void;
-  viewScoreboardLoading?: boolean;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
@@ -201,45 +199,13 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           </Text>
         </div>
 
-        {/* Resume Scoring + View Scoreboard CTAs — for active matches */}
-        {(onResume || onViewScoreboard) && (
+        {/* Resume Scoring CTA — only for active matches viewed by other players */}
+        {onResume && (
           <div
-            className="px-4 py-3 flex flex-col gap-2 border-t"
+            className="px-4 py-3 border-t"
             style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {onViewScoreboard && (
-              <button
-                disabled={viewScoreboardLoading}
-                onClick={onViewScoreboard}
-                className={cn(
-                  'w-full flex items-center justify-center gap-2 rounded-xl py-2.5 px-4',
-                  'font-semibold text-sm transition-all duration-150 active:scale-[0.98]',
-                  'cursor-pointer',
-                  viewScoreboardLoading
-                    ? 'opacity-60 cursor-not-allowed'
-                    : '',
-                )}
-                style={{
-                  background: 'linear-gradient(135deg, var(--cricket-deep, #1B3A6B), var(--cricket))',
-                  color: 'white',
-                  boxShadow: '0 2px 8px color-mix(in srgb, var(--cricket) 25%, transparent)',
-                }}
-              >
-                {viewScoreboardLoading ? (
-                  <>
-                    <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                    Loading…
-                  </>
-                ) : (
-                  <>
-                    <MdScoreboard size={16} />
-                    View Scoreboard
-                  </>
-                )}
-              </button>
-            )}
-            {onResume && (
             <button
               disabled={resumeLoading}
               onClick={() => item.scorer_name ? setResumeConfirmOpen(true) : onResume()}
@@ -264,7 +230,6 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
                 </>
               )}
             </button>
-            )}
           </div>
         )}
       </div>
@@ -377,14 +342,12 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
       loadMatchHistory();
       if (isAdmin) loadDeletedMatches();
 
-      // Verify local match is still active on server — use viewScorecard (no scorer claim)
-      // to refresh data + active_scorer_id without taking over scoring rights
+      // Verify local match is still active on server — clear stale localStorage if not
       const { dbMatchId, match: localMatch } = useScoringStore.getState();
       if (localMatch && dbMatchId && (localMatch.status === 'scoring' || localMatch.status === 'innings_break')) {
-        useScoringStore.getState().viewScorecard(dbMatchId).then((ok) => {
+        useScoringStore.getState().resumeMatch(dbMatchId).then((ok) => {
           if (!ok) {
-            // Match was completed/deleted on another device — reset local state
-            useScoringStore.getState().reset();
+            // Match was completed/deleted on another device — local state already reset by resumeMatch
             sessionStorage.removeItem('scoring-view');
           }
         }).catch(() => { /* network error on stale check — ignore, match stays local */ });
@@ -421,9 +384,10 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
   };
 
   // DB matches — separate active vs completed
-  // Exclude the local match from DB list to avoid duplicate card
+  // Only exclude dbMatchId if we have a valid local match with players (to avoid duplicate card)
+  const hasValidLocalMatch = hasLocalMatch && currentInnings?.striker_id;
   const activeDbMatches = matchHistory.filter((m) =>
-    (m.status === 'scoring' || m.status === 'innings_break') && !(hasLocalMatch && m.id === dbMatchId)
+    (m.status === 'scoring' || m.status === 'innings_break') && !(hasValidLocalMatch && m.id === dbMatchId)
   );
   const allCompleted = matchHistory.filter((m) => m.status === 'completed');
   const limit = getLimit(matchFilter);
@@ -455,33 +419,24 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
             />
           </div>
 
-          {/* Local active match — Continue Scoring or View Scoreboard */}
-          {hasLocalMatch && match && currentInnings && onContinue && (() => {
-            const isActiveScorer = !match.active_scorer_id || match.active_scorer_id === user?.id;
-            return (
+          {/* Local active match — Continue Scoring (scorer's device) */}
+          {hasLocalMatch && match && currentInnings && onContinue && (
             <div className="rounded-2xl border border-[var(--cricket)]/30 overflow-hidden shadow-[inset_0_1px_0_0_var(--inner-glow)]" style={{ background: 'color-mix(in srgb, var(--cricket) 8%, var(--card))' }}>
               <div className="px-4 pt-3 pb-2 flex items-start justify-between">
                 <div>
-                  <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">
-                    {isActiveScorer ? 'Your Active Match' : 'Active Match'}
-                  </Text>
+                  <Text size="2xs" weight="semibold" color="cricket" uppercase tracking="wider">Your Active Match</Text>
                   <Text as="h3" size="md" weight="bold" className="mt-1">
                     {match.team_a.name} vs {match.team_b.name}
                   </Text>
                   <Text size="sm" color="muted" tabular className="mt-0.5">
                     {currentInnings.total_runs}/{currentInnings.total_wickets} ({currentInnings.total_overs.toFixed(1)} ov)
                   </Text>
-                  {!isActiveScorer && match.scorer_name && (
-                    <Text size="2xs" color="dim" className="mt-1">Scored by {match.scorer_name}</Text>
-                  )}
                 </div>
                 <button
                   onClick={async () => {
                     const { dbMatchId: mid } = useScoringStore.getState();
                     if (!mid || !isCloudMode()) return;
-                    const ok = isActiveScorer
-                      ? await useScoringStore.getState().resumeMatch(mid)
-                      : await useScoringStore.getState().viewScorecard(mid);
+                    const ok = await useScoringStore.getState().resumeMatch(mid);
                     if (!ok) {
                       toast.info('Match was ended or deleted on another device');
                       loadMatchHistory();
@@ -495,43 +450,26 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                   <MdSync size={18} />
                 </button>
               </div>
-              <div className="px-4 pb-3 flex flex-col gap-2">
-                {isActiveScorer ? (
-                  <Button variant="primary" brand="cricket" size="lg" fullWidth
-                    loading={resuming === true}
-                    onClick={async () => {
-                      if (resuming) return;
-                      setResuming(true);
-                      try { await onContinue!(); } finally { setResuming(false); }
-                    }}>
-                    Continue Scoring
-                  </Button>
-                ) : (
-                  <Button variant="primary" brand="cricket" size="lg" fullWidth
-                    loading={resuming === true}
-                    onClick={async () => {
-                      if (resuming) return;
-                      setResuming(true);
-                      try { await onViewScorecard(dbMatchId!); }
-                      catch { toast.error('Could not load scoreboard'); }
-                      finally { setResuming(false); }
-                    }}>
-                    View Scoreboard
-                  </Button>
-                )}
+              <div className="px-4 pb-3">
+                <Button variant="primary" brand="cricket" size="lg" fullWidth
+                  loading={resuming === true}
+                  onClick={async () => {
+                    if (resuming) return;
+                    setResuming(true);
+                    try { await onContinue!(); } finally { setResuming(false); }
+                  }}>
+                  Continue Scoring
+                </Button>
               </div>
             </div>
-            );
-          })()}
+          )}
 
-          {/* Start New Match — hidden while loading, blocked only when user is active scorer */}
-          {!historyLoading && (() => {
-            const isActiveScorer = hasLocalMatch && match && (!match.active_scorer_id || match.active_scorer_id === user?.id);
-            const blocked = isActiveScorer || activeDbMatches.length > 0;
-            return blocked ? (
+          {/* Start New Match — hidden while loading, blocked when active match exists */}
+          {!historyLoading && (
+            hasLocalMatch || activeDbMatches.length > 0 ? (
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-center">
                 <Text as="p" size="xs" color="muted">
-                  {isActiveScorer
+                  {hasLocalMatch
                     ? 'You have a match in progress. Continue scoring or end it first.'
                     : 'There is an active match. End or delete it before starting a new one.'}
                 </Text>
@@ -546,8 +484,8 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
               >
                 <MdAdd size={20} /> Start New Match
               </Button>
-            );
-          })()}
+            )
+          )}
 
 
           {/* Loading skeleton */}
@@ -580,7 +518,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                   <MatchCard
                     key={m.id}
                     item={m}
-                    onTap={() => handleViewScorecard(m.id)}
+                    onTap={() => onResumeMatch(m.id)}
                     onDelete={isAdmin ? async () => {
                       await deleteMatch(m.id, user?.user_metadata?.full_name as string || 'Admin');
                     } : undefined}
@@ -590,12 +528,6 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                       try { await onResumeMatch(m.id); } finally { setResuming(false); }
                     }}
                     resumeLoading={resuming === m.id}
-                    onViewScoreboard={async () => {
-                      if (scorecardLoading) return;
-                      setScorecardLoading(m.id);
-                      try { await onViewScorecard(m.id); } finally { setScorecardLoading(false); }
-                    }}
-                    viewScoreboardLoading={scorecardLoading === m.id}
                   />
                 ))}
               </div>
@@ -689,7 +621,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
 }
 
 /* ── Active Match — wires to ScoringScreen ── */
-function ActiveMatch({ onBack, readOnly = false }: { onBack: () => void; readOnly?: boolean }) {
+function ActiveMatch({ onBack }: { onBack: () => void }) {
   const { match } = useScoringStore();
   if (!match) return null;
 
@@ -697,9 +629,9 @@ function ActiveMatch({ onBack, readOnly = false }: { onBack: () => void; readOnl
     const { dbMatchId, match: m } = useScoringStore.getState();
     if (!dbMatchId || !isCloudMode()) return;
     try {
-      // readOnly or completed → viewScorecard (no scorer claim); active scorer → resumeMatch
+      // Active matches use resumeMatch (preserves scorer claim), completed use viewScorecard (no scorer claim)
       const isActive = m?.status === 'scoring' || m?.status === 'innings_break';
-      const ok = isActive && !readOnly
+      const ok = isActive
         ? await useScoringStore.getState().resumeMatch(dbMatchId)
         : await useScoringStore.getState().viewScorecard(dbMatchId);
       if (ok) {
@@ -713,7 +645,7 @@ function ActiveMatch({ onBack, readOnly = false }: { onBack: () => void; readOnl
     }
   };
 
-  return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} readOnly={readOnly} />;
+  return <ScoringScreen onBack={onBack} onRefresh={handleRefresh} />;
 }
 
 /* ── Page Root ── */
@@ -727,7 +659,6 @@ export default function ScoringPage() {
     sessionStorage.setItem('scoring-view', v);
     setViewState(v);
   };
-  const [readOnly, setReadOnly] = useState(false);
   const { match } = useScoringStore();
   const { loadAll, players } = useCricketStore();
   const { user } = useAuthStore();
@@ -773,7 +704,6 @@ export default function ScoringPage() {
           <ScoringLanding
             onNewMatch={() => setView('wizard')}
             onContinue={match ? async () => {
-              setReadOnly(false);
               const { dbMatchId } = useScoringStore.getState();
               if (dbMatchId) {
                 const ok = await useScoringStore.getState().resumeMatch(dbMatchId);
@@ -785,7 +715,6 @@ export default function ScoringPage() {
               setView('match');
             } : undefined}
             onResumeMatch={async (matchId) => {
-              setReadOnly(false);
               const ok = await useScoringStore.getState().resumeMatch(matchId);
               if (ok) {
                 setView('match');
@@ -795,10 +724,9 @@ export default function ScoringPage() {
               }
             }}
             onViewScorecard={async (matchId) => {
-              setReadOnly(true);
               const ok = await useScoringStore.getState().viewScorecard(matchId);
               if (ok) setView('match');
-              else { setReadOnly(false); toast.error('Could not load scorecard'); }
+              else toast.error('Could not load scorecard');
             }}
           />
         )}
@@ -816,7 +744,7 @@ export default function ScoringPage() {
                   onBack={() => setView('landing')}
                 />
               )}
-              {view === 'match' && <ActiveMatch onBack={() => { setReadOnly(false); setView('landing'); }} readOnly={readOnly} />}
+              {view === 'match' && <ActiveMatch onBack={() => setView('landing')} />}
             </div>
           </div>
         )}

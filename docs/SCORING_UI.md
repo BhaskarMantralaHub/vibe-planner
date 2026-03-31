@@ -391,20 +391,6 @@ Non-striker run out with 1 run completed:
 - **Clear redo on new ball:** any new `recordBall` call clears both redo stacks.
 - **Both actionStack and redoStack/redoActionStack are in-memory only** — not persisted. All are lost on page refresh, but undo recovers via balls array.
 
-### Read-Only / Spectator Mode (View Scoreboard)
-
-**For active matches (scoring/innings_break):**
-- Any cricket user can tap **"View Scoreboard"** on active match cards in the landing page
-- Uses `viewScorecard(matchId)` — fetches match data without calling `claim_scorer` (no write access)
-- `ScoringScreen` receives `readOnly={true}`:
-  - **"Scoring" tab is hidden** — only Ball by Ball, Scorecard, and Squads tabs visible
-  - **ButtonGrid is not rendered** — no run buttons, wicket, extras, undo/redo/end
-  - **Default tab is "Ball by Ball"** instead of "Scoring"
-  - **Proactive scorer takeover check is skipped** (no need to check `active_scorer_id`)
-  - **Refresh uses `viewScorecard`** (not `resumeMatch`) to avoid claiming scorer
-- Viewer sees: scoreboard, batsman/bowler cards, over timeline, partnership strip — all read-only
-- Tapping "Back" clears readOnly state and returns to landing
-
 ### Completed Match (Read-Only)
 - `status === 'completed'` — cannot record balls or modify players
 - Can view scorecard + export
@@ -492,7 +478,6 @@ Non-striker run out with 1 run completed:
 | Scorer Takeover (Player B) | "Resume Scoring" on active match | Landing → confirm dialog | Hydrate store + claim_scorer RPC | Awaited (row lock) | Claim fail recovery |
 | Takeover Detected (Player A) | Sync error or mount check | ScoringScreen | takenOverBy set, writes blocked | None (all skipped) | Non-dismissible dialog → Back to Home |
 | Leaderboard | "Practice Stats" button or hamburger menu | leaderboard/page.tsx | Load stats per category | get_practice_leaderboard() RPC | 4 categories, max 10 rows |
-| View Scoreboard (spectator) | "View Scoreboard" on active match | Landing → ScoringScreen(readOnly) | viewScorecard() hydration | Awaited (no scorer claim) | No Scoring tab, no ButtonGrid |
 | Scorecard | "View Scorecard" | page.tsx | Load readonly | viewScorecard() RPC | No scorer claim |
 | Delete | Three-dot menu | Landing | soft-delete | soft_delete_match() | Admin only for permanent |
 | Restore | Three-dot menu | Landing | restore | restore_match() | Admin only |
