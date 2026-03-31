@@ -57,29 +57,11 @@ The app supports multiple user roles with isolated experiences:
 
 ### Signup & Access Flows
 
-**Player pre-added by admin → signs up on cricket:**
-Admin adds player with email in `cricket_players` (`user_id: NULL`) → player signs up on `/cricket` with same email → `auth.users` record created → `profiles` record created with `access: {cricket}` → DB trigger `handle_new_user` checks `cricket_players` for email match → found → sets `profiles.approved: true`, links `cricket_players.user_id` → `create_welcome_post` RPC fires → welcome post + notifications created → player confirms email → signs in.
+Six flows cover all signup/login scenarios (pre-added player, existing toolkit user, random signup, etc.). Player linking uses case-insensitive email match in 3 places: DB trigger, AuthGate, auth-store backup.
 
-**Player pre-added by admin → already has toolkit account:**
-Player tries signup on `/cricket` → email already registered → code checks `cricket_players` by email → match found → shows "You're on the team. Please sign in instead." → player signs in → `AuthGate` auto-approves, adds `cricket` to `profiles.access`, links `cricket_players.user_id` (via `ilike` email match where `user_id IS NULL`), creates welcome post → page reloads into cricket dashboard.
+**CRITICAL:** `AuthGate` only renders `RequestAccess` after `userAccess.length > 0` to prevent race condition (duplicate welcome posts).
 
-**Player linking on login (backup):**
-On every login for cricket users, `auth-store.ts` runs: `UPDATE cricket_players SET user_id = auth_user_id WHERE email ILIKE auth_email AND user_id IS NULL AND is_active = true`. This is a backup linking mechanism in case the DB trigger or AuthGate flow missed it.
-
-**Toolkit user tries cricket signup (not a player):**
-Player tries signup on `/cricket` → email already registered → code checks `cricket_players` → no match → auto-calls `request_cricket_access` RPC (adds `cricket` to access, sets `approved: false`) → shows "Pending Approval" screen → admin approves or rejects.
-
-**Random person signs up on cricket (no player record):**
-Signs up on `/cricket` → no email match → `approved: false` → sees "Pending Approval" screen → admin sees in pending approvals bell:
-- **Approve**: sets `profiles.approved: true`, creates `cricket_players` record from signup metadata, fires `create_welcome_post` RPC → welcome post + notifications → player can sign in.
-- **Reject (pure cricket signup)**: fully deletes from `auth.users` + `profiles` via `reject_user` RPC → can sign up again fresh.
-- **Reject (existing toolkit user)**: removes `cricket` from access array, restores `approved: true` → toolkit access preserved, cricket denied.
-
-**Toolkit user signs in on cricket (not a player, didn't try signup first):**
-Signs in on `/cricket` → `AuthGate` detects no cricket access → checks `cricket_players` → no match → shows "Request Cricket Access" screen → clicks request → `approved: false`, `cricket` added to access → admin approves or rejects from bell icon.
-
-**IMPORTANT — AuthGate race condition guard:**
-`AuthGate` only renders `RequestAccess` after `userAccess` has loaded from the profile (i.e., `userAccess.length > 0`). Without this, a brief window where `user` exists but `userAccess` is still `[]` would cause `RequestAccess` to render for existing users, re-triggering auto-approve + duplicate welcome posts.
+Full flow details: `docs/SIGNUP_FLOWS.md`
 
 ## Tech Stack
 
@@ -258,97 +240,23 @@ Table `practice_balls`: `id`, `match_id` (CASCADE), `innings_number`, `sequence`
 - **Revert match**: Admin can revert abruptly ended (no winner) matches. Smart status: if 2nd innings has players → `scoring`, if 1st innings completed → `innings_break`, else `scoring`.
 - **Spectators**: Subscribe to Supabase Realtime on `practice_matches` + `practice_innings` for live score updates (planned)
 
-#### Scoring UI Components
-- `ScoringWizard.tsx` — 5-step setup (match details → Team A → Team B → toss → opening players)
-- `ScoringScreen.tsx` — main scoring interface (scoreboard + batsmen/bowler + over timeline + button grid + tabs)
-- `ButtonGrid.tsx` — premium scoring pad (circular run buttons, gradient boundaries, wicket bar, extras, undo/redo/end)
-- `Scoreboard.tsx` — gradient score display (team, runs/wickets, overs, run rate, target)
-- `OverTimeline.tsx` — colored ball circles for current over (3-tone: gray runs, blue boundaries, red wickets, amber extras)
-- `BallByBallLog.tsx` — reverse chronological timeline with over summaries, innings break cards, match result card
-- `FullScorecard.tsx` — batting table + bowling table + fall of wickets
-- `WicketSheet.tsx` — multi-step Dialog: dismissal type → fielder → new batsman (handles all-out)
-- `ExtrasSheet.tsx` — Dialog for wide/no-ball/bye with run selection
-- `EndOfOverSheet.tsx` — Dialog showing bowling figures + next bowler selection
-- `CoinFlipPage.tsx` — 3D coin flip animation with Web Audio sound effects, Continue/Flip Again buttons (wizard step 4a)
-- `TossPage.tsx` — premium toss result page: hero image, team card tap targets, bat/bowl decision with gradient highlights (wizard step 4b)
-- `FreeHitBanner.tsx` — subtle cricket-themed banner after no-ball
-- `PostMatchSummary.tsx` — result screen with gradient hero, both innings scores, scorecard link
-- `RetireSheet.tsx` — retire batsman dialog (pick who retires + pick replacement from yet-to-bat or can-return)
-- `AddPlayerSheet.tsx` — add late-joining players mid-match (roster with photos + guest players + search)
-- `scoring-utils.ts` — type converters between store (ScoringBall) and UI (BallResult, TimelineEntry, InningsSummary, RetirementData)
-- `PageFooter.tsx` — shared "Designed by Bhaskar Mantrala" footer (used across cricket + scoring)
+#### Scoring UI & Match Lifecycle
 
-#### Match Lifecycle
-```
-Landing Page → Start New Match → Wizard (5 steps) → Scoring Screen
-  ↓ (each ball)                                        ↓
-  recordBall → update scoreboard/batsmen/bowler       End of Over → select next bowler
-  ↓ (all out / overs complete / target reached)        ↓
-  Innings Over card → Start 2nd Innings               2nd Innings Setup Dialog → continue scoring
-  ↓ (match complete)                                   ↓
-  Match Result Screen → View Scorecard / Done         Back to Landing (match in history)
+Components in `app/(tools)/cricket/scoring/components/`. Match lifecycle: Landing → Wizard (5 steps) → Scoring → Innings Break → 2nd Innings → Result → History.
 
-Match History:
-  Previous Matches (paginated, 10 per page, Load More)
-  ↓ three-dot menu
-  View Scorecard / Delete Match (soft-delete → Recently Deleted)
-
-  Recently Deleted (admin only)
-  ↓ three-dot menu
-  Restore Match / Delete Forever (permanent, CASCADE)
-```
+Full component list and lifecycle diagram: `docs/SCORING_UI.md`
 
 ## Design System (`components/ui/`)
 
 Shared UI components following the **shadcn/ui pattern** (copy-paste, own-the-code) with CVA for type-safe variants, Radix UI for accessible primitives, and sonner for toast notifications.
 
 ### Stack
-- **CVA** (class-variance-authority) — Type-safe variant definitions for components
-- **Radix UI** — Accessible primitives (Dialog with focus trap, keyboard nav, ARIA)
-- **sonner** — Toast notifications with theme integration
-- **cn()** (`lib/utils.ts`) — Class merging via clsx + tailwind-merge
-- **BrandProvider** (`lib/brand.tsx`) — React context for toolkit (purple) / cricket (sky blue/navy) theming
-- **Toolkit theme** is configurable via 4 CSS variables in `globals.css`: `--toolkit`, `--toolkit-accent`, `--toolkit-hover`, `--toolkit-glow` — change these to rebrand the entire toolkit (Vibe Planner, ID Tracker, Sports, Admin)
-- **Cricket theme** is configurable via 4 CSS variables in `globals.css`: `--cricket`, `--cricket-accent`, `--cricket-hover`, `--cricket-glow` — change these to rebrand the entire cricket app
-- Both themes are independent — cricket can move to a separate repo without affecting toolkit
+- **CVA** + **Radix UI** + **sonner** + **cn()** (`clsx + tailwind-merge`)
+- **BrandProvider** (`lib/brand.tsx`) — toolkit (purple) / cricket (sky blue/navy) theming
+- Themes configurable via 4 CSS vars each in `globals.css`: `--toolkit*` and `--cricket*`
+- Components auto-detect brand from `BrandProvider`
 
-### Components
-| Component | File | Key Props |
-|-----------|------|-----------|
-| `Button` | `button.tsx` | `variant` (primary/secondary/danger/ghost/link), `size` (sm/md/lg/xl/icon), `brand`, `loading`, `fullWidth`, `asChild` |
-| `Input` | `input.tsx` | `label`, `error`, `brand` (auto-switches focus color) |
-| `Dialog` | `dialog.tsx` | Radix Dialog: `DialogContent`, `DialogTitle`, `DialogDescription`, `DialogHeader`, `DialogFooter`, `DialogClose` |
-| `Alert` | `alert.tsx` | `variant` (error/success/warning/info) |
-| `Card` | `card.tsx` | `padding` (none/sm/md/lg), `shadow`, `animate` |
-| `Badge` | `badge.tsx` | `variant` (purple/orange/red/green/blue/muted), `size` (sm/md) |
-| `Spinner` | `spinner.tsx` | `size` (sm/md/lg), `brand`, `color` |
-| `Skeleton` | `skeleton.tsx` | Just `className` — pulse loading placeholder |
-| `Label` | `label.tsx` | `uppercase` flag |
-| `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
-| `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
-| `FilterDropdown` | `filter-dropdown.tsx` | Category filter with counts, brand-aware (toolkit/cricket) |
-| `CardMenu` | `card-menu.tsx` | Portal-based three-dot dropdown menu. `items` array with `label`, `icon`, `color`, `onClick`, `dividerBefore`. Auto-closes on click + scroll + resize. `anchorRef` for positioning, `width` prop. |
-| `RefreshButton` | `refresh-button.tsx` | `onRefresh` (async callback), `variant` (bordered/glass), `size`, `title`. Self-managed spinner + disabled state. |
-| `Text` | `text.tsx` | `size` (2xs/xs/sm/md/lg/xl/2xl), `weight`, `color`, `tracking`, `uppercase`, `truncate`, `tabular`, `as` (span/p/h1-h4/label) |
-| `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |
-
-### Usage
-```tsx
-import { Button, Input, Alert, Card, Dialog, DialogContent, DialogTitle } from '@/components/ui';
-import { toast } from 'sonner';
-
-<Button variant="primary" size="lg" loading={saving} fullWidth>Save</Button>
-<Alert variant="error">{error}</Alert>
-toast.success('Saved!');
-```
-
-### Brand Context
-Components auto-detect brand from `BrandProvider`. Cricket pages use orange, toolkit uses purple.
-```tsx
-<BrandProvider brand="cricket">
-  <Button variant="primary">Save</Button>  {/* orange gradient */}
-</BrandProvider>
-```
+Full component table with props, usage examples, brand context: `docs/DESIGN_SYSTEM.md`
 
 ### Rules for New Components
 1. **Always use shared components** — never inline Tailwind for buttons, inputs, modals, alerts
@@ -431,6 +339,34 @@ Before presenting ANY code change to the user for review:
 
 Never present a half-tested change. The user should not be finding basic bugs like "modal doesn't close" or "wrong brand color".
 
+## Scoring Flows — MANDATORY Preservation
+
+Before modifying ANY code in `stores/scoring-store.ts`, `app/(tools)/cricket/scoring/`, or `types/scoring.ts`, you MUST:
+
+1. **Read `docs/SCORING_UI.md`** — contains all documented workflows, edge cases, and component contracts
+2. **Verify no flows are broken** — every change must preserve ALL of these critical flows:
+   - **Ball recording** — runs, extras (wide/no-ball/bye/leg-bye with correct strike swap + run attribution), wickets (all 6 types), free hit mechanics
+   - **Undo/redo** — unified action stack (balls + retirements), undo recovery after page refresh via `balls.length` fallback, redo clearing on new ball
+   - **Scorer takeover** — `claim_scorer` RPC with row lock, proactive mount check, `syncToDb` error detection, non-dismissible dialog, write blocking via `takenOverBy` guard
+   - **Player management** — add from roster/guest/new guest, remove/move with `canRemovePlayer` safety checks, move-to-other-team with failure recovery
+   - **Change opening bowler** — only when `inningsBallCount === 0` (counts ALL ball types), undo restores editability
+   - **End-of-over** — non-dismissible modal, "just bowled" filtering, tiny-team safety valve
+   - **Innings break** — 2nd innings setup dialog with tap-to-select/deselect batsmen, target display, validation
+   - **Match completion** — result computation (win/tie/no-result), inline result screen with mini scorecards + 3 action buttons
+   - **4-tab navigation** — Scoring/Ball-by-Ball/Scorecard/Squads tabs with correct visibility
+   - **Retired player states** — retirement, undo retirement, return-to-crease, replacement tracking
+   - **Stale match detection** — sync button, resumeMatch hydration, reset on completed/deleted
+   - **Revert match** — admin only, `!match_winner` condition, smart status restoration
+
+3. **Cross-reference edge cases** in `docs/SCORING_UI.md` "Edge Cases & Special States" section
+4. **Run scoring-related tests** after any change to scoring code
+5. **Proactive conflict detection** — When the user requests a change that would break or alter an existing documented flow:
+   - **STOP before implementing.** Tell the user exactly which flow(s) from `docs/SCORING_UI.md` will be affected and how.
+   - **Ask for explicit confirmation** before proceeding (e.g., "This will change the undo behavior after page refresh — currently it recovers via balls.length fallback. Should I proceed?").
+   - **After implementing**, update `docs/SCORING_UI.md` to reflect the new behavior so the documentation stays in sync with the code. Never leave stale documentation.
+
+Also reference: `docs/SIGNUP_FLOWS.md` (auth/access flows), `docs/BACKUP_RESTORE.md` (backup table list), `docs/DESIGN_SYSTEM.md` (component props), `docs/EMAIL_SETUP.md` (SMTP config), `docs/TESTING.md` (test structure).
+
 ## Testing — MANDATORY
 
 **ALWAYS update or add unit tests when changing code.** Tests live in `tests/unit/` and use Vitest.
@@ -443,33 +379,7 @@ npm run test:report     # Full report → open test-results/coverage/index.html
 npx next build          # Must pass before pushing
 ```
 
-- **Console**: verbose pass/fail per test with logs
-- **JUnit XML**: `test-results/junit-report.xml` (CI-compatible)
-- **HTML Coverage**: `test-results/coverage/index.html` (open in browser)
-
-### Test Structure
-| File | Coverage |
-|------|----------|
-| `tests/unit/auth-helpers.test.ts` | `lib/auth.ts` — error sanitization, password validation, rate limiting |
-| `tests/unit/auth-store-init.test.ts` | Auth store init(), token flows, onAuthStateChange, checkProfileAndSetUser |
-| `tests/unit/welcome-messages.test.ts` | Welcome message generation and @mention captions |
-| `tests/unit/cricket-store-core.test.ts` | Players, seasons, expenses, settlements, fees, sponsorships (local mode) |
-| `tests/unit/cricket-store-gallery.test.ts` | Gallery posts, comments, likes, reactions, notifications (local mode) |
-| `tests/unit/cricket-store-cloud.test.ts` | All cricket store Supabase cloud-mode paths + ID reconciliation |
-| `tests/unit/vibe-store.test.ts` | Vibe planner CRUD, timer, trash, views (local mode) |
-| `tests/unit/vibe-store-cloud.test.ts` | Vibe store Supabase cloud-mode paths |
-| `tests/unit/id-tracker-store.test.ts` | ID document CRUD (local mode) |
-| `tests/unit/id-tracker-store-cloud.test.ts` | ID tracker Supabase cloud-mode paths |
-| `tests/unit/lib-storage.test.ts` | localStorage load/save utilities |
-| `tests/unit/lib-nav.test.ts` | Navigation config and role assignments |
-| `tests/unit/lib-supabase-client.test.ts` | Supabase client singleton and null guards |
-| `tests/integration/signup-flows.test.ts` | All 6 signup/access flows + login + password + edge cases |
-
-### Mock Setup
-- Supabase client is mocked via `vi.mock('@/lib/supabase/client')` — stores run in local-only mode
-- Fixtures in `tests/mocks/fixtures.ts` — shared test data for all suites
-- Supabase query builder mock in `tests/mocks/supabase.ts`
-- Store state is reset in `beforeEach` using fixtures
+Tests in `tests/unit/` (per-store local + cloud modes, auth helpers, lib utilities) and `tests/integration/` (signup flows). Full test structure table, mock setup, output formats: `docs/TESTING.md`
 
 ### Rules
 - Every new store action MUST have a corresponding test
@@ -478,56 +388,9 @@ npx next build          # Must pass before pushing
 
 ## Backup & Disaster Recovery
 
-### Automated Backups
-- **GitHub Actions workflow** (`.github/workflows/backup.yml`) runs daily at 11 PM PT
-- Exports all 20 tables as JSON to private repo `vibe-planner-backups`
-- Keeps last 30 days, auto-deletes older backups
-- Can trigger manually: Actions → Daily Supabase Backup → Run workflow
-- Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VIBE_PLANNER_BACKUP` (GitHub PAT)
+Daily backup via GitHub Actions (`.github/workflows/backup.yml`) exports 20 tables as JSON to `vibe-planner-backups` repo. When creating a new table, **MUST** add it to both `backup.yml` and `restore.yml`.
 
-### Backed Up Tables (20)
-When creating a new table, you **MUST** add it to both `.github/workflows/backup.yml` and `.github/workflows/restore.yml`.
-
-| # | Table | Category |
-|---|-------|----------|
-| 1 | `profiles` | Core |
-| 2 | `vibes` | Vibe Planner |
-| 3 | `id_documents` | ID Tracker |
-| 4 | `cricket_players` | Cricket |
-| 5 | `cricket_seasons` | Cricket |
-| 6 | `cricket_expenses` | Cricket |
-| 7 | `cricket_expense_splits` | Cricket |
-| 8 | `cricket_settlements` | Cricket |
-| 9 | `cricket_season_fees` | Cricket |
-| 10 | `cricket_sponsorships` | Cricket |
-| 11 | `cricket_gallery` | Moments |
-| 12 | `cricket_gallery_tags` | Moments |
-| 13 | `cricket_gallery_comments` | Moments |
-| 14 | `cricket_gallery_likes` | Moments |
-| 15 | `cricket_comment_reactions` | Moments |
-| 16 | `cricket_notifications` | Moments |
-| 17 | `practice_matches` | Live Scoring |
-| 18 | `practice_match_players` | Live Scoring |
-| 19 | `practice_innings` | Live Scoring |
-| 20 | `practice_balls` | Live Scoring |
-
-### Restore Process (if Supabase project is lost)
-1. **Create new Supabase project** — note the new URL and keys
-2. **Restore schema** — run `docs/cricket-schema.sql` in Supabase SQL Editor (creates tables, RLS policies, RPCs, triggers)
-3. **Generate restore SQL** — Actions → Generate Restore SQL → Run workflow → enter date or "latest"
-4. **Download artifact** — download the `.sql` file from the workflow run
-5. **Restore data** — paste the SQL into Supabase SQL Editor and execute
-6. **Update credentials** — update `.env.local` with new `SUPABASE_URL` and `SUPABASE_ANON_KEY`
-7. **Update GitHub secrets** — update `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in repo settings
-8. **Storage images** — NOT backed up. Player photos and gallery photos would need to be re-uploaded.
-
-### What's Backed Up vs Not
-
-| Backed up | Not backed up |
-|-----------|---------------|
-| All table data (JSON) | Storage bucket images |
-| Schema + RPCs + triggers (git) | Auth user passwords/sessions |
-| RLS policies (git) | Supabase project config |
+Full details (table list, restore steps, what's backed up): `docs/BACKUP_RESTORE.md`
 
 ## Security — MANDATORY Pre-Commit Checks
 
@@ -580,38 +443,8 @@ For ANY change to SQL schema files (`docs/*.sql`), you MUST:
 8. Test locally with `npm run dev`
 9. Push to feature branch, create PR, merge when ready
 
-## Email (Resend + Supabase SMTP)
+## Email
 
-Transactional emails (signup confirmation, password reset) are sent via **Resend** as the custom SMTP provider for Supabase Auth.
+Transactional emails via **Resend** (SMTP) + Supabase Auth. Sender: `noreply@viberstoolkit.com`. Templates in `docs/email-templates/`. Rate limit: 60s per user.
 
-### Setup
-1. **Resend account** — resend.com (free tier: 3,000 emails/month, no credit card)
-2. **Domain verified** — `viberstoolkit.com` with SPF/DKIM/DMARC DNS records (auto-configured via Cloudflare)
-3. **Supabase SMTP config** — Dashboard → Authentication → Email (SMTP Settings):
-   - Host: `smtp.resend.com`
-   - Port: `465`
-   - Username: `resend`
-   - Password: Resend API key (`re_...`)
-   - Sender: `noreply@viberstoolkit.com`
-   - Sender name: `Viber's Toolkit`
-
-### How It Works
-- Supabase Auth composes emails using templates in `docs/email-templates/`
-- Resend delivers them via SMTP — it's a transport layer only
-- Resend **never sees passwords** — only the rendered HTML with reset/confirm links
-- Emails from `noreply@viberstoolkit.com` (not `noreply@mail.supabase.io`)
-
-### Troubleshooting
-- **Rate limit**: Supabase has 60-second minimum interval per user
-- **Spam folder**: New domains start with low reputation — ask users to mark as "Not spam" and add `noreply@viberstoolkit.com` to contacts
-- **Delivery status**: Check Resend dashboard → Emails tab for sent/delivered/bounced
-- **Cache-busting**: If changing email templates, Supabase caches them — wait a few minutes or restart project
-
-## Email Templates
-
-Branded email templates are in `docs/email-templates/`:
-- `reset-password.html` — Password reset (uses `{{ .RedirectTo }}` + `{{ .TokenHash }}` for cross-browser support)
-- `confirm-signup.html` — Signup confirmation
-- `password-changed.html` — Password change notification (for future custom SMTP)
-
-Configure in Supabase Dashboard > Authentication > Email Templates.
+Full setup (SMTP config, troubleshooting, template list): `docs/EMAIL_SETUP.md`
