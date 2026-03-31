@@ -870,7 +870,13 @@ BEGIN
     FROM (
       SELECT
         cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
-        COUNT(DISTINCT b.match_id) AS matches,
+        (SELECT COUNT(DISTINCT pmp2.match_id)
+         FROM practice_match_players pmp2
+         JOIN practice_matches m2 ON m2.id = pmp2.match_id
+         WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND (match_ids IS NULL OR m2.id = ANY(match_ids))
+           AND (p_season_id IS NULL OR m2.season_id = p_season_id)
+        ) AS matches,
         SUM(b.runs_bat) AS total_runs,
         COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') AS balls_faced,
         CASE WHEN COUNT(*) FILTER (WHERE b.is_legal OR b.extras_type = 'no_ball') > 0
@@ -896,7 +902,13 @@ BEGIN
     FROM (
       SELECT
         cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
-        COUNT(DISTINCT b.match_id) AS matches,
+        (SELECT COUNT(DISTINCT pmp2.match_id)
+         FROM practice_match_players pmp2
+         JOIN practice_matches m2 ON m2.id = pmp2.match_id
+         WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND (match_ids IS NULL OR m2.id = ANY(match_ids))
+           AND (p_season_id IS NULL OR m2.season_id = p_season_id)
+        ) AS matches,
         SUM(CASE WHEN b.is_wicket AND COALESCE(b.wicket_type, '') != 'retired' THEN 1 ELSE 0 END) AS total_wickets,
         COUNT(*) FILTER (WHERE b.is_legal) AS legal_balls,
         SUM(b.runs_bat + CASE WHEN b.extras_type IN ('wide', 'no_ball') THEN b.runs_extras ELSE 0 END) AS runs_conceded,
@@ -923,7 +935,13 @@ BEGIN
     FROM (
       SELECT
         cp.id AS player_id, cp.name, cp.photo_url, cp.is_guest,
-        COUNT(DISTINCT b.match_id) AS matches,
+        (SELECT COUNT(DISTINCT pmp2.match_id)
+         FROM practice_match_players pmp2
+         JOIN practice_matches m2 ON m2.id = pmp2.match_id
+         WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND (match_ids IS NULL OR m2.id = ANY(match_ids))
+           AND (p_season_id IS NULL OR m2.season_id = p_season_id)
+        ) AS matches,
         SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches,
         SUM(CASE WHEN b.wicket_type = 'run_out' THEN 1 ELSE 0 END) AS total_runouts,
         SUM(CASE WHEN b.wicket_type = 'stumped' THEN 1 ELSE 0 END) AS total_stumpings,
