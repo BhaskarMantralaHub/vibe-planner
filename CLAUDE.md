@@ -310,6 +310,21 @@ This applies especially to:
 - Animation/positioning bugs (dialog repositioning, drawer conflicts)
 - Auth flow edge cases
 
+## Working Style — MANDATORY
+
+- **One change at a time** — implement a single change, explain what changed, wait for the user to test on their device (especially mobile Safari), only commit/push when they approve. Never batch unrelated changes.
+- **Never push without explicit consent** — the user says "push" or "looks good" before you push. This is a production app with real users.
+- **No secrets in bash** — don't run bash commands that contain or grep for actual credentials, passwords, or emails. Use generic patterns or check git diff output manually.
+- **UI design standards** — when redesigning, make a dramatic visual difference in one pass, not incremental tweaks. Prefer clean card styles over gradient backgrounds for text. Use `lucide-react` for icons. Bottom sheets for mobile actions. No features the user hasn't asked for.
+- **Cross-platform mobile rules:**
+  - Modals/dialogs: use flexbox centering (not CSS transform) to avoid mobile positioning bugs
+  - Touch targets: minimum 44px for all interactive elements
+  - Inputs: handle iOS keyboard viewport push, use `autoComplete` attributes
+  - Bottom sheets (vaul): prefer over dropdowns on mobile
+  - Avoid hover-only interactions — they don't work on touch devices
+  - Use `px-4` padding on fixed overlays for safe area on small screens
+  - Test animations on mobile — avoid heavy transforms that cause jank
+
 ## Shared Components — MANDATORY Check
 
 Before writing ANY UI code, check `components/ui/` for an existing shared component. NEVER duplicate what already exists.
@@ -412,7 +427,7 @@ Full details (table list, restore steps, what's backed up): `docs/BACKUP_RESTORE
 
 2. **Verify .gitignore** — these must NEVER be committed:
    - `.env.local` (Supabase credentials)
-   - `.claude/` (may contain credentials in settings)
+   - `.claude/settings.json`, `.claude/settings.local.json` (may contain credentials)
    - `node_modules/`, `.next/`, `out/`
    - `vibe-planner/config.js` (old vanilla JS credentials)
 
