@@ -1,5 +1,14 @@
 # CLAUDE.md — Project Guide for AI Assistants
 
+## New Machine Setup
+
+After cloning, symlink Claude Code's memory to the repo copy so memory persists across devices:
+
+```bash
+# Find your project path (replace spaces/slashes with hyphens)
+ln -s "$(pwd)/.claude/memory" ~/.claude/projects/-$(pwd | tr '/' '-' | sed 's/^-//')/memory
+```
+
 ## Project Overview
 
 Viber's Toolkit — a personal productivity suite hosted on Cloudflare Pages. Two users (Bhaskar + wife). Multiple tools under one shell with hamburger menu navigation.
