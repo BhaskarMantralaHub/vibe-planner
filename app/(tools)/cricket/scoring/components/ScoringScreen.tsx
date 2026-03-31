@@ -480,13 +480,13 @@ function ScoringScreen({ onBack, onRefresh }: ScoringScreenProps) {
       <div className="min-h-[100dvh]" style={{ background: 'var(--bg)' }}>
         {/* Gradient hero — taller with glow */}
         <div
-          className="relative px-4 pt-14 pb-6 text-center"
+          className="relative px-4 pt-16 pb-6 text-center"
           style={{
             background: 'linear-gradient(180deg, var(--cricket-deep, #1B3A6B) 0%, var(--cricket) 70%, color-mix(in srgb, var(--cricket) 80%, white) 100%)',
           }}
         >
           {/* Back + Refresh buttons */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
             <button
               onClick={() => { useScoringStore.getState().reset(); if (onBack) onBack(); }}
               className="flex items-center gap-1 cursor-pointer active:scale-[0.92] transition-all"
