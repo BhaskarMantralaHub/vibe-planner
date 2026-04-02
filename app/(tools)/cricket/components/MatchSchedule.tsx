@@ -405,11 +405,11 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
             vs {match.opponent}
           </Text>
 
-          <div className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--muted)' }}>
-            <MdAccessTime size={13} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+          <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
+            <MdAccessTime size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
             <span>{formatMatchTime(match.match_time)}</span>
             <span style={{ color: 'var(--border)' }}>|</span>
-            <MdLocationOn size={13} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+            <MdLocationOn size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
             <span>{match.venue}</span>
           </div>
 
@@ -429,7 +429,7 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
           </div>
 
           {match.umpire && (
-            <Text as="p" size="2xs" color="dim" className="mt-1.5">Umpires: {match.umpire}</Text>
+            <Text as="p" size="xs" color="dim" weight="medium" className="mt-1.5">Umpires: {match.umpire}</Text>
           )}
           {match.notes && (
             <Text as="p" size="2xs" color="dim" className="mt-1">{match.notes}</Text>
