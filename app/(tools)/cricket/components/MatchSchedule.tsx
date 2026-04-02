@@ -280,69 +280,66 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-white/40 hover:text-white hover:bg-white/10 transition-colors z-20"
+          className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-full cursor-pointer text-white/80 hover:text-white transition-colors z-20"
+          style={{ background: 'rgba(255,255,255,0.15)' }}
         >
           <FaEllipsisV size={12} />
         </button>
       )}
 
-      <div className="relative z-10 p-4 sm:p-5">
-        {/* Top: label + pulsing live dot */}
+      <div className="relative z-10 p-4 sm:p-5 pr-10">
+        {/* Top: label + pulsing dot */}
         <div className="flex items-center gap-2 mb-4">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
           </span>
           <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
-          <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
-            style={{ background: `${typeConfig.color}30`, color: 'white' }}>
-            {typeConfig.label} · {match.overs}ov
-          </span>
         </div>
 
-        {/* Countdown blocks */}
-        <div className="flex items-center justify-center gap-5 mb-4">
+        {/* Team names — SHM prominent, opponent secondary */}
+        <div className="mb-4">
+          <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
+            Sunrisers Manteca
+          </Text>
+          <Text size="md" weight="medium" className="text-white/60 mt-0.5">
+            vs {match.opponent}
+          </Text>
+        </div>
+
+        {/* Countdown */}
+        <div className="flex items-center gap-4 mb-4">
           {freshCountdown.days > 0 && (
             <>
               <CountdownBlock label="Days" value={freshCountdown.days} />
-              <span className="text-white/20 text-[24px] font-light mt-[-8px]">:</span>
+              <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
             </>
           )}
           <CountdownBlock label="Hours" value={freshCountdown.hours} />
-          <span className="text-white/20 text-[24px] font-light mt-[-8px]">:</span>
+          <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
           <CountdownBlock label="Mins" value={freshCountdown.mins} />
         </div>
 
-        {/* Opponent */}
-        <div className="text-center mb-3">
-          <Text size="2xs" weight="semibold" uppercase tracking="wider" className="text-white/40 mb-0.5">
-            Sunrisers Manteca vs
-          </Text>
-          <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[24px] leading-tight">
-            {match.opponent}
-          </Text>
-        </div>
-
-        {/* Date / Time / Venue — pill row */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold"
-            style={{ background: 'rgba(255,255,255,0.1)', color: 'white', backdropFilter: 'blur(4px)' }}
-          >
-            <MdAccessTime size={13} className="opacity-60" />
-            {dayName} {dayNum} {month} · {formatMatchTime(match.match_time)}
-          </span>
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold"
-            style={{ background: 'rgba(255,255,255,0.1)', color: 'white', backdropFilter: 'blur(4px)' }}
-          >
-            <MdLocationOn size={13} className="opacity-60" />
-            {match.venue}
-          </span>
+        {/* Date / Time / Venue */}
+        <div className="flex flex-col gap-1.5 text-[12px] text-white/70">
+          <div className="flex items-center gap-1.5">
+            <MdAccessTime size={14} className="opacity-50 flex-shrink-0" />
+            <span>{dayName} {dayNum} {month} · {formatMatchTime(match.match_time)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <MdLocationOn size={14} className="opacity-50 flex-shrink-0" />
+            <span>{match.venue}</span>
+          </div>
+          {match.umpire && (
+            <div className="flex items-center gap-1.5">
+              <MdSportsCricket size={14} className="opacity-50 flex-shrink-0" />
+              <span>Umpires: {match.umpire}</span>
+            </div>
+          )}
         </div>
 
         {match.notes && (
-          <Text size="2xs" color="white" className="text-center mt-2 opacity-50">{match.notes}</Text>
+          <Text size="2xs" className="mt-2 text-white/40">{match.notes}</Text>
         )}
       </div>
     </div>
