@@ -24,9 +24,9 @@ function ScheduleContent() {
   }, [user, loadSeasons]);
 
   return (
-    <div className="relative min-h-screen px-4 py-4 space-y-4">
+    <div className="relative min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8 overflow-hidden">
       {/* Page header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl"
           style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
           <MdDateRange size={20} className="text-white" />

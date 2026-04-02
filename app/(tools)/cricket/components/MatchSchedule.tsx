@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
@@ -931,77 +932,80 @@ export default function MatchSchedule() {
         </div>
       )}
 
-      {/* Bottom tab bar — iOS-style with pill active state */}
-      <div
-        className="fixed left-0 right-0 z-40"
-        style={{
-          bottom: 0,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-          background: 'color-mix(in srgb, var(--card) 85%, transparent)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
-          boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
-        }}
-      >
-        <div className="flex items-center justify-around px-2 pt-1.5 pb-2">
-          {tabs.map((t) => {
-            const isActive = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => { setActiveTab(t.key); setOpenMenu(null); }}
-                className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {isActive && (
-                  <span
-                    className="absolute inset-0 rounded-2xl"
-                    style={{
-                      background: 'color-mix(in srgb, var(--cricket) 15%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-                    }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1">
-                  <span
-                    className="transition-all duration-200"
-                    style={{
-                      color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                      filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cricket) 60%, transparent))' : 'none',
-                      transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
-                      display: 'flex',
-                    }}
-                  >
-                    {t.icon}
-                  </span>
-                  {t.count > 0 && (
+      {/* Bottom tab bar — portaled to body to avoid iOS Safari fixed positioning bugs */}
+      {typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed left-0 right-0 z-40"
+          style={{
+            bottom: 0,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            background: 'color-mix(in srgb, var(--card) 85%, transparent)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+            boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
+          }}
+        >
+          <div className="flex items-center justify-around px-2 pt-1.5 pb-2">
+            {tabs.map((t) => {
+              const isActive = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => { setActiveTab(t.key); setOpenMenu(null); }}
+                  className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {isActive && (
                     <span
-                      className="min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold px-1"
+                      className="absolute inset-0 rounded-2xl"
                       style={{
-                        background: isActive ? 'var(--cricket)' : 'var(--dim)',
-                        color: 'white',
+                        background: 'color-mix(in srgb, var(--cricket) 15%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
+                      }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1">
+                    <span
+                      className="transition-all duration-200"
+                      style={{
+                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
+                        filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cricket) 60%, transparent))' : 'none',
+                        transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
+                        display: 'flex',
                       }}
                     >
-                      {t.count}
+                      {t.icon}
                     </span>
-                  )}
-                </span>
-                <span
-                  className="relative z-10 text-[10px] transition-all duration-200"
-                  style={{
-                    color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                    fontWeight: isActive ? 700 : 500,
-                    letterSpacing: isActive ? '0.03em' : '0.02em',
-                  }}
-                >
-                  {t.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                    {t.count > 0 && (
+                      <span
+                        className="min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold px-1"
+                        style={{
+                          background: isActive ? 'var(--cricket)' : 'var(--dim)',
+                          color: 'white',
+                        }}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className="relative z-10 text-[10px] transition-all duration-200"
+                    style={{
+                      color: isActive ? 'var(--cricket)' : 'var(--muted)',
+                      fontWeight: isActive ? 700 : 500,
+                      letterSpacing: isActive ? '0.03em' : '0.02em',
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* Tab content */}
       <div className="min-h-[200px]">
