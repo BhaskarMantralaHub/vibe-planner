@@ -38,7 +38,7 @@ ALTER TABLE cricket_schedule_matches
   ADD CONSTRAINT chk_schedule_status CHECK (status IN ('upcoming', 'completed'));
 
 ALTER TABLE cricket_schedule_matches
-  ADD CONSTRAINT chk_schedule_result CHECK (result IS NULL OR result IN ('won', 'lost', 'tied'));
+  ADD CONSTRAINT chk_schedule_result CHECK (result IS NULL OR result IN ('won', 'lost', 'draw'));
 
 -- ── Row Level Security ────────────────────────────────────
 ALTER TABLE cricket_schedule_matches ENABLE ROW LEVEL SECURITY;

@@ -9,6 +9,7 @@ import { FaEllipsisV } from 'react-icons/fa';
 import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll } from 'react-icons/md';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
+import ResultForm from './ResultForm';
 
 /* ── Types ── */
 interface Performer {
@@ -29,7 +30,7 @@ export interface Match {
   overs: number;
   status: 'upcoming' | 'completed';
   notes?: string;
-  result?: 'won' | 'lost' | 'tied';
+  result?: 'won' | 'lost' | 'draw';
   team_score?: string;
   team_overs?: string;
   opponent_score?: string;
@@ -103,7 +104,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
   return (
     <div className="rounded-2xl p-4 sm:p-5 overflow-hidden relative"
-      style={{ background: 'linear-gradient(135deg, #1B3A6B, #4DBBEB)' }}>
+      style={{ background: 'linear-gradient(135deg, var(--cricket-deep), var(--cricket))' }}>
       <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10"
         style={{ background: 'white' }} />
 
@@ -164,7 +165,7 @@ function MatchCard({ match, isAdmin, isDeleted, onMenuOpen, openMenuId, menuBtnR
   const isPastUpcoming = match.status === 'upcoming' && !isDeleted;
   const resultColor = match.result === 'won' ? 'var(--green)' : match.result === 'lost' ? 'var(--red)' : 'var(--muted)';
   const resultBg = match.result === 'won' ? 'rgba(74,222,128,0.1)' : match.result === 'lost' ? 'rgba(248,113,113,0.1)' : 'rgba(156,163,175,0.1)';
-  const resultLabel = match.result === 'won' ? 'Won' : match.result === 'lost' ? 'Lost' : match.result === 'tied' ? 'Tied' : null;
+  const resultLabel = match.result === 'won' ? 'Won' : match.result === 'lost' ? 'Lost' : (match.result === 'draw' || match.result === 'tied') ? 'Draw' : null;
 
   return (
     <div
@@ -313,6 +314,7 @@ export default function MatchSchedule() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingMatch, setDeletingMatch] = useState<{ id: string; opponent: string } | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<{ id: string; opponent: string } | null>(null);
+  const [recordingMatch, setRecordingMatch] = useState<Match | null>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   /* ── Load matches from Supabase or localStorage ── */
@@ -350,7 +352,9 @@ export default function MatchSchedule() {
   const trashed = matches.filter((m) => m.deleted_at)
     .sort((a, b) => new Date(b.deleted_at!).getTime() - new Date(a.deleted_at!).getTime());
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Use local date (not UTC) to avoid timezone mismatch
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const upcoming = active
     .filter((m) => m.status === 'upcoming' && m.match_date >= today)
     .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
@@ -371,6 +375,10 @@ export default function MatchSchedule() {
 
   /* ── Handlers (Supabase + localStorage fallback) ── */
   const handleAdd = async (data: Omit<Match, 'id' | 'status'>, keepOpen?: boolean) => {
+    if (isCloudMode() && !selectedSeasonId) {
+      toast.error('No season selected');
+      return;
+    }
     if (isCloudMode() && selectedSeasonId) {
       const supabase = getSupabaseClient();
       if (!supabase) return;
@@ -492,7 +500,8 @@ export default function MatchSchedule() {
       if (supabase) {
         const trashedIds = trashed.map((m) => m.id);
         if (trashedIds.length > 0) {
-          await supabase.from('cricket_schedule_matches').delete().in('id', trashedIds);
+          const { error } = await supabase.from('cricket_schedule_matches').delete().in('id', trashedIds);
+          if (error) { toast.error('Failed to empty trash'); return; }
         }
       }
     }
@@ -506,8 +515,27 @@ export default function MatchSchedule() {
     toast.success('Trash emptied');
   };
 
-  const handleRecordResult = () => {
-    toast('Coming soon', { description: 'Result recording will be available in a future update.' });
+  const handleRecordResult = async (matchId: string, data: { result: 'won' | 'lost' | 'draw' }) => {
+    const updates = { ...data, status: 'completed' as const };
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      const { error } = await supabase
+        .from('cricket_schedule_matches')
+        .update(updates)
+        .eq('id', matchId);
+      if (error) { toast.error('Failed to save result'); return; }
+    }
+
+    setMatches((prev) => {
+      const next = prev.map((m) => m.id === matchId ? { ...m, ...updates } : m);
+      if (!isCloudMode()) localSaveMatches(next);
+      return next;
+    });
+    setRecordingMatch(null);
+    setActiveTab('completed');
+    toast.success('Result recorded');
   };
 
   /* ── CardMenu items builder ── */
@@ -524,7 +552,7 @@ export default function MatchSchedule() {
     }
 
     return [
-      { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: () => handleRecordResult() },
+      { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) },
       { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
       { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
     ];
@@ -797,6 +825,14 @@ export default function MatchSchedule() {
         onClose={() => { setShowForm(false); setEditingMatch(null); }}
         onSubmit={editingMatch ? handleEdit : handleAdd}
         initialData={editingMatch || undefined}
+      />
+
+      {/* Result Form Drawer */}
+      <ResultForm
+        open={!!recordingMatch}
+        match={recordingMatch}
+        onClose={() => setRecordingMatch(null)}
+        onSubmit={handleRecordResult}
       />
 
       {/* Spacer for fixed bottom tab bar */}
