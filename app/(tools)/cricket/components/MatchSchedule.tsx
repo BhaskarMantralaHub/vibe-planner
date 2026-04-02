@@ -7,7 +7,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { FaEllipsisV } from 'react-icons/fa';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll, MdLocationOn, MdAccessTime, MdCalendarMonth } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll, MdLocationOn, MdAccessTime, MdCalendarMonth, MdShare } from 'react-icons/md';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
@@ -163,6 +163,38 @@ function addAllToCalendar(matches: Match[]) {
   a.click();
   URL.revokeObjectURL(url);
   toast.success(`${matches.length} matches added to calendar`);
+}
+
+async function shareSchedule(matches: Match[]) {
+  const lines = [
+    '🏏 Sunrisers Manteca — League Schedule',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    ...matches.map((m, i) => {
+      const d = new Date(m.match_date + 'T00:00:00');
+      const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const [h, min] = m.match_time.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour = h % 12 || 12;
+      const time = `${hour}:${String(min).padStart(2, '0')} ${ampm}`;
+      const homeAway = m.is_home != null ? (m.is_home ? ' (H)' : ' (A)') : '';
+      return `${i + 1}. ${date} · ${time}\n   vs ${m.opponent}${homeAway}\n   📍 ${m.venue}${m.umpire ? `\n   🧑‍⚖️ ${m.umpire}` : ''}`;
+    }),
+    '',
+    `${matches.length} matches · 20 overs each`,
+  ];
+
+  const text = lines.join('\n');
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'SHM League Schedule', text });
+      return;
+    } catch { /* user cancelled or not supported */ }
+  }
+
+  await navigator.clipboard.writeText(text);
+  toast.success('Schedule copied to clipboard');
 }
 
 function formatDeletedAgo(dateStr: string) {
@@ -976,18 +1008,32 @@ export default function MatchSchedule() {
       {activeTab === 'upcoming' && upcoming.length > 0 && (
         <div className="flex items-center justify-between px-1 pt-1">
           {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
-          <button
-            onClick={() => addAllToCalendar(upcoming)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
-            style={{
-              background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
-              color: 'var(--cricket)',
-              border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-            }}
-          >
-            <MdCalendarMonth size={14} />
-            Add All to Calendar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => addAllToCalendar(upcoming)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
+              style={{
+                background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
+                color: 'var(--cricket)',
+                border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
+              }}
+            >
+              <MdCalendarMonth size={14} />
+              Calendar
+            </button>
+            <button
+              onClick={() => shareSchedule(upcoming)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
+              style={{
+                background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
+                color: 'var(--cricket)',
+                border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
+              }}
+            >
+              <MdShare size={14} />
+              Share
+            </button>
+          </div>
         </div>
       )}
 
