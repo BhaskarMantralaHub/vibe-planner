@@ -36,6 +36,7 @@ jobs:
             "practice_match_players"
             "practice_innings"
             "practice_balls"
+            "cricket_schedule_matches"
             "vibes"
             "id_documents"
           )

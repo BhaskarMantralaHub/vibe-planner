@@ -106,6 +106,7 @@ interface CricketState {
   // Actions
   loadAll: (userId: string) => Promise<void>;
   loadMoments: (userId: string) => Promise<void>;
+  loadSeasons: () => Promise<void>;
   loadMoreGallery: () => Promise<void>;
 
   // Players
@@ -291,6 +292,30 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const commentReactions = (reactionsRes.data ?? []) as CommentReaction[];
 
     set({ players, seasons, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false });
+  },
+
+  loadSeasons: async () => {
+    // Skip if seasons already loaded
+    if (get().seasons.length > 0) return;
+
+    if (!isCloudMode()) {
+      const data = localLoad();
+      const selectedSeasonId = pickCurrentSeason(data.seasons);
+      set({ seasons: data.seasons, selectedSeasonId });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data } = await supabase
+      .from('cricket_seasons')
+      .select('*')
+      .order('year', { ascending: false });
+
+    const seasons = (data ?? []) as CricketSeason[];
+    const selectedSeasonId = pickCurrentSeason(seasons);
+    set({ seasons, selectedSeasonId });
   },
 
   loadMoreGallery: async () => {

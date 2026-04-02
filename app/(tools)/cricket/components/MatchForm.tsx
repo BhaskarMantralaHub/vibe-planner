@@ -6,18 +6,12 @@ import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { Alert } from '@/components/ui';
 import type { Match } from './MatchSchedule';
 
-/* ── Match Type Options ── */
-const MATCH_TYPES = [
-  { key: 'league', label: 'League', color: '#3B82F6' },
-  { key: 'practice', label: 'Practice', color: '#16A34A' },
-] as const;
-
-type MatchType = (typeof MATCH_TYPES)[number]['key'];
+type MatchType = 'league' | 'practice';
 
 interface MatchFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: Omit<Match, 'id' | 'status'>) => void;
+  onSubmit: (data: Omit<Match, 'id' | 'status'>, keepOpen?: boolean) => void;
   initialData?: Match;
 }
 
@@ -26,8 +20,8 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
   const [matchDate, setMatchDate] = useState('');
   const [matchTime, setMatchTime] = useState('10:00');
   const [venue, setVenue] = useState('');
-  const [matchType, setMatchType] = useState<MatchType>('league');
-  const [overs, setOvers] = useState('20');
+  const matchType: MatchType = 'league';
+  const overs = '20';
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -38,8 +32,6 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       setMatchDate(initialData.match_date);
       setMatchTime(initialData.match_time);
       setVenue(initialData.venue);
-      setMatchType(initialData.match_type);
-      setOvers(String(initialData.overs));
       setNotes(initialData.notes || '');
       setFormError('');
     } else if (open && !initialData) {
@@ -47,35 +39,22 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       setMatchDate('');
       setMatchTime('10:00');
       setVenue('');
-      setMatchType('league');
-      setOvers('20');
       setNotes('');
       setFormError('');
+      setAddedCount(0);
     }
   }, [open, initialData]);
 
-  const handleSubmit = () => {
-    if (!opponent.trim()) {
-      setFormError('Opponent name is required.');
-      return;
-    }
-    if (!matchDate) {
-      setFormError('Match date is required.');
-      return;
-    }
-    if (!venue.trim()) {
-      setFormError('Venue is required.');
-      return;
-    }
+  const [addedCount, setAddedCount] = useState(0);
 
+  const validate = (): Omit<Match, 'id' | 'status'> | null => {
+    if (!opponent.trim()) { setFormError('Opponent name is required.'); return null; }
+    if (!matchDate) { setFormError('Match date is required.'); return null; }
+    if (!venue.trim()) { setFormError('Venue is required.'); return null; }
     const parsedOvers = parseInt(overs, 10);
-    if (isNaN(parsedOvers) || parsedOvers <= 0) {
-      setFormError('Overs must be a positive number.');
-      return;
-    }
-
+    if (isNaN(parsedOvers) || parsedOvers <= 0) { setFormError('Overs must be a positive number.'); return null; }
     setFormError('');
-    onSubmit({
+    return {
       opponent: opponent.trim(),
       match_date: matchDate,
       match_time: matchTime,
@@ -83,7 +62,26 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       match_type: matchType,
       overs: parsedOvers,
       notes: notes.trim() || undefined,
-    });
+    };
+  };
+
+  const handleSubmit = () => {
+    const data = validate();
+    if (!data) return;
+    onSubmit(data);
+    setAddedCount(0);
+  };
+
+  const handleSubmitAndAnother = () => {
+    const data = validate();
+    if (!data) return;
+    onSubmit(data, true);
+    // Reset form but keep venue, match_type, overs (likely same for season fixtures)
+    setOpponent('');
+    setMatchDate('');
+    setNotes('');
+    setFormError('');
+    setAddedCount((c) => c + 1);
   };
 
   const inputClass = 'w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors placeholder:text-[var(--dim)]';
@@ -164,47 +162,6 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
           />
         </div>
 
-        {/* Match Type — pill selector */}
-        <div>
-          <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
-            Match Type
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {MATCH_TYPES.map((t) => {
-              const active = matchType === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setMatchType(t.key)}
-                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-[12px] font-bold cursor-pointer border transition-all"
-                  style={{
-                    backgroundColor: active ? `${t.color}15` : 'transparent',
-                    borderColor: active ? t.color : 'var(--border)',
-                    color: active ? t.color : 'var(--muted)',
-                  }}>
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Overs */}
-        <div>
-          <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
-            Overs
-          </label>
-          <input
-            type="number"
-            value={overs}
-            onChange={(e) => setOvers(e.target.value)}
-            min="1"
-            max="50"
-            className={inputClass}
-            style={{ width: '100px' }}
-          />
-        </div>
-
         {/* Notes */}
         <div>
           <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
@@ -220,9 +177,21 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
         </div>
 
         {/* Submit */}
-        <Button variant="primary" brand="cricket" fullWidth onClick={handleSubmit}>
-          {initialData ? 'Update Match' : 'Schedule Match'}
-        </Button>
+        {addedCount > 0 && (
+          <p className="text-[12px] font-medium text-center" style={{ color: 'var(--green)' }}>
+            {addedCount} match{addedCount !== 1 ? 'es' : ''} added this session
+          </p>
+        )}
+        <div className="flex gap-2">
+          {!initialData && (
+            <Button variant="secondary" className="flex-1" onClick={handleSubmitAndAnother}>
+              + Add & Next
+            </Button>
+          )}
+          <Button variant="primary" brand="cricket" className="flex-1" onClick={handleSubmit}>
+            {initialData ? 'Update Match' : addedCount > 0 ? 'Done' : 'Schedule Match'}
+          </Button>
+        </div>
       </DrawerBody>
     </Drawer>
   );
