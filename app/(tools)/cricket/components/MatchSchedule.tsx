@@ -165,6 +165,73 @@ function addAllToCalendar(matches: Match[]) {
   toast.success(`${matches.length} matches added to calendar`);
 }
 
+function exportSchedulePDF(matches: Match[]) {
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  const formatTime = (timeStr: string) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  const rows = matches.map((m, i) => {
+    const homeAway = m.is_home != null ? (m.is_home ? 'Home' : 'Away') : '—';
+    const homeBg = m.is_home === true ? '#dcfce7' : m.is_home === false ? '#dbeafe' : '#f3f4f6';
+    const homeColor = m.is_home === true ? '#15803d' : m.is_home === false ? '#1d4ed8' : '#6b7280';
+    return `<tr style="border-bottom:1px solid #e5e7eb;${i % 2 === 0 ? '' : 'background:#f9fafb;'}">
+      <td style="padding:10px 12px;font-weight:600;white-space:nowrap">${i + 1}</td>
+      <td style="padding:10px 12px;white-space:nowrap">${formatDate(m.match_date)}<br><span style="color:#6b7280;font-size:12px">${formatTime(m.match_time)}</span></td>
+      <td style="padding:10px 12px;font-weight:600">${m.opponent}</td>
+      <td style="padding:10px 12px">${m.venue}</td>
+      <td style="padding:10px 12px;text-align:center"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${homeBg};color:${homeColor}">${homeAway}</span></td>
+      <td style="padding:10px 12px;color:#6b7280;font-size:13px">${m.umpire || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>SHM League Schedule</title>
+<style>
+  @page { size: landscape; margin: 12mm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; margin: 0; padding: 20px; }
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #1B3A6B; }
+  .logo { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #1B3A6B, #4DBBEB); display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 18px; }
+  .title { font-size: 22px; font-weight: 800; color: #1B3A6B; }
+  .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #1B3A6B; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+  .footer { margin-top: 20px; text-align: center; color: #9ca3af; font-size: 11px; }
+</style>
+</head><body>
+<div class="header">
+  <div class="logo">SHM</div>
+  <div>
+    <div class="title">Sunrisers Manteca</div>
+    <div class="subtitle">2026 MTCA Spring League · Division D · ${matches.length} Matches</div>
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>Date & Time</th><th>Opponent</th><th>Venue</th><th>H/A</th><th>Umpires</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">Generated from Sunrisers Manteca App · ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+</body></html>`;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { toast.error('Please allow popups to export PDF'); return; }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.onload = () => {
+    printWindow.print();
+  };
+}
+
 async function shareSchedule(matches: Match[]) {
   const lines = [
     '🏏 Sunrisers Manteca — League Schedule',
@@ -1008,30 +1075,30 @@ export default function MatchSchedule() {
       {activeTab === 'upcoming' && upcoming.length > 0 && (
         <div className="flex items-center justify-between px-1 pt-1">
           {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => addAllToCalendar(upcoming)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
                 color: 'var(--cricket)',
                 border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
               }}
             >
-              <MdCalendarMonth size={14} />
-              Calendar
+              <MdCalendarMonth size={13} />
+              Cal
             </button>
             <button
-              onClick={() => shareSchedule(upcoming)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
+              onClick={() => exportSchedulePDF(upcoming)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
                 color: 'var(--cricket)',
                 border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
               }}
             >
-              <MdShare size={14} />
-              Share
+              <MdShare size={13} />
+              PDF
             </button>
           </div>
         </div>
