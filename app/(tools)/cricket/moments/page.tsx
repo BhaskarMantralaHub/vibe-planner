@@ -6,8 +6,6 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Text } from '@/components/ui';
-import { Camera } from 'lucide-react';
 import { PageFooter } from '@/components/PageFooter';
 import Gallery from '../components/Gallery';
 import NotificationBell from '../components/NotificationBell';
@@ -34,34 +32,25 @@ function MomentsPage() {
   }, []);
 
   return (
-    <div className="px-4 py-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
-          >
-            <Camera size={20} className="text-white" />
-          </div>
-          <div>
-            <Text as="h1" size="lg" weight="bold">Moments</Text>
-            <Text as="p" size="2xs" color="muted">Team photos & highlights</Text>
-          </div>
-        </div>
+    <div className="pt-5 pb-4">
+      {/* Minimal header */}
+      <div className="px-4 flex items-center justify-between mb-5">
+        <h1 className="text-[22px] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
+          Moments
+        </h1>
         <NotificationBell />
       </div>
 
-      {/* Gallery feed — all seasons */}
+      {/* Feed */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--cricket)] border-t-transparent" />
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--dim)] border-t-transparent" />
         </div>
       ) : (
         <Gallery allSeasons />
       )}
 
-      <PageFooter className="mt-16 mb-8" />
+      <PageFooter className="mt-16 mb-8 px-4" />
     </div>
   );
 }
