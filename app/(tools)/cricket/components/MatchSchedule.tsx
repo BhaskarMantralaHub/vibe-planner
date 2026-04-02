@@ -336,11 +336,22 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
         </div>
 
-        {/* Team names — SHM prominent, opponent secondary */}
+        {/* Team names — SHM prominent, opponent secondary + home/away */}
         <div className="mb-4">
-          <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
-            Sunrisers Manteca
-          </Text>
+          <div className="flex items-center gap-2">
+            <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
+              Sunrisers Manteca
+            </Text>
+            {match.is_home != null && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
+                style={match.is_home
+                  ? { background: 'rgba(74,222,128,0.2)', color: '#4ADE80' }
+                  : { background: 'rgba(96,165,250,0.2)', color: '#60A5FA' }
+                }>
+                {match.is_home ? 'Home' : 'Away'}
+              </span>
+            )}
+          </div>
           <Text size="md" weight="medium" className="text-white/60 mt-0.5">
             vs {match.opponent}
           </Text>
