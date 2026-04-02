@@ -126,6 +126,45 @@ function addToCalendar(match: Match) {
   toast.success('Calendar event downloaded');
 }
 
+function addAllToCalendar(matches: Match[]) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toICS = (d: Date) =>
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+
+  const events = matches.map((match) => {
+    const start = new Date(`${match.match_date}T${match.match_time}:00`);
+    const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+    return [
+      'BEGIN:VEVENT',
+      `DTSTART:${toICS(start)}`,
+      `DTEND:${toICS(end)}`,
+      `SUMMARY:SHM vs ${match.opponent}`,
+      `LOCATION:${match.venue}`,
+      `DESCRIPTION:20 overs league match${match.umpire ? ' | Umpires: ' + match.umpire : ''}${match.notes ? ' | ' + match.notes : ''}`,
+      `UID:${match.id}@sunrisersmanteca`,
+      'END:VEVENT',
+    ].join('\r\n');
+  });
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Sunrisers Manteca//Schedule//EN',
+    'X-WR-CALNAME:SHM League Schedule',
+    ...events,
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'shm-league-schedule.ics';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success(`${matches.length} matches added to calendar`);
+}
+
 function formatDeletedAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -922,10 +961,22 @@ export default function MatchSchedule() {
         />
       )}
 
-      {/* Upcoming: match count + season record teaser */}
-      {activeTab === 'upcoming' && upcoming.length > 0 && completed.length > 0 && (
+      {/* Upcoming: action bar + season record */}
+      {activeTab === 'upcoming' && upcoming.length > 0 && (
         <div className="flex items-center justify-between px-1 pt-1">
-          <SeasonRecord completed={completed} />
+          {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
+          <button
+            onClick={() => addAllToCalendar(upcoming)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
+            style={{
+              background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
+              color: 'var(--cricket)',
+              border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
+            }}
+          >
+            <MdCalendarMonth size={14} />
+            Add All to Calendar
+          </button>
         </div>
       )}
 
