@@ -107,19 +107,21 @@ Full flow details: `docs/SIGNUP_FLOWS.md`
 │       │   ├── page.tsx
 │       │   └── lib/               # constants (ID types), utils (urgency helpers)
 │       └── cricket/               # Sunrisers HQ tool
-│           ├── page.tsx
-│           ├── components/         # SeasonSelector, PlayerManager, ExpenseForm, etc.
+│           ├── page.tsx            # Dashboard with bottom tab bar (Players | Finances | Share)
+│           ├── components/         # SeasonSelector, PlayerManager, ExpenseForm, Gallery, etc.
 │           ├── lib/                # constants, utils (balance calculations)
-│           └── scoring/            # Live Scoring (standalone full-screen page)
-│               ├── page.tsx        # Landing, wizard, match routing
-│               ├── components/     # ScoringScreen, ButtonGrid, WicketSheet, PracticeLeaderboard, etc.
-│               ├── leaderboard/    # Practice Stats leaderboard (hamburger menu item)
-│               │   └── page.tsx
-│               └── lib/            # scoring-utils.ts (type converters), avatar.ts (shared)
-│       └── toss/                   # Coin Toss standalone page (hamburger menu item)
-│           └── page.tsx
-│       └── schedule/               # League Schedule standalone page (hamburger menu item)
-│           └── page.tsx
+│           ├── moments/            # Moments feed (standalone page, all seasons, hamburger menu)
+│           │   └── page.tsx
+│           ├── scoring/            # Live Scoring (standalone full-screen page)
+│           │   ├── page.tsx        # Landing, wizard, match routing
+│           │   ├── components/     # ScoringScreen, ButtonGrid, WicketSheet, PracticeLeaderboard, PodiumHero, etc.
+│           │   ├── leaderboard/    # Practice Stats leaderboard (hamburger menu item)
+│           │   │   └── page.tsx
+│           │   └── lib/            # scoring-utils.ts (type converters), avatar.ts (shared)
+│           ├── toss/               # Coin Toss standalone page (hamburger menu item)
+│           │   └── page.tsx
+│           └── schedule/           # League Schedule standalone page (hamburger menu item)
+│               └── page.tsx
 ├── app/cricket/dues/              # Public share page (no auth required)
 │   └── page.tsx
 ├── components/                     # Shared: Shell, AuthGate, RoleGate, HamburgerMenu, PageFooter, etc.

@@ -52,13 +52,13 @@ function StatItem({ icon, value, label }: { icon: React.ReactNode; value: number
   );
 }
 
-export default function Gallery() {
+export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
   const { selectedSeasonId, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, players, hasMoreGallery, loadingMoreGallery, loadMoreGallery } = useCricketStore();
   const [showUpload, setShowUpload] = useState(false);
   const [feedParent] = useAutoAnimate();
 
   const seasonPosts = gallery
-    .filter((p) => p.season_id === selectedSeasonId && !p.deleted_at)
+    .filter((p) => !p.deleted_at && (allSeasons || p.season_id === selectedSeasonId))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const totalLikes = galleryLikes.filter((l) => seasonPosts.some((p) => p.id === l.post_id)).length;

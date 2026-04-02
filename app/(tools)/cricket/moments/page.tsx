@@ -9,13 +9,12 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
 import { Camera } from 'lucide-react';
 import { PageFooter } from '@/components/PageFooter';
-import SeasonSelector from '../components/SeasonSelector';
 import Gallery from '../components/Gallery';
 import NotificationBell from '../components/NotificationBell';
 
 function MomentsPage() {
   const { user } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId } = useCricketStore();
+  const { loadAll, loading } = useCricketStore();
 
   useEffect(() => {
     if (isCloudMode() && user) loadAll(user.id);
@@ -53,20 +52,13 @@ function MomentsPage() {
         <NotificationBell />
       </div>
 
-      {/* Season selector */}
-      <SeasonSelector />
-
-      {/* Gallery feed */}
+      {/* Gallery feed — all seasons */}
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--cricket)] border-t-transparent" />
         </div>
-      ) : !selectedSeasonId ? (
-        <div className="py-20 text-center">
-          <Text size="sm" color="muted">Create a season to get started</Text>
-        </div>
       ) : (
-        <Gallery />
+        <Gallery allSeasons />
       )}
 
       <PageFooter className="mt-16 mb-8" />
