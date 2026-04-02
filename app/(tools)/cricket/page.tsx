@@ -6,7 +6,7 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { FaUsers, FaReceipt, FaShareAlt, FaMoneyBillWave, FaWallet, FaCamera } from 'react-icons/fa';
+import { FaUsers, FaReceipt, FaShareAlt, FaMoneyBillWave, FaWallet } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,9 +23,7 @@ import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
-import Gallery from './components/Gallery';
-
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'gallery' | 'share';
+type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -87,59 +85,21 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
   );
 }
 
-/* ── 4-Tab Navigation with Segmented Sub-views ── */
-type Tab = 'players' | 'finances' | 'moments' | 'more';
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'players', label: 'Players' },
-  { key: 'finances', label: 'Finances' },
-  { key: 'moments', label: 'Moments' },
-  { key: 'more', label: '...' },
-];
+/* ── 2-Tab Navigation with Segmented Sub-views ── */
+type Tab = 'players' | 'finances';
 
 // Maps View → parent Tab
 function viewToTab(view: View): Tab {
   if (view === 'players' || view === 'fees') return 'players';
-  if (view === 'expenses' || view === 'charts' || view === 'sponsors') return 'finances';
-  if (view === 'gallery') return 'moments';
-  return 'more';
+  return 'finances';
 }
 
 // Default sub-view for each tab
 function tabToView(tab: Tab): View {
   if (tab === 'players') return 'players';
-  if (tab === 'finances') return 'expenses';
-  if (tab === 'moments') return 'gallery';
-  return 'share';
+  return 'expenses';
 }
 
-
-/* ── More Menu (bottom sheet) ── */
-function MoreMenu({ open, onClose, onSelect }: {
-  open: boolean; onClose: () => void; onSelect: (view: View) => void;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl p-5 pb-8 animate-[slideUp_0.2s]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-        <div className="flex justify-center mb-4">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-        </div>
-        <div className="space-y-1">
-          <button onClick={() => { onSelect('share'); onClose(); }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-            <FaShareAlt size={16} className="text-[var(--cricket)]" />
-            <div className="text-left">
-              <Text as="p" size="md" weight="semibold">Share</Text>
-              <Text as="p" size="2xs" color="dim">Export PDF & share dues</Text>
-            </div>
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
 
 /* ── Tab config using shared CapsuleTabs ── */
 import { CapsuleTabs, SegmentedControl } from '@/components/ui';
@@ -148,8 +108,6 @@ import type { CapsuleTab } from '@/components/ui';
 const CAPSULE_TABS: CapsuleTab[] = [
   { key: 'players', label: 'Players', icon: <FaUsers size={16} /> },
   { key: 'finances', label: 'Finances', icon: <FaReceipt size={16} /> },
-  { key: 'moments', label: 'Moments', icon: <FaCamera size={15} /> },
-  { key: 'more', label: '...', icon: <FaShareAlt size={14} /> },
 ];
 
 function CricketDashboard() {
@@ -161,11 +119,11 @@ function CricketDashboard() {
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'gallery', 'share'].includes(hash)) return hash;
+      if (['players', 'expenses', 'fees', 'charts', 'sponsors'].includes(hash)) return hash;
     }
     return 'players';
   });
-  const [showMore, setShowMore] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const activeTab = viewToTab(activeView);
 
   const handleViewChange = (view: View) => {
@@ -173,29 +131,14 @@ function CricketDashboard() {
     window.history.replaceState(null, '', `#${view}`);
   };
 
-  // Listen for notification click → switch to gallery and scroll to post
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const postId = (e as CustomEvent).detail;
-      handleViewChange('gallery');
-      // Scroll to the post after view switches
-      setTimeout(() => {
-        const el = document.getElementById(`gallery-post-${postId}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    };
-    window.addEventListener('gallery-scroll-to', handler);
-    return () => window.removeEventListener('gallery-scroll-to', handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keyboard shortcuts: 1-6 to switch views
+  // Keyboard shortcuts: 1-5 to switch views
   useEffect(() => {
     if (!selectedSeasonId) return;
     const handler = (e: KeyboardEvent) => {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'gallery', '6': 'share' };
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'sponsors' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -341,19 +284,79 @@ function CricketDashboard() {
         </div>
       ) : (
         <>
-          {/* Tab bar */}
-          <div className="mb-4">
-            <CapsuleTabs
-              tabs={CAPSULE_TABS.map((t) => ({
-                ...t,
-                badge: t.key === 'players' ? activePlayers.length : t.key === 'finances' ? seasonExpensesList.length : undefined,
-              }))}
-              active={activeTab}
-              onChange={(tab) => {
-                if (tab === 'more') { setShowMore(true); return; }
-                handleViewChange(tabToView(tab as Tab));
-              }}
-            />
+          {/* Bottom tab bar — premium iOS-style with pill active state */}
+          <div
+            className="fixed left-0 right-0 z-40"
+            style={{
+              bottom: 0,
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              background: 'color-mix(in srgb, var(--card) 85%, transparent)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+              boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
+            }}
+          >
+            <div className="flex items-center justify-around px-2 pt-1.5 pb-2">
+              {CAPSULE_TABS.map((t) => {
+                const isActive = activeTab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => handleViewChange(tabToView(t.key as Tab))}
+                    className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    {/* Pill background on active */}
+                    {isActive && (
+                      <span
+                        className="absolute inset-0 rounded-2xl"
+                        style={{
+                          background: 'color-mix(in srgb, var(--cricket) 15%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
+                        }}
+                      />
+                    )}
+                    {/* Icon with glow on active */}
+                    <span
+                      className="relative z-10 transition-all duration-200"
+                      style={{
+                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
+                        filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cricket) 60%, transparent))' : 'none',
+                        transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
+                        display: 'flex',
+                      }}
+                    >
+                      {t.icon}
+                    </span>
+                    {/* Label */}
+                    <span
+                      className="relative z-10 text-[10px] transition-all duration-200"
+                      style={{
+                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
+                        fontWeight: isActive ? 700 : 500,
+                        letterSpacing: isActive ? '0.03em' : '0.02em',
+                      }}
+                    >
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
+              {/* Share tab — never active */}
+              <button
+                onClick={() => setShowShare(true)}
+                className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <span className="transition-all duration-200" style={{ color: 'var(--muted)', display: 'flex' }}>
+                  <FaShareAlt size={16} />
+                </span>
+                <span className="text-[10px] font-medium" style={{ color: 'var(--muted)', letterSpacing: '0.02em' }}>
+                  Share
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Segmented controls for tabs with sub-views */}
@@ -373,8 +376,18 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {/* More menu */}
-          <MoreMenu open={showMore} onClose={() => setShowMore(false)} onSelect={handleViewChange} />
+          {/* Share bottom sheet */}
+          {showShare && (
+            <>
+              <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowShare(false)} />
+              <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl p-5 pb-8 animate-[slideUp_0.2s]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                <div className="flex justify-center mb-4">
+                  <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+                </div>
+                <ShareButton />
+              </div>
+            </>
+          )}
 
           {/* Action buttons */}
           {isAdmin && activeView === 'expenses' && (
@@ -395,7 +408,7 @@ function CricketDashboard() {
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
-          {activeView !== 'share' && activeView !== 'expenses' && activeView !== 'gallery' && (
+          {activeView !== 'expenses' && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -417,8 +430,6 @@ function CricketDashboard() {
             )}
             {activeView === 'fees' && <FeeTracker />}
             {activeView === 'sponsors' && <SponsorshipSection />}
-            {activeView === 'gallery' && <Gallery />}
-            {activeView === 'share' && <ShareButton />}
           </div>
         </>
       )}
@@ -426,7 +437,9 @@ function CricketDashboard() {
       {/* Modals */}
       <ExpenseForm />
 
-      <PageFooter className="mt-16 mb-8" />
+      {/* Spacer for fixed bottom tab bar */}
+      <div className="h-24" />
+      <PageFooter className="mb-24" />
     </div>
   );
 }

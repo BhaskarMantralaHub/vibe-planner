@@ -42,11 +42,10 @@ export default function NotificationBell() {
   const handleNotificationClick = (notifId: string, postId: string) => {
     setOpen(false);
     markOneRead(notifId);
-    if (pathname === '/cricket') {
-      window.location.hash = 'gallery';
+    if (pathname === '/cricket/moments') {
       window.dispatchEvent(new CustomEvent('gallery-scroll-to', { detail: postId }));
     } else {
-      router.push('/cricket#gallery');
+      router.push('/cricket/moments');
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('gallery-scroll-to', { detail: postId }));
       }, 500);
