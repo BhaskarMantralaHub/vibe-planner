@@ -105,6 +105,7 @@ interface CricketState {
 
   // Actions
   loadAll: (userId: string) => Promise<void>;
+  loadMoments: (userId: string) => Promise<void>;
   loadMoreGallery: () => Promise<void>;
 
   // Players
@@ -242,6 +243,56 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
   },
 
+  loadMoments: async (userId: string) => {
+    set({ loading: true });
+
+    if (!isCloudMode()) {
+      const data = localLoad();
+      const selectedSeasonId = pickCurrentSeason(data.seasons);
+      set({ ...data, fees: [], selectedSeasonId, hasMoreGallery: false, galleryOffset: 0, loading: false });
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { set({ loading: false }); return; }
+
+    // Batch 1: Gallery posts + essential context only (4 queries instead of 13)
+    const [playersRes, seasonsRes, galleryRes, notificationsRes] = await Promise.all([
+      supabase.from('cricket_players').select('*').order('created_at'),
+      supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
+      supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE),
+      supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+    ]);
+
+    const players = (playersRes.data ?? []) as CricketPlayer[];
+    const seasons = (seasonsRes.data ?? []) as CricketSeason[];
+    const gallery = (galleryRes.data ?? []) as GalleryPost[];
+    const notifications = (notificationsRes.data ?? []) as GalleryNotification[];
+    const selectedSeasonId = pickCurrentSeason(seasons);
+    const hasMoreGallery = gallery.length === GALLERY_PAGE_SIZE;
+    const postIds = gallery.map((p) => p.id);
+
+    if (postIds.length === 0) {
+      set({ players, seasons, gallery, galleryTags: [], galleryComments: [], galleryLikes: [], commentReactions: [], notifications, selectedSeasonId, hasMoreGallery: false, galleryOffset: 0, loading: false });
+      return;
+    }
+
+    // Batch 2: Related data scoped to loaded post IDs only
+    const [tagsRes, commentsRes, likesRes, reactionsRes] = await Promise.all([
+      supabase.from('cricket_gallery_tags').select('*').in('post_id', postIds),
+      supabase.from('cricket_gallery_comments').select('*').in('post_id', postIds).order('created_at'),
+      supabase.from('cricket_gallery_likes').select('*').in('post_id', postIds),
+      supabase.from('cricket_comment_reactions').select('*'),
+    ]);
+
+    const galleryTags = (tagsRes.data ?? []) as GalleryTag[];
+    const galleryComments = (commentsRes.data ?? []) as GalleryComment[];
+    const galleryLikes = (likesRes.data ?? []) as GalleryLike[];
+    const commentReactions = (reactionsRes.data ?? []) as CommentReaction[];
+
+    set({ players, seasons, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false });
+  },
+
   loadMoreGallery: async () => {
     const { hasMoreGallery, galleryOffset, loadingMoreGallery } = get();
     if (!hasMoreGallery || loadingMoreGallery) return;
@@ -255,6 +306,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const { data, error } = await supabase
       .from('cricket_gallery')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .range(galleryOffset, galleryOffset + GALLERY_PAGE_SIZE - 1);
 
@@ -266,13 +318,33 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     const newPosts = (data ?? []) as GalleryPost[];
     const hasMore = newPosts.length === GALLERY_PAGE_SIZE;
+    const postIds = newPosts.map((p) => p.id);
 
-    set({
-      gallery: [...get().gallery, ...newPosts],
-      galleryOffset: galleryOffset + newPosts.length,
-      hasMoreGallery: hasMore,
-      loadingMoreGallery: false,
-    });
+    // Load related data for newly loaded posts
+    if (postIds.length > 0) {
+      const [tagsRes, commentsRes, likesRes] = await Promise.all([
+        supabase.from('cricket_gallery_tags').select('*').in('post_id', postIds),
+        supabase.from('cricket_gallery_comments').select('*').in('post_id', postIds).order('created_at'),
+        supabase.from('cricket_gallery_likes').select('*').in('post_id', postIds),
+      ]);
+
+      const prev = get();
+      set({
+        gallery: [...prev.gallery, ...newPosts],
+        galleryTags: [...prev.galleryTags, ...((tagsRes.data ?? []) as GalleryTag[])],
+        galleryComments: [...prev.galleryComments, ...((commentsRes.data ?? []) as GalleryComment[])],
+        galleryLikes: [...prev.galleryLikes, ...((likesRes.data ?? []) as GalleryLike[])],
+        galleryOffset: galleryOffset + newPosts.length,
+        hasMoreGallery: hasMore,
+        loadingMoreGallery: false,
+      });
+    } else {
+      set({
+        galleryOffset: galleryOffset + newPosts.length,
+        hasMoreGallery: hasMore,
+        loadingMoreGallery: false,
+      });
+    }
   },
 
   // ── Players ──────────────────────────────────────────────────────────
