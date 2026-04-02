@@ -199,7 +199,6 @@ function exportSchedulePDF(matches: Match[]) {
   @page { size: landscape; margin: 12mm; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; margin: 0; padding: 20px; }
   .header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #1B3A6B; }
-  .logo { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #1B3A6B, #4DBBEB); display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 18px; }
   .title { font-size: 22px; font-weight: 800; color: #1B3A6B; }
   .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -208,7 +207,7 @@ function exportSchedulePDF(matches: Match[]) {
 </style>
 </head><body>
 <div class="header">
-  <div class="logo">SHM</div>
+  <img src="${window.location.origin}/cricket-logo.png" alt="SHM" style="width:48px;height:48px;border-radius:12px;object-fit:contain">
   <div>
     <div class="title">Sunrisers Manteca</div>
     <div class="subtitle">2026 MTCA Spring League · Division D · ${matches.length} Matches</div>
@@ -220,7 +219,10 @@ function exportSchedulePDF(matches: Match[]) {
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
-<div class="footer">Generated from Sunrisers Manteca App · ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+<div class="footer">
+  <div style="margin-bottom:4px"><a href="https://viberstoolkit.com/cricket/schedule/" style="color:#4DBBEB;text-decoration:none">viberstoolkit.com/cricket/schedule</a></div>
+  <div>Designed by Bhaskar Mantrala · Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+</div>
 </body></html>`;
 
   const printWindow = window.open('', '_blank');
