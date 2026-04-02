@@ -22,6 +22,8 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
   const [venue, setVenue] = useState('');
   const matchType: MatchType = 'league';
   const overs = '20';
+  const [isHome, setIsHome] = useState<boolean | null>(null);
+  const [umpire, setUmpire] = useState('');
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -32,6 +34,8 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       setMatchDate(initialData.match_date);
       setMatchTime(initialData.match_time);
       setVenue(initialData.venue);
+      setIsHome(initialData.is_home ?? null);
+      setUmpire(initialData.umpire || '');
       setNotes(initialData.notes || '');
       setFormError('');
     } else if (open && !initialData) {
@@ -39,6 +43,8 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       setMatchDate('');
       setMatchTime('10:00');
       setVenue('');
+      setIsHome(null);
+      setUmpire('');
       setNotes('');
       setFormError('');
       setAddedCount(0);
@@ -61,6 +67,8 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
       venue: venue.trim(),
       match_type: matchType,
       overs: parsedOvers,
+      is_home: isHome ?? undefined,
+      umpire: umpire.trim() || undefined,
       notes: notes.trim() || undefined,
     };
   };
@@ -76,9 +84,11 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
     const data = validate();
     if (!data) return;
     onSubmit(data, true);
-    // Reset form but keep venue, match_type, overs (likely same for season fixtures)
+    // Reset form but keep venue, time (likely same for season fixtures)
     setOpponent('');
     setMatchDate('');
+    setIsHome(null);
+    setUmpire('');
     setNotes('');
     setFormError('');
     setAddedCount((c) => c + 1);
@@ -158,6 +168,49 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
             placeholder="e.g. Cloverleaf Park"
+            className={inputClass}
+          />
+        </div>
+
+        {/* Home / Away */}
+        <div>
+          <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
+            Home / Away <span className="font-normal normal-case">(optional)</span>
+          </label>
+          <div className="flex gap-2">
+            {([
+              { key: true, label: 'Home', color: 'var(--green)' },
+              { key: false, label: 'Away', color: 'var(--blue)' },
+            ] as const).map((opt) => {
+              const active = isHome === opt.key;
+              return (
+                <button
+                  key={String(opt.key)}
+                  onClick={() => setIsHome(active ? null : opt.key)}
+                  className="flex-1 py-2.5 rounded-xl text-[13px] font-bold cursor-pointer border transition-all active:scale-95"
+                  style={{
+                    backgroundColor: active ? `color-mix(in srgb, ${opt.color} 15%, transparent)` : 'transparent',
+                    borderColor: active ? opt.color : 'var(--border)',
+                    color: active ? opt.color : 'var(--muted)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Umpire */}
+        <div>
+          <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
+            Umpire <span className="font-normal normal-case">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={umpire}
+            onChange={(e) => setUmpire(e.target.value)}
+            placeholder="e.g. Phantoms"
             className={inputClass}
           />
         </div>

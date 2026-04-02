@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS cricket_schedule_matches (
   opponent_score  TEXT,
   opponent_overs  TEXT,
   result_summary  TEXT,
+  is_home         BOOLEAN,                    -- true = home, false = away, null = unknown
+  umpire          TEXT,                       -- umpire team/name
   created_by      TEXT,                       -- admin name who created
   deleted_at      TIMESTAMPTZ DEFAULT NULL,   -- soft delete
   deleted_by      TEXT DEFAULT NULL,

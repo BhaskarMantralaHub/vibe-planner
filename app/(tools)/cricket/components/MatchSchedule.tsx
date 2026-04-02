@@ -6,7 +6,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { FaEllipsisV } from 'react-icons/fa';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll, MdLocationOn, MdAccessTime, MdCalendarMonth } from 'react-icons/md';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
@@ -37,6 +37,8 @@ export interface Match {
   opponent_overs?: string;
   result_summary?: string;
   performers?: Performer[];
+  is_home?: boolean;
+  umpire?: string;
   deleted_at?: string | null;
   created_by?: string;
   created_at?: string;
@@ -75,11 +77,52 @@ function getCountdown(dateStr: string, timeStr: string) {
   const matchDate = new Date(`${dateStr}T${timeStr}:00`);
   const now = new Date();
   const diff = matchDate.getTime() - now.getTime();
-  if (diff <= 0) return 'Starting soon';
+  if (diff <= 0) return { text: 'Starting soon', days: 0, hours: 0, mins: 0 };
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  if (days > 0) return `${days}d ${hours}h away`;
-  return `${hours}h away`;
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  if (days > 0) return { text: `${days}d ${hours}h`, days, hours, mins };
+  if (hours > 0) return { text: `${hours}h ${mins}m`, days, hours, mins };
+  return { text: `${mins}m`, days, hours, mins };
+}
+
+function getCountdownSimple(dateStr: string, timeStr: string) {
+  return getCountdown(dateStr, timeStr).text;
+}
+
+/* ── Add to Calendar (.ics) ── */
+function addToCalendar(match: Match) {
+  const [h, m] = match.match_time.split(':').map(Number);
+  const start = new Date(`${match.match_date}T${match.match_time}:00`);
+  const end = new Date(start.getTime() + 4 * 60 * 60 * 1000); // 4 hour duration
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toICS = (d: Date) =>
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Sunrisers Manteca//Schedule//EN',
+    'BEGIN:VEVENT',
+    `DTSTART:${toICS(start)}`,
+    `DTEND:${toICS(end)}`,
+    `SUMMARY:SHM vs ${match.opponent}`,
+    `LOCATION:${match.venue}`,
+    `DESCRIPTION:${match.overs} overs league match${match.notes ? ' — ' + match.notes : ''}`,
+    `UID:${match.id}@sunrisersmanteca`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shm-vs-${match.opponent.toLowerCase().replace(/\s+/g, '-')}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success('Calendar event downloaded');
 }
 
 function formatDeletedAgo(dateStr: string) {
@@ -93,7 +136,104 @@ function formatDeletedAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
-/* ── Next Match Hero Card ── */
+function parseDateParts(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return {
+    dayName: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+    dayNum: d.getDate(),
+    month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    monthFull: d.toLocaleDateString('en-US', { month: 'long' }).toUpperCase(),
+    year: d.getFullYear(),
+  };
+}
+
+function groupByMonth(matches: Match[]): { label: string; matches: Match[] }[] {
+  const groups: Record<string, Match[]> = {};
+  for (const m of matches) {
+    const { monthFull, year } = parseDateParts(m.match_date);
+    const key = `${monthFull} ${year}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  }
+  return Object.entries(groups).map(([label, matches]) => ({ label, matches }));
+}
+
+/* ── Season Record Summary ── */
+function SeasonRecord({ completed }: { completed: Match[] }) {
+  const wins = completed.filter((m) => m.result === 'won').length;
+  const losses = completed.filter((m) => m.result === 'lost').length;
+  const draws = completed.filter((m) => m.result === 'draw').length;
+  const noResult = completed.filter((m) => !m.result).length;
+
+  if (completed.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-3 px-1">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
+          style={{ background: 'rgba(74,222,128,0.15)', color: 'var(--green)' }}
+        >
+          {wins}
+        </span>
+        <Text size="2xs" color="muted" weight="semibold" uppercase>W</Text>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
+          style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}
+        >
+          {losses}
+        </span>
+        <Text size="2xs" color="muted" weight="semibold" uppercase>L</Text>
+      </div>
+      {draws > 0 && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
+            style={{ background: 'rgba(156,163,175,0.15)', color: 'var(--muted)' }}
+          >
+            {draws}
+          </span>
+          <Text size="2xs" color="muted" weight="semibold" uppercase>D</Text>
+        </div>
+      )}
+      {noResult > 0 && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
+            style={{ background: 'rgba(156,163,175,0.08)', color: 'var(--dim)' }}
+          >
+            {noResult}
+          </span>
+          <Text size="2xs" color="dim" weight="semibold" uppercase>NR</Text>
+        </div>
+      )}
+      <span className="ml-auto">
+        <Text size="2xs" color="dim">{completed.length} played</Text>
+      </span>
+    </div>
+  );
+}
+
+/* ── Countdown Block for Hero ── */
+function CountdownBlock({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col items-center">
+      <span
+        className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums"
+        style={{ color: 'white', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
+      >
+        {value}
+      </span>
+      <span className="text-[9px] font-bold uppercase tracking-[0.15em] mt-1 text-white/50">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* ── Next Match Hero Card (redesigned) ── */
 function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   match: Match;
   isAdmin: boolean;
@@ -102,49 +242,199 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   menuBtnRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
+  const { dayName, dayNum, month } = parseDateParts(match.match_date);
+  const countdown = getCountdown(match.match_date, match.match_time);
+
+  // Live countdown tick
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const freshCountdown = getCountdown(match.match_date, match.match_time);
+
   return (
-    <div className="rounded-2xl p-4 sm:p-5 overflow-hidden relative"
-      style={{ background: 'linear-gradient(135deg, var(--cricket-deep), var(--cricket))' }}>
-      <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10"
-        style={{ background: 'white' }} />
+    <div
+      className="rounded-2xl overflow-hidden relative"
+      style={{
+        background: `linear-gradient(145deg, var(--cricket-deep) 0%, color-mix(in srgb, var(--cricket-deep) 70%, var(--cricket)) 50%, var(--cricket-deep) 100%)`,
+      }}
+    >
+      {/* Decorative elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-[0.07]"
+          style={{ background: 'white' }} />
+        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-[0.04]"
+          style={{ background: 'white' }} />
+        {/* Subtle cricket stump lines */}
+        <div className="absolute right-8 top-0 bottom-0 flex gap-1.5 opacity-[0.04]">
+          <div className="w-0.5 h-full bg-white" />
+          <div className="w-0.5 h-full bg-white" />
+          <div className="w-0.5 h-full bg-white" />
+        </div>
+      </div>
 
       {isAdmin && (
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-white/60 hover:text-white hover:bg-white/10 transition-colors z-20"
+          className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-white/40 hover:text-white hover:bg-white/10 transition-colors z-20"
         >
           <FaEllipsisV size={12} />
         </button>
       )}
 
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-3 pr-8">
+      <div className="relative z-10 p-4 sm:p-5">
+        {/* Top: label + pulsing live dot */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+          </span>
           <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold"
-            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', backdropFilter: 'blur(4px)' }}>
-            {getCountdown(match.match_date, match.match_time)}
-          </span>
-        </div>
-
-        <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] mb-1 leading-tight">
-          vs {match.opponent}
-        </Text>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[13px] text-white/75">
-          <span>{formatMatchDate(match.match_date)} · {formatMatchTime(match.match_time)}</span>
-          <span>·</span>
-          <span>{match.venue}</span>
-        </div>
-
-        <div className="flex items-center gap-2 mt-3">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+          <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
             style={{ background: `${typeConfig.color}30`, color: 'white' }}>
-            {typeConfig.label}
+            {typeConfig.label} · {match.overs}ov
           </span>
-          <span className="text-[12px] text-white/50">{match.overs} overs</span>
+        </div>
+
+        {/* Countdown blocks */}
+        <div className="flex items-center justify-center gap-5 mb-4">
+          {freshCountdown.days > 0 && (
+            <>
+              <CountdownBlock label="Days" value={freshCountdown.days} />
+              <span className="text-white/20 text-[24px] font-light mt-[-8px]">:</span>
+            </>
+          )}
+          <CountdownBlock label="Hours" value={freshCountdown.hours} />
+          <span className="text-white/20 text-[24px] font-light mt-[-8px]">:</span>
+          <CountdownBlock label="Mins" value={freshCountdown.mins} />
+        </div>
+
+        {/* Opponent */}
+        <div className="text-center mb-3">
+          <Text size="2xs" weight="semibold" uppercase tracking="wider" className="text-white/40 mb-0.5">
+            Sunrisers Manteca vs
+          </Text>
+          <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[24px] leading-tight">
+            {match.opponent}
+          </Text>
+        </div>
+
+        {/* Date / Time / Venue — pill row */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold"
+            style={{ background: 'rgba(255,255,255,0.1)', color: 'white', backdropFilter: 'blur(4px)' }}
+          >
+            <MdAccessTime size={13} className="opacity-60" />
+            {dayName} {dayNum} {month} · {formatMatchTime(match.match_time)}
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold"
+            style={{ background: 'rgba(255,255,255,0.1)', color: 'white', backdropFilter: 'blur(4px)' }}
+          >
+            <MdLocationOn size={13} className="opacity-60" />
+            {match.venue}
+          </span>
+        </div>
+
+        {match.notes && (
+          <Text size="2xs" color="white" className="text-center mt-2 opacity-50">{match.notes}</Text>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Timeline Date Block (left side of match card) ── */
+function DateBlock({ dateStr, isFirst }: { dateStr: string; isFirst?: boolean }) {
+  const { dayName, dayNum, month } = parseDateParts(dateStr);
+  return (
+    <div className="flex flex-col items-center w-[52px] flex-shrink-0">
+      <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[9px]" style={{ color: 'var(--cricket)' }}>
+        {dayName}
+      </Text>
+      <span
+        className="text-[22px] font-black leading-none mt-0.5 tabular-nums"
+        style={{ color: 'var(--text)' }}
+      >
+        {dayNum}
+      </span>
+      <Text size="2xs" weight="semibold" uppercase tracking="wide" color="muted" className="text-[9px] mt-0.5">
+        {month}
+      </Text>
+    </div>
+  );
+}
+
+/* ── Match Card (timeline layout — upcoming) ── */
+function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
+  match: Match;
+  isAdmin: boolean;
+  onMenuOpen: (id: string | null) => void;
+  openMenuId: string | null;
+  menuBtnRef: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
+
+  return (
+    <div className="flex gap-3">
+      {/* Date block + dot */}
+      <div className="flex flex-col items-center flex-shrink-0 pt-3">
+        <DateBlock dateStr={match.match_date} />
+      </div>
+
+      {/* Card content */}
+      <div
+        className="flex-1 rounded-xl border border-[var(--border)] p-3 relative overflow-hidden min-w-0"
+        style={{ background: 'var(--card)' }}
+      >
+
+        {isAdmin && (
+          <button
+            ref={openMenuId === match.id ? menuBtnRef : null}
+            onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
+            className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+          >
+            <FaEllipsisV size={11} />
+          </button>
+        )}
+
+        <div className="pr-8">
+          <Text as="p" size="md" weight="bold" className="sm:text-[15px] mb-1">
+            vs {match.opponent}
+          </Text>
+
+          <div className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--muted)' }}>
+            <MdAccessTime size={13} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+            <span>{formatMatchTime(match.match_time)}</span>
+            <span style={{ color: 'var(--border)' }}>|</span>
+            <MdLocationOn size={13} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+            <span>{match.venue}</span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {match.is_home != null && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+                style={match.is_home
+                  ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }
+                  : { background: 'color-mix(in srgb, var(--blue) 15%, transparent)', color: 'var(--blue)' }
+                }>
+                {match.is_home ? 'Home' : 'Away'}
+              </span>
+            )}
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--cricket)' }}>
+              {getCountdownSimple(match.match_date, match.match_time)}
+            </span>
+          </div>
+
+          {match.umpire && (
+            <Text as="p" size="2xs" color="dim" className="mt-1.5">Umpires: {match.umpire}</Text>
+          )}
           {match.notes && (
-            <span className="text-[12px] text-white/50">· {match.notes}</span>
+            <Text as="p" size="2xs" color="dim" className="mt-1">{match.notes}</Text>
           )}
         </div>
       </div>
@@ -152,79 +442,61 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   );
 }
 
-/* ── Match Card (unified for upcoming/completed/deleted) ── */
-function MatchCard({ match, isAdmin, isDeleted, onMenuOpen, openMenuId, menuBtnRef }: {
+/* ── Completed Match Card ── */
+function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   match: Match;
   isAdmin: boolean;
-  isDeleted?: boolean;
   onMenuOpen: (id: string | null) => void;
   openMenuId: string | null;
   menuBtnRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
-  const isPastUpcoming = match.status === 'upcoming' && !isDeleted;
   const resultColor = match.result === 'won' ? 'var(--green)' : match.result === 'lost' ? 'var(--red)' : 'var(--muted)';
   const resultBg = match.result === 'won' ? 'rgba(74,222,128,0.1)' : match.result === 'lost' ? 'rgba(248,113,113,0.1)' : 'rgba(156,163,175,0.1)';
-  const resultLabel = match.result === 'won' ? 'Won' : match.result === 'lost' ? 'Lost' : (match.result === 'draw' || match.result === 'tied') ? 'Draw' : null;
+  const resultLabel = match.result === 'won' ? 'Won' : match.result === 'lost' ? 'Lost' : (match.result === 'draw' || match.result === 'tied') ? 'Draw' : 'No Result';
 
   return (
     <div
-      className={`rounded-2xl border border-[var(--border)] p-3 sm:p-4 overflow-hidden relative ${isDeleted ? 'opacity-60' : ''}`}
+      className="rounded-xl border overflow-hidden relative"
       style={{
-        background: isDeleted ? 'var(--surface)' : 'var(--card)',
-        ...(resultLabel && !isDeleted ? { borderLeftWidth: '4px', borderLeftColor: resultColor } : {}),
+        background: 'var(--card)',
+        borderColor: 'var(--border)',
+        borderLeftWidth: '3px',
+        borderLeftColor: resultColor,
       }}
     >
       {isAdmin && (
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+          className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
         >
-          <FaEllipsisV size={12} />
+          <FaEllipsisV size={11} />
         </button>
       )}
 
-      <div className="flex items-start gap-3 pr-8">
-        <div className="flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
-          style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', border: '1.5px solid color-mix(in srgb, var(--cricket) 25%, transparent)' }}>
-          <MdSportsCricket size={20} style={{ color: 'var(--cricket)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <Text as="p" size="md" weight="semibold" truncate className={`sm:text-[15px] ${isDeleted ? 'line-through' : ''}`}>
-              vs {match.opponent}
-            </Text>
-            <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
-              style={{ background: `${typeConfig.color}15`, color: typeConfig.color, border: `1px solid ${typeConfig.color}30` }}>
-              {typeConfig.label}
-            </span>
-            {resultLabel && !isDeleted && (
-              <span className="flex-shrink-0 ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                style={{ background: resultBg, color: resultColor }}>
-                {resultLabel}
-              </span>
-            )}
-            {isPastUpcoming && !isDeleted && (
-              <span className="flex-shrink-0 ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                style={{ background: 'rgba(156,163,175,0.1)', color: 'var(--muted)' }}>
-                No Result
-              </span>
-            )}
-          </div>
-          <Text as="p" size="xs" color="muted">
-            {formatMatchDate(match.match_date)} · {formatMatchTime(match.match_time)} · {match.venue}
+      <div className="p-3 pr-10">
+        {/* Top row: opponent + result */}
+        <div className="flex items-center gap-2 mb-1">
+          <Text as="p" size="md" weight="bold" className="sm:text-[15px] flex-1">
+            vs {match.opponent}
           </Text>
-          {match.notes && !isDeleted && (
-            <Text as="p" size="2xs" color="dim" truncate className="mt-1">{match.notes}</Text>
-          )}
+          <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+            style={{ background: resultBg, color: resultColor }}>
+            {resultLabel}
+          </span>
         </div>
+
+        {/* Date + venue */}
+        <Text as="p" size="xs" color="muted">
+          {formatMatchDate(match.match_date)} · {match.venue}
+        </Text>
       </div>
 
-      {/* Scoreboard (completed with scores) */}
-      {!isDeleted && match.team_score && match.opponent_score && (
-        <div className="rounded-xl p-3 mt-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="space-y-1.5">
+      {/* Scoreboard (if scores exist) */}
+      {match.team_score && match.opponent_score && (
+        <div className="mx-3 mb-3 rounded-lg p-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">SHM</Text>
               <div className="flex items-baseline gap-1.5">
@@ -234,7 +506,9 @@ function MatchCard({ match, isAdmin, isDeleted, onMenuOpen, openMenuId, menuBtnR
             </div>
             <div className="h-px" style={{ background: 'var(--border)' }} />
             <div className="flex items-center justify-between">
-              <Text size="xs" weight="bold" color="muted" uppercase tracking="wide">{match.opponent.split(' ').map(w => w[0]).join('').slice(0, 3)}</Text>
+              <Text size="xs" weight="bold" color="muted" uppercase tracking="wide">
+                {match.opponent.split(' ').map(w => w[0]).join('').slice(0, 3)}
+              </Text>
               <div className="flex items-baseline gap-1.5">
                 <Text size="lg" weight="bold" tabular>{match.opponent_score}</Text>
                 <Text size="2xs" color="muted">({match.opponent_overs} ov)</Text>
@@ -249,9 +523,9 @@ function MatchCard({ match, isAdmin, isDeleted, onMenuOpen, openMenuId, menuBtnR
         </div>
       )}
 
-      {/* Performers (completed only) */}
-      {!isDeleted && match.performers && match.performers.length > 0 && (
-        <div className="space-y-1.5 mt-3">
+      {/* Performers */}
+      {match.performers && match.performers.length > 0 && (
+        <div className="px-3 pb-3 space-y-1.5">
           <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-1">Top Performers</Text>
           {match.performers.map((p) => {
             const pConfig = PERFORMER_ICONS[p.type];
@@ -269,13 +543,56 @@ function MatchCard({ match, isAdmin, isDeleted, onMenuOpen, openMenuId, menuBtnR
           })}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Deleted timestamp */}
-      {isDeleted && match.deleted_at && (
-        <Text as="p" size="2xs" color="dim" className="mt-2">
-          Deleted {formatDeletedAgo(match.deleted_at)}
-        </Text>
+/* ── Deleted Match Card (compact) ── */
+function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
+  match: Match;
+  isAdmin: boolean;
+  onMenuOpen: (id: string | null) => void;
+  openMenuId: string | null;
+  menuBtnRef: React.RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <div
+      className="rounded-xl border border-[var(--border)] p-3 overflow-hidden relative opacity-60"
+      style={{ background: 'var(--surface)' }}
+    >
+      {isAdmin && (
+        <button
+          ref={openMenuId === match.id ? menuBtnRef : null}
+          onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
+          className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+        >
+          <FaEllipsisV size={11} />
+        </button>
       )}
+
+      <div className="flex items-center gap-3 pr-8">
+        <MdDeleteOutline size={18} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+        <div className="min-w-0">
+          <Text as="p" size="sm" weight="semibold" className="line-through">
+            vs {match.opponent}
+          </Text>
+          <Text as="p" size="2xs" color="dim">
+            {formatMatchDate(match.match_date)} · Deleted {match.deleted_at ? formatDeletedAgo(match.deleted_at) : ''}
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Month Group Header ── */
+function MonthHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-4 pb-1 first:pt-0">
+      <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[10px]" style={{ color: 'var(--cricket)' }}>
+        {label}
+      </Text>
+      <div className="flex-1 h-px" style={{ background: 'color-mix(in srgb, var(--cricket) 20%, transparent)' }} />
     </div>
   );
 }
@@ -365,6 +682,7 @@ export default function MatchSchedule() {
 
   const nextMatch = upcoming[0];
   const restUpcoming = upcoming.slice(1);
+  const monthGroups = groupByMonth(restUpcoming);
 
   /* ── Bottom tab config ── */
   const tabs: { key: ScheduleTab; label: string; icon: React.ReactNode; count: number }[] = [
@@ -552,6 +870,7 @@ export default function MatchSchedule() {
     }
 
     return [
+      { label: 'Add to Calendar', icon: <MdCalendarMonth size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
       { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) },
       { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
       { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
@@ -588,7 +907,12 @@ export default function MatchSchedule() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Season record summary — visible on completed tab */}
+      {activeTab === 'completed' && completed.length > 0 && (
+        <SeasonRecord completed={completed} />
+      )}
+
       {/* Next Match Hero — always visible when on upcoming tab */}
       {activeTab === 'upcoming' && nextMatch && (
         <NextMatchHero
@@ -598,6 +922,13 @@ export default function MatchSchedule() {
           openMenuId={openMenu}
           menuBtnRef={menuBtnRef}
         />
+      )}
+
+      {/* Upcoming: match count + season record teaser */}
+      {activeTab === 'upcoming' && upcoming.length > 0 && completed.length > 0 && (
+        <div className="flex items-center justify-between px-1 pt-1">
+          <SeasonRecord completed={completed} />
+        </div>
       )}
 
       {/* Bottom tab bar — iOS-style with pill active state */}
@@ -673,20 +1004,29 @@ export default function MatchSchedule() {
       </div>
 
       {/* Tab content */}
-      <div className="space-y-2 min-h-[200px]">
+      <div className="min-h-[200px]">
         {activeTab === 'upcoming' && (
           <>
             {restUpcoming.length > 0 ? (
-              restUpcoming.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  isAdmin={isAdmin}
-                  onMenuOpen={setOpenMenu}
-                  openMenuId={openMenu}
-                  menuBtnRef={menuBtnRef}
-                />
-              ))
+              <div className="space-y-0">
+                {monthGroups.map((group) => (
+                  <div key={group.label}>
+                    <MonthHeader label={group.label} />
+                    <div className="space-y-0">
+                      {group.matches.map((m) => (
+                        <TimelineMatchCard
+                          key={m.id}
+                          match={m}
+                          isAdmin={isAdmin}
+                          onMenuOpen={setOpenMenu}
+                          openMenuId={openMenu}
+                          menuBtnRef={menuBtnRef}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : upcoming.length === 0 ? (
               <EmptyState
                 icon={<MdSportsCricket size={36} style={{ color: 'var(--dim)' }} />}
@@ -700,16 +1040,18 @@ export default function MatchSchedule() {
         {activeTab === 'completed' && (
           <>
             {completed.length > 0 ? (
-              completed.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  isAdmin={isAdmin}
-                  onMenuOpen={setOpenMenu}
-                  openMenuId={openMenu}
-                  menuBtnRef={menuBtnRef}
-                />
-              ))
+              <div className="space-y-2">
+                {completed.map((m) => (
+                  <CompletedMatchCard
+                    key={m.id}
+                    match={m}
+                    isAdmin={isAdmin}
+                    onMenuOpen={setOpenMenu}
+                    openMenuId={openMenu}
+                    menuBtnRef={menuBtnRef}
+                  />
+                ))}
+              </div>
             ) : (
               <EmptyState
                 icon={<MdSportsCricket size={36} style={{ color: 'var(--dim)' }} />}
@@ -729,13 +1071,12 @@ export default function MatchSchedule() {
                 description="Only admins can view and manage deleted matches"
               />
             ) : trashed.length > 0 ? (
-              <>
+              <div className="space-y-2">
                 {trashed.map((m) => (
-                  <MatchCard
+                  <DeletedMatchCard
                     key={m.id}
                     match={m}
                     isAdmin={isAdmin}
-                    isDeleted
                     onMenuOpen={setOpenMenu}
                     openMenuId={openMenu}
                     menuBtnRef={menuBtnRef}
@@ -751,7 +1092,7 @@ export default function MatchSchedule() {
                     Empty Trash
                   </Button>
                 )}
-              </>
+              </div>
             ) : (
               <EmptyState
                 icon={<MdRestoreFromTrash size={36} style={{ color: 'var(--dim)' }} />}
