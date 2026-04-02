@@ -60,6 +60,11 @@
   --cricket-hover: #3AAAD9;
   --cricket-glow: rgba(77, 187, 235, 0.25);
 
+  /* Leaderboard-specific tokens */
+  --row-alt: #1A1D3B;
+  --table-header-bg: color-mix(in srgb, var(--cricket) 8%, var(--surface));
+  --highlight-bg: color-mix(in srgb, var(--cricket) 8%, var(--card));
+
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
   --toolkit: #4DBBEB;
   --toolkit-accent: #5B9BD5;
@@ -127,6 +132,11 @@
   --done-from: #ECFDF5;
   --done-to: #D1FAE5;
   --done-glow: #16A34A;
+
+  /* Leaderboard-specific tokens */
+  --row-alt: #ECEFFE;
+  --table-header-bg: #E8F2F8;
+  --highlight-bg: color-mix(in srgb, var(--cricket) 13%, var(--surface));
 
   /* Filter buttons */
   --filter-bg: #F1F3F9;
@@ -285,10 +295,41 @@ code, pre, .font-mono {
   100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
 }
 
+@keyframes badgeShine {
+  0%   { background-position: -150% center; }
+  100% { background-position: 250% center; }
+}
+
+@keyframes podiumRise {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,215,0,0.35), 0 8px 32px rgba(255,215,0,0.22), 0 2px 8px rgba(0,0,0,0.12); }
+  50%       { box-shadow: 0 0 0 4px rgba(255,215,0,0.55), 0 8px 40px rgba(255,215,0,0.35), 0 2px 8px rgba(0,0,0,0.12); }
+}
+
+@keyframes shimmer-slide {
+  0%   { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(200%); }
+}
+
 .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 .animate-spin { animation: spin 1s linear infinite; }
 .animate-slide-in { animation: slideIn 0.25s ease-out; }
 .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+.animate-badge-shine { background-size: 200% auto; animation: badgeShine 3.5s linear infinite; }
+.animate-podium-rise { animation: podiumRise 0.4s ease-out both; }
+.animate-gold-pulse  { animation: gold-pulse 3s ease-in-out infinite; }
+.animate-shimmer     { animation: shimmer-slide 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-badge-shine { animation: none; }
+  .animate-podium-rise { animation: none; opacity: 1; transform: none; }
+  .animate-gold-pulse  { animation: none; }
+  .animate-shimmer     { animation: none; }
+}
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }

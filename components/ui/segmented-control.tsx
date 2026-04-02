@@ -14,14 +14,17 @@ interface SegmentedControlProps {
   active: string;
   onChange: (key: string) => void;
   className?: string;
+  ariaLabel?: string;
 }
 
-function SegmentedControl({ options, active, onChange, className }: SegmentedControlProps) {
+function SegmentedControl({ options, active, onChange, className, ariaLabel }: SegmentedControlProps) {
   return (
-    <div className={cn('flex rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-1.5', className)}>
+    <div role="tablist" aria-label={ariaLabel} className={cn('flex rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-1.5', className)}>
       {options.map((o) => (
         <button
           key={o.key}
+          role="tab"
+          aria-selected={active === o.key}
           onClick={() => onChange(o.key)}
           className={`flex-1 py-2.5 rounded-full text-[13px] font-semibold cursor-pointer select-none overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.92] ${
             active === o.key
