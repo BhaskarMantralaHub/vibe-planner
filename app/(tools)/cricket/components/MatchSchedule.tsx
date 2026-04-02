@@ -1177,7 +1177,7 @@ export default function MatchSchedule() {
       />
 
       {/* Spacer for fixed bottom tab bar */}
-      <div className="h-20" />
+      <div className="h-24" />
     </div>
   );
 }
