@@ -273,13 +273,17 @@ jobs:
           # Send individualized emails (one per player with personalized greeting)
           SUBJECT="Sunrisers Manteca — $MONTH_NAME Monthly Report"
 
+          SENT_COUNT=0
+          FAIL_COUNT=0
+          FAILED_LIST=""
+
           send_email() {
             local EMAIL="$1"
             local NAME="$2"
             local FIRST=$(echo "$NAME" | awk '{print $1}')
             local PERSONALIZED_HTML=$(echo "$HTML" | sed "s/Hey team!/Hey $FIRST!/g")
 
-            curl -s -X POST "https://api.resend.com/emails" \
+            RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
               -H "Authorization: Bearer $RESEND_API_KEY" \
               -H "Content-Type: application/json" \
               -d "$(jq -n \
@@ -287,13 +291,22 @@ jobs:
                 --arg subject "$SUBJECT" \
                 --arg html "$PERSONALIZED_HTML" \
                 '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
-              )" > /dev/null
-            echo "  Sent to $NAME ($EMAIL)"
+              )")
+
+            # Check if Resend returned an ID (success) or error
+            if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
+              echo "  ✅ $NAME ($EMAIL)"
+              SENT_COUNT=$((SENT_COUNT + 1))
+            else
+              ERROR_MSG=$(echo "$RESPONSE" | jq -r '.message // "Unknown error"')
+              echo "  ❌ $NAME ($EMAIL) — $ERROR_MSG"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+              FAILED_LIST="$FAILED_LIST\n  - $NAME ($EMAIL): $ERROR_MSG"
+            fi
           }
 
           if [ -n "$TEST_RECIPIENT_EMAIL" ]; then
             echo "TEST MODE: Sending to $TEST_RECIPIENT_EMAIL"
-            # Resolve name from players list
             TEST_NAME=$(echo "$PLAYERS" | jq -r --arg e "$TEST_RECIPIENT_EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
             send_email "$TEST_RECIPIENT_EMAIL" "$TEST_NAME"
           else
@@ -302,6 +315,18 @@ jobs:
               send_email "$PEMAIL" "$PNAME"
             done
           fi
+
+          echo ""
+          echo "==============================="
+          echo "  DELIVERY SUMMARY"
+          echo "  ✅ Sent: $SENT_COUNT"
+          echo "  ❌ Failed: $FAIL_COUNT"
+          if [ -n "$FAILED_LIST" ]; then
+            echo ""
+            echo "  Failed recipients:"
+            echo -e "$FAILED_LIST"
+          fi
+          echo "==============================="
 
           echo "Done!"
 
