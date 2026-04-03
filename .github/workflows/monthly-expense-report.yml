@@ -22,37 +22,29 @@ jobs:
 
           SB_HEADERS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Accept: application/json")
 
-          # Fetch all seasons and pick the right one (same logic as app)
+          # Fetch all seasons
           ALL_SEASONS=$(curl -s "${SB_HEADERS[@]}" \
             -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
             --data-urlencode "select=id,name,year,season_type,fee_amount" \
             --data-urlencode "order=year.desc")
 
-          echo "All seasons: $(echo "$ALL_SEASONS" | jq '[.[] | {name, year, season_type}]')"
+          echo "All seasons: $(echo "$ALL_SEASONS" | jq '[.[] | {id, name, year, season_type}]')"
 
-          # Pick current season: match month → season_type, then fallback to same year, then most recent
-          CURRENT_YEAR=$(date +%Y)
-          CURRENT_MONTH=$(date +%-m)
+          # Fetch expense counts per season to find the active one
+          ALL_EXPENSES=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_expenses" \
+            --data-urlencode "select=season_id" \
+            --data-urlencode "deleted_at=is.null")
 
-          # Map month to season type: Mar-May=spring, Jun-Sep=summer, Oct-Feb=fall
-          if [ "$CURRENT_MONTH" -ge 3 ] && [ "$CURRENT_MONTH" -le 5 ]; then
-            CURRENT_TYPE="spring"
-          elif [ "$CURRENT_MONTH" -ge 6 ] && [ "$CURRENT_MONTH" -le 9 ]; then
-            CURRENT_TYPE="summer"
-          else
-            CURRENT_TYPE="fall"
-          fi
-
-          echo "Looking for: year=$CURRENT_YEAR, type=$CURRENT_TYPE"
-
-          # Try exact match first, then same year, then most recent
-          SEASON=$(echo "$ALL_SEASONS" | jq --arg y "$CURRENT_YEAR" --arg t "$CURRENT_TYPE" '
-            (map(select(.year == ($y | tonumber) and .season_type == $t)) | first) //
-            (map(select(.year == ($y | tonumber))) | first) //
-            (first)
+          # Pick season with the most expenses (the one actually in use)
+          SEASON=$(echo "$ALL_SEASONS" | jq --argjson exp "$ALL_EXPENSES" '
+            map(. + {expense_count: [$exp[] | select(.season_id == .season_id)] | length}) |
+            [.[] | . + {expense_count: ([$exp[] | select(.season_id == .id)] | length)}] |
+            sort_by(-.expense_count, -.year) |
+            first
           ')
 
-          echo "Selected season: $SEASON"
+          echo "Selected season (by activity): $(echo "$SEASON" | jq '{name, year, expense_count}')"
 
           SEASON_ID=$(echo "$SEASON" | jq -r '.id // empty')
           SEASON_NAME=$(echo "$SEASON" | jq -r '.name // "Current Season"')
