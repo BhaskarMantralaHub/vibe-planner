@@ -296,7 +296,7 @@ jobs:
           </div>"
 
           # Send individualized emails (one per player with personalized greeting)
-          SUBJECT="Sunrisers Manteca — $MONTH_NAME Monthly Report"
+          SUBJECT="Sunrisers Manteca Cricket Team — $MONTH_NAME Monthly Report"
           SENT_COUNT=0
           FAIL_COUNT=0
           FAILED_LIST=""
