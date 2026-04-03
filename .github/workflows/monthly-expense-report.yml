@@ -269,24 +269,38 @@ jobs:
           </div>
           </div>"
 
-          # Send via Resend
+          # Send individualized emails (one per player with personalized greeting)
+          SUBJECT="Sunrisers Manteca — $MONTH_NAME Monthly Report"
+
+          send_email() {
+            local EMAIL="$1"
+            local NAME="$2"
+            local FIRST=$(echo "$NAME" | awk '{print $1}')
+            local PERSONALIZED_HTML=$(echo "$HTML" | sed "s/Hey team!/Hey $FIRST!/g")
+
+            curl -s -X POST "https://api.resend.com/emails" \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg to "$EMAIL" \
+                --arg subject "$SUBJECT" \
+                --arg html "$PERSONALIZED_HTML" \
+                '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
+              )" > /dev/null
+            echo "  Sent to $NAME ($EMAIL)"
+          }
+
           if [ -n "$TEST_RECIPIENT_EMAIL" ]; then
             echo "TEST MODE: Sending to $TEST_RECIPIENT_EMAIL"
-            RECIPIENTS="[\"$TEST_RECIPIENT_EMAIL\"]"
+            # Resolve name from players list
+            TEST_NAME=$(echo "$PLAYERS" | jq -r --arg e "$TEST_RECIPIENT_EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
+            send_email "$TEST_RECIPIENT_EMAIL" "$TEST_NAME"
           else
-            RECIPIENTS=$(echo "$PLAYERS" | jq '[.[] | select(.email != null and .email != "") | .email]')
-            echo "Sending to $(echo "$RECIPIENTS" | jq length) players"
+            echo "Sending to all active players..."
+            echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"' | while IFS='|' read -r PEMAIL PNAME; do
+              send_email "$PEMAIL" "$PNAME"
+            done
           fi
-
-          RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
-            -H "Authorization: Bearer $RESEND_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --argjson to "$RECIPIENTS" \
-              --arg subject "Sunrisers Manteca — $MONTH_NAME Monthly Report" \
-              --arg html "$HTML" \
-              '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: $to, subject: $subject, html: $html}'
-            )")
 
           echo "Resend response: $RESPONSE"
           echo "Done!"
