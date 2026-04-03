@@ -108,7 +108,7 @@ function addToCalendar(match: Match) {
     'BEGIN:VEVENT',
     `DTSTART:${toICS(start)}`,
     `DTEND:${toICS(end)}`,
-    `SUMMARY:SHM vs ${match.opponent}`,
+    `SUMMARY:SRM vs ${match.opponent}`,
     `LOCATION:${match.venue}`,
     `DESCRIPTION:${match.overs} overs league match${match.notes ? ' — ' + match.notes : ''}`,
     `UID:${match.id}@sunrisersmanteca`,
@@ -120,7 +120,7 @@ function addToCalendar(match: Match) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `shm-vs-${match.opponent.toLowerCase().replace(/\s+/g, '-')}.ics`;
+  a.download = `srm-vs-${match.opponent.toLowerCase().replace(/\s+/g, '-')}.ics`;
   a.click();
   URL.revokeObjectURL(url);
   toast.success('Calendar event downloaded');
@@ -138,7 +138,7 @@ function addAllToCalendar(matches: Match[]) {
       'BEGIN:VEVENT',
       `DTSTART:${toICS(start)}`,
       `DTEND:${toICS(end)}`,
-      `SUMMARY:SHM vs ${match.opponent}`,
+      `SUMMARY:SRM vs ${match.opponent}`,
       `LOCATION:${match.venue}`,
       `DESCRIPTION:20 overs league match${match.umpire ? ' | Umpires: ' + match.umpire : ''}${match.notes ? ' | ' + match.notes : ''}`,
       `UID:${match.id}@sunrisersmanteca`,
@@ -150,7 +150,7 @@ function addAllToCalendar(matches: Match[]) {
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//Sunrisers Manteca//Schedule//EN',
-    'X-WR-CALNAME:SHM League Schedule',
+    'X-WR-CALNAME:SRM League Schedule',
     ...events,
     'END:VCALENDAR',
   ].join('\r\n');
@@ -159,175 +159,98 @@ function addAllToCalendar(matches: Match[]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'shm-league-schedule.ics';
+  a.download = 'srm-spring-2026-schedule.ics';
   a.click();
   URL.revokeObjectURL(url);
   toast.success(`${matches.length} matches added to calendar`);
 }
 
-async function exportSchedulePDF(matches: Match[], action: 'share' | 'download' = 'share') {
+async function exportSchedulePDF(matches: Match[]) {
   const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const M = 14;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const W = doc.internal.pageSize.getWidth(); // 210mm
+  const H = doc.internal.pageSize.getHeight(); // 297mm
+  const M = 10;
   const TW = W - M * 2;
   let y = 0;
 
   type RGB = [number, number, number];
   const WHITE: RGB = [255, 255, 255];
   const BLACK: RGB = [30, 30, 30];
+  const DARK: RGB = [55, 55, 55];
   const GRAY: RGB = [120, 120, 120];
-  const LGRAY: RGB = [180, 180, 180];
-  const CRICKET_BLUE: RGB = [77, 187, 235];
+  const LGRAY: RGB = [170, 170, 170];
+  const NAVY: RGB = [27, 58, 107];
 
-  const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
+  const txt = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
     doc.setFontSize(opts?.size ?? 9);
     doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal');
     doc.setTextColor(...(opts?.color ?? BLACK));
     doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
 
-  const fillRect = (x: number, ry: number, w: number, h: number, color: RGB, r = 0) => {
-    doc.setFillColor(...color);
-    if (r > 0) doc.roundedRect(x, ry, w, h, r, r, 'F');
-    else doc.rect(x, ry, w, h, 'F');
-  };
+  const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const fmtTime = (t: string) => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`; };
 
-  const checkPage = (need = 12) => { if (y + need > H - 20) { doc.addPage(); y = 16; } };
-
-  const fmtTime = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-  };
-
-  // ═══ HERO CARD ═══
-  const heroH = 52;
-  const heroMatch = matches[0];
-  if (heroMatch) {
-    for (let i = 0; i < heroH; i++) {
-      const t = i / heroH;
-      doc.setFillColor(Math.round(20 + t * 15), Math.round(45 + t * 25), Math.round(85 + t * 35));
-      doc.rect(M, i, TW, 1.1, 'F');
-    }
-    // Decorative circle
-    doc.setFillColor(255, 255, 255);
-    doc.setGState(new (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState({ opacity: 0.05 }));
-    doc.circle(W - M - 15, 12, 25, 'F');
-    doc.setGState(new (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState({ opacity: 1 }));
-
-    // Logo
-    try {
-      const res = await fetch('/cricket-logo.png');
-      const blob = await res.blob();
-      const b64 = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(blob); });
-      doc.addImage(b64, 'PNG', M + 4, 4, 12, 12);
-    } catch { /* skip */ }
-
-    // Green dot + label
-    doc.setFillColor(74, 222, 128);
-    doc.circle(M + 17.5, 9.5, 1.2, 'F');
-    text('NEXT MATCH', M + 20, 11, { size: 7, bold: true, color: [200, 210, 230] });
-
-    // Team name
-    text('Sunrisers Manteca', M + 5, 24, { size: 16, bold: true, color: WHITE });
-
-    // Home/Away badge
-    if (heroMatch.is_home != null) {
-      const badge = heroMatch.is_home ? 'HOME' : 'AWAY';
-      const bColor: RGB = heroMatch.is_home ? [74, 222, 128] : [96, 165, 250];
-      doc.setFontSize(7);
-      const bw = doc.getTextWidth(badge) + 5;
-      fillRect(M + 62, 19.5, bw, 5, bColor, 2);
-      text(badge, M + 62 + bw / 2, 23, { size: 7, bold: true, color: WHITE, align: 'center' });
-    }
-
-    // Opponent
-    text(`vs ${heroMatch.opponent}`, M + 5, 30, { size: 11, color: [200, 210, 230] });
-
-    // Countdown
-    const cd = getCountdown(heroMatch.match_date, heroMatch.match_time);
-    const items: { val: string; label: string }[] = [];
-    if (cd.days > 0) items.push({ val: String(cd.days), label: 'DAYS' });
-    items.push({ val: String(cd.hours), label: 'HOURS' }, { val: String(cd.mins), label: 'MINS' });
-    let cx = M + 5;
-    items.forEach((item, i) => {
-      text(item.val, cx, 41, { size: 18, bold: true, color: WHITE });
-      text(item.label, cx, 45, { size: 6, bold: true, color: [150, 170, 200] });
-      cx += 18;
-      if (i < items.length - 1) text(':', cx - 7, 40, { size: 14, color: [100, 120, 160] });
-    });
-
-    // Date / Venue / Umpire
-    const { dayName, dayNum, month } = parseDateParts(heroMatch.match_date);
-    text(`${dayName} ${dayNum} ${month} · ${fmtTime(heroMatch.match_time)}`, cx + 6, 37, { size: 8, color: [180, 195, 220] });
-    text(heroMatch.venue, cx + 6, 42, { size: 8, color: [180, 195, 220] });
-    if (heroMatch.umpire) text(`Umpires: ${heroMatch.umpire}`, cx + 6, 47, { size: 8, color: [160, 175, 200] });
+  // ═══ BANNER ═══
+  const bannerH = 28;
+  for (let i = 0; i < bannerH; i++) {
+    const t = i / bannerH;
+    doc.setFillColor(Math.round(20 + t * 15), Math.round(50 + t * 30), Math.round(90 + t * 40));
+    doc.rect(0, i, W, 1, 'F');
   }
+  try {
+    const res = await fetch('/cricket-logo.png');
+    const blob = await res.blob();
+    const b64 = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(blob); });
+    doc.addImage(b64, 'PNG', M, 5, 14, 14);
+  } catch { /* skip */ }
+  txt('Sunrisers Manteca', M + 18, 13, { size: 18, bold: true, color: WHITE });
+  txt('2026 MTCA Spring League  —  Division D', M + 18, 19, { size: 9, color: [255, 255, 230] });
+  txt(`${matches.length} Matches`, W - M, 13, { size: 10, bold: true, color: [255, 220, 180], align: 'right' });
+  txt(`Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, W - M, 19, { size: 7, color: [220, 200, 170], align: 'right' });
 
-  y = heroH + 8;
+  y = bannerH + 4;
 
-  // ═══ MATCH LIST — timeline style ═══
-  const remaining = matches.slice(1);
-  let currentMonth = '';
-
-  remaining.forEach((m) => {
-    const { dayName: dn, dayNum: dNum, month: mon, monthFull, year: yr } = parseDateParts(m.match_date);
-    const monthKey = `${monthFull} ${yr}`;
-
-    if (monthKey !== currentMonth) {
-      checkPage(20);
-      currentMonth = monthKey;
-      y += 4;
-      text(monthKey.toUpperCase(), M, y, { size: 8, bold: true, color: CRICKET_BLUE });
-      doc.setDrawColor(220, 230, 240);
-      doc.setLineWidth(0.3);
-      doc.line(M + 30, y - 1.5, W - M, y - 1.5);
-      y += 6;
-    }
-
-    checkPage(26);
-
-    // Date block
-    text(dn.toUpperCase(), M + 5, y + 3, { size: 7, bold: true, color: CRICKET_BLUE, align: 'center' });
-    text(String(dNum), M + 5, y + 10, { size: 16, bold: true, color: BLACK, align: 'center' });
-    text(mon.toUpperCase(), M + 5, y + 14, { size: 7, color: GRAY, align: 'center' });
-
-    // Card
-    const cardX = M + 16;
-    const cardW = TW - 16;
+  // ═══ MATCH LIST ═══
+  matches.forEach((m, i) => {
     const cardH = m.umpire ? 22 : 18;
+    if (y + cardH > H - 18) { doc.addPage(); y = 10; }
 
-    fillRect(cardX, y - 2, cardW, cardH, [248, 249, 252], 3);
-    doc.setDrawColor(230, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(cardX, y - 2, cardW, cardH, 3, 3, 'S');
-    // Accent line
-    doc.setDrawColor(77, 187, 235);
-    doc.setLineWidth(0.5);
-    doc.line(cardX, y - 2, cardX + 20, y - 2);
+    // Alternating background
+    if (i % 2 === 0) {
+      doc.setFillColor(248, 249, 252);
+      doc.roundedRect(M, y, TW, cardH, 2, 2, 'F');
+    }
+    // Bottom border
+    doc.setDrawColor(235, 235, 235);
+    doc.setLineWidth(0.15);
+    doc.line(M, y + cardH, W - M, y + cardH);
 
-    // Opponent
-    text(`vs ${m.opponent}`, cardX + 4, y + 3, { size: 11, bold: true, color: BLACK });
+    const ha = m.is_home === true ? 'Home' : m.is_home === false ? 'Away' : '';
+    const haC: RGB = m.is_home === true ? [22, 163, 74] : m.is_home === false ? [37, 99, 235] : GRAY;
+    const haBg: RGB = m.is_home === true ? [220, 252, 231] : [219, 234, 254];
 
-    // Time + Venue
-    text(`${fmtTime(m.match_time)}  |  ${m.venue}`, cardX + 4, y + 9, { size: 8, color: GRAY });
-
-    // Home/Away badge + countdown
-    if (m.is_home != null) {
-      const badge = m.is_home ? 'HOME' : 'AWAY';
-      const bgC: RGB = m.is_home ? [220, 252, 231] : [219, 234, 254];
-      const txC: RGB = m.is_home ? [22, 163, 74] : [37, 99, 235];
+    // Row 1: # + Opponent + H/A badge (right)
+    txt(String(i + 1), M + 3, y + 6, { size: 8, color: GRAY });
+    txt(`vs ${m.opponent}`, M + 12, y + 6, { size: 10, bold: true, color: BLACK });
+    if (ha) {
       doc.setFontSize(6);
-      const bw = doc.getTextWidth(badge) + 4;
-      fillRect(cardX + 4, y + 11.5, bw, 4.5, bgC, 1.5);
-      text(badge, cardX + 4 + bw / 2, y + 14.5, { size: 6, bold: true, color: txC, align: 'center' });
-      text(getCountdownSimple(m.match_date, m.match_time), cardX + 4 + bw + 3, y + 14.5, { size: 7, bold: true, color: CRICKET_BLUE });
+      const bw = doc.getTextWidth(ha) + 4;
+      doc.setFillColor(...haBg);
+      doc.roundedRect(W - M - bw - 2, y + 2.5, bw, 5, 1.5, 1.5, 'F');
+      txt(ha, W - M - bw / 2 - 2, y + 6, { size: 6, bold: true, color: haC, align: 'center' });
     }
 
-    if (m.umpire) text(`Umpires: ${m.umpire}`, cardX + 4, y + 19, { size: 7, color: LGRAY });
+    // Row 2: Date · Time | Venue
+    txt(`${fmtDate(m.match_date)} · ${fmtTime(m.match_time)}  |  ${m.venue}`, M + 12, y + 12, { size: 8, color: GRAY });
 
-    y += cardH + 4;
+    // Row 3: Umpires (if present)
+    if (m.umpire) {
+      txt(`Umpires: ${m.umpire}`, M + 12, y + 17.5, { size: 7, color: LGRAY });
+    }
+
+    y += cardH + 2;
   });
 
   // ═══ FOOTER ═══
@@ -336,25 +259,24 @@ async function exportSchedulePDF(matches: Match[], action: 'share' | 'download' 
     doc.setPage(i);
     doc.setDrawColor(230, 230, 230);
     doc.setLineWidth(0.2);
-    doc.line(M, H - 14, W - M, H - 14);
-    text('viberstoolkit.com/cricket/schedule', M, H - 9, { size: 7, color: CRICKET_BLUE });
-    text('Designed by Bhaskar Mantrala', W / 2, H - 9, { size: 7, color: LGRAY, align: 'center' });
-    text(`Page ${i} of ${total}`, W - M, H - 9, { size: 7, color: LGRAY, align: 'right' });
+    doc.line(M, H - 12, W - M, H - 12);
+    txt('viberstoolkit.com/cricket/schedule', M, H - 7, { size: 7, color: [77, 187, 235] });
+    txt('Designed by Bhaskar Mantrala', W / 2, H - 7, { size: 7, color: LGRAY, align: 'center' });
+    txt(`Page ${i} of ${total}`, W - M, H - 7, { size: 7, color: LGRAY, align: 'right' });
   }
   doc.setPage(1);
   doc.link(M, H - 12, 50, 5, { url: 'https://viberstoolkit.com/cricket/schedule/' });
 
-  const fileName = 'SHM_League_Schedule.pdf';
-  if (action === 'share') {
-    const blob = doc.output('blob');
-    const file = new File([blob], fileName, { type: 'application/pdf' });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'SHM League Schedule' });
-      return;
-    }
+  // Share or download
+  const fileName = 'SRM_Spring_2026_Schedule.pdf';
+  const blob = doc.output('blob');
+  const file = new File([blob], fileName, { type: 'application/pdf' });
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: 'SRM League Schedule' });
+  } else {
+    doc.save(fileName);
+    toast.success('Schedule PDF downloaded');
   }
-  doc.save(fileName);
-  toast.success('Schedule PDF downloaded');
 }
 
 function formatDeletedAgo(dateStr: string) {
@@ -528,7 +450,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
         </div>
 
-        {/* Team names — SHM prominent, opponent secondary + home/away */}
+        {/* Team names — SRM prominent, opponent secondary + home/away */}
         <div className="mb-4">
           <div className="flex items-center gap-2">
             <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
@@ -628,8 +550,8 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
 
       {/* Card content */}
       <div
-        className="flex-1 rounded-xl border border-[var(--border)] p-3 relative overflow-hidden min-w-0"
-        style={{ background: 'var(--card)' }}
+        className="flex-1 rounded-2xl p-3.5 relative min-w-0"
+        style={{ background: 'var(--card)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)' }}
       >
 
         {isAdmin && (
@@ -738,7 +660,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         <div className="mx-3 mb-3 rounded-lg p-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">SHM</Text>
+              <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">SRM</Text>
               <div className="flex items-baseline gap-1.5">
                 <Text size="lg" weight="bold" tabular>{match.team_score}</Text>
                 <Text size="2xs" color="muted">({match.team_overs} ov)</Text>
@@ -1182,7 +1104,7 @@ export default function MatchSchedule() {
               Cal
             </button>
             <button
-              onClick={() => exportSchedulePDF(upcoming, 'share')}
+              onClick={() => exportSchedulePDF(upcoming)}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
