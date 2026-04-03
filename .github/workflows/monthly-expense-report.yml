@@ -291,21 +291,37 @@ jobs:
             # Bash parameter substitution (safe — no sed special char issues)
             local PERSONALIZED_HTML="${HTML//Hey team!/Hey $SAFE_FIRST!}"
 
-            RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
-              -H "Authorization: Bearer $RESEND_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg to "$EMAIL" \
-                --arg subject "$SUBJECT" \
-                --arg html "$PERSONALIZED_HTML" \
-                '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
-              )")
+            local PAYLOAD=$(jq -n \
+              --arg to "$EMAIL" \
+              --arg subject "$SUBJECT" \
+              --arg html "$PERSONALIZED_HTML" \
+              '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}')
 
-            if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
-              echo "  ✅ $NAME → $EMAIL"
-              SENT_COUNT=$((SENT_COUNT + 1))
-            else
+            # Send with retry on rate limit (up to 2 retries)
+            local SUCCESS=false
+            for ATTEMPT in 1 2 3; do
+              RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
+                -H "Authorization: Bearer $RESEND_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD")
+
+              if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
+                echo "  ✅ $NAME → $EMAIL"
+                SENT_COUNT=$((SENT_COUNT + 1))
+                SUCCESS=true
+                break
+              fi
+
               ERROR_MSG=$(echo "$RESPONSE" | jq -r '.message // "Unknown error"')
+              if echo "$ERROR_MSG" | grep -qi "rate\|too many"; then
+                echo "  ⏳ Rate limited, retry $ATTEMPT/3 for $NAME..."
+                sleep 2
+              else
+                break
+              fi
+            done
+
+            if [ "$SUCCESS" = false ]; then
               echo "  ❌ $NAME → $EMAIL — $ERROR_MSG"
               FAIL_COUNT=$((FAIL_COUNT + 1))
               FAILED_LIST="${FAILED_LIST}  - $NAME ($EMAIL): $ERROR_MSG\n"
@@ -339,6 +355,7 @@ jobs:
             while IFS='|' read -r PEMAIL PNAME; do
               [ -z "$PEMAIL" ] && continue
               send_email "$PEMAIL" "$PNAME"
+              sleep 0.3  # Rate limit: Resend allows 5 req/sec
             done <<< "$RECIPIENT_LIST"
           fi
 
