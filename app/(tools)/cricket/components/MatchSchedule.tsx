@@ -165,105 +165,196 @@ function addAllToCalendar(matches: Match[]) {
   toast.success(`${matches.length} matches added to calendar`);
 }
 
-function exportSchedulePDF(matches: Match[]) {
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+async function exportSchedulePDF(matches: Match[], action: 'share' | 'download' = 'share') {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const M = 14;
+  const TW = W - M * 2;
+  let y = 0;
+
+  type RGB = [number, number, number];
+  const WHITE: RGB = [255, 255, 255];
+  const BLACK: RGB = [30, 30, 30];
+  const GRAY: RGB = [120, 120, 120];
+  const LGRAY: RGB = [180, 180, 180];
+  const CRICKET_BLUE: RGB = [77, 187, 235];
+
+  const text = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
+    doc.setFontSize(opts?.size ?? 9);
+    doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal');
+    doc.setTextColor(...(opts?.color ?? BLACK));
+    doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
-  const formatTime = (timeStr: string) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour = h % 12 || 12;
-    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+
+  const fillRect = (x: number, ry: number, w: number, h: number, color: RGB, r = 0) => {
+    doc.setFillColor(...color);
+    if (r > 0) doc.roundedRect(x, ry, w, h, r, r, 'F');
+    else doc.rect(x, ry, w, h, 'F');
   };
 
-  const rows = matches.map((m, i) => {
-    const homeAway = m.is_home != null ? (m.is_home ? 'Home' : 'Away') : '—';
-    const homeBg = m.is_home === true ? '#dcfce7' : m.is_home === false ? '#dbeafe' : '#f3f4f6';
-    const homeColor = m.is_home === true ? '#15803d' : m.is_home === false ? '#1d4ed8' : '#6b7280';
-    return `<tr style="border-bottom:1px solid #e5e7eb;${i % 2 === 0 ? '' : 'background:#f9fafb;'}">
-      <td style="padding:10px 12px;font-weight:600;white-space:nowrap">${i + 1}</td>
-      <td style="padding:10px 12px;white-space:nowrap">${formatDate(m.match_date)}<br><span style="color:#6b7280;font-size:12px">${formatTime(m.match_time)}</span></td>
-      <td style="padding:10px 12px;font-weight:600">${m.opponent}</td>
-      <td style="padding:10px 12px">${m.venue}</td>
-      <td style="padding:10px 12px;text-align:center"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${homeBg};color:${homeColor}">${homeAway}</span></td>
-      <td style="padding:10px 12px;color:#6b7280;font-size:13px">${m.umpire || '—'}</td>
-    </tr>`;
-  }).join('');
+  const checkPage = (need = 12) => { if (y + need > H - 20) { doc.addPage(); y = 16; } };
 
-  const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<title>SHM League Schedule</title>
-<style>
-  @page { size: landscape; margin: 12mm; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; margin: 0; padding: 20px; }
-  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #1B3A6B; }
-  .title { font-size: 22px; font-weight: 800; color: #1B3A6B; }
-  .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { background: #1B3A6B; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
-  .footer { margin-top: 20px; text-align: center; color: #9ca3af; font-size: 11px; }
-</style>
-</head><body>
-<div class="header">
-  <img src="${window.location.origin}/cricket-logo.png" alt="SHM" style="width:48px;height:48px;border-radius:12px;object-fit:contain">
-  <div>
-    <div class="title">Sunrisers Manteca</div>
-    <div class="subtitle">2026 MTCA Spring League · Division D · ${matches.length} Matches</div>
-  </div>
-</div>
-<table>
-  <thead><tr>
-    <th>#</th><th>Date & Time</th><th>Opponent</th><th>Venue</th><th>H/A</th><th>Umpires</th>
-  </tr></thead>
-  <tbody>${rows}</tbody>
-</table>
-<div class="footer">
-  <div style="margin-bottom:4px"><a href="https://viberstoolkit.com/cricket/schedule/" style="color:#4DBBEB;text-decoration:none">viberstoolkit.com/cricket/schedule</a></div>
-  <div>Designed by Bhaskar Mantrala · Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
-</div>
-</body></html>`;
-
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) { toast.error('Please allow popups to export PDF'); return; }
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.onload = () => {
-    printWindow.print();
+  const fmtTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
   };
-}
 
-async function shareSchedule(matches: Match[]) {
-  const lines = [
-    '🏏 Sunrisers Manteca — League Schedule',
-    '━━━━━━━━━━━━━━━━━━━━━━━━━',
-    '',
-    ...matches.map((m, i) => {
-      const d = new Date(m.match_date + 'T00:00:00');
-      const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      const [h, min] = m.match_time.split(':').map(Number);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const hour = h % 12 || 12;
-      const time = `${hour}:${String(min).padStart(2, '0')} ${ampm}`;
-      const homeAway = m.is_home != null ? (m.is_home ? ' (H)' : ' (A)') : '';
-      return `${i + 1}. ${date} · ${time}\n   vs ${m.opponent}${homeAway}\n   📍 ${m.venue}${m.umpire ? `\n   🧑‍⚖️ ${m.umpire}` : ''}`;
-    }),
-    '',
-    `${matches.length} matches · 20 overs each`,
-  ];
+  // ═══ HERO CARD ═══
+  const heroH = 52;
+  const heroMatch = matches[0];
+  if (heroMatch) {
+    for (let i = 0; i < heroH; i++) {
+      const t = i / heroH;
+      doc.setFillColor(Math.round(20 + t * 15), Math.round(45 + t * 25), Math.round(85 + t * 35));
+      doc.rect(M, i, TW, 1.1, 'F');
+    }
+    // Decorative circle
+    doc.setFillColor(255, 255, 255);
+    doc.setGState(new (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState({ opacity: 0.05 }));
+    doc.circle(W - M - 15, 12, 25, 'F');
+    doc.setGState(new (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState({ opacity: 1 }));
 
-  const text = lines.join('\n');
-
-  if (navigator.share) {
+    // Logo
     try {
-      await navigator.share({ title: 'SHM League Schedule', text });
-      return;
-    } catch { /* user cancelled or not supported */ }
+      const res = await fetch('/cricket-logo.png');
+      const blob = await res.blob();
+      const b64 = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(blob); });
+      doc.addImage(b64, 'PNG', M + 4, 4, 12, 12);
+    } catch { /* skip */ }
+
+    // Green dot + label
+    doc.setFillColor(74, 222, 128);
+    doc.circle(M + 17.5, 9.5, 1.2, 'F');
+    text('NEXT MATCH', M + 20, 11, { size: 7, bold: true, color: [200, 210, 230] });
+
+    // Team name
+    text('Sunrisers Manteca', M + 5, 24, { size: 16, bold: true, color: WHITE });
+
+    // Home/Away badge
+    if (heroMatch.is_home != null) {
+      const badge = heroMatch.is_home ? 'HOME' : 'AWAY';
+      const bColor: RGB = heroMatch.is_home ? [74, 222, 128] : [96, 165, 250];
+      doc.setFontSize(7);
+      const bw = doc.getTextWidth(badge) + 5;
+      fillRect(M + 62, 19.5, bw, 5, bColor, 2);
+      text(badge, M + 62 + bw / 2, 23, { size: 7, bold: true, color: WHITE, align: 'center' });
+    }
+
+    // Opponent
+    text(`vs ${heroMatch.opponent}`, M + 5, 30, { size: 11, color: [200, 210, 230] });
+
+    // Countdown
+    const cd = getCountdown(heroMatch.match_date, heroMatch.match_time);
+    const items: { val: string; label: string }[] = [];
+    if (cd.days > 0) items.push({ val: String(cd.days), label: 'DAYS' });
+    items.push({ val: String(cd.hours), label: 'HOURS' }, { val: String(cd.mins), label: 'MINS' });
+    let cx = M + 5;
+    items.forEach((item, i) => {
+      text(item.val, cx, 41, { size: 18, bold: true, color: WHITE });
+      text(item.label, cx, 45, { size: 6, bold: true, color: [150, 170, 200] });
+      cx += 18;
+      if (i < items.length - 1) text(':', cx - 7, 40, { size: 14, color: [100, 120, 160] });
+    });
+
+    // Date / Venue / Umpire
+    const { dayName, dayNum, month } = parseDateParts(heroMatch.match_date);
+    text(`${dayName} ${dayNum} ${month} · ${fmtTime(heroMatch.match_time)}`, cx + 6, 37, { size: 8, color: [180, 195, 220] });
+    text(heroMatch.venue, cx + 6, 42, { size: 8, color: [180, 195, 220] });
+    if (heroMatch.umpire) text(`Umpires: ${heroMatch.umpire}`, cx + 6, 47, { size: 8, color: [160, 175, 200] });
   }
 
-  await navigator.clipboard.writeText(text);
-  toast.success('Schedule copied to clipboard');
+  y = heroH + 8;
+
+  // ═══ MATCH LIST — timeline style ═══
+  const remaining = matches.slice(1);
+  let currentMonth = '';
+
+  remaining.forEach((m) => {
+    const { dayName: dn, dayNum: dNum, month: mon, monthFull, year: yr } = parseDateParts(m.match_date);
+    const monthKey = `${monthFull} ${yr}`;
+
+    if (monthKey !== currentMonth) {
+      checkPage(20);
+      currentMonth = monthKey;
+      y += 4;
+      text(monthKey.toUpperCase(), M, y, { size: 8, bold: true, color: CRICKET_BLUE });
+      doc.setDrawColor(220, 230, 240);
+      doc.setLineWidth(0.3);
+      doc.line(M + 30, y - 1.5, W - M, y - 1.5);
+      y += 6;
+    }
+
+    checkPage(26);
+
+    // Date block
+    text(dn.toUpperCase(), M + 5, y + 3, { size: 7, bold: true, color: CRICKET_BLUE, align: 'center' });
+    text(String(dNum), M + 5, y + 10, { size: 16, bold: true, color: BLACK, align: 'center' });
+    text(mon.toUpperCase(), M + 5, y + 14, { size: 7, color: GRAY, align: 'center' });
+
+    // Card
+    const cardX = M + 16;
+    const cardW = TW - 16;
+    const cardH = m.umpire ? 22 : 18;
+
+    fillRect(cardX, y - 2, cardW, cardH, [248, 249, 252], 3);
+    doc.setDrawColor(230, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(cardX, y - 2, cardW, cardH, 3, 3, 'S');
+    // Accent line
+    doc.setDrawColor(77, 187, 235);
+    doc.setLineWidth(0.5);
+    doc.line(cardX, y - 2, cardX + 20, y - 2);
+
+    // Opponent
+    text(`vs ${m.opponent}`, cardX + 4, y + 3, { size: 11, bold: true, color: BLACK });
+
+    // Time + Venue
+    text(`${fmtTime(m.match_time)}  |  ${m.venue}`, cardX + 4, y + 9, { size: 8, color: GRAY });
+
+    // Home/Away badge + countdown
+    if (m.is_home != null) {
+      const badge = m.is_home ? 'HOME' : 'AWAY';
+      const bgC: RGB = m.is_home ? [220, 252, 231] : [219, 234, 254];
+      const txC: RGB = m.is_home ? [22, 163, 74] : [37, 99, 235];
+      doc.setFontSize(6);
+      const bw = doc.getTextWidth(badge) + 4;
+      fillRect(cardX + 4, y + 11.5, bw, 4.5, bgC, 1.5);
+      text(badge, cardX + 4 + bw / 2, y + 14.5, { size: 6, bold: true, color: txC, align: 'center' });
+      text(getCountdownSimple(m.match_date, m.match_time), cardX + 4 + bw + 3, y + 14.5, { size: 7, bold: true, color: CRICKET_BLUE });
+    }
+
+    if (m.umpire) text(`Umpires: ${m.umpire}`, cardX + 4, y + 19, { size: 7, color: LGRAY });
+
+    y += cardH + 4;
+  });
+
+  // ═══ FOOTER ═══
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(0.2);
+    doc.line(M, H - 14, W - M, H - 14);
+    text('viberstoolkit.com/cricket/schedule', M, H - 9, { size: 7, color: CRICKET_BLUE });
+    text('Designed by Bhaskar Mantrala', W / 2, H - 9, { size: 7, color: LGRAY, align: 'center' });
+    text(`Page ${i} of ${total}`, W - M, H - 9, { size: 7, color: LGRAY, align: 'right' });
+  }
+  doc.setPage(1);
+  doc.link(M, H - 12, 50, 5, { url: 'https://viberstoolkit.com/cricket/schedule/' });
+
+  const fileName = 'SHM_League_Schedule.pdf';
+  if (action === 'share') {
+    const blob = doc.output('blob');
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'SHM League Schedule' });
+      return;
+    }
+  }
+  doc.save(fileName);
+  toast.success('Schedule PDF downloaded');
 }
 
 function formatDeletedAgo(dateStr: string) {
@@ -1091,7 +1182,7 @@ export default function MatchSchedule() {
               Cal
             </button>
             <button
-              onClick={() => exportSchedulePDF(upcoming)}
+              onClick={() => exportSchedulePDF(upcoming, 'share')}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
@@ -1100,7 +1191,7 @@ export default function MatchSchedule() {
               }}
             >
               <MdShare size={13} />
-              PDF
+              Share
             </button>
           </div>
         </div>
