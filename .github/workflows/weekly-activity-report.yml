@@ -183,7 +183,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg to "$SUPER_ADMIN_EMAIL" \
-              --arg subject "⚠️ Weekly Activity Report Failed" \
-              --arg html "<div style='font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px'><div style='font-size:16px;font-weight:700;color:#dc2626;margin-bottom:8px'>Weekly Report Failed</div><div style='font-size:13px;color:#666;line-height:20px'>The weekly activity report workflow failed to run. Check <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\" style=\"color:#4DBBEB\">GitHub Actions logs</a> for details.</div></div><div style='text-align:center;margin-top:16px;font-size:11px;color:#aaa'>viberstoolkit.com</div></div>" \
+              --arg subject "⚠️ Sunrisers Manteca — Weekly Activity Report Failed" \
+              --arg html "<div style='font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px'><div style='font-size:16px;font-weight:700;color:#dc2626;margin-bottom:8px'>Sunrisers Manteca — Weekly Report Failed</div><div style='font-size:13px;color:#666;line-height:20px'>The weekly activity report for the cricket team failed to run. Check <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\" style=\"color:#4DBBEB\">GitHub Actions logs</a> for details.</div></div><div style='text-align:center;margin-top:16px;font-size:11px;color:#aaa'>Sunrisers Manteca · viberstoolkit.com</div></div>" \
               '{from: "Vibers Toolkit <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
             )"
