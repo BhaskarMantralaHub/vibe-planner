@@ -277,9 +277,8 @@ jobs:
           # Send individualized emails (one per player with personalized greeting)
           SUBJECT="Sunrisers Manteca — $MONTH_NAME Monthly Report"
 
-          SENT_COUNT=0
-          FAIL_COUNT=0
-          FAILED_LIST=""
+          SUMMARY_FILE=$(mktemp)
+          echo "0|0|" > "$SUMMARY_FILE"
 
           send_email() {
             local EMAIL="$1"
@@ -297,38 +296,39 @@ jobs:
                 '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
               )")
 
-            # Check if Resend returned an ID (success) or error
+            IFS='|' read -r SC FC FL < "$SUMMARY_FILE"
             if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
-              echo "  ✅ $NAME ($EMAIL)"
-              SENT_COUNT=$((SENT_COUNT + 1))
+              echo "  ✅ $NAME → $EMAIL"
+              echo "$((SC + 1))|$FC|$FL" > "$SUMMARY_FILE"
             else
               ERROR_MSG=$(echo "$RESPONSE" | jq -r '.message // "Unknown error"')
-              echo "  ❌ $NAME ($EMAIL) — $ERROR_MSG"
-              FAIL_COUNT=$((FAIL_COUNT + 1))
-              FAILED_LIST="$FAILED_LIST\n  - $NAME ($EMAIL): $ERROR_MSG"
+              echo "  ❌ $NAME → $EMAIL — $ERROR_MSG"
+              echo "$SC|$((FC + 1))|${FL}  - $NAME ($EMAIL): $ERROR_MSG\n" > "$SUMMARY_FILE"
             fi
           }
 
           RECIPIENT_INPUT="${{ github.event.inputs.recipients }}"
-          # Scheduled runs have no input — default to * (all players)
           if [ -z "$RECIPIENT_INPUT" ]; then
             RECIPIENT_INPUT="*"
           fi
 
           if [ "$RECIPIENT_INPUT" = "*" ]; then
             echo "Sending to ALL active players..."
-            echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"' | while IFS='|' read -r PEMAIL PNAME; do
+            while IFS='|' read -r PEMAIL PNAME; do
               send_email "$PEMAIL" "$PNAME"
-            done
+            done < <(echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"')
           else
-            echo "Sending to specific recipients: $RECIPIENT_INPUT"
+            echo "Sending to: $RECIPIENT_INPUT"
             IFS=',' read -ra EMAILS <<< "$RECIPIENT_INPUT"
             for EMAIL in "${EMAILS[@]}"; do
-              EMAIL=$(echo "$EMAIL" | xargs) # trim whitespace
+              EMAIL=$(echo "$EMAIL" | xargs)
               NAME=$(echo "$PLAYERS" | jq -r --arg e "$EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
               send_email "$EMAIL" "$NAME"
             done
           fi
+
+          IFS='|' read -r SENT_COUNT FAIL_COUNT FAILED_LIST < "$SUMMARY_FILE"
+          rm -f "$SUMMARY_FILE"
 
           echo ""
           echo "==============================="
