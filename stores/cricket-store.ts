@@ -28,23 +28,25 @@ function genId(): string {
 
 function pickCurrentSeason(seasons: CricketSeason[]): string | null {
   if (seasons.length === 0) return null;
+
+  // 1. Prefer the season explicitly marked as active by user
+  const active = seasons.find((s) => s.is_active);
+  if (active) return active.id;
+
+  // 2. Fallback: match by current month → season type
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0-11
-
-  // Map months to season types: Mar-May=spring, Jun-Sep=summer, Oct-Feb=fall
+  const month = now.getMonth();
   const currentType = month >= 2 && month <= 4 ? 'spring'
     : month >= 5 && month <= 8 ? 'summer' : 'fall';
 
-  // Try exact match: current type + current year
   const exact = seasons.find((s) => s.season_type === currentType && s.year === year);
   if (exact) return exact.id;
 
-  // Try current year, any type
   const sameYear = seasons.find((s) => s.year === year);
   if (sameYear) return sameYear.id;
 
-  // Fallback: most recent season
+  // 3. Most recent
   const sorted = [...seasons].sort((a, b) => b.year - a.year);
   return sorted[0]?.id ?? null;
 }

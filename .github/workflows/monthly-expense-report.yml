@@ -22,33 +22,28 @@ jobs:
 
           SB_HEADERS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Accept: application/json")
 
-          # Fetch all seasons
-          ALL_SEASONS=$(curl -s "${SB_HEADERS[@]}" \
+          # Fetch the active season (is_active = true, set by user in UI)
+          SEASON=$(curl -s "${SB_HEADERS[@]}" \
             -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
             --data-urlencode "select=id,name,year,season_type,fee_amount" \
-            --data-urlencode "order=year.desc")
+            --data-urlencode "is_active=eq.true" \
+            --data-urlencode "limit=1")
 
-          echo "All seasons: $(echo "$ALL_SEASONS" | jq '[.[] | {id, name, year, season_type}]')"
+          # Fallback: most recent season if none is marked active
+          if [ "$(echo "$SEASON" | jq length)" -eq 0 ]; then
+            echo "No active season found, falling back to most recent..."
+            SEASON=$(curl -s "${SB_HEADERS[@]}" \
+              -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
+              --data-urlencode "select=id,name,year,season_type,fee_amount" \
+              --data-urlencode "order=year.desc,created_at.desc" \
+              --data-urlencode "limit=1")
+          fi
 
-          # Fetch expense counts per season to find the active one
-          ALL_EXPENSES=$(curl -s "${SB_HEADERS[@]}" \
-            -G "$SUPABASE_URL/rest/v1/cricket_expenses" \
-            --data-urlencode "select=season_id" \
-            --data-urlencode "deleted_at=is.null")
+          echo "Season: $(echo "$SEASON" | jq '.[0] | {name, year}')"
 
-          # Pick season with the most expenses (the one actually in use)
-          SEASON=$(echo "$ALL_SEASONS" | jq --argjson exp "$ALL_EXPENSES" '
-            map(. + {expense_count: [$exp[] | select(.season_id == .season_id)] | length}) |
-            [.[] | . + {expense_count: ([$exp[] | select(.season_id == .id)] | length)}] |
-            sort_by(-.expense_count, -.year) |
-            first
-          ')
-
-          echo "Selected season (by activity): $(echo "$SEASON" | jq '{name, year, expense_count}')"
-
-          SEASON_ID=$(echo "$SEASON" | jq -r '.id // empty')
-          SEASON_NAME=$(echo "$SEASON" | jq -r '.name // "Current Season"')
-          FEE_AMOUNT=$(echo "$SEASON" | jq -r '.fee_amount // "60"')
+          SEASON_ID=$(echo "$SEASON" | jq -r '.[0].id // empty')
+          SEASON_NAME=$(echo "$SEASON" | jq -r '.[0].name // "Current Season"')
+          FEE_AMOUNT=$(echo "$SEASON" | jq -r '.[0].fee_amount // "60"')
 
           if [ -z "$SEASON_ID" ]; then
             echo "No season found. Skipping."
@@ -87,6 +82,19 @@ jobs:
             --data-urlencode "season_id=eq.$SEASON_ID" \
             --data-urlencode "deleted_at=is.null")
           echo "Sponsors: $(echo "$SPONSORS" | jq length)"
+
+          # Fetch upcoming matches for current month
+          MONTH_START=$(date +%Y-%m-01)
+          MONTH_END=$(date -d "$(date +%Y-%m-01) +1 month -1 day" +%Y-%m-%d 2>/dev/null || date -v+1m -v1d -v-1d +%Y-%m-%d)
+          MATCHES=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_schedule_matches" \
+            --data-urlencode "select=opponent,match_date,match_time,venue,is_home,umpire" \
+            --data-urlencode "season_id=eq.$SEASON_ID" \
+            --data-urlencode "deleted_at=is.null" \
+            --data-urlencode "match_date=gte.$MONTH_START" \
+            --data-urlencode "match_date=lte.$MONTH_END" \
+            --data-urlencode "order=match_date.asc")
+          echo "Matches this month: $(echo "$MATCHES" | jq length)"
 
           # Build report
           REPORT=$(jq -n \
@@ -157,6 +165,14 @@ jobs:
           BAL_ABS=$(echo "$REPORT" | jq -r '.pool_balance | fabs | round')
 
           MONTH_NAME=$(date +"%B %Y")
+          MONTH_SHORT=$(date +"%B")
+          MATCH_COUNT=$(echo "$MATCHES" | jq length)
+
+          # Match rows for this month
+          MATCH_ROWS=""
+          if [ "$MATCH_COUNT" -gt 0 ]; then
+            MATCH_ROWS=$(echo "$MATCHES" | jq -r '.[] | (.match_date | split("T")[0]) as $d | (.match_time | split(":") | (.[0] | tonumber) as $h | (.[1]) as $m | (if $h >= 12 then "PM" else "AM" end) as $ap | "\($h % 12 | if . == 0 then 12 else . end):\($m) \($ap)") as $t | (if .is_home == true then "Home" elif .is_home == false then "Away" else "" end) as $ha | (if .is_home == true then "#16a34a" elif .is_home == false then "#2563eb" else "#888" end) as $hc | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;white-space:nowrap;color:#888;font-size:12px\">\($d)<br>\($t)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">vs \(.opponent)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px\"><span style=\"color:\($hc);font-weight:700\">\($ha)</span></td></tr>"')
+          fi
 
           # Category rows
           CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
@@ -184,6 +200,17 @@ jobs:
           </div>
 
           <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef'>
+
+          <!-- Upcoming Matches This Month -->
+          $(if [ "$MATCH_COUNT" -gt 0 ]; then echo "
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Matches in $MONTH_SHORT ($MATCH_COUNT)</div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              $MATCH_ROWS
+            </table>
+            <div style='margin-top:8px'><a href='https://viberstoolkit.com/cricket/schedule/' style='color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600'>View Full Schedule &rarr;</a></div>
+          </div>
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>"; fi)
 
           <!-- Pool Fund Summary -->
           <div style='padding:24px 28px 16px'>
@@ -240,7 +267,7 @@ jobs:
 
           <!-- Footer -->
           <div style='background:#f8f9fb;border:1px solid #e0e4ef;border-top:none;border-radius:0 0 16px 16px;padding:16px 28px;text-align:center'>
-            <a href='https://viberstoolkit.com/cricket/' style='color:#4DBBEB;text-decoration:none;font-size:13px;font-weight:600'>View Full Report in App</a>
+            <a href='https://viberstoolkit.com/cricket/' style='color:#4DBBEB;text-decoration:none;font-size:13px;font-weight:600'>View Full Details</a>
             <div style='font-size:11px;color:#9ca3af;margin-top:6px'>Designed by Bhaskar Mantrala &mdash; viberstoolkit.com</div>
           </div>
           </div>"
@@ -259,7 +286,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --argjson to "$RECIPIENTS" \
-              --arg subject "SRM — $SEASON_NAME Expense Report ($MONTH_NAME)" \
+              --arg subject "Sunrisers Manteca — $MONTH_NAME Monthly Report" \
               --arg html "$HTML" \
               '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: $to, subject: $subject, html: $html}'
             )")

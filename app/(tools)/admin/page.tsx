@@ -101,6 +101,7 @@ function AdminContent() {
   const [stats, setStats] = useState<UserStats[]>([]);
   const [activity, setActivity] = useState<UserActivity[]>([]);
   const [pageStats, setPageStats] = useState<{ path: string; count: number }[]>([]);
+  const [allSeasons, setAllSeasons] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [filter, setFilter] = useState<'all' | 'admin' | 'user' | 'flagged' | 'disabled'>('all');
@@ -212,6 +213,13 @@ function AdminContent() {
             .sort((a, b) => b.count - a.count)
         );
       }
+
+      // Fetch seasons for active season management
+      const { data: seasonData } = await supabase
+        .from('cricket_seasons')
+        .select('id, name, is_active')
+        .order('year', { ascending: false });
+      if (seasonData) setAllSeasons(seasonData);
 
       // Fetch max_users setting
       const { data: setting } = await supabase.from('app_settings').select('value').eq('key', 'max_users').single();
@@ -405,6 +413,41 @@ function AdminContent() {
                 <Text size="2xs" color="dim">{Math.round((totalUsers / maxUsers) * 100)}% used</Text>
               </div>
             </div>
+
+            {/* Active Season (super admin only) */}
+            {isSuperAdmin && allSeasons.length > 0 && (
+              <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
+                <Text as="div" size="sm" color="muted" className="mb-2">Active Season</Text>
+                <Text as="div" size="2xs" color="dim" className="mb-3">Used by monthly reports and as default for all users.</Text>
+                <div className="flex flex-wrap gap-2">
+                  {allSeasons.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={async () => {
+                        const supabase = getSupabaseClient();
+                        if (!supabase) return;
+                        await supabase.from('cricket_seasons').update({ is_active: false }).neq('id', s.id);
+                        await supabase.from('cricket_seasons').update({ is_active: true }).eq('id', s.id);
+                        setAllSeasons((prev) => prev.map((x) => ({ ...x, is_active: x.id === s.id })));
+                        toast.success(`${s.name} set as active season`);
+                      }}
+                      className="px-4 py-2 rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-95"
+                      style={s.is_active ? {
+                        background: 'var(--cricket)',
+                        color: 'white',
+                        border: '1.5px solid var(--cricket)',
+                      } : {
+                        background: 'transparent',
+                        color: 'var(--muted)',
+                        border: '1.5px solid var(--border)',
+                      }}
+                    >
+                      {s.name} {s.is_active ? '✓' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Users list */}
             <div className="mb-6">
