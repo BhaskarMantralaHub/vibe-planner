@@ -127,7 +127,7 @@ jobs:
             ($players | map(select(($feeMap[.id] // 0) < $feeAmt))) as $unpaidPlayers |
 
             # Recent expenses
-            ($expenses | .[0:5]) as $recent |
+            $expenses as $recent_all |
 
             {
               season_name: $season_name,
@@ -141,7 +141,7 @@ jobs:
               paid_count: ($paidPlayers | length),
               unpaid_names: ($unpaidPlayers | map(.name)),
               categories: $categories,
-              recent: $recent,
+              recent_all: $recent_all,
               expense_count: ($expenses | length),
               paid_players: ($paidPlayers | map({name: .name, jersey: .jersey_number, designation: .designation})),
               unpaid_players: ($unpaidPlayers | map({name: .name, jersey: .jersey_number}))
@@ -174,12 +174,16 @@ jobs:
             MATCH_ROWS=$(echo "$MATCHES" | jq -r '.[] | (.match_date | split("T")[0]) as $d | (.match_time | split(":") | (.[0] | tonumber) as $h | (.[1]) as $m | (if $h >= 12 then "PM" else "AM" end) as $ap | "\($h % 12 | if . == 0 then 12 else . end):\($m) \($ap)") as $t | (if .is_home == true then "Home" elif .is_home == false then "Away" else "" end) as $ha | (if .is_home == true then "#16a34a" elif .is_home == false then "#2563eb" else "#888" end) as $hc | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;white-space:nowrap;color:#888;font-size:12px\">\($d)<br>\($t)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">vs \(.opponent)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px\"><span style=\"color:\($hc);font-weight:700\">\($ha)</span></td></tr>"')
           fi
 
-          # Category rows
+          # All expense rows — date, description + category, amount
           CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
-          CAT_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '.categories[] | ($L[.category] // .category) as $l | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:500\">\($l)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888\">\(.count)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#1e1e2f\">$\(.total | round)</td></tr>"')
-
-          # Recent expense rows
-          REC_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '.recent[] | ($L[.category] // .category) as $l | (.expense_date | split("T")[0]) as $d | "<tr><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0\">\(.description // $l)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"')
+          EXPENSE_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '
+            .recent_all[] |
+            ($L[.category] // .category) as $cat |
+            (.expense_date | split("T")[0]) as $d |
+            (.description // "") as $desc |
+            (if $desc != "" and $desc != $cat then "\($desc) <span style=\"color:#aaa\">· \($cat)</span>" else $cat end) as $label |
+            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"
+          ' 2>/dev/null || echo "")
 
           # Fee table rows — simple two-column: Player | Status
           FEE_ROWS=$(echo "$REPORT" | jq -r '
@@ -195,6 +199,10 @@ jobs:
             <div style='font-size:11px;color:#c8bea0;text-transform:uppercase;letter-spacing:1px'>Monthly Report</div>
             <div style='font-size:22px;font-weight:800;color:#fff;margin-top:4px'>Sunrisers Manteca</div>
             <div style='font-size:13px;color:#e8e0c8;margin-top:2px'>$SEASON_NAME &mdash; $MONTH_NAME</div>
+          </div>
+
+          <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef;padding:16px 28px 0'>
+            <div style='font-size:15px;color:#1e1e2f'>Hey team! Here is your monthly summary for <b>$MONTH_NAME</b>.</div>
           </div>
 
           <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef'>
@@ -243,24 +251,14 @@ jobs:
 
           <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
 
-          <!-- Expenses by Category -->
+          <!-- Expenses -->
           <div style='padding:20px 28px'>
             <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Expenses &mdash; \$$TS total ($EC transactions)</div>
             <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
-              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Category</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:center'>Count</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
-              $CAT_ROWS
+              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Date</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Description</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
+              $EXPENSE_ROWS
             </table>
           </div>
-
-          <!-- Recent Expenses -->
-          $(if [ -n "$REC_ROWS" ]; then echo "
-          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
-          <div style='padding:20px 28px'>
-            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Recent Expenses</div>
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
-              $REC_ROWS
-            </table>
-          </div>"; fi)
 
           </div>
 
