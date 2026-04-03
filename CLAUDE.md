@@ -416,11 +416,40 @@ Tests in `tests/unit/` (per-store local + cloud modes, auth helpers, lib utiliti
 - Every bug fix SHOULD include a regression test
 - Run `npx vitest run && npx next build` before every push
 
-## Backup & Disaster Recovery
+## GitHub Actions Workflows
 
-Daily backup via GitHub Actions (`.github/workflows/backup.yml`) exports 20 tables as JSON to `vibe-planner-backups` repo. When creating a new table, **MUST** add it to both `backup.yml` and `restore.yml`.
+### 1. Daily Supabase Backup (`.github/workflows/backup.yml`)
+- **Schedule:** Daily at 11 PM PT (6 AM UTC)
+- **What:** Exports all tables as JSON to `vibe-planner-backups` repo
+- **Manual trigger:** Actions → Daily Supabase Backup → Run workflow
+- **When creating a new table:** MUST add it to both `backup.yml` and `restore.yml`
+- Full details: `docs/BACKUP_RESTORE.md`
 
-Full details (table list, restore steps, what's backed up): `docs/BACKUP_RESTORE.md`
+### 2. Generate Restore SQL (`.github/workflows/restore.yml`)
+- **Schedule:** Manual only
+- **What:** Generates SQL restore script from a backup date
+- **Input:** Backup date (YYYY-MM-DD) or "latest"
+- **Manual trigger:** Actions → Generate Restore SQL → Run workflow → enter date
+
+### 3. Weekly Activity Report (`.github/workflows/weekly-activity-report.yml`)
+- **Schedule:** Every Sunday at 7 AM PT (2 PM UTC)
+- **What:** Emails super admin a summary of user logins, active users, top pages, inactive users
+- **Manual trigger:** Actions → Weekly Activity Report → Run workflow
+- **Secrets required:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `SUPER_ADMIN_EMAIL`
+- **Failure notification:** Emails super admin if workflow fails
+
+### 4. Monthly Expense Report (`.github/workflows/monthly-expense-report.yml`)
+- **Schedule:** 1st of every month at 7 AM PT (2 PM UTC)
+- **What:** Emails personalized expense report to cricket players (pool fund, fees, expenses, sponsorships, upcoming matches)
+- **Manual trigger:** Actions → Monthly Expense Report → Run workflow → enter recipients
+- **Recipients input:** `*` for all active players, or comma-separated emails (e.g., `a@x.com, b@x.com`)
+- **Scheduled runs** default to `*` (all active players)
+- **Season selection:** Uses `is_active = true` season (set by super admin in Admin page)
+- **Secrets required:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`
+- **Rate limiting:** 300ms delay between sends + auto-retry 3x on rate limit
+- **Delivery logging:** ✅/❌ per recipient in Actions logs with summary
+- **Failure notification:** Emails super admin if workflow fails
+- **To pause:** Actions → Monthly Expense Report → `...` menu → Disable workflow
 
 ## Security — MANDATORY Pre-Commit Checks
 
