@@ -344,7 +344,8 @@ jobs:
             for IEMAIL in "${INPUT_EMAILS[@]}"; do
               IEMAIL=$(echo "$IEMAIL" | xargs)
               INAME=$(echo "$PLAYERS" | jq -r --arg e "$IEMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
-              RECIPIENT_LIST="${RECIPIENT_LIST}${IEMAIL}|${INAME}\n"
+              RECIPIENT_LIST="${RECIPIENT_LIST}${IEMAIL}|${INAME}
+"
             done
           fi
 
