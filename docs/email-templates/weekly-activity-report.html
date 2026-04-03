@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekly Activity Report</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F5F6FA; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F5F6FA;">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+
+        <!-- Container -->
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; width: 100%;">
+
+          <!-- Banner Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #14325a, #234e82); border-radius: 16px 16px 0 0; padding: 24px 28px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td>
+                    <span style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">Weekly Activity Report</span>
+                    <br />
+                    <span style="font-size: 13px; color: #c8bea0; margin-top: 4px; display: inline-block;">{{WEEK_START}} &mdash; {{TODAY}}</span>
+                  </td>
+                  <td align="right" valign="top">
+                    <span style="font-size: 12px; color: #c8bea0;">Viber's Toolkit</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card body -->
+          <tr>
+            <td style="background-color: #FFFFFF; border-left: 1px solid #e0e4ef; border-right: 1px solid #e0e4ef; padding: 0;">
+
+              <!-- Summary Stats -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding: 24px 28px 16px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <!-- Active Users -->
+                        <td width="33%" align="center" style="padding: 14px 8px; background-color: #f0fdf4; border-radius: 10px;">
+                          <div style="font-size: 28px; font-weight: 800; color: #16a34a; line-height: 1;">{{ACTIVE_USERS}}</div>
+                          <div style="font-size: 11px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Active Users</div>
+                          <div style="font-size: 11px; color: #9ca3af;">of {{TOTAL_USERS}}</div>
+                        </td>
+                        <td width="4"></td>
+                        <!-- Logins -->
+                        <td width="33%" align="center" style="padding: 14px 8px; background-color: #eff6ff; border-radius: 10px;">
+                          <div style="font-size: 28px; font-weight: 800; color: #2563eb; line-height: 1;">{{LOGIN_COUNT}}</div>
+                          <div style="font-size: 11px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Logins</div>
+                        </td>
+                        <td width="4"></td>
+                        <!-- Page Views -->
+                        <td width="33%" align="center" style="padding: 14px 8px; background-color: #fef3c7; border-radius: 10px;">
+                          <div style="font-size: 28px; font-weight: 800; color: #d97706; line-height: 1;">{{PAGE_VIEWS}}</div>
+                          <div style="font-size: 11px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Page Views</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="padding: 0 28px;"><div style="height: 1px; background-color: #e5e7eb;"></div></td></tr>
+              </table>
+
+              <!-- Login Activity Table -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding: 20px 28px 8px;">
+                    <span style="font-size: 15px; font-weight: 700; color: #1e1e2f;">Login Activity</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 28px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 13px;">
+                      <!-- Table Header -->
+                      <tr style="background-color: #f8f9fb;">
+                        <td style="padding: 8px 12px; font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb;">User</td>
+                        <td style="padding: 8px 12px; font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; border-bottom: 1px solid #e5e7eb;">Logins</td>
+                        <td style="padding: 8px 12px; font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; border-bottom: 1px solid #e5e7eb;">Last Login</td>
+                      </tr>
+                      <!-- Sample rows (replaced by workflow) -->
+                      <tr>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-weight: 500;">Bhaskar Mantrala</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: center; font-weight: 700; color: #4DBBEB;">12</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; color: #6b7280;">Apr 2</td>
+                      </tr>
+                      <tr style="background-color: #fafbfc;">
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-weight: 500;">Ashok Reddy</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: center; font-weight: 700; color: #4DBBEB;">5</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; color: #6b7280;">Apr 1</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-weight: 500;">Venkat Gudala</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: center; font-weight: 700; color: #4DBBEB;">3</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; color: #6b7280;">Mar 30</td>
+                      </tr>
+                      <tr style="background-color: #fafbfc;">
+                        <td style="padding: 10px 12px; font-weight: 500;">Srinivas Talasila</td>
+                        <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: #4DBBEB;">1</td>
+                        <td style="padding: 10px 12px; text-align: right; color: #6b7280;">Mar 28</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="padding: 12px 28px 0;"><div style="height: 1px; background-color: #e5e7eb;"></div></td></tr>
+              </table>
+
+              <!-- Top Pages -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding: 16px 28px 8px;">
+                    <span style="font-size: 15px; font-weight: 700; color: #1e1e2f;">Top Pages</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 28px 16px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 13px;">
+                      <tr>
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0;">/cricket/</td>
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; font-weight: 700; color: #4DBBEB;">42</td>
+                      </tr>
+                      <tr style="background-color: #fafbfc;">
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0;">/cricket/schedule/</td>
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; font-weight: 700; color: #4DBBEB;">28</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0;">/cricket/moments/</td>
+                        <td style="padding: 6px 12px; border-bottom: 1px solid #f0f0f0; text-align: right; font-weight: 700; color: #4DBBEB;">19</td>
+                      </tr>
+                      <tr style="background-color: #fafbfc;">
+                        <td style="padding: 6px 12px;">/admin/</td>
+                        <td style="padding: 6px 12px; text-align: right; font-weight: 700; color: #4DBBEB;">8</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="padding: 0 28px;"><div style="height: 1px; background-color: #e5e7eb;"></div></td></tr>
+              </table>
+
+              <!-- Inactive Users -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding: 16px 28px;">
+                    <span style="font-size: 15px; font-weight: 700; color: #1e1e2f;">Inactive This Week</span>
+                    <div style="font-size: 13px; color: #6b7280; margin-top: 6px; line-height: 20px; background: #fef2f2; border-radius: 8px; padding: 10px 14px; border: 1px solid #fecaca;">
+                      <span style="color: #dc2626; font-weight: 600;">8 users</span> didn't log in: Mouni, Pavan Kumar, Vikramkumar Golanukonda, Ravi Teja, Pradeep, Kiran, Suresh, Mahesh
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fb; border: 1px solid #e0e4ef; border-top: none; border-radius: 0 0 16px 16px; padding: 16px 28px; text-align: center;">
+              <a href="https://viberstoolkit.com/admin/" style="color: #4DBBEB; text-decoration: none; font-size: 13px; font-weight: 600;">View Admin Dashboard</a>
+              <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;">Viber's Toolkit &mdash; Designed by Bhaskar Mantrala</div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,172 @@
+name: Weekly Activity Report
+
+on:
+  schedule:
+    - cron: '0 14 * * 0' # Every Sunday at 2 PM UTC (7 AM PT)
+  workflow_dispatch: # Manual trigger for testing
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate and send activity report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+        run: |
+          set -e
+
+          WEEK_AGO=$(date -u -d "7 days ago" +%Y-%m-%dT00:00:00Z 2>/dev/null || date -u -v-7d +%Y-%m-%dT00:00:00Z)
+          TODAY=$(date +%Y-%m-%d)
+          WEEK_START=$(date -u -d "7 days ago" +%b\ %d 2>/dev/null || date -u -v-7d +"%b %d")
+
+          echo "Fetching activity since $WEEK_AGO..."
+
+          # Fetch activity data (last 7 days)
+          ACTIVITY=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/user_activity?select=user_id,activity_type,page_path,created_at&created_at=gte.$WEEK_AGO")
+
+          # Fetch profiles for name resolution
+          PROFILES=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/profiles?select=id,email,full_name")
+
+          # Generate report with jq
+          REPORT=$(jq -n \
+            --argjson activity "$ACTIVITY" \
+            --argjson profiles "$PROFILES" \
+            --arg week_start "$WEEK_START" \
+            --arg today "$TODAY" '
+
+            # Build name lookup
+            ($profiles | map({(.id): (.full_name // .email)}) | add // {}) as $names |
+
+            # Total events
+            ($activity | length) as $total_events |
+
+            # Unique active users
+            ($activity | map(.user_id) | unique | length) as $active_users |
+
+            # Login count
+            ($activity | map(select(.activity_type == "login")) | length) as $login_count |
+
+            # Page view count
+            ($activity | map(select(.activity_type == "page_view")) | length) as $page_views |
+
+            # Per-user login stats (sorted by count desc)
+            ($activity
+              | map(select(.activity_type == "login"))
+              | group_by(.user_id)
+              | map({
+                  name: ($names[.[0].user_id] // "Unknown"),
+                  logins: length,
+                  last: (sort_by(.created_at) | last | .created_at | split("T")[0])
+                })
+              | sort_by(-.logins)
+            ) as $user_logins |
+
+            # Top pages (sorted by count desc)
+            ($activity
+              | map(select(.activity_type == "page_view" and .page_path != null))
+              | group_by(.page_path)
+              | map({path: .[0].page_path, count: length})
+              | sort_by(-.count)
+              | .[0:8]
+            ) as $top_pages |
+
+            # Users who never logged in this week
+            ($profiles | map(.id)) as $all_ids |
+            ($activity | map(.user_id) | unique) as $active_ids |
+            ($all_ids | map(select(. as $id | $active_ids | index($id) | not))) as $inactive_ids |
+            ($inactive_ids | map($names[.] // "Unknown") | sort) as $inactive_names |
+
+            {
+              total_events: $total_events,
+              active_users: $active_users,
+              total_users: ($profiles | length),
+              login_count: $login_count,
+              page_views: $page_views,
+              user_logins: $user_logins,
+              top_pages: $top_pages,
+              inactive_names: $inactive_names,
+              week_start: $week_start,
+              today: $today
+            }
+          ')
+
+          echo "$REPORT" | jq .
+
+          # Build HTML email
+          ACTIVE=$(echo "$REPORT" | jq -r '.active_users')
+          TOTAL=$(echo "$REPORT" | jq -r '.total_users')
+          LOGINS=$(echo "$REPORT" | jq -r '.login_count')
+          VIEWS=$(echo "$REPORT" | jq -r '.page_views')
+
+          USER_ROWS=$(echo "$REPORT" | jq -r '.user_logins[] | "<tr><td style=\"padding:8px 12px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#4DBBEB\">\(.logins)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;color:#888\">\(.last)</td></tr>"')
+
+          PAGE_ROWS=$(echo "$REPORT" | jq -r '.top_pages[] | "<tr><td style=\"padding:6px 12px;border-bottom:1px solid #eee\">\(.path)</td><td style=\"padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#4DBBEB\">\(.count)</td></tr>"')
+
+          INACTIVE=$(echo "$REPORT" | jq -r '.inactive_names | if length == 0 then "Everyone was active! 🎉" else join(", ") end')
+
+          HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto'>
+          <div style='background:linear-gradient(135deg,#14325a,#234e82);padding:20px 24px;border-radius:12px 12px 0 0'>
+            <h1 style='color:#fff;margin:0;font-size:20px'>Weekly Activity Report</h1>
+            <p style='color:#d4c8a8;margin:4px 0 0;font-size:13px'>$WEEK_START — $TODAY</p>
+          </div>
+          <div style='background:#fff;padding:20px 24px;border:1px solid #eee;border-top:none'>
+            <div style='display:flex;gap:12px;margin-bottom:20px'>
+              <div style='flex:1;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center'>
+                <div style='font-size:24px;font-weight:800;color:#16a34a'>$ACTIVE</div>
+                <div style='font-size:11px;color:#888'>Active Users</div>
+              </div>
+              <div style='flex:1;background:#eff6ff;border-radius:8px;padding:12px;text-align:center'>
+                <div style='font-size:24px;font-weight:800;color:#2563eb'>$LOGINS</div>
+                <div style='font-size:11px;color:#888'>Logins</div>
+              </div>
+              <div style='flex:1;background:#fef3c7;border-radius:8px;padding:12px;text-align:center'>
+                <div style='font-size:24px;font-weight:800;color:#d97706'>$VIEWS</div>
+                <div style='font-size:11px;color:#888'>Page Views</div>
+              </div>
+            </div>
+
+            <h3 style='margin:16px 0 8px;font-size:14px;color:#333'>Login Activity</h3>
+            <table style='width:100%;border-collapse:collapse;font-size:13px'>
+              <tr style='background:#f8f9fa'><th style='padding:8px 12px;text-align:left;font-size:11px;color:#888'>User</th><th style='padding:8px 12px;text-align:center;font-size:11px;color:#888'>Logins</th><th style='padding:8px 12px;text-align:left;font-size:11px;color:#888'>Last</th></tr>
+              $USER_ROWS
+            </table>
+
+            <h3 style='margin:16px 0 8px;font-size:14px;color:#333'>Top Pages</h3>
+            <table style='width:100%;border-collapse:collapse;font-size:13px'>
+              $PAGE_ROWS
+            </table>
+
+            <h3 style='margin:16px 0 8px;font-size:14px;color:#333'>Inactive Users</h3>
+            <p style='font-size:13px;color:#666'>$INACTIVE</p>
+          </div>
+          <div style='padding:12px 24px;text-align:center;font-size:11px;color:#aaa;border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px'>
+            <a href='https://viberstoolkit.com/admin/' style='color:#4DBBEB;text-decoration:none'>View Admin Dashboard</a> · Viber's Toolkit
+          </div>
+          </div>"
+
+          # Send via Resend API
+          echo "Sending report to $SUPER_ADMIN_EMAIL..."
+
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg to "$SUPER_ADMIN_EMAIL" \
+              --arg subject "Weekly Activity Report — $WEEK_START to $TODAY" \
+              --arg html "$HTML" \
+              '{from: "Vibers Toolkit <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
+            )"
+
+          echo ""
+          echo "Report sent!"
