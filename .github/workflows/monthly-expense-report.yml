@@ -203,6 +203,7 @@ jobs:
 
           <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef;padding:16px 28px 0'>
             <div style='font-size:15px;color:#1e1e2f'>Hey team! Here is your monthly summary for <b>$MONTH_NAME</b>.</div>
+            <div style='height:1px;background:#e5e7eb;margin-top:16px'></div>
           </div>
 
           <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef'>
