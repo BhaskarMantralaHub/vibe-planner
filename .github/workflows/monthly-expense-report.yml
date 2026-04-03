@@ -344,9 +344,9 @@ jobs:
             for IEMAIL in "${INPUT_EMAILS[@]}"; do
               IEMAIL=$(echo "$IEMAIL" | xargs)
               INAME=$(echo "$PLAYERS" | jq -r --arg e "$IEMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
-              RECIPIENT_LIST="${RECIPIENT_LIST}${IEMAIL}|${INAME}
-"
+              printf -v RECIPIENT_LIST '%s%s|%s\n' "$RECIPIENT_LIST" "$IEMAIL" "$INAME"
             done
+            RECIPIENT_LIST=$(echo -e "$RECIPIENT_LIST")
           fi
 
           if [ -z "$RECIPIENT_LIST" ]; then
