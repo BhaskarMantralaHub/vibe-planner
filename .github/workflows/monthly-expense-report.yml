@@ -276,15 +276,20 @@ jobs:
 
           # Send individualized emails (one per player with personalized greeting)
           SUBJECT="Sunrisers Manteca — $MONTH_NAME Monthly Report"
+          SENT_COUNT=0
+          FAIL_COUNT=0
+          FAILED_LIST=""
 
-          SUMMARY_FILE=$(mktemp)
-          echo "0|0|" > "$SUMMARY_FILE"
+          # HTML-safe name escaping
+          escape_html() { echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 
           send_email() {
             local EMAIL="$1"
             local NAME="$2"
             local FIRST=$(echo "$NAME" | awk '{print $1}')
-            local PERSONALIZED_HTML=$(echo "$HTML" | sed "s/Hey team!/Hey $FIRST!/g")
+            local SAFE_FIRST=$(escape_html "$FIRST")
+            # Bash parameter substitution (safe — no sed special char issues)
+            local PERSONALIZED_HTML="${HTML//Hey team!/Hey $SAFE_FIRST!}"
 
             RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
               -H "Authorization: Bearer $RESEND_API_KEY" \
@@ -296,14 +301,14 @@ jobs:
                 '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
               )")
 
-            IFS='|' read -r SC FC FL < "$SUMMARY_FILE"
             if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
               echo "  ✅ $NAME → $EMAIL"
-              echo "$((SC + 1))|$FC|$FL" > "$SUMMARY_FILE"
+              SENT_COUNT=$((SENT_COUNT + 1))
             else
               ERROR_MSG=$(echo "$RESPONSE" | jq -r '.message // "Unknown error"')
               echo "  ❌ $NAME → $EMAIL — $ERROR_MSG"
-              echo "$SC|$((FC + 1))|${FL}  - $NAME ($EMAIL): $ERROR_MSG\n" > "$SUMMARY_FILE"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+              FAILED_LIST="${FAILED_LIST}  - $NAME ($EMAIL): $ERROR_MSG\n"
             fi
           }
 
@@ -312,23 +317,30 @@ jobs:
             RECIPIENT_INPUT="*"
           fi
 
+          # Build recipient list (avoid subshell so counters persist)
+          RECIPIENT_LIST=""
           if [ "$RECIPIENT_INPUT" = "*" ]; then
             echo "Sending to ALL active players..."
-            while IFS='|' read -r PEMAIL PNAME; do
-              send_email "$PEMAIL" "$PNAME"
-            done < <(echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"')
+            RECIPIENT_LIST=$(echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"')
           else
             echo "Sending to: $RECIPIENT_INPUT"
-            IFS=',' read -ra EMAILS <<< "$RECIPIENT_INPUT"
-            for EMAIL in "${EMAILS[@]}"; do
-              EMAIL=$(echo "$EMAIL" | xargs)
-              NAME=$(echo "$PLAYERS" | jq -r --arg e "$EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
-              send_email "$EMAIL" "$NAME"
+            IFS=',' read -ra INPUT_EMAILS <<< "$RECIPIENT_INPUT"
+            for IEMAIL in "${INPUT_EMAILS[@]}"; do
+              IEMAIL=$(echo "$IEMAIL" | xargs)
+              INAME=$(echo "$PLAYERS" | jq -r --arg e "$IEMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
+              RECIPIENT_LIST="${RECIPIENT_LIST}${IEMAIL}|${INAME}\n"
             done
           fi
 
-          IFS='|' read -r SENT_COUNT FAIL_COUNT FAILED_LIST < "$SUMMARY_FILE"
-          rm -f "$SUMMARY_FILE"
+          if [ -z "$RECIPIENT_LIST" ]; then
+            echo "⚠️ No recipients with email addresses found. Skipping send."
+          else
+            # Send emails (no subshell — counters work correctly)
+            while IFS='|' read -r PEMAIL PNAME; do
+              [ -z "$PEMAIL" ] && continue
+              send_email "$PEMAIL" "$PNAME"
+            done <<< "$RECIPIENT_LIST"
+          fi
 
           echo ""
           echo "==============================="
