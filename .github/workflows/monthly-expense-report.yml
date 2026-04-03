@@ -14,53 +14,66 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          # For testing: set TEST_RECIPIENT_EMAIL to send to one person only
-          # Remove this secret to send to all active players
           TEST_RECIPIENT_EMAIL: ${{ secrets.TEST_RECIPIENT_EMAIL }}
         run: |
           set -e
 
           echo "=== Monthly Expense Report ==="
 
-          # Fetch current season (most recent by year)
-          SEASONS=$(curl -s \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/cricket_seasons?select=id,name,year,season_type,fee_amount&order=year.desc,created_at.desc&limit=1")
+          SB_HEADERS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Accept: application/json")
+
+          # Fetch current season
+          SEASONS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
+            --data-urlencode "select=id,name,year,season_type,fee_amount" \
+            --data-urlencode "order=year.desc,created_at.desc" \
+            --data-urlencode "limit=1")
+
+          echo "Seasons response: $SEASONS"
 
           SEASON_ID=$(echo "$SEASONS" | jq -r '.[0].id // empty')
           SEASON_NAME=$(echo "$SEASONS" | jq -r '.[0].name // "Current Season"')
-          FEE_AMOUNT=$(echo "$SEASONS" | jq -r '.[0].fee_amount // 60')
+          FEE_AMOUNT=$(echo "$SEASONS" | jq -r '.[0].fee_amount // "60"')
 
           if [ -z "$SEASON_ID" ]; then
             echo "No season found. Skipping."
             exit 0
           fi
+          echo "Season: $SEASON_NAME ($SEASON_ID), Fee: $FEE_AMOUNT"
 
-          echo "Season: $SEASON_NAME ($SEASON_ID)"
+          # Fetch players
+          PLAYERS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_players" \
+            --data-urlencode "select=id,name,email,is_active,is_guest,jersey_number,designation" \
+            --data-urlencode "is_active=eq.true" \
+            --data-urlencode "is_guest=eq.false")
+          echo "Players: $(echo "$PLAYERS" | jq length)"
 
-          # Fetch all data in parallel
-          PLAYERS=$(curl -s \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/cricket_players?select=id,name,email,is_active,is_guest&is_active=eq.true&is_guest=eq.false")
+          # Fetch expenses
+          EXPENSES=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_expenses" \
+            --data-urlencode "select=*" \
+            --data-urlencode "season_id=eq.$SEASON_ID" \
+            --data-urlencode "deleted_at=is.null" \
+            --data-urlencode "order=expense_date.desc")
+          echo "Expenses: $(echo "$EXPENSES" | jq length)"
 
-          EXPENSES=$(curl -s \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/cricket_expenses?select=*&season_id=eq.$SEASON_ID&deleted_at=is.null&order=expense_date.desc")
+          # Fetch fees
+          FEES=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_season_fees" \
+            --data-urlencode "select=*" \
+            --data-urlencode "season_id=eq.$SEASON_ID")
+          echo "Fees: $(echo "$FEES" | jq length)"
 
-          FEES=$(curl -s \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/cricket_season_fees?select=*&season_id=eq.$SEASON_ID")
+          # Fetch sponsorships
+          SPONSORS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_sponsorships" \
+            --data-urlencode "select=*" \
+            --data-urlencode "season_id=eq.$SEASON_ID" \
+            --data-urlencode "deleted_at=is.null")
+          echo "Sponsors: $(echo "$SPONSORS" | jq length)"
 
-          SPONSORS=$(curl -s \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/cricket_sponsorships?select=*&season_id=eq.$SEASON_ID&deleted_at=is.null")
-
-          # Build report data
+          # Build report
           REPORT=$(jq -n \
             --argjson players "$PLAYERS" \
             --argjson expenses "$EXPENSES" \
@@ -70,27 +83,28 @@ jobs:
             --arg fee_amount "$FEE_AMOUNT" '
 
             ($fee_amount | tonumber) as $feeAmt |
-            ($fees | map(.amount_paid | tonumber) | add // 0) as $totalFees |
-            ($sponsors | map(.amount | tonumber) | add // 0) as $totalSponsors |
+            ($fees | map(.amount_paid | tostring | tonumber) | add // 0) as $totalFees |
+            ($sponsors | map(.amount | tostring | tonumber) | add // 0) as $totalSponsors |
             ($totalFees + $totalSponsors) as $totalCollected |
-            ($expenses | map(.amount | tonumber) | add // 0) as $totalSpent |
+            ($expenses | map(.amount | tostring | tonumber) | add // 0) as $totalSpent |
             ($totalCollected - $totalSpent) as $poolBalance |
-            ($players | length) as $playerCount |
 
             # Category breakdown
-            ($expenses | group_by(.category) | map({
-              category: .[0].category,
-              total: (map(.amount | tonumber) | add),
-              count: length
-            }) | sort_by(-.total)) as $categories |
+            (if ($expenses | length) > 0 then
+              $expenses | group_by(.category) | map({
+                category: .[0].category,
+                total: (map(.amount | tostring | tonumber) | add),
+                count: length
+              }) | sort_by(-.total)
+            else [] end) as $categories |
 
-            # Fee status per player
-            ($fees | map({(.player_id): (.amount_paid | tonumber)}) | add // {}) as $feeMap |
-            ($players | map(select($feeMap[.id] != null and $feeMap[.id] >= $feeAmt)) | length) as $paidCount |
-            ($players | map(select($feeMap[.id] == null or $feeMap[.id] < $feeAmt)) | map(.name)) as $unpaidNames |
+            # Fee status
+            ($fees | map({(.player_id): (.amount_paid | tostring | tonumber)}) | add // {}) as $feeMap |
+            ($players | map(select(($feeMap[.id] // 0) >= $feeAmt))) as $paidPlayers |
+            ($players | map(select(($feeMap[.id] // 0) < $feeAmt))) as $unpaidPlayers |
 
-            # Recent expenses (last 5)
-            ($expenses | .[0:5]) as $recentExpenses |
+            # Recent expenses
+            ($expenses | .[0:5]) as $recent |
 
             {
               season_name: $season_name,
@@ -100,134 +114,140 @@ jobs:
               total_collected: $totalCollected,
               total_spent: $totalSpent,
               pool_balance: $poolBalance,
-              player_count: $playerCount,
-              paid_count: $paidCount,
-              unpaid_names: $unpaidNames,
+              player_count: ($players | length),
+              paid_count: ($paidPlayers | length),
+              unpaid_names: ($unpaidPlayers | map(.name)),
               categories: $categories,
-              recent_expenses: $recentExpenses,
-              expense_count: ($expenses | length)
+              recent: $recent,
+              expense_count: ($expenses | length),
+              paid_players: ($paidPlayers | map({name: .name, jersey: .jersey_number, designation: .designation})),
+              unpaid_players: ($unpaidPlayers | map({name: .name, jersey: .jersey_number}))
             }
           ')
 
-          echo "$REPORT" | jq .
+          echo "Report summary:"
+          echo "$REPORT" | jq '{total_collected, total_spent, pool_balance, player_count, paid_count, expense_count}'
 
-          # Extract values
-          TOTAL_COLLECTED=$(echo "$REPORT" | jq -r '.total_collected | floor')
-          TOTAL_SPENT=$(echo "$REPORT" | jq -r '.total_spent | floor')
-          POOL_BALANCE=$(echo "$REPORT" | jq -r '.pool_balance | floor')
-          PLAYER_COUNT=$(echo "$REPORT" | jq -r '.player_count')
-          PAID_COUNT=$(echo "$REPORT" | jq -r '.paid_count')
-          EXPENSE_COUNT=$(echo "$REPORT" | jq -r '.expense_count')
-          BALANCE_COLOR=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#16a34a" else "#dc2626" end')
-          BALANCE_BG=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#f0fdf4" else "#fef2f2" end')
-
-          # Build category rows
-          CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
-          CATEGORY_ROWS=$(echo "$REPORT" | jq -r --argjson labels "$CAT_LABELS" '
-            .categories[] |
-            ($labels[.category] // .category) as $label |
-            "<tr><td style=\"padding:8px 12px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888\">\(.count)</td><td style=\"padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.total | floor)</td></tr>"
-          ')
-
-          # Build recent expense rows
-          RECENT_ROWS=$(echo "$REPORT" | jq -r --argjson labels "$CAT_LABELS" '
-            .recent_expenses[] |
-            ($labels[.category] // .category) as $label |
-            (.expense_date | split("T")[0]) as $date |
-            "<tr><td style=\"padding:6px 12px;border-bottom:1px solid #f0f0f0;font-size:12px\">\($date)</td><td style=\"padding:6px 12px;border-bottom:1px solid #f0f0f0\">\(.description // $label)</td><td style=\"padding:6px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tonumber | floor)</td></tr>"
-          ')
-
-          # Unpaid names
-          UNPAID=$(echo "$REPORT" | jq -r '.unpaid_names | if length == 0 then "Everyone has paid! 🎉" else join(", ") end')
-          UNPAID_COUNT=$(echo "$REPORT" | jq -r '.unpaid_names | length')
+          # Extract values for HTML
+          TC=$(echo "$REPORT" | jq -r '.total_collected | round')
+          TS=$(echo "$REPORT" | jq -r '.total_spent | round')
+          PB=$(echo "$REPORT" | jq -r '.pool_balance | round')
+          PC=$(echo "$REPORT" | jq -r '.player_count')
+          PAID=$(echo "$REPORT" | jq -r '.paid_count')
+          EC=$(echo "$REPORT" | jq -r '.expense_count')
+          FA=$(echo "$REPORT" | jq -r '.fee_amount | round')
+          BAL_COLOR=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#16a34a" else "#dc2626" end')
+          BAL_BG=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#f0fdf4" else "#fef2f2" end')
+          BAL_SIGN=$(echo "$REPORT" | jq -r 'if .pool_balance < 0 then "-" else "" end')
+          BAL_ABS=$(echo "$REPORT" | jq -r '.pool_balance | fabs | round')
 
           MONTH_NAME=$(date +"%B %Y")
 
-          # Build HTML
+          # Category rows
+          CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
+          CAT_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '.categories[] | ($L[.category] // .category) as $l | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:500\">\($l)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888\">\(.count)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#1e1e2f\">$\(.total | round)</td></tr>"')
+
+          # Recent expense rows
+          REC_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '.recent[] | ($L[.category] // .category) as $l | (.expense_date | split("T")[0]) as $d | "<tr><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0\">\(.description // $l)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"')
+
+          # Paid player rows
+          PAID_ROWS=$(echo "$REPORT" | jq -r '.paid_players[] | "<tr><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0\"><span style=\"color:#4DBBEB;font-weight:600;margin-right:6px\">\(if .jersey then "#\(.jersey)" else "•" end)</span>\(.name)\(if .designation == "captain" then " (C)" elif .designation == "vice-captain" then " (VC)" else "" end)</td><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"')
+
+          # Unpaid player rows
+          UNPAID_ROWS=$(echo "$REPORT" | jq -r '.unpaid_players[] | "<tr><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0\"><span style=\"color:#4DBBEB;font-weight:600;margin-right:6px\">\(if .jersey then "#\(.jersey)" else "•" end)</span>\(.name)</td><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>"')
+
+          FEE_ROWS="$PAID_ROWS$UNPAID_ROWS"
+
+          # Build HTML (matches ShareButton PDF structure)
           HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:0 auto'>
+
+          <!-- Banner -->
           <div style='background:linear-gradient(135deg,#14325a,#234e82);padding:24px 28px;border-radius:16px 16px 0 0'>
-            <div style='font-size:20px;font-weight:800;color:#fff'>Monthly Expense Report</div>
-            <div style='font-size:13px;color:#c8bea0;margin-top:4px'>$SEASON_NAME &mdash; $MONTH_NAME</div>
+            <div style='font-size:11px;color:#c8bea0;text-transform:uppercase;letter-spacing:1px'>Monthly Report</div>
+            <div style='font-size:22px;font-weight:800;color:#fff;margin-top:4px'>Sunrisers Manteca</div>
+            <div style='font-size:13px;color:#e8e0c8;margin-top:2px'>$SEASON_NAME &mdash; $MONTH_NAME</div>
           </div>
-          <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef;padding:0'>
-            <div style='padding:24px 28px 16px'>
-              <table width='100%' cellpadding='0' cellspacing='0' border='0'>
-                <tr>
-                  <td width='33%' align='center' style='padding:14px 8px;background:#eff6ff;border-radius:10px'>
-                    <div style='font-size:24px;font-weight:800;color:#2563eb'>\$$TOTAL_COLLECTED</div>
-                    <div style='font-size:11px;color:#888;margin-top:4px'>COLLECTED</div>
-                  </td>
-                  <td width='4'></td>
-                  <td width='33%' align='center' style='padding:14px 8px;background:#fef3c7;border-radius:10px'>
-                    <div style='font-size:24px;font-weight:800;color:#d97706'>\$$TOTAL_SPENT</div>
-                    <div style='font-size:11px;color:#888;margin-top:4px'>SPENT</div>
-                  </td>
-                  <td width='4'></td>
-                  <td width='33%' align='center' style='padding:14px 8px;background:$BALANCE_BG;border-radius:10px'>
-                    <div style='font-size:24px;font-weight:800;color:$BALANCE_COLOR'>\$$POOL_BALANCE</div>
-                    <div style='font-size:11px;color:#888;margin-top:4px'>BALANCE</div>
-                  </td>
-                </tr>
-              </table>
-            </div>
 
-            <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+          <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef'>
 
-            <div style='padding:16px 28px 8px'>
-              <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Expenses by Category</div>
-            </div>
-            <div style='padding:4px 28px 16px'>
-              <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px'>
-                <tr style='background:#f8f9fb'><td style='padding:8px 12px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Category</td><td style='padding:8px 12px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:center'>Items</td><td style='padding:8px 12px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
-                $CATEGORY_ROWS
-              </table>
-            </div>
-
-            <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
-
-            <div style='padding:16px 28px 8px'>
-              <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Recent Expenses</div>
-            </div>
-            <div style='padding:4px 28px 16px'>
-              <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px'>
-                $RECENT_ROWS
-              </table>
-            </div>
-
-            <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
-
-            <div style='padding:16px 28px'>
-              <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Season Fee (\$$FEE_AMOUNT/player)</div>
-              <div style='margin-top:8px;font-size:13px;color:#16a34a;font-weight:600'>$PAID_COUNT of $PLAYER_COUNT paid</div>
-              $(if [ "$UNPAID_COUNT" -gt 0 ]; then echo "<div style='margin-top:8px;font-size:13px;color:#6b7280;background:#fef2f2;border-radius:8px;padding:10px 14px;border:1px solid #fecaca'><span style='color:#dc2626;font-weight:600'>Unpaid:</span> $UNPAID</div>"; fi)
-            </div>
+          <!-- Pool Fund Summary -->
+          <div style='padding:24px 28px 16px'>
+            <div style='font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px'>Pool Fund</div>
+            <table width='100%' cellpadding='0' cellspacing='4' border='0'><tr>
+              <td width='33%' align='center' style='padding:14px 6px;background:#eff6ff;border-radius:10px'>
+                <div style='font-size:26px;font-weight:800;color:#2563eb'>\$$TC</div>
+                <div style='font-size:10px;color:#6b7280;margin-top:3px'>COLLECTED</div>
+              </td>
+              <td width='33%' align='center' style='padding:14px 6px;background:#fef3c7;border-radius:10px'>
+                <div style='font-size:26px;font-weight:800;color:#d97706'>\$$TS</div>
+                <div style='font-size:10px;color:#6b7280;margin-top:3px'>SPENT</div>
+              </td>
+              <td width='33%' align='center' style='padding:14px 6px;background:$BAL_BG;border-radius:10px'>
+                <div style='font-size:26px;font-weight:800;color:$BAL_COLOR'>$BAL_SIGN\$$BAL_ABS</div>
+                <div style='font-size:10px;color:#6b7280;margin-top:3px'>BALANCE</div>
+              </td>
+            </tr></table>
           </div>
+
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+
+          <!-- Season Fees -->
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Season Fee — \$$FA / player</div>
+            <div style='margin-top:4px;font-size:13px'><span style='color:#16a34a;font-weight:700'>$PAID paid</span> <span style='color:#9ca3af'>of $PC players</span></div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              $FEE_ROWS
+            </table>
+          </div>
+
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+
+          <!-- Expenses by Category -->
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Expenses &mdash; \$$TS total ($EC transactions)</div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Category</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:center'>Count</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
+              $CAT_ROWS
+            </table>
+          </div>
+
+          <!-- Recent Expenses -->
+          $(if [ -n "$REC_ROWS" ]; then echo "
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Recent Expenses</div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              $REC_ROWS
+            </table>
+          </div>"; fi)
+
+          </div>
+
+          <!-- Footer -->
           <div style='background:#f8f9fb;border:1px solid #e0e4ef;border-top:none;border-radius:0 0 16px 16px;padding:16px 28px;text-align:center'>
-            <a href='https://viberstoolkit.com/cricket/' style='color:#4DBBEB;text-decoration:none;font-size:13px;font-weight:600'>View Full Details</a>
-            <div style='font-size:11px;color:#9ca3af;margin-top:6px'>Sunrisers Manteca &mdash; Viber's Toolkit</div>
+            <a href='https://viberstoolkit.com/cricket/' style='color:#4DBBEB;text-decoration:none;font-size:13px;font-weight:600'>View Full Report in App</a>
+            <div style='font-size:11px;color:#9ca3af;margin-top:6px'>Designed by Bhaskar Mantrala &mdash; viberstoolkit.com</div>
           </div>
           </div>"
 
-          # Determine recipients
+          # Send via Resend
           if [ -n "$TEST_RECIPIENT_EMAIL" ]; then
-            echo "TEST MODE: Sending to $TEST_RECIPIENT_EMAIL only"
+            echo "TEST MODE: Sending to $TEST_RECIPIENT_EMAIL"
             RECIPIENTS="[\"$TEST_RECIPIENT_EMAIL\"]"
           else
-            # Send to all active players with emails
             RECIPIENTS=$(echo "$PLAYERS" | jq '[.[] | select(.email != null and .email != "") | .email]')
             echo "Sending to $(echo "$RECIPIENTS" | jq length) players"
           fi
 
-          # Send via Resend
-          curl -s -X POST "https://api.resend.com/emails" \
+          RESPONSE=$(curl -s -X POST "https://api.resend.com/emails" \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --argjson to "$RECIPIENTS" \
-              --arg subject "Sunrisers Manteca — $SEASON_NAME Expense Report ($MONTH_NAME)" \
+              --arg subject "SRM — $SEASON_NAME Expense Report ($MONTH_NAME)" \
               --arg html "$HTML" \
               '{from: "Sunrisers Manteca <noreply@viberstoolkit.com>", to: $to, subject: $subject, html: $html}'
-            )"
+            )")
 
-          echo ""
-          echo "Report sent!"
+          echo "Resend response: $RESPONSE"
+          echo "Done!"
