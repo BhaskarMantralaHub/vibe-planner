@@ -181,13 +181,11 @@ jobs:
           # Recent expense rows
           REC_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '.recent[] | ($L[.category] // .category) as $l | (.expense_date | split("T")[0]) as $d | "<tr><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0\">\(.description // $l)</td><td style=\"padding:7px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"')
 
-          # Paid player rows
-          PAID_ROWS=$(echo "$REPORT" | jq -r '.paid_players[] | "<tr><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0\"><span style=\"color:#4DBBEB;font-weight:600;margin-right:6px\">\(if .jersey then "#\(.jersey)" else "•" end)</span>\(.name)\(if .designation == "captain" then " (C)" elif .designation == "vice-captain" then " (VC)" else "" end)</td><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"')
-
-          # Unpaid player rows
-          UNPAID_ROWS=$(echo "$REPORT" | jq -r '.unpaid_players[] | "<tr><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0\"><span style=\"color:#4DBBEB;font-weight:600;margin-right:6px\">\(if .jersey then "#\(.jersey)" else "•" end)</span>\(.name)</td><td style=\"padding:6px 14px;border-bottom:1px solid #f0f0f0;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>"')
-
-          FEE_ROWS="$PAID_ROWS$UNPAID_ROWS"
+          # Fee table rows — simple two-column: Player | Status
+          FEE_ROWS=$(echo "$REPORT" | jq -r '
+            (.paid_players[] | "<tr style=\"background:#f0fdf4\"><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"),
+            (.unpaid_players[] | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>")
+          ' 2>/dev/null || echo "")
 
           # Build HTML (matches ShareButton PDF structure)
           HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:0 auto'>
@@ -238,6 +236,7 @@ jobs:
             <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Season Fee — \$$FA / player</div>
             <div style='margin-top:4px;font-size:13px'><span style='color:#16a34a;font-weight:700'>$PAID paid</span> <span style='color:#9ca3af'>of $PC players</span></div>
             <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Player</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Status</td></tr>
               $FEE_ROWS
             </table>
           </div>
