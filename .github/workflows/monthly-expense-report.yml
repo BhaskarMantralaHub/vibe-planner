@@ -3,7 +3,12 @@ name: Monthly Expense Report
 on:
   schedule:
     - cron: '0 14 1 * *' # 1st of every month at 2 PM UTC (7 AM PT)
-  workflow_dispatch: # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      recipients:
+        description: '"*" for all players, or comma-separated emails (e.g. a@x.com,b@x.com)'
+        required: true
+        default: '*'
 
 jobs:
   report:
@@ -14,7 +19,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          TEST_RECIPIENT_EMAIL: ${{ secrets.TEST_RECIPIENT_EMAIL }}
         run: |
           set -e
 
@@ -305,14 +309,24 @@ jobs:
             fi
           }
 
-          if [ -n "$TEST_RECIPIENT_EMAIL" ]; then
-            echo "TEST MODE: Sending to $TEST_RECIPIENT_EMAIL"
-            TEST_NAME=$(echo "$PLAYERS" | jq -r --arg e "$TEST_RECIPIENT_EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
-            send_email "$TEST_RECIPIENT_EMAIL" "$TEST_NAME"
-          else
-            echo "Sending to all active players..."
+          RECIPIENT_INPUT="${{ github.event.inputs.recipients }}"
+          # Scheduled runs have no input — default to * (all players)
+          if [ -z "$RECIPIENT_INPUT" ]; then
+            RECIPIENT_INPUT="*"
+          fi
+
+          if [ "$RECIPIENT_INPUT" = "*" ]; then
+            echo "Sending to ALL active players..."
             echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"' | while IFS='|' read -r PEMAIL PNAME; do
               send_email "$PEMAIL" "$PNAME"
+            done
+          else
+            echo "Sending to specific recipients: $RECIPIENT_INPUT"
+            IFS=',' read -ra EMAILS <<< "$RECIPIENT_INPUT"
+            for EMAIL in "${EMAILS[@]}"; do
+              EMAIL=$(echo "$EMAIL" | xargs) # trim whitespace
+              NAME=$(echo "$PLAYERS" | jq -r --arg e "$EMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
+              send_email "$EMAIL" "$NAME"
             done
           fi
 
