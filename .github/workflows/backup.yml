@@ -39,6 +39,7 @@ jobs:
             "cricket_schedule_matches"
             "vibes"
             "id_documents"
+            "user_activity"
           )
 
           for TABLE in "${TABLES[@]}"; do

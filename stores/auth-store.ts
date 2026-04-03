@@ -269,6 +269,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ userAccess: access, userFeatures: features, userApproved: profile?.approved !== false });
 
+      // Track login activity
+      import('@/lib/activity').then(({ trackActivity }) => trackActivity(data.user.id, 'login')).catch(() => {});
+
       // Link cricket player record to this user if they signed up with a pre-added email
       if (data?.user?.email && access.includes('cricket')) {
         supabase.from('cricket_players')

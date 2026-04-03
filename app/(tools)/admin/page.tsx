@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
@@ -31,6 +32,16 @@ interface UserStats {
   deleted: number;
 }
 
+interface UserActivity {
+  user_id: string;
+  last_login: string | null;
+  last_seen: string | null;
+  login_count: number;
+  page_views_30d: number;
+}
+
+type AdminTab = 'users' | 'analytics';
+
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -43,6 +54,12 @@ function timeAgo(d: string) {
   if (days < 7) return `${days} days ago`;
   if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
   return `${Math.floor(days / 30)} months ago`;
+}
+
+function fmtDateTime(d: string) {
+  return new Date(d).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
 }
 
 const SUPER_ADMIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAIL || '';
@@ -82,6 +99,8 @@ function AdminContent() {
   const { user } = useAuthStore();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [stats, setStats] = useState<UserStats[]>([]);
+  const [activity, setActivity] = useState<UserActivity[]>([]);
+  const [pageStats, setPageStats] = useState<{ path: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [filter, setFilter] = useState<'all' | 'admin' | 'user' | 'flagged' | 'disabled'>('all');
@@ -92,6 +111,7 @@ function AdminContent() {
   const [editingMaxUsers, setEditingMaxUsers] = useState(false);
   const [maxUsersInput, setMaxUsersInput] = useState('15');
   const [featureDrawerProfile, setFeatureDrawerProfile] = useState<Profile | null>(null);
+  const [activeTab, setActiveTab] = useState<AdminTab>('users');
 
   useEffect(() => {
     if (!user) return;
@@ -156,6 +176,41 @@ function AdminContent() {
           else s.active++;
         });
         setStats(Array.from(userMap.values()));
+      }
+
+      // Fetch user activity
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: activityData } = await supabase
+        .from('user_activity')
+        .select('user_id, activity_type, page_path, created_at')
+        .gte('created_at', thirtyDaysAgo)
+        .order('created_at', { ascending: false });
+
+      if (activityData) {
+        const actMap = new Map<string, UserActivity>();
+        const pageMap = new Map<string, number>();
+        activityData.forEach((a: { user_id: string; activity_type: string; page_path: string | null; created_at: string }) => {
+          // Count page visits
+          if (a.activity_type === 'page_view' && a.page_path) {
+            pageMap.set(a.page_path, (pageMap.get(a.page_path) || 0) + 1);
+          }
+          if (!actMap.has(a.user_id)) {
+            actMap.set(a.user_id, { user_id: a.user_id, last_login: null, last_seen: null, login_count: 0, page_views_30d: 0 });
+          }
+          const u = actMap.get(a.user_id)!;
+          if (a.activity_type === 'login') {
+            u.login_count++;
+            if (!u.last_login || a.created_at > u.last_login) u.last_login = a.created_at;
+          }
+          if (!u.last_seen || a.created_at > u.last_seen) u.last_seen = a.created_at;
+          if (a.activity_type === 'page_view') u.page_views_30d++;
+        });
+        setActivity(Array.from(actMap.values()));
+        setPageStats(
+          Array.from(pageMap.entries())
+            .map(([path, count]) => ({ path, count }))
+            .sort((a, b) => b.count - a.count)
+        );
       }
 
       // Fetch max_users setting
@@ -241,431 +296,582 @@ function AdminContent() {
     setEditingMaxUsers(false);
   };
 
+  // Tab definitions for bottom bar
+  const TABS: { key: AdminTab; label: string; icon: React.ReactNode }[] = [
+    { key: 'users', label: 'Users', icon: <Users size={20} /> },
+    { key: 'analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
+  ];
+
+  // Analytics: users sorted by last_seen
+  const analyticsUsers = [...profiles].map((p) => {
+    const act = activity.find(a => a.user_id === p.id);
+    return { ...p, activity: act || null };
+  }).sort((a, b) => {
+    // Users with last_seen first (most recent), then never-logged-in at bottom
+    if (!a.activity?.last_seen && !b.activity?.last_seen) return 0;
+    if (!a.activity?.last_seen) return 1;
+    if (!b.activity?.last_seen) return -1;
+    return new Date(b.activity.last_seen).getTime() - new Date(a.activity.last_seen).getTime();
+  });
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="mb-8">
-        <Text as="h1" size="2xl" weight="bold" className="lg:text-[30px] mb-1">Admin Dashboard</Text>
-        <Text as="p" size="lg" color="muted">User management & activity overview</Text>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Users" value={totalUsers} subtext={`/ ${maxUsers} max`} color="var(--toolkit)" icon={Users} />
-        <StatCard label="Active Vibes" value={totalActive} color="var(--blue)" icon={Activity} />
-        <StatCard label="Completed" value={totalDone} color="var(--green)" icon={CheckCircle} />
-        <StatCard label="Total Vibes" value={totalVibes} color="var(--orange)" icon={BarChart3} />
-      </div>
-
-      {/* User capacity */}
-      <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <Text as="div" size="sm" color="muted" className="mb-1">User Capacity</Text>
-            <div className="flex items-baseline gap-1">
-              <Text size="2xl" weight="bold" tabular className="text-[28px]" style={{ color: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)' }}>{totalUsers}</Text>
-              <Text size="lg" color="dim">/ {maxUsers}</Text>
-            </div>
-          </div>
-
-          {isSuperAdmin && (
-            editingMaxUsers ? (
-              <div className="flex items-center gap-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-2">
-                <span className="text-[12px] text-[var(--muted)]">Max</span>
-                <input
-                  type="number"
-                  value={maxUsersInput}
-                  onChange={(e) => setMaxUsersInput(e.target.value)}
-                  className="w-14 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[15px] text-[var(--text)] outline-none text-center font-bold"
-                  min={1}
-                  onKeyDown={(e) => { if (e.key === 'Enter') saveMaxUsers(); if (e.key === 'Escape') setEditingMaxUsers(false); }}
-                  autoFocus
-                />
-                <button onClick={saveMaxUsers} className="px-2.5 py-1.5 rounded-lg bg-[var(--green)]/15 text-[var(--green)] text-[13px] font-medium cursor-pointer">Save</button>
-                <button onClick={() => { setEditingMaxUsers(false); setMaxUsersInput(String(maxUsers)); }} className="px-2.5 py-1.5 rounded-lg text-[var(--muted)] text-[13px] cursor-pointer hover:bg-[var(--hover-bg)]">Cancel</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setEditingMaxUsers(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--toolkit)] text-white text-[13px] font-medium cursor-pointer hover:opacity-90 transition-all shadow-sm"
-              >
-                <Zap size={14} />
-                Change Limit
-              </button>
-            )
-          )}
+    <div className="relative min-h-screen">
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-8">
+          <Text as="h1" size="2xl" weight="bold" className="lg:text-[30px] mb-1">Admin Dashboard</Text>
+          <Text as="p" size="lg" color="muted">User management & activity overview</Text>
         </div>
 
-        {/* Progress bar */}
-        <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{
-              width: `${Math.min((totalUsers / maxUsers) * 100, 100)}%`,
-              background: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)',
-            }}
+        {/* Stats cards — shown on both tabs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <StatCard label="Users" value={totalUsers} subtext={`/ ${maxUsers} max`} color="var(--toolkit)" icon={Users} />
+          <StatCard
+            label="Active Today"
+            value={activity.filter(a => a.last_seen && new Date(a.last_seen).toDateString() === new Date().toDateString()).length}
+            subtext={`of ${totalUsers}`}
+            color="var(--green)"
+            icon={Zap}
           />
-        </div>
-        <div className="flex justify-between mt-2">
-          <Text size="2xs" color="dim">{maxUsers - totalUsers} slots remaining</Text>
-          <Text size="2xs" color="dim">{Math.round((totalUsers / maxUsers) * 100)}% used</Text>
-        </div>
-      </div>
-
-      {/* Recently Joined */}
-      {(() => {
-        const recent = [...profiles].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3);
-        return (
-          <div className="mb-8">
-            <Text as="h2" size="lg" weight="semibold" color="muted" className="mb-3">Recently Joined</Text>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              {recent.map((p) => {
-                const userStat = stats.find(s => s.user_id === p.id);
-                return (
-                  <div key={p.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white"
-                        style={{ background: `linear-gradient(135deg, ${p.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})` }}
-                      >
-                        {(p.full_name || p.email || '?')[0].toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <Text as="div" size="lg" weight="medium" truncate>{p.full_name || 'No name'}</Text>
-                        <Text as="div" size="xs" color="dim">{timeAgo(p.created_at)}</Text>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-center">
-                      <div className="flex-1">
-                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px] text-[var(--blue)]">{userStat?.active || 0}</Text>
-                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Active</Text>
-                      </div>
-                      <div className="flex-1">
-                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px] text-[var(--green)]">{userStat?.done || 0}</Text>
-                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Done</Text>
-                      </div>
-                      <div className="flex-1">
-                        <Text as="div" size="xl" weight="bold" tabular className="text-[18px]" color="muted">{userStat?.total || 0}</Text>
-                        <Text as="div" size="2xs" color="dim" className="text-[10px]">Total</Text>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Users list */}
-      <div className="mb-6">
-        <Text as="h2" size="xl" weight="semibold" className="text-[18px] mb-3">Enrolled Users</Text>
-
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--dim)]" size={16} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by name or email..."
-            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-10 pr-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--toolkit)] focus:ring-1 focus:ring-[var(--toolkit)]/30 transition-all"
+          <StatCard
+            label="Active This Week"
+            value={activity.filter(a => a.last_seen && Date.now() - new Date(a.last_seen).getTime() < 7 * 86400000).length}
+            subtext={`of ${totalUsers}`}
+            color="var(--blue)"
+            icon={Activity}
+          />
+          <StatCard
+            label="Logins (30d)"
+            value={activity.reduce((s, a) => s + a.login_count, 0)}
+            color="var(--orange)"
+            icon={BarChart3}
           />
         </div>
 
-        {/* Filter tabs */}
-        <div className="grid grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-          {([
-            { key: 'all', label: 'All Users', icon: Users, count: profiles.length, total: maxUsers, color: 'var(--toolkit)' },
-            { key: 'admin', label: 'Admins', icon: ShieldCheck, count: adminCount, total: profiles.length, color: 'var(--toolkit-accent)' },
-            { key: 'user', label: 'Users', icon: UserCheck, count: activeProfiles.length - adminCount, total: profiles.length, color: 'var(--blue)' },
-            { key: 'flagged', label: 'Flagged', icon: AlertTriangle, count: profiles.filter(p => getSuspiciousFlags(p).length > 0).length, total: profiles.length, color: 'var(--orange)' },
-            { key: 'disabled', label: 'Disabled', icon: Ban, count: disabledCount, total: profiles.length, color: 'var(--red)' },
-          ] as const).map((f) => {
-            const Icon = f.icon;
-            const isActive = filter === f.key;
-            const pct = f.total > 0 ? (f.count / f.total) * 100 : 0;
-            return (
-              <button
-                key={f.key}
-                onClick={() => { setFilter(f.key as typeof filter); setPage(1); }}
-                className={`relative overflow-hidden rounded-2xl p-3 text-left transition-all cursor-pointer border ${
-                  isActive
-                    ? 'border-transparent ring-2 shadow-lg'
-                    : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--muted)]'
-                }`}
-                style={isActive ? { borderColor: f.color, background: `linear-gradient(135deg, var(--surface), var(--card))` } : undefined}
-              >
-                {/* Progress bar background */}
-                <div
-                  className="absolute bottom-0 left-0 h-1 rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, background: f.color, opacity: isActive ? 1 : 0.4 }}
-                />
-
-                <div className="flex items-center justify-between mb-2">
-                  <Icon size={18} style={{ color: f.color }} />
-                  <span className="text-[22px] font-bold" style={{ color: isActive ? f.color : 'var(--text)' }}>{f.count}</span>
-                </div>
-                <Text as="div" size="2xs" weight="medium" color="muted">{f.label}</Text>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filtered + paginated list */}
-        {(() => {
-          const filtered = profiles
-            .filter(p => filter === 'all' ? true : filter === 'admin' ? p.is_admin : filter === 'flagged' ? getSuspiciousFlags(p).length > 0 : filter === 'disabled' ? p.disabled : !p.is_admin && !p.disabled)
-            .filter(p => {
-              if (!search.trim()) return true;
-              const q = search.toLowerCase();
-              return (p.full_name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
-            });
-
-          const totalPages = Math.ceil(filtered.length / perPage);
-          const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-
-          return (
-            <>
-        <div className="space-y-3">
-          {paginated.length === 0 ? (
-            <Text as="div" size="lg" color="dim" align="center" className="py-8">No users found</Text>
-          ) : paginated.map((profile) => {
-            const userStats = stats.find(s => s.user_id === profile.id);
-            const flags = getSuspiciousFlags(profile);
-            return (
-              <div
-                key={profile.id}
-                className={`bg-[var(--surface)] border rounded-2xl p-4 flex flex-wrap items-center gap-3 ${
-                  flags.length > 0 ? 'border-[var(--orange)]/40' : 'border-[var(--border)]'
-                }`}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-[18px] font-bold text-white shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${profile.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})`,
-                  }}
-                >
-                  {(profile.full_name || profile.email || '?')[0].toUpperCase()}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Text size="lg" weight="medium" truncate>
-                      {profile.full_name || 'No name'}
-                    </Text>
-                    {profile.email === SUPER_ADMIN ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white font-semibold shrink-0">
-                        SUPER ADMIN
-                      </span>
-                    ) : profile.is_admin ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold shrink-0">
-                        ADMIN
-                      </span>
-                    ) : null}
-                    {profile.disabled && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--red)]/15 text-[var(--red)] font-semibold shrink-0">
-                        DISABLED
-                      </span>
-                    )}
+        {/* ── Users Tab Content ── */}
+        {activeTab === 'users' && (
+          <>
+            {/* User capacity */}
+            <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <Text as="div" size="sm" color="muted" className="mb-1">User Capacity</Text>
+                  <div className="flex items-baseline gap-1">
+                    <Text size="2xl" weight="bold" tabular className="text-[28px]" style={{ color: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)' }}>{totalUsers}</Text>
+                    <Text size="lg" color="dim">/ {maxUsers}</Text>
                   </div>
-                  {/* Feature badges */}
-                  {(profile.features?.length > 0) && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {profile.features.includes('vibe-planner') && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">VP</span>
-                      )}
-                      {profile.features.includes('id-tracker') && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">ID</span>
-                      )}
-                      {profile.features.includes('cricket') && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--cricket)]/15 text-[var(--cricket)] font-semibold">CR</span>
-                      )}
-                    </div>
-                  )}
-                  <Text as="div" size="sm" color="muted" truncate>{profile.email}</Text>
-                  <Text as="div" size="xs" color="dim" className="mt-0.5">
-                    Joined {fmtDate(profile.created_at)} · {timeAgo(profile.created_at)}
-                  </Text>
-                  {flags.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1 mt-1">
-                      {flags.map((flag) => (
-                        <span key={flag} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--orange)]/15 text-[var(--orange)] font-medium">
-                          ⚠ {flag}
-                        </span>
-                      ))}
-                      {isSuperAdmin && profile.email !== SUPER_ADMIN && profile.id !== user?.id && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              // Accept — clear flag by acknowledging (no action needed, just visual)
-                              setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, full_name: p.full_name || 'Accepted User' } : p));
-                            }}
-                            className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--green)]/15 text-[var(--green)] font-medium cursor-pointer hover:bg-[var(--green)]/25 ml-1"
-                          >
-                            ✓ Accept
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const supabase = getSupabaseClient();
-                              if (!supabase) return;
-                              await supabase.from('vibes').delete().eq('user_id', profile.id);
-                              await supabase.from('profiles').delete().eq('id', profile.id);
-                              setProfiles(prev => prev.filter(p => p.id !== profile.id));
-                              setStats(prev => prev.filter(s => s.user_id !== profile.id));
-                            }}
-                            className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--red)]/15 text-[var(--red)] font-medium cursor-pointer hover:bg-[var(--red)]/25"
-                          >
-                            ✕ Reject
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* Activity stats */}
-                <div className="hidden lg:flex items-center gap-3 shrink-0">
-                  {userStats ? (
-                    <>
-                      <MiniStat label="Active" value={userStats.active} color="var(--blue)" />
-                      <MiniStat label="Done" value={userStats.done} color="var(--green)" />
-                      <MiniStat label="Total" value={userStats.total} color="var(--muted)" />
-                    </>
+                {isSuperAdmin && (
+                  editingMaxUsers ? (
+                    <div className="flex items-center gap-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-2">
+                      <span className="text-[12px] text-[var(--muted)]">Max</span>
+                      <input
+                        type="number"
+                        value={maxUsersInput}
+                        onChange={(e) => setMaxUsersInput(e.target.value)}
+                        className="w-14 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[15px] text-[var(--text)] outline-none text-center font-bold"
+                        min={1}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveMaxUsers(); if (e.key === 'Escape') setEditingMaxUsers(false); }}
+                        autoFocus
+                      />
+                      <button onClick={saveMaxUsers} className="px-2.5 py-1.5 rounded-lg bg-[var(--green)]/15 text-[var(--green)] text-[13px] font-medium cursor-pointer">Save</button>
+                      <button onClick={() => { setEditingMaxUsers(false); setMaxUsersInput(String(maxUsers)); }} className="px-2.5 py-1.5 rounded-lg text-[var(--muted)] text-[13px] cursor-pointer hover:bg-[var(--hover-bg)]">Cancel</button>
+                    </div>
                   ) : (
-                    <Text size="sm" color="dim">No activity</Text>
-                  )}
-                </div>
-
-                {/* Actions menu — only super admin can manage users */}
-                {isSuperAdmin && profile.id !== user?.id && profile.email !== SUPER_ADMIN && (
-                  <UserMenu
-                    profile={profile}
-                    onToggleAdmin={() => toggleAdmin(profile.id, profile.is_admin)}
-                    onToggleDisable={async () => {
-                      const supabase = getSupabaseClient();
-                      if (!supabase) return;
-                      const newStatus = !profile.disabled;
-                      await supabase.from('profiles').update({ disabled: newStatus }).eq('id', profile.id);
-                      setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, disabled: newStatus } : p));
-                    }}
-                    onManageFeatures={() => setFeatureDrawerProfile(profile)}
-                  />
+                    <button
+                      onClick={() => setEditingMaxUsers(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--toolkit)] text-white text-[13px] font-medium cursor-pointer hover:opacity-90 transition-all shadow-sm"
+                    >
+                      <Zap size={14} />
+                      Change Limit
+                    </button>
+                  )
                 )}
               </div>
-            );
-          })}
-        </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <Text size="sm" color="muted">
-                    Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)} of {filtered.length}
-                  </Text>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="px-3 py-1.5 rounded-xl text-[13px] bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-[var(--hover-bg)] transition-colors"
-                    >
-                      ← Prev
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setPage(i + 1)}
-                        className={`w-8 h-8 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
-                          page === i + 1
-                            ? 'bg-[var(--toolkit)] text-white'
-                            : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="px-3 py-1.5 rounded-xl text-[13px] bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-[var(--hover-bg)] transition-colors"
-                    >
-                      Next →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-      </div>
+              {/* Progress bar */}
+              <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min((totalUsers / maxUsers) * 100, 100)}%`,
+                    background: totalUsers >= maxUsers ? 'var(--red)' : totalUsers >= maxUsers * 0.8 ? 'var(--orange)' : 'var(--green)',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mt-2">
+                <Text size="2xs" color="dim">{maxUsers - totalUsers} slots remaining</Text>
+                <Text size="2xs" color="dim">{Math.round((totalUsers / maxUsers) * 100)}% used</Text>
+              </div>
+            </div>
 
-      {/* Feature Toggle Drawer */}
-      <Drawer open={!!featureDrawerProfile} onOpenChange={(open) => { if (!open) setFeatureDrawerProfile(null); }}>
-        <DrawerHandle />
-        <DrawerHeader>
-          <DrawerTitle>Manage Features</DrawerTitle>
-          <Text size="sm" color="muted">{featureDrawerProfile?.full_name || featureDrawerProfile?.email}</Text>
-        </DrawerHeader>
-        <DrawerBody>
-          {featureDrawerProfile && (
-            <div className="space-y-3 pb-4">
-              {FEATURE_TOGGLES.map((ft) => {
-                const enabled = (featureDrawerProfile.features ?? []).includes(ft.key);
-                return (
-                  <div key={ft.key} className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white"
-                        style={{ background: enabled ? ft.gradient : 'var(--muted)' }}
-                      >
-                        {ft.icon}
-                      </div>
-                      <div>
-                        <Text size="md" weight="medium">{ft.label}</Text>
-                        <Text size="xs" color="muted">{ft.description}</Text>
-                      </div>
-                    </div>
+            {/* Users list */}
+            <div className="mb-6">
+              <Text as="h2" size="xl" weight="semibold" className="text-[18px] mb-3">Enrolled Users</Text>
+
+              {/* Search */}
+              <div className="relative mb-4">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--dim)]" size={16} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  placeholder="Search by name or email..."
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-10 pr-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] focus:border-[var(--toolkit)] focus:ring-1 focus:ring-[var(--toolkit)]/30 transition-all"
+                />
+              </div>
+
+              {/* Filter tabs */}
+              <div className="grid grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+                {([
+                  { key: 'all', label: 'All Users', icon: Users, count: profiles.length, total: maxUsers, color: 'var(--toolkit)' },
+                  { key: 'admin', label: 'Admins', icon: ShieldCheck, count: adminCount, total: profiles.length, color: 'var(--toolkit-accent)' },
+                  { key: 'user', label: 'Users', icon: UserCheck, count: activeProfiles.length - adminCount, total: profiles.length, color: 'var(--blue)' },
+                  { key: 'flagged', label: 'Flagged', icon: AlertTriangle, count: profiles.filter(p => getSuspiciousFlags(p).length > 0).length, total: profiles.length, color: 'var(--orange)' },
+                  { key: 'disabled', label: 'Disabled', icon: Ban, count: disabledCount, total: profiles.length, color: 'var(--red)' },
+                ] as const).map((f) => {
+                  const Icon = f.icon;
+                  const isActive = filter === f.key;
+                  const pct = f.total > 0 ? (f.count / f.total) * 100 : 0;
+                  return (
                     <button
-                      onClick={async () => {
-                        const supabase = getSupabaseClient();
-                        if (!supabase || !featureDrawerProfile) return;
-                        const current = featureDrawerProfile.features ?? [];
-                        const updated = enabled
-                          ? current.filter((f) => f !== ft.key)
-                          : [...current, ft.key];
-                        const { error } = await supabase
-                          .from('profiles')
-                          .update({ features: updated })
-                          .eq('id', featureDrawerProfile.id);
-                        if (error) {
-                          toast.error('Failed to update features');
-                          return;
-                        }
-                        // Update local state
-                        setProfiles(prev => prev.map(p =>
-                          p.id === featureDrawerProfile.id ? { ...p, features: updated } : p
-                        ));
-                        setFeatureDrawerProfile(prev => prev ? { ...prev, features: updated } : null);
-                        toast.success(`${ft.label} ${enabled ? 'disabled' : 'enabled'}`);
-                      }}
-                      className={`relative w-11 h-6 rounded-full transition-colors ${
-                        enabled ? 'bg-[var(--toolkit)]' : 'bg-[var(--border)]'
+                      key={f.key}
+                      onClick={() => { setFilter(f.key as typeof filter); setPage(1); }}
+                      className={`relative overflow-hidden rounded-2xl p-3 text-left transition-all cursor-pointer border ${
+                        isActive
+                          ? 'border-transparent ring-2 shadow-lg'
+                          : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--muted)]'
                       }`}
-                      style={enabled ? { background: ft.toggleColor } : undefined}
+                      style={isActive ? { borderColor: f.color, background: `linear-gradient(135deg, var(--surface), var(--card))` } : undefined}
                     >
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                        enabled ? 'translate-x-5' : 'translate-x-0'
-                      }`} />
+                      {/* Progress bar background */}
+                      <div
+                        className="absolute bottom-0 left-0 h-1 rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: f.color, opacity: isActive ? 1 : 0.4 }}
+                      />
+
+                      <div className="flex items-center justify-between mb-2">
+                        <Icon size={18} style={{ color: f.color }} />
+                        <span className="text-[22px] font-bold" style={{ color: isActive ? f.color : 'var(--text)' }}>{f.count}</span>
+                      </div>
+                      <Text as="div" size="2xs" weight="medium" color="muted">{f.label}</Text>
                     </button>
+                  );
+                })}
+              </div>
+
+              {/* Filtered + paginated list */}
+              {(() => {
+                const filtered = profiles
+                  .filter(p => filter === 'all' ? true : filter === 'admin' ? p.is_admin : filter === 'flagged' ? getSuspiciousFlags(p).length > 0 : filter === 'disabled' ? p.disabled : !p.is_admin && !p.disabled)
+                  .filter(p => {
+                    if (!search.trim()) return true;
+                    const q = search.toLowerCase();
+                    return (p.full_name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
+                  });
+
+                const totalPages = Math.ceil(filtered.length / perPage);
+                const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
+                return (
+                  <>
+              <div className="space-y-3">
+                {paginated.length === 0 ? (
+                  <Text as="div" size="lg" color="dim" align="center" className="py-8">No users found</Text>
+                ) : paginated.map((profile) => {
+                  const userStats = stats.find(s => s.user_id === profile.id);
+                  const flags = getSuspiciousFlags(profile);
+                  return (
+                    <div
+                      key={profile.id}
+                      className={`bg-[var(--surface)] border rounded-2xl p-4 flex flex-wrap items-center gap-3 ${
+                        flags.length > 0 ? 'border-[var(--orange)]/40' : 'border-[var(--border)]'
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-[18px] font-bold text-white shrink-0"
+                        style={{
+                          background: `linear-gradient(135deg, ${profile.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})`,
+                        }}
+                      >
+                        {(profile.full_name || profile.email || '?')[0].toUpperCase()}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Text size="lg" weight="medium" truncate>
+                            {profile.full_name || 'No name'}
+                          </Text>
+                          {profile.email === SUPER_ADMIN ? (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white font-semibold shrink-0">
+                              SUPER ADMIN
+                            </span>
+                          ) : profile.is_admin ? (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold shrink-0">
+                              ADMIN
+                            </span>
+                          ) : null}
+                          {profile.disabled && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--red)]/15 text-[var(--red)] font-semibold shrink-0">
+                              DISABLED
+                            </span>
+                          )}
+                        </div>
+                        {/* Feature badges */}
+                        {(profile.features?.length > 0) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {profile.features.includes('vibe-planner') && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">VP</span>
+                            )}
+                            {profile.features.includes('id-tracker') && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--toolkit)]/15 text-[var(--toolkit)] font-semibold">ID</span>
+                            )}
+                            {profile.features.includes('cricket') && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--cricket)]/15 text-[var(--cricket)] font-semibold">CR</span>
+                            )}
+                          </div>
+                        )}
+                        <Text as="div" size="sm" color="muted" truncate>{profile.email}</Text>
+                        <Text as="div" size="xs" color="dim" className="mt-0.5">
+                          Joined {fmtDate(profile.created_at)}{(() => {
+                            const act = activity.find(a => a.user_id === profile.id);
+                            return act?.last_seen ? ` · Last seen ${timeAgo(act.last_seen)}` : ' · Never logged in';
+                          })()}
+                        </Text>
+                        {flags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {flags.map((flag) => (
+                              <span key={flag} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--orange)]/15 text-[var(--orange)] font-medium">
+                                ⚠ {flag}
+                              </span>
+                            ))}
+                            {isSuperAdmin && profile.email !== SUPER_ADMIN && profile.id !== user?.id && (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    // Accept — clear flag by acknowledging (no action needed, just visual)
+                                    setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, full_name: p.full_name || 'Accepted User' } : p));
+                                  }}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--green)]/15 text-[var(--green)] font-medium cursor-pointer hover:bg-[var(--green)]/25 ml-1"
+                                >
+                                  ✓ Accept
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const supabase = getSupabaseClient();
+                                    if (!supabase) return;
+                                    await supabase.from('vibes').delete().eq('user_id', profile.id);
+                                    await supabase.from('profiles').delete().eq('id', profile.id);
+                                    setProfiles(prev => prev.filter(p => p.id !== profile.id));
+                                    setStats(prev => prev.filter(s => s.user_id !== profile.id));
+                                  }}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--red)]/15 text-[var(--red)] font-medium cursor-pointer hover:bg-[var(--red)]/25"
+                                >
+                                  ✕ Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Activity stats */}
+                      <div className="hidden lg:flex items-center gap-3 shrink-0">
+                        {userStats ? (
+                          <>
+                            <MiniStat label="Active" value={userStats.active} color="var(--blue)" />
+                            <MiniStat label="Done" value={userStats.done} color="var(--green)" />
+                            <MiniStat label="Total" value={userStats.total} color="var(--muted)" />
+                          </>
+                        ) : (
+                          <Text size="sm" color="dim">No activity</Text>
+                        )}
+                      </div>
+
+                      {/* Actions menu — only super admin can manage users */}
+                      {isSuperAdmin && profile.id !== user?.id && profile.email !== SUPER_ADMIN && (
+                        <UserMenu
+                          profile={profile}
+                          onToggleAdmin={() => toggleAdmin(profile.id, profile.is_admin)}
+                          onToggleDisable={async () => {
+                            const supabase = getSupabaseClient();
+                            if (!supabase) return;
+                            const newStatus = !profile.disabled;
+                            await supabase.from('profiles').update({ disabled: newStatus }).eq('id', profile.id);
+                            setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, disabled: newStatus } : p));
+                          }}
+                          onManageFeatures={() => setFeatureDrawerProfile(profile)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <Text size="sm" color="muted">
+                          Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)} of {filtered.length}
+                        </Text>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="px-3 py-1.5 rounded-xl text-[13px] bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-[var(--hover-bg)] transition-colors"
+                          >
+                            ← Prev
+                          </button>
+                          {Array.from({ length: totalPages }, (_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setPage(i + 1)}
+                              className={`w-8 h-8 rounded-lg text-[13px] font-medium transition-all cursor-pointer ${
+                                page === i + 1
+                                  ? 'bg-[var(--toolkit)] text-white'
+                                  : 'text-[var(--muted)] hover:bg-[var(--hover-bg)]'
+                              }`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                            className="px-3 py-1.5 rounded-xl text-[13px] bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-[var(--hover-bg)] transition-colors"
+                          >
+                            Next →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </>
+        )}
+
+        {/* ── Analytics Tab Content ── */}
+        {activeTab === 'analytics' && (
+          <div className="mb-6">
+            <Text as="h2" size="xl" weight="semibold" className="text-[18px] mb-4">Login Activity</Text>
+
+            {/* Table */}
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center px-4 py-2.5 border-b border-[var(--border)]" style={{ background: 'var(--card)' }}>
+                <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="flex-1">User</Text>
+                <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="w-14 text-center">Logins</Text>
+                <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="w-20 text-right">Last Login</Text>
+              </div>
+
+              {/* Rows */}
+              {analyticsUsers.map((u, i) => {
+                const act = u.activity;
+                const hasLogin = !!act?.last_login;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center px-4 py-3"
+                    style={{ borderBottom: i < analyticsUsers.length - 1 ? '1px solid var(--border)' : 'none', background: i % 2 === 1 ? 'var(--card)' : 'transparent' }}
+                  >
+                    {/* User */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0"
+                        style={{ background: `linear-gradient(135deg, ${u.is_admin ? 'var(--toolkit), var(--toolkit-accent)' : 'var(--blue), var(--green)'})` }}
+                      >
+                        {(u.full_name || u.email || '?')[0].toUpperCase()}
+                      </div>
+                      <Text size="sm" weight="medium" truncate>{u.full_name || 'No name'}</Text>
+                    </div>
+
+                    {/* Login count */}
+                    <Text size="md" weight="bold" tabular className="w-14 text-center" style={{ color: hasLogin ? 'var(--toolkit)' : 'var(--dim)' }}>
+                      {act?.login_count || 0}
+                    </Text>
+
+                    {/* Last login */}
+                    <div className="w-20 text-right">
+                      {hasLogin ? (
+                        <Text size="xs" color="muted">{timeAgo(act!.last_login!)}</Text>
+                      ) : (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'color-mix(in srgb, var(--red) 12%, transparent)', color: 'var(--red)' }}>
+                          Never
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
-          )}
-        </DrawerBody>
-      </Drawer>
+
+            {/* Top Pages */}
+            {pageStats.length > 0 && (
+              <div className="mt-6">
+                <Text as="h2" size="lg" weight="semibold" className="mb-3">Top Pages (30d)</Text>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+                  {pageStats.slice(0, 10).map((p, i) => {
+                    const maxCount = pageStats[0]?.count || 1;
+                    const pct = Math.round((p.count / maxCount) * 100);
+                    return (
+                      <div
+                        key={p.path}
+                        className="flex items-center gap-3 px-4 py-2.5"
+                        style={{ borderBottom: i < Math.min(pageStats.length, 10) - 1 ? '1px solid var(--border)' : 'none' }}
+                      >
+                        <Text size="sm" weight="medium" className="flex-1 min-w-0" truncate>{p.path}</Text>
+                        <div className="w-24 h-2 rounded-full overflow-hidden" style={{ background: 'var(--card)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--toolkit)' }} />
+                        </div>
+                        <Text size="sm" weight="bold" tabular style={{ color: 'var(--toolkit)' }} className="w-10 text-right">{p.count}</Text>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Feature Toggle Drawer */}
+        <Drawer open={!!featureDrawerProfile} onOpenChange={(open) => { if (!open) setFeatureDrawerProfile(null); }}>
+          <DrawerHandle />
+          <DrawerHeader>
+            <DrawerTitle>Manage Features</DrawerTitle>
+            <Text size="sm" color="muted">{featureDrawerProfile?.full_name || featureDrawerProfile?.email}</Text>
+          </DrawerHeader>
+          <DrawerBody>
+            {featureDrawerProfile && (
+              <div className="space-y-3 pb-4">
+                {FEATURE_TOGGLES.map((ft) => {
+                  const enabled = (featureDrawerProfile.features ?? []).includes(ft.key);
+                  return (
+                    <div key={ft.key} className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-9 h-9 rounded-xl flex items-center justify-center text-white"
+                          style={{ background: enabled ? ft.gradient : 'var(--muted)' }}
+                        >
+                          {ft.icon}
+                        </div>
+                        <div>
+                          <Text size="md" weight="medium">{ft.label}</Text>
+                          <Text size="xs" color="muted">{ft.description}</Text>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const supabase = getSupabaseClient();
+                          if (!supabase || !featureDrawerProfile) return;
+                          const current = featureDrawerProfile.features ?? [];
+                          const updated = enabled
+                            ? current.filter((f) => f !== ft.key)
+                            : [...current, ft.key];
+                          const { error } = await supabase
+                            .from('profiles')
+                            .update({ features: updated })
+                            .eq('id', featureDrawerProfile.id);
+                          if (error) {
+                            toast.error('Failed to update features');
+                            return;
+                          }
+                          // Update local state
+                          setProfiles(prev => prev.map(p =>
+                            p.id === featureDrawerProfile.id ? { ...p, features: updated } : p
+                          ));
+                          setFeatureDrawerProfile(prev => prev ? { ...prev, features: updated } : null);
+                          toast.success(`${ft.label} ${enabled ? 'disabled' : 'enabled'}`);
+                        }}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
+                          enabled ? 'bg-[var(--toolkit)]' : 'bg-[var(--border)]'
+                        }`}
+                        style={enabled ? { background: ft.toggleColor } : undefined}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                          enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </DrawerBody>
+        </Drawer>
+
+        {/* Bottom spacer for tab bar */}
+        <div className="h-24" />
+      </div>
+
+      {/* Bottom tab bar — portaled to body to avoid iOS Safari fixed positioning bugs */}
+      {typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed left-0 right-0 z-40"
+          style={{
+            bottom: 0,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            background: 'color-mix(in srgb, var(--card) 85%, transparent)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+            boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
+          }}
+        >
+          <div className="flex items-center justify-around px-2 pt-1.5 pb-2">
+            {TABS.map((t) => {
+              const isActive = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {/* Pill background on active */}
+                  {isActive && (
+                    <span
+                      className="absolute inset-0 rounded-2xl"
+                      style={{
+                        background: 'color-mix(in srgb, var(--toolkit) 15%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--toolkit) 25%, transparent)',
+                      }}
+                    />
+                  )}
+                  {/* Icon with glow on active */}
+                  <span
+                    className="relative z-10 transition-all duration-200"
+                    style={{
+                      color: isActive ? 'var(--toolkit)' : 'var(--muted)',
+                      filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--toolkit) 60%, transparent))' : 'none',
+                      transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
+                      display: 'flex',
+                    }}
+                  >
+                    {t.icon}
+                  </span>
+                  {/* Label */}
+                  <span
+                    className="relative z-10 text-[10px] transition-all duration-200"
+                    style={{
+                      color: isActive ? 'var(--toolkit)' : 'var(--muted)',
+                      fontWeight: isActive ? 700 : 500,
+                      letterSpacing: isActive ? '0.03em' : '0.02em',
+                    }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

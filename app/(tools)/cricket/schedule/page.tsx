@@ -9,6 +9,7 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
 import { MdDateRange } from 'react-icons/md';
 import MatchSchedule from '../components/MatchSchedule';
+import SeasonSelector from '../components/SeasonSelector';
 
 function ScheduleContent() {
   const { user } = useAuthStore();
@@ -26,15 +27,18 @@ function ScheduleContent() {
   return (
     <div className="relative min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8 overflow-hidden">
       {/* Page header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-          <MdDateRange size={20} className="text-white" />
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl"
+            style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+            <MdDateRange size={20} className="text-white" />
+          </div>
+          <div>
+            <Text as="h1" size="lg" weight="bold">League Schedule</Text>
+            <Text as="p" size="2xs" color="muted">Upcoming matches & fixtures</Text>
+          </div>
         </div>
-        <div>
-          <Text as="h1" size="lg" weight="bold">League Schedule</Text>
-          <Text as="p" size="2xs" color="muted">Upcoming matches & fixtures</Text>
-        </div>
+        <SeasonSelector />
       </div>
 
       {!ready ? (

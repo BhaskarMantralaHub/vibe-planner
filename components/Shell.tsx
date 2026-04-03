@@ -254,6 +254,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { user, isCloud, userAccess, needsPasswordReset } = useAuthStore();
   const pathname = usePathname();
 
+  // Track page views (debounced — only fires if user stays on page for 1s)
+  useEffect(() => {
+    if (!user?.id || !isCloud) return;
+    const timer = setTimeout(() => {
+      import('@/lib/activity').then(({ trackActivity }) => trackActivity(user.id, 'page_view', pathname)).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [pathname, user?.id, isCloud]);
+
   const isCricketContext = pathname.startsWith('/cricket')
     || (userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin'));
 
