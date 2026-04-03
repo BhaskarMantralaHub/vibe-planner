@@ -185,10 +185,10 @@ jobs:
             "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"
           ' 2>/dev/null || echo "")
 
-          # Fee table rows — simple two-column: Player | Status
+          # Fee table rows — sorted A-Z, paid first then unpaid
           FEE_ROWS=$(echo "$REPORT" | jq -r '
-            (.paid_players[] | "<tr style=\"background:#f0fdf4\"><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"),
-            (.unpaid_players[] | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>")
+            (.paid_players | sort_by(.name)[] | "<tr style=\"background:#f0fdf4\"><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"),
+            (.unpaid_players | sort_by(.name)[] | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>")
           ' 2>/dev/null || echo "")
 
           # Build HTML (matches ShareButton PDF structure)
