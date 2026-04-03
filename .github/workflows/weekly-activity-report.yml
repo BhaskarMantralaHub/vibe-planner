@@ -117,7 +117,8 @@ jobs:
 
           HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto'>
           <div style='background:linear-gradient(135deg,#14325a,#234e82);padding:20px 24px;border-radius:12px 12px 0 0'>
-            <h1 style='color:#fff;margin:0;font-size:20px'>Weekly Activity Report</h1>
+            <div style='font-size:11px;color:#c8bea0;text-transform:uppercase;letter-spacing:1px'>Sunrisers Manteca</div>
+            <h1 style='color:#fff;margin:4px 0 0;font-size:20px'>Weekly Activity Summary</h1>
             <p style='color:#d4c8a8;margin:4px 0 0;font-size:13px'>$WEEK_START — $TODAY</p>
           </div>
           <div style='background:#fff;padding:20px 24px;border:1px solid #eee;border-top:none'>
@@ -151,7 +152,7 @@ jobs:
             <p style='font-size:13px;color:#666'>$INACTIVE</p>
           </div>
           <div style='padding:12px 24px;text-align:center;font-size:11px;color:#aaa;border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px'>
-            <a href='https://viberstoolkit.com/admin/' style='color:#4DBBEB;text-decoration:none'>View Admin Dashboard</a> · Viber's Toolkit
+            <a href='https://viberstoolkit.com/admin/' style='color:#4DBBEB;text-decoration:none'>View Admin Dashboard</a> · Sunrisers Manteca · viberstoolkit.com
           </div>
           </div>"
 
@@ -163,10 +164,26 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg to "$SUPER_ADMIN_EMAIL" \
-              --arg subject "Weekly Activity Report — $WEEK_START to $TODAY" \
+              --arg subject "Sunrisers Manteca — Weekly Activity Summary ($WEEK_START to $TODAY)" \
               --arg html "$HTML" \
               '{from: "Vibers Toolkit <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
             )"
 
           echo ""
           echo "Report sent!"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+        run: |
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg to "$SUPER_ADMIN_EMAIL" \
+              --arg subject "⚠️ Weekly Activity Report Failed" \
+              --arg html "<div style='font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px'><div style='font-size:16px;font-weight:700;color:#dc2626;margin-bottom:8px'>Weekly Report Failed</div><div style='font-size:13px;color:#666;line-height:20px'>The weekly activity report workflow failed to run. Check <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\" style=\"color:#4DBBEB\">GitHub Actions logs</a> for details.</div></div><div style='text-align:center;margin-top:16px;font-size:11px;color:#aaa'>viberstoolkit.com</div></div>" \
+              '{from: "Vibers Toolkit <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
+            )"
