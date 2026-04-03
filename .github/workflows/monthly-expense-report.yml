@@ -138,6 +138,7 @@ jobs:
               fee_amount: $feeAmt,
               total_fees: $totalFees,
               total_sponsors: $totalSponsors,
+              sponsors: ($sponsors | map({name: .sponsor_name, amount: (.amount | tostring | tonumber), date: (.sponsored_date | split("T")[0]), notes: (.notes // "")}) | sort_by(-.amount)),
               total_collected: $totalCollected,
               total_spent: $totalSpent,
               pool_balance: $poolBalance,
@@ -187,6 +188,15 @@ jobs:
             (.description // "") as $desc |
             (if $desc != "" and $desc != $cat then "\($desc) <span style=\"color:#aaa\">· \($cat)</span>" else $cat end) as $label |
             "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"
+          ' 2>/dev/null || echo "")
+
+          # Sponsor rows
+          SPONSOR_COUNT=$(echo "$REPORT" | jq '.sponsors | length')
+          TOTAL_SPONSORS=$(echo "$REPORT" | jq -r '.total_sponsors | round')
+          SPONSOR_ROWS=$(echo "$REPORT" | jq -r '
+            .sponsors[] |
+            (if .notes != "" then "\(.name) <span style=\"color:#aaa\">· \(.notes)</span>" else .name end) as $label |
+            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\(.date)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#16a34a\">$\(.amount | round)</td></tr>"
           ' 2>/dev/null || echo "")
 
           # Fee table rows — sorted A-Z, paid first then unpaid
@@ -243,6 +253,17 @@ jobs:
           </div>
 
           <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+
+          <!-- Sponsorships -->
+          $(if [ "$SPONSOR_COUNT" -gt 0 ]; then echo "
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Sponsorships &mdash; \$$TOTAL_SPONSORS total</div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Sponsor</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Date</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
+              $SPONSOR_ROWS
+            </table>
+          </div>
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>"; fi)
 
           <!-- Season Fees -->
           <div style='padding:20px 28px'>
