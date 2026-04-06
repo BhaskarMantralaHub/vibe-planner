@@ -41,8 +41,8 @@ export function trackActivity(userId: string, activityType: 'login' | 'page_view
   supabase
     .from('user_activity')
     .insert({ user_id: userId, activity_type: activityType, page_path: pagePath ?? null })
-    .then(({ error }) => {
+    .then(({ error }: { error: { message: string } | null }) => {
       if (error) console.warn('[activity] insert failed:', activityType, error.message);
     })
-    .catch((err) => console.warn('[activity] network error:', activityType, err));
+    .catch((err: unknown) => console.warn('[activity] network error:', activityType, err));
 }

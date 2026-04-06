@@ -112,7 +112,13 @@ function AdminContent() {
   const [editingMaxUsers, setEditingMaxUsers] = useState(false);
   const [maxUsersInput, setMaxUsersInput] = useState('15');
   const [featureDrawerProfile, setFeatureDrawerProfile] = useState<Profile | null>(null);
-  const [activeTab, setActiveTab] = useState<AdminTab>('users');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'analytics') return 'analytics';
+    }
+    return 'users';
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -871,7 +877,7 @@ function AdminContent() {
               return (
                 <button
                   key={t.key}
-                  onClick={() => setActiveTab(t.key)}
+                  onClick={() => { setActiveTab(t.key); window.location.hash = t.key; }}
                   className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
