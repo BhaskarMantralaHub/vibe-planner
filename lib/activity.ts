@@ -25,15 +25,15 @@ function setDedupMap(map: Record<string, number>) {
 export function trackActivity(userId: string, activityType: 'login' | 'page_view', pagePath?: string) {
   if (!isCloudMode()) return;
 
-  // Dedup page_view within 5 min window (prevents hard refresh + rapid nav spam)
-  if (activityType === 'page_view') {
-    const key = `${userId}:${pagePath ?? ''}`;
-    const map = getDedupMap();
-    const lastTrack = map[key];
-    if (lastTrack && Date.now() - lastTrack < DEDUP_WINDOW) return;
-    map[key] = Date.now();
-    setDedupMap(map);
-  }
+  // Dedup within window (prevents hard refresh + rapid nav spam)
+  // page_view: 5 min window per path; login: once per session (30 min window)
+  const dedupWindow = activityType === 'login' ? 30 * 60 * 1000 : DEDUP_WINDOW;
+  const key = activityType === 'login' ? `${userId}:login` : `${userId}:${pagePath ?? ''}`;
+  const map = getDedupMap();
+  const lastTrack = map[key];
+  if (lastTrack && Date.now() - lastTrack < dedupWindow) return;
+  map[key] = Date.now();
+  setDedupMap(map);
 
   const supabase = getSupabaseClient();
   if (!supabase) return;
@@ -41,6 +41,8 @@ export function trackActivity(userId: string, activityType: 'login' | 'page_view
   supabase
     .from('user_activity')
     .insert({ user_id: userId, activity_type: activityType, page_path: pagePath ?? null })
-    .then(() => {})
-    .catch(() => {});
+    .then(({ error }) => {
+      if (error) console.warn('[activity] insert failed:', activityType, error.message);
+    })
+    .catch((err) => console.warn('[activity] network error:', activityType, err));
 }

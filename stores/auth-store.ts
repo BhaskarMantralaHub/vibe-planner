@@ -137,6 +137,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Player record linking + preference override handled by handle_new_user() DB trigger
       set({ user: session.user, loading: false, userAccess: access, userFeatures: features, userApproved: approved });
+
+      // Track login activity (covers session restore + explicit login; dedup prevents double-count)
+      import('@/lib/activity').then(({ trackActivity }) => trackActivity(session.user.id, 'login'))
+        .catch((err) => console.warn('[auth] login activity tracking failed:', err));
     };
 
     const setupAuthListener = () => {
@@ -269,8 +273,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ userAccess: access, userFeatures: features, userApproved: profile?.approved !== false });
 
-      // Track login activity
-      import('@/lib/activity').then(({ trackActivity }) => trackActivity(data.user.id, 'login')).catch(() => {});
+      // Login activity tracked by checkProfileAndSetUser (called via onAuthStateChange)
 
       // Link cricket player record to this user if they signed up with a pre-added email
       if (data?.user?.email && access.includes('cricket')) {
