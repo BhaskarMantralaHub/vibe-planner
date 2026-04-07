@@ -4,7 +4,7 @@
 -- Platform: Supabase (PostgreSQL 15+)
 -- App: Viber's Toolkit — personal productivity suite
 -- Author: Bhaskar Mantrala
--- Last updated: 2026-03-13
+-- Last updated: 2026-04-06
 --
 -- HOW TO USE:
 -- 1. Create a new Supabase project at https://supabase.com
@@ -315,6 +315,98 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
+
+
+-- ============================================================================
+-- TABLE: cricket_teams (Multi-Team Support)
+-- ============================================================================
+-- WHY: Enables multi-team support. Each cricket team is a separate tenant.
+--      All cricket tables reference a team via team_id FK.
+-- COLUMNS:
+--   id            — UUID auto-generated
+--   name          — Team display name (unique)
+--   slug          — URL-safe identifier, e.g. 'sunrisers-manteca' (unique)
+--   logo_url      — Team logo (optional)
+--   primary_color — Hex color for branding (default: '#0369a1')
+--   owner_id      — FK to auth.users, the team creator/owner (ON DELETE RESTRICT)
+--   deleted_at    — Soft delete timestamp
+--   created_at    — When the team was created
+--   updated_at    — Auto-updated by trigger
+-- RLS: Any authenticated user can read non-deleted teams. Owner can update.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS cricket_teams (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          TEXT NOT NULL,
+  slug          TEXT NOT NULL,
+  logo_url      TEXT,
+  primary_color TEXT DEFAULT '#0369a1',
+  owner_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  deleted_at    TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now(),
+
+  CONSTRAINT cricket_teams_slug_unique UNIQUE (slug),
+  CONSTRAINT cricket_teams_name_unique UNIQUE (name),
+  CONSTRAINT cricket_teams_slug_format CHECK (slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+);
+
+
+-- ============================================================================
+-- TABLE: team_members
+-- ============================================================================
+-- WHY: Junction table linking users to teams with a role.
+--      Used by RLS helper functions to scope all cricket data by team.
+-- COLUMNS:
+--   id        — UUID auto-generated
+--   team_id   — FK to cricket_teams (ON DELETE RESTRICT)
+--   user_id   — FK to auth.users (ON DELETE CASCADE)
+--   role      — 'owner' | 'admin' | 'player' (owner role protected by trigger)
+--   joined_at — When the user joined the team
+-- RLS: Members can see their team's roster. Team admin can add/update/remove.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS team_members (
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id   UUID NOT NULL REFERENCES cricket_teams(id) ON DELETE RESTRICT,
+  user_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role      TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('owner', 'admin', 'player')),
+  joined_at TIMESTAMPTZ DEFAULT now(),
+
+  CONSTRAINT team_members_unique UNIQUE (team_id, user_id)
+);
+
+
+-- ============================================================================
+-- MULTI-TEAM: team_id Foreign Key on All Cricket Tables
+-- ============================================================================
+-- WHY: Every cricket table has a `team_id UUID NOT NULL REFERENCES cricket_teams(id)`
+--      column added by the multi-team migration. This scopes all data by team.
+--
+-- Parent tables (9): cricket_players, cricket_seasons, cricket_expenses,
+--   cricket_settlements, cricket_season_fees, cricket_sponsorships,
+--   cricket_gallery, cricket_schedule_matches, practice_matches
+--
+-- Child tables (5, auto-populated via trigger from parent):
+--   practice_balls, practice_innings, practice_match_players,
+--   cricket_gallery_comments, cricket_notifications
+--
+-- Tables WITHOUT team_id (use parent join for RLS):
+--   cricket_expense_splits, cricket_gallery_tags, cricket_gallery_likes,
+--   cricket_comment_reactions
+-- ============================================================================
+
+
+-- ============================================================================
+-- HELPER FUNCTIONS: Multi-Team RLS
+-- ============================================================================
+-- WHY: RLS policies use these SECURITY DEFINER functions for team-scoped access.
+--      All are STABLE (cacheable per statement) for performance.
+--
+-- user_team_ids()          — Returns all team IDs the current user belongs to
+-- is_team_admin(team_id)   — TRUE if current user is owner/admin of the team
+-- is_team_member(team_id)  — TRUE if current user is any member of the team
+-- is_global_admin()        — TRUE if current user has 'admin' in profiles.access
+-- is_active_scorer(match_id) — TRUE if current user is active scorer or creator
+-- ============================================================================
 
 
 -- ============================================================================

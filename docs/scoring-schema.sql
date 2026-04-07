@@ -1,25 +1,30 @@
 -- ============================================================
--- Cricket Live Scoring — Database Schema (v3 — Final)
+-- Cricket Live Scoring — Database Schema (v4 — Multi-Team)
 -- ============================================================
 -- Reviewed by: DBA, Architecture, UX, QA agents
--- Security audit: All RPCs have cricket access guards.
--- RLS policies block writes after match completion.
+-- Security audit: All RPCs have team membership guards.
+-- RLS policies are team-scoped via user_team_ids() / is_team_member().
+-- Writes blocked after match completion via is_active_scorer().
 --
--- Depends on: has_cricket_access(), is_cricket_admin(), update_updated_at()
--- from cricket-schema.sql
+-- Depends on: cricket_teams, team_members, user_team_ids(),
+--   is_team_member(), is_team_admin(), is_global_admin(),
+--   resolve_team_id(), update_updated_at()
+--   from cricket-schema.sql / multi-team-migration.sql
 
 
 -- ── Helper: check if user is the active scorer for a match ──
 CREATE OR REPLACE FUNCTION is_active_scorer(target_match_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-  IF auth.uid() IS NULL THEN RETURN FALSE; END IF;
-  RETURN EXISTS (
-    SELECT 1 FROM practice_matches
-    WHERE id = target_match_id AND active_scorer_id = auth.uid()
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.practice_matches
+    WHERE id = target_match_id
+      AND (active_scorer_id = auth.uid() OR created_by = auth.uid())
+      AND status IN ('scoring', 'innings_break')
   );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+$$;
 
 -- Restrict helper from anonymous users
 REVOKE EXECUTE ON FUNCTION is_active_scorer(UUID) FROM anon, public;
@@ -43,6 +48,7 @@ $$ LANGUAGE plpgsql;
 -- ══════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS practice_matches (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id             UUID NOT NULL REFERENCES cricket_teams(id),
   season_id           UUID REFERENCES cricket_seasons(id) ON DELETE SET NULL,
   created_by          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title               TEXT NOT NULL,
@@ -95,23 +101,29 @@ CREATE TABLE IF NOT EXISTS practice_matches (
 
 ALTER TABLE practice_matches ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Cricket users can read matches" ON practice_matches;
-CREATE POLICY "Cricket users can read matches"
-  ON practice_matches FOR SELECT USING (has_cricket_access());
-DROP POLICY IF EXISTS "Cricket users can create matches" ON practice_matches;
-CREATE POLICY "Cricket users can create matches"
-  ON practice_matches FOR INSERT WITH CHECK (has_cricket_access() AND created_by = auth.uid());
-DROP POLICY IF EXISTS "Scorer can update match" ON practice_matches;
+-- ── RLS Policies (team-scoped) ──
+CREATE POLICY "Team members can read matches"
+  ON practice_matches FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
+CREATE POLICY "Team members can create matches"
+  ON practice_matches FOR INSERT
+  WITH CHECK (is_team_member(team_id));
+
 CREATE POLICY "Scorer can update match"
-  ON practice_matches FOR UPDATE USING (
-    has_cricket_access() AND (
-      active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid())
-    )
+  ON practice_matches FOR UPDATE
+  USING (
+    is_active_scorer(id)
+    OR is_team_admin(team_id)
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Creator or admin can delete match" ON practice_matches;
+
 CREATE POLICY "Creator or admin can delete match"
-  ON practice_matches FOR DELETE USING (
-    has_cricket_access() AND (created_by = auth.uid() OR is_cricket_admin())
+  ON practice_matches FOR DELETE
+  USING (
+    created_by = auth.uid()
+    OR is_team_admin(team_id)
+    OR is_global_admin()
   );
 
 DROP TRIGGER IF EXISTS set_practice_matches_updated_at ON practice_matches;
@@ -131,6 +143,8 @@ CREATE INDEX IF NOT EXISTS idx_practice_matches_season ON practice_matches (seas
 CREATE INDEX IF NOT EXISTS idx_practice_matches_completed ON practice_matches (completed_at DESC) WHERE status = 'completed';
 CREATE INDEX IF NOT EXISTS idx_practice_matches_active_scorer ON practice_matches (active_scorer_id) WHERE active_scorer_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_practice_matches_not_deleted ON practice_matches (match_date DESC, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_matches_team ON practice_matches (team_id);
+CREATE INDEX IF NOT EXISTS idx_practice_matches_team_season ON practice_matches (team_id, season_id);
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -139,6 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_practice_matches_not_deleted ON practice_matches 
 CREATE TABLE IF NOT EXISTS practice_match_players (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
+  team_id             UUID NOT NULL REFERENCES cricket_teams(id),
   player_id           UUID REFERENCES cricket_players(id) ON DELETE SET NULL,
   team                TEXT NOT NULL CHECK (team IN ('team_a', 'team_b')),
   name                TEXT NOT NULL,
@@ -156,42 +171,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_match_players_unique_roster
 
 ALTER TABLE practice_match_players ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Cricket users can read match players" ON practice_match_players;
-CREATE POLICY "Cricket users can read match players"
-  ON practice_match_players FOR SELECT USING (has_cricket_access());
-DROP POLICY IF EXISTS "Scorer can manage match players" ON practice_match_players;
+-- ── RLS Policies (team-scoped) ──
+CREATE POLICY "Team members can read match players"
+  ON practice_match_players FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
 CREATE POLICY "Scorer can manage match players"
-  ON practice_match_players FOR INSERT WITH CHECK (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_match_players FOR INSERT
+  WITH CHECK (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Scorer can update match players" ON practice_match_players;
+
 CREATE POLICY "Scorer can update match players"
-  ON practice_match_players FOR UPDATE USING (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_match_players FOR UPDATE
+  USING (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Scorer can delete match players" ON practice_match_players;
+
 CREATE POLICY "Scorer can delete match players"
-  ON practice_match_players FOR DELETE USING (
-    has_cricket_access() AND (
-      -- Admin can always delete (cleanup)
-      is_cricket_admin()
-      OR EXISTS (
-        SELECT 1 FROM practice_matches WHERE id = match_id
-          AND status IN ('setup', 'scoring', 'innings_break')
-          AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-      )
-    )
+  ON practice_match_players FOR DELETE
+  USING (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
 
 CREATE INDEX IF NOT EXISTS idx_practice_match_players_match ON practice_match_players (match_id, team);
+CREATE INDEX IF NOT EXISTS idx_practice_match_players_team ON practice_match_players (team_id);
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -200,6 +207,7 @@ CREATE INDEX IF NOT EXISTS idx_practice_match_players_match ON practice_match_pl
 CREATE TABLE IF NOT EXISTS practice_innings (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
+  team_id             UUID NOT NULL REFERENCES cricket_teams(id),
   innings_number      SMALLINT NOT NULL CHECK (innings_number IN (0, 1)),
   batting_team        TEXT NOT NULL CHECK (batting_team IN ('team_a', 'team_b')),
 
@@ -233,30 +241,28 @@ CREATE TABLE IF NOT EXISTS practice_innings (
 
 ALTER TABLE practice_innings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Cricket users can read innings" ON practice_innings;
-CREATE POLICY "Cricket users can read innings"
-  ON practice_innings FOR SELECT USING (has_cricket_access());
-DROP POLICY IF EXISTS "Scorer can create innings" ON practice_innings;
+-- ── RLS Policies (team-scoped) ──
+CREATE POLICY "Team members can read innings"
+  ON practice_innings FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
 CREATE POLICY "Scorer can create innings"
-  ON practice_innings FOR INSERT WITH CHECK (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('setup', 'scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_innings FOR INSERT
+  WITH CHECK (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Scorer can update innings" ON practice_innings;
+
 CREATE POLICY "Scorer can update innings"
-  ON practice_innings FOR UPDATE USING (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_innings FOR UPDATE
+  USING (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Admin can delete innings" ON practice_innings;
+
 CREATE POLICY "Admin can delete innings"
-  ON practice_innings FOR DELETE USING (has_cricket_access() AND is_cricket_admin());
+  ON practice_innings FOR DELETE
+  USING (is_team_admin(team_id) OR is_global_admin());
 
 DROP TRIGGER IF EXISTS set_practice_innings_updated_at ON practice_innings;
 CREATE TRIGGER set_practice_innings_updated_at
@@ -264,6 +270,7 @@ CREATE TRIGGER set_practice_innings_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 CREATE INDEX IF NOT EXISTS idx_practice_innings_match ON practice_innings (match_id, innings_number);
+CREATE INDEX IF NOT EXISTS idx_practice_innings_team ON practice_innings (team_id);
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -272,6 +279,7 @@ CREATE INDEX IF NOT EXISTS idx_practice_innings_match ON practice_innings (match
 CREATE TABLE IF NOT EXISTS practice_balls (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id            UUID NOT NULL REFERENCES practice_matches(id) ON DELETE CASCADE,
+  team_id             UUID NOT NULL REFERENCES cricket_teams(id),
   innings_number      SMALLINT NOT NULL CHECK (innings_number IN (0, 1)),
   sequence            INTEGER NOT NULL CHECK (sequence >= 0),
   over_number         INTEGER NOT NULL CHECK (over_number >= 0),
@@ -314,39 +322,70 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_practice_balls_unique_sequence
 
 ALTER TABLE practice_balls ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Cricket users can read balls" ON practice_balls;
-CREATE POLICY "Cricket users can read balls"
-  ON practice_balls FOR SELECT USING (has_cricket_access());
-DROP POLICY IF EXISTS "Scorer can record balls" ON practice_balls;
+-- ── RLS Policies (team-scoped) ──
+CREATE POLICY "Team members can read balls"
+  ON practice_balls FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
 CREATE POLICY "Scorer can record balls"
-  ON practice_balls FOR INSERT WITH CHECK (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_balls FOR INSERT
+  WITH CHECK (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Scorer can update balls" ON practice_balls;
+
 CREATE POLICY "Scorer can update balls"
-  ON practice_balls FOR UPDATE USING (
-    has_cricket_access() AND EXISTS (
-      SELECT 1 FROM practice_matches WHERE id = match_id
-        AND status IN ('scoring', 'innings_break')
-        AND (active_scorer_id = auth.uid() OR (active_scorer_id IS NULL AND created_by = auth.uid()))
-    )
+  ON practice_balls FOR UPDATE
+  USING (
+    match_id IN (SELECT id FROM practice_matches WHERE is_active_scorer(id))
+    OR is_global_admin()
   );
-DROP POLICY IF EXISTS "Admin can delete balls" ON practice_balls;
+
 CREATE POLICY "Admin can delete balls"
-  ON practice_balls FOR DELETE USING (has_cricket_access() AND is_cricket_admin());
+  ON practice_balls FOR DELETE
+  USING (is_team_admin(team_id) OR is_global_admin());
 
 CREATE INDEX IF NOT EXISTS idx_practice_balls_innings ON practice_balls (match_id, innings_number, sequence) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_practice_balls_over ON practice_balls (match_id, innings_number, over_number) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_practice_balls_striker ON practice_balls (striker_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_practice_balls_bowler ON practice_balls (bowler_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_practice_balls_team ON practice_balls (team_id);
 
 
 -- ══════════════════════════════════════════════════════════════
--- 5. RPC FUNCTIONS
+-- 5. AUTO-POPULATE TRIGGERS (child tables inherit team_id)
+-- ══════════════════════════════════════════════════════════════
+
+-- Practice children: inherit team_id from practice_matches
+CREATE OR REPLACE FUNCTION set_practice_child_team_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.team_id := (SELECT team_id FROM practice_matches WHERE id = NEW.match_id);
+  IF NEW.team_id IS NULL THEN
+    RAISE EXCEPTION 'Cannot determine team_id from match %', NEW.match_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_set_balls_team_id ON practice_balls;
+CREATE TRIGGER trg_set_balls_team_id
+  BEFORE INSERT ON practice_balls FOR EACH ROW
+  EXECUTE FUNCTION set_practice_child_team_id();
+
+DROP TRIGGER IF EXISTS trg_set_innings_team_id ON practice_innings;
+CREATE TRIGGER trg_set_innings_team_id
+  BEFORE INSERT ON practice_innings FOR EACH ROW
+  EXECUTE FUNCTION set_practice_child_team_id();
+
+DROP TRIGGER IF EXISTS trg_set_match_players_team_id ON practice_match_players;
+CREATE TRIGGER trg_set_match_players_team_id
+  BEFORE INSERT ON practice_match_players FOR EACH ROW
+  EXECUTE FUNCTION set_practice_child_team_id();
+
+
+-- ══════════════════════════════════════════════════════════════
+-- 6. RPC FUNCTIONS
 -- ══════════════════════════════════════════════════════════════
 
 -- ── Atomic Match Creation ──
@@ -360,12 +399,15 @@ CREATE OR REPLACE FUNCTION create_practice_match(
   p_toss_decision TEXT,
   p_scorer_name TEXT,
   p_batting_first TEXT,
-  p_players JSONB
+  p_players JSONB,
+  p_team_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   new_match_id UUID;
   batting_second TEXT;
   player_row JSONB;
@@ -375,9 +417,14 @@ DECLARE
   player_map JSONB := '[]'::jsonb;
   idx INTEGER := 0;
 BEGIN
-  -- Access guard
-  IF NOT has_cricket_access() THEN
-    RAISE EXCEPTION 'Access denied: cricket access required';
+  v_team_id := resolve_team_id(p_team_id);
+  IF v_team_id IS NULL THEN
+    RAISE EXCEPTION 'Cannot determine team context';
+  END IF;
+
+  -- Access guard: must be member of this team
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN
+    RAISE EXCEPTION 'Access denied: not a member of this team';
   END IF;
 
   -- Input validation
@@ -403,11 +450,11 @@ BEGIN
   batting_second := CASE WHEN p_batting_first = 'team_a' THEN 'team_b' ELSE 'team_a' END;
 
   INSERT INTO practice_matches (
-    created_by, title, match_date, overs_per_innings,
+    created_by, team_id, title, match_date, overs_per_innings,
     team_a_name, team_b_name, toss_winner, toss_decision,
     scorer_name, scorer_id, active_scorer_id, status, started_at
   ) VALUES (
-    auth.uid(), p_title, p_match_date, p_overs,
+    auth.uid(), v_team_id, p_title, p_match_date, p_overs,
     p_team_a_name, p_team_b_name, p_toss_winner, p_toss_decision,
     p_scorer_name, auth.uid(), auth.uid(), 'scoring', now()
   ) RETURNING id INTO new_match_id;
@@ -415,7 +462,7 @@ BEGIN
   FOR player_row IN SELECT * FROM jsonb_array_elements(p_players) LOOP
     guest_player_id := NULL;
 
-    -- For guest players: upsert into cricket_players (race-safe via ON CONFLICT)
+    -- For guest players: upsert into cricket_players (team-scoped, race-safe via ON CONFLICT)
     IF COALESCE((player_row->>'is_guest')::BOOLEAN, false) THEN
       guest_name := player_row->>'name';
 
@@ -424,10 +471,10 @@ BEGIN
         RAISE EXCEPTION 'Guest player name too long: maximum 100 characters';
       END IF;
 
-      -- Attempt INSERT, DO NOTHING on conflict (existing guest with same lower(name))
-      INSERT INTO cricket_players (name, is_guest, is_active)
-      VALUES (guest_name, true, true)
-      ON CONFLICT ((lower(name))) WHERE is_guest = true AND is_active = true
+      -- Attempt INSERT, DO NOTHING on conflict (existing guest with same lower(name) + team_id)
+      INSERT INTO cricket_players (name, team_id, is_guest, is_active)
+      VALUES (guest_name, v_team_id, true, true)
+      ON CONFLICT ((lower(name)), team_id) WHERE is_guest = true AND is_active = true
       DO NOTHING
       RETURNING id INTO guest_player_id;
 
@@ -436,6 +483,7 @@ BEGIN
         SELECT id INTO guest_player_id
         FROM cricket_players
         WHERE lower(name) = lower(guest_name)
+          AND team_id = v_team_id
           AND is_guest = true
           AND is_active = true;
       END IF;
@@ -451,7 +499,10 @@ BEGIN
       CASE
         WHEN COALESCE((player_row->>'is_guest')::BOOLEAN, false) THEN guest_player_id
         WHEN player_row->>'player_id' IS NOT NULL AND player_row->>'player_id' != ''
-          THEN (player_row->>'player_id')::UUID
+          THEN (
+            SELECT id FROM cricket_players
+            WHERE id = (player_row->>'player_id')::UUID AND team_id = v_team_id
+          )
         ELSE NULL
       END,
       COALESCE((player_row->>'is_guest')::BOOLEAN, false)
@@ -474,7 +525,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION create_practice_match(TEXT, DATE, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION create_practice_match(TEXT, DATE, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, UUID) TO authenticated;
 
 
 -- ── Match History ──
@@ -483,15 +534,21 @@ CREATE OR REPLACE FUNCTION get_match_history(
   result_limit INTEGER DEFAULT 20,
   result_offset INTEGER DEFAULT 0,
   from_date DATE DEFAULT NULL,
-  to_date DATE DEFAULT NULL
+  to_date DATE DEFAULT NULL,
+  p_team_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   result JSON;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
+  v_team_id := resolve_team_id(p_team_id);
+  IF v_team_id IS NULL THEN RETURN '[]'::json; END IF;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN '[]'::json; END IF;
+
   result_limit := LEAST(COALESCE(result_limit, 20), 100);
   result_offset := GREATEST(COALESCE(result_offset, 0), 0);
 
@@ -512,6 +569,7 @@ BEGIN
        FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 1) AS second_innings
     FROM practice_matches m
     WHERE m.deleted_at IS NULL
+      AND m.team_id = v_team_id
       AND (match_status IS NULL OR m.status = match_status)
       AND (from_date IS NULL OR m.match_date >= from_date)
       AND (to_date IS NULL OR m.match_date <= to_date)
@@ -522,18 +580,21 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_match_history(TEXT, INTEGER, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_match_history(TEXT, INTEGER, INTEGER, DATE, DATE, UUID) TO authenticated;
 
 
 -- ── Full Match Scorecard ──
 CREATE OR REPLACE FUNCTION get_match_scorecard(target_match_id UUID)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   result JSON;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN NULL; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN NULL; END IF;
 
   SELECT json_build_object(
     'match', (SELECT row_to_json(m) FROM practice_matches m WHERE m.id = target_match_id),
@@ -583,6 +644,7 @@ GRANT EXECUTE ON FUNCTION get_match_scorecard(UUID) TO authenticated;
 CREATE OR REPLACE FUNCTION get_public_match_scorecard(token UUID)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
   target_id UUID;
@@ -647,9 +709,13 @@ CREATE OR REPLACE FUNCTION claim_scorer(
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
 
   PERFORM 1 FROM practice_matches
   WHERE id = target_match_id FOR UPDATE NOWAIT;
@@ -660,8 +726,7 @@ BEGIN
       scorer_heartbeat = now(),
       updated_at = now()
   WHERE id = target_match_id
-    AND status IN ('setup', 'scoring', 'innings_break')
-    AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND access @> '{cricket}');
+    AND status IN ('setup', 'scoring', 'innings_break');
   RETURN FOUND;
 
 EXCEPTION WHEN lock_not_available THEN
@@ -676,9 +741,13 @@ GRANT EXECUTE ON FUNCTION claim_scorer(UUID, TEXT) TO authenticated;
 CREATE OR REPLACE FUNCTION release_scorer(target_match_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
 
   UPDATE practice_matches
   SET active_scorer_id = NULL, updated_at = now()
@@ -686,7 +755,8 @@ BEGIN
     AND (
       active_scorer_id = auth.uid()
       OR created_by = auth.uid()
-      OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND access @> '{admin}')
+      OR is_team_admin(v_team_id)
+      OR is_global_admin()
     );
   RETURN FOUND;
 END;
@@ -699,9 +769,13 @@ GRANT EXECUTE ON FUNCTION release_scorer(UUID) TO authenticated;
 CREATE OR REPLACE FUNCTION get_rematch_template(source_match_id UUID)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN NULL; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = source_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN NULL; END IF;
 
   RETURN (
     SELECT json_build_object(
@@ -727,25 +801,28 @@ $$;
 GRANT EXECUTE ON FUNCTION get_rematch_template(UUID) TO authenticated;
 
 
--- ── Soft Delete Match (admin cleanup) ──
+-- ── Soft Delete Match ──
 CREATE OR REPLACE FUNCTION soft_delete_match(
   target_match_id UUID,
   deleter_name TEXT DEFAULT 'Admin'
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
 
-  -- Only admin or match creator can soft-delete
   UPDATE practice_matches
   SET deleted_at = now(),
       deleted_by = deleter_name,
       updated_at = now()
   WHERE id = target_match_id
     AND deleted_at IS NULL
-    AND (created_by = auth.uid() OR is_cricket_admin());
+    AND (created_by = auth.uid() OR is_team_admin(v_team_id) OR is_global_admin());
 
   RETURN FOUND;
 END;
@@ -758,14 +835,19 @@ GRANT EXECUTE ON FUNCTION soft_delete_match(UUID, TEXT) TO authenticated;
 CREATE OR REPLACE FUNCTION restore_match(target_match_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
+
   UPDATE practice_matches
   SET deleted_at = NULL, deleted_by = NULL, updated_at = now()
   WHERE id = target_match_id
     AND deleted_at IS NOT NULL
-    AND (created_by = auth.uid() OR is_cricket_admin());
+    AND (created_by = auth.uid() OR is_team_admin(v_team_id) OR is_global_admin());
   RETURN FOUND;
 END;
 $$;
@@ -777,9 +859,14 @@ GRANT EXECUTE ON FUNCTION restore_match(UUID) TO authenticated;
 CREATE OR REPLACE FUNCTION permanent_delete_match(target_match_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_admin(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
+
   -- Only allow permanent delete on already soft-deleted matches
   DELETE FROM practice_matches
   WHERE id = target_match_id AND deleted_at IS NOT NULL;
@@ -791,17 +878,21 @@ $$;
 GRANT EXECUTE ON FUNCTION permanent_delete_match(UUID) TO authenticated;
 
 
--- ── Get Deleted Matches (admin only, for Recently Deleted section) ──
+-- ── Get Deleted Matches (team admin only, for Recently Deleted section) ──
 CREATE OR REPLACE FUNCTION get_deleted_matches(
-  result_limit INTEGER DEFAULT 20
+  result_limit INTEGER DEFAULT 20,
+  p_team_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   result JSON;
 BEGIN
-  IF NOT is_cricket_admin() THEN RETURN '[]'::json; END IF;
+  v_team_id := resolve_team_id(p_team_id);
+  IF NOT is_team_admin(v_team_id) AND NOT is_global_admin() THEN RETURN '[]'::json; END IF;
   result_limit := LEAST(COALESCE(result_limit, 20), 50);
 
   SELECT COALESCE(json_agg(row ORDER BY row.deleted_at DESC), '[]'::json)
@@ -816,7 +907,7 @@ BEGIN
       (SELECT json_build_object('total_runs', i.total_runs, 'total_wickets', i.total_wickets, 'total_overs', i.total_overs)
        FROM practice_innings i WHERE i.match_id = m.id AND i.innings_number = 1) AS second_innings
     FROM practice_matches m
-    WHERE m.deleted_at IS NOT NULL
+    WHERE m.deleted_at IS NOT NULL AND m.team_id = v_team_id
     ORDER BY m.deleted_at DESC
     LIMIT result_limit
   ) row;
@@ -824,40 +915,42 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_deleted_matches(INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_deleted_matches(INTEGER, UUID) TO authenticated;
 
 
 -- ══════════════════════════════════════════════════════════════
--- 6. PRACTICE LEADERBOARD
+-- 7. PRACTICE LEADERBOARD
 -- ══════════════════════════════════════════════════════════════
 -- Season performance stats computed from practice_balls.
 -- Categories: batting, bowling, fielding, allround
 
-DROP FUNCTION IF EXISTS get_practice_leaderboard(UUID, TEXT);
-
 CREATE OR REPLACE FUNCTION get_practice_leaderboard(
   p_season_id UUID DEFAULT NULL,
   p_category TEXT DEFAULT 'batting',
-  p_match_limit INTEGER DEFAULT NULL
+  p_match_limit INTEGER DEFAULT NULL,
+  p_team_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   result JSON;
   match_ids UUID[];
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
+  v_team_id := resolve_team_id(p_team_id);
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN '[]'::json; END IF;
 
   IF p_category NOT IN ('batting', 'bowling', 'fielding', 'allround') THEN
     RAISE EXCEPTION 'Invalid category: must be batting, bowling, fielding, or allround';
   END IF;
 
-  -- Resolve match IDs: optionally limited to last N completed matches
+  -- Resolve match IDs: team-scoped + optionally limited to last N
   IF p_match_limit IS NOT NULL THEN
     SELECT ARRAY(
       SELECT id FROM practice_matches
-      WHERE status = 'completed' AND deleted_at IS NULL
+      WHERE status = 'completed' AND deleted_at IS NULL AND team_id = v_team_id
         AND (p_season_id IS NULL OR season_id = p_season_id)
       ORDER BY completed_at DESC NULLS LAST, created_at DESC
       LIMIT p_match_limit
@@ -874,6 +967,7 @@ BEGIN
          FROM practice_match_players pmp2
          JOIN practice_matches m2 ON m2.id = pmp2.match_id
          WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND m2.team_id = v_team_id
            AND (match_ids IS NULL OR m2.id = ANY(match_ids))
            AND (p_season_id IS NULL OR m2.season_id = p_season_id)
         ) AS matches,
@@ -889,6 +983,7 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND m.team_id = v_team_id
         AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
@@ -906,6 +1001,7 @@ BEGIN
          FROM practice_match_players pmp2
          JOIN practice_matches m2 ON m2.id = pmp2.match_id
          WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND m2.team_id = v_team_id
            AND (match_ids IS NULL OR m2.id = ANY(match_ids))
            AND (p_season_id IS NULL OR m2.season_id = p_season_id)
         ) AS matches,
@@ -922,6 +1018,7 @@ BEGIN
       JOIN cricket_players cp ON cp.id = pmp.player_id
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND m.team_id = v_team_id
         AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
@@ -939,6 +1036,7 @@ BEGIN
          FROM practice_match_players pmp2
          JOIN practice_matches m2 ON m2.id = pmp2.match_id
          WHERE pmp2.player_id = cp.id AND m2.status = 'completed' AND m2.deleted_at IS NULL
+           AND m2.team_id = v_team_id
            AND (match_ids IS NULL OR m2.id = ANY(match_ids))
            AND (p_season_id IS NULL OR m2.season_id = p_season_id)
         ) AS matches,
@@ -952,6 +1050,7 @@ BEGIN
       JOIN practice_matches m ON m.id = b.match_id
       WHERE b.deleted_at IS NULL AND b.is_wicket = true AND b.fielder_id IS NOT NULL
         AND m.status = 'completed' AND m.deleted_at IS NULL
+        AND m.team_id = v_team_id
         AND (match_ids IS NULL OR m.id = ANY(match_ids))
         AND (p_season_id IS NULL OR m.season_id = p_season_id)
       GROUP BY cp.id, cp.name, cp.photo_url, cp.is_guest
@@ -975,34 +1074,39 @@ BEGIN
         FROM practice_match_players pmp
         JOIN practice_matches m ON m.id = pmp.match_id
         WHERE pmp.player_id = cp.id AND m.status = 'completed' AND m.deleted_at IS NULL
+          AND m.team_id = v_team_id
           AND (match_ids IS NULL OR m.id = ANY(match_ids))
-        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) match_count ON true
       LEFT JOIN LATERAL (
         SELECT SUM(b.runs_bat) AS total_runs
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.striker_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+          AND m.team_id = v_team_id
           AND (match_ids IS NULL OR m.id = ANY(match_ids))
-        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bat ON true
       LEFT JOIN LATERAL (
         SELECT SUM(CASE WHEN b.is_wicket AND COALESCE(b.wicket_type, '') != 'retired' THEN 1 ELSE 0 END) AS total_wickets
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.bowler_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND m.status = 'completed' AND m.deleted_at IS NULL
+          AND m.team_id = v_team_id
           AND (match_ids IS NULL OR m.id = ANY(match_ids))
-        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) bowl ON true
       LEFT JOIN LATERAL (
         SELECT SUM(CASE WHEN b.wicket_type = 'caught' THEN 1 ELSE 0 END) AS total_catches
         FROM practice_balls b JOIN practice_match_players pmp ON pmp.id = b.fielder_id
         JOIN practice_matches m ON m.id = b.match_id
         WHERE pmp.player_id = cp.id AND b.deleted_at IS NULL AND b.is_wicket = true
-          AND m.status = 'completed' AND m.deleted_at IS NULL AND (match_ids IS NULL OR m.id = ANY(match_ids))
-        AND (p_season_id IS NULL OR m.season_id = p_season_id)
+          AND m.status = 'completed' AND m.deleted_at IS NULL
+          AND m.team_id = v_team_id
+          AND (match_ids IS NULL OR m.id = ANY(match_ids))
+          AND (p_season_id IS NULL OR m.season_id = p_season_id)
       ) field ON true
-      WHERE cp.is_active = true
+      WHERE cp.is_active = true AND cp.team_id = v_team_id
         AND (COALESCE(bat.total_runs, 0) + COALESCE(bowl.total_wickets, 0) + COALESCE(field.total_catches, 0)) > 0
       ORDER BY score DESC LIMIT 50
     ) row;
@@ -1012,18 +1116,21 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_practice_leaderboard(UUID, TEXT, INTEGER, UUID) TO authenticated;
 
 
--- ── Guest Player Suggestions (auto-complete from past matches) ──
-CREATE OR REPLACE FUNCTION get_guest_suggestions()
+-- ── Guest Player Suggestions (team-scoped auto-complete from past matches) ──
+CREATE OR REPLACE FUNCTION get_guest_suggestions(p_team_id UUID DEFAULT NULL)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public
 AS $$
 DECLARE
+  v_team_id UUID;
   result JSON;
 BEGIN
-  IF NOT has_cricket_access() THEN RETURN '[]'::json; END IF;
+  v_team_id := resolve_team_id(p_team_id);
+  IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN '[]'::json; END IF;
 
   SELECT COALESCE(json_agg(
     json_build_object('id', cp.id, 'name', cp.name)
@@ -1031,25 +1138,30 @@ BEGIN
   ), '[]'::json)
   INTO result
   FROM cricket_players cp
-  WHERE cp.is_guest = true AND cp.is_active = true;
+  WHERE cp.is_guest = true AND cp.is_active = true AND cp.team_id = v_team_id;
 
   RETURN result;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_guest_suggestions() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_guest_suggestions(UUID) TO authenticated;
 
 
--- ── Revert Completed Match to Scoring (admin only) ──
+-- ── Revert Completed Match to Scoring (team admin only) ──
 CREATE OR REPLACE FUNCTION revert_match_to_scoring(target_match_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM practice_matches WHERE id = target_match_id;
+  IF NOT is_team_admin(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
+
   -- Only allow revert for abruptly ended matches (no result / no winner)
-  -- Smart logic: if 1st innings was completed → revert to innings_break (not scoring)
-  -- If current innings has no players → fall back to innings 0
+  -- Smart logic: if 1st innings was completed -> revert to innings_break (not scoring)
+  -- If current innings has no players -> fall back to innings 0
   UPDATE practice_matches
   SET result_summary = NULL,
       match_winner = NULL,
@@ -1078,9 +1190,7 @@ $$;
 GRANT EXECUTE ON FUNCTION revert_match_to_scoring(UUID) TO authenticated;
 
 
--- ── Promote Guest to Roster (admin only) ─────────────────
-DROP FUNCTION IF EXISTS promote_guest_to_roster(UUID, INTEGER, TEXT, TEXT);
-
+-- ── Promote Guest to Roster (team admin only) ─────────────────
 CREATE OR REPLACE FUNCTION promote_guest_to_roster(
   target_player_id UUID,
   p_jersey_number INTEGER DEFAULT NULL,
@@ -1089,17 +1199,22 @@ CREATE OR REPLACE FUNCTION promote_guest_to_roster(
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_team_id UUID;
 BEGIN
-  IF NOT is_cricket_admin() THEN RETURN FALSE; END IF;
+  SELECT team_id INTO v_team_id FROM cricket_players WHERE id = target_player_id;
+  IF NOT is_team_admin(v_team_id) AND NOT is_global_admin() THEN RETURN FALSE; END IF;
 
-  -- Check email uniqueness if provided (prevents linking conflicts)
+  -- Check email uniqueness within the team (prevents linking conflicts)
   IF p_email IS NOT NULL THEN
     IF EXISTS (
       SELECT 1 FROM cricket_players
-      WHERE lower(email) = lower(p_email) AND id != target_player_id AND is_active = true
+      WHERE lower(email) = lower(p_email) AND id != target_player_id
+        AND is_active = true AND team_id = v_team_id
     ) THEN
-      RAISE EXCEPTION 'Email already belongs to another player';
+      RAISE EXCEPTION 'Email already belongs to another player on this team';
     END IF;
   END IF;
 

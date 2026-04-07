@@ -2,13 +2,14 @@
 -- Cricket Schedule Matches — Database Schema
 -- ============================================================
 -- Stores league and practice match schedules per season.
--- Same RLS pattern as other cricket tables:
---   SELECT → has_cricket_access()
---   INSERT/UPDATE/DELETE → is_cricket_admin()
+-- Team-scoped RLS pattern (multi-team migration):
+--   SELECT → user_team_ids() or is_global_admin()
+--   INSERT/UPDATE/DELETE → is_team_admin(team_id) or is_global_admin()
 
 CREATE TABLE IF NOT EXISTS cricket_schedule_matches (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   season_id       UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  team_id         UUID NOT NULL REFERENCES cricket_teams(id),
   opponent        TEXT NOT NULL,
   match_date      DATE NOT NULL,
   match_time      TEXT NOT NULL,              -- HH:MM format
@@ -42,24 +43,27 @@ ALTER TABLE cricket_schedule_matches
 ALTER TABLE cricket_schedule_matches
   ADD CONSTRAINT chk_schedule_result CHECK (result IS NULL OR result IN ('won', 'lost', 'draw'));
 
+-- ── Indexes ───────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_cricket_schedule_matches_team ON cricket_schedule_matches(team_id);
+
 -- ── Row Level Security ────────────────────────────────────
 ALTER TABLE cricket_schedule_matches ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Cricket users can read schedule matches"
+CREATE POLICY "Team members can read schedule"
   ON cricket_schedule_matches FOR SELECT
-  USING (has_cricket_access());
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
 
-CREATE POLICY "Admin can create schedule matches"
+CREATE POLICY "Team admin can create schedule"
   ON cricket_schedule_matches FOR INSERT
-  WITH CHECK (is_cricket_admin());
+  WITH CHECK (is_team_admin(team_id) OR is_global_admin());
 
-CREATE POLICY "Admin can update schedule matches"
+CREATE POLICY "Team admin can update schedule"
   ON cricket_schedule_matches FOR UPDATE
-  USING (is_cricket_admin());
+  USING (is_team_admin(team_id) OR is_global_admin());
 
-CREATE POLICY "Admin can delete schedule matches"
+CREATE POLICY "Team admin can delete schedule"
   ON cricket_schedule_matches FOR DELETE
-  USING (is_cricket_admin());
+  USING (is_team_admin(team_id) OR is_global_admin());
 
 -- ── Trigger: auto-update updated_at ───────────────────────
 CREATE TRIGGER set_cricket_schedule_matches_updated_at
