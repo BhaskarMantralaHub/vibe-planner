@@ -17,6 +17,13 @@ export interface PlayerSignupData {
   shirt_size?: string;
 }
 
+export interface UserTeam {
+  team_id: string;
+  team_name: string;
+  team_slug: string;
+  role: string;
+}
+
 interface AuthState {
   user: User | null;
   loading: boolean;
@@ -28,6 +35,8 @@ interface AuthState {
   userAccess: string[];
   userFeatures: string[];
   userApproved: boolean;
+  userTeams: UserTeam[];
+  currentTeamId: string | null;
 
   init: () => void;
   updatePassword: (password: string) => Promise<boolean>;
@@ -39,6 +48,8 @@ interface AuthState {
   clearError: () => void;
   hasAccess: (role: string) => boolean;
   hasFeature: (feature: string) => boolean;
+  setCurrentTeam: (teamId: string) => void;
+  loadUserTeams: () => Promise<void>;
 }
 
 export const RESET_FLAG_KEY = 'vibe_needs_password_reset';
@@ -78,6 +89,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   syncing: false,
   isCloud: false,
   needsPasswordReset: readResetFlag(),
+  userTeams: [],
+  currentTeamId: typeof window !== 'undefined' ? localStorage.getItem('vibe_current_team') : null,
   userAccess: [],
   userFeatures: [],
   userApproved: true,
@@ -141,6 +154,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Track login activity (covers session restore + explicit login; dedup prevents double-count)
       import('@/lib/activity').then(({ trackActivity }) => trackActivity(session.user.id, 'login'))
         .catch((err) => console.warn('[auth] login activity tracking failed:', err));
+
+      // Load user's team memberships (fire-and-forget, non-blocking)
+      if (access.includes('cricket')) {
+        get().loadUserTeams();
+      }
     };
 
     const setupAuthListener = () => {
@@ -423,7 +441,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // remounts, calls init() → getSession() finds the still-active session → re-authenticates
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut();
-    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true });
+    localStorage.removeItem('vibe_current_team');
+    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true, userTeams: [], currentTeamId: null });
   },
 
   hasAccess: (role: string) => {
@@ -433,6 +452,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hasFeature: (feature: string) => {
     return get().userFeatures.includes(feature);
+  },
+
+  loadUserTeams: async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !get().user) return;
+
+    const { data } = await supabase
+      .from('team_members')
+      .select('team_id, role, cricket_teams(name, slug)')
+      .eq('user_id', get().user!.id);
+
+    if (!data) return;
+
+    const teams: UserTeam[] = data.map((row: { team_id: string; role: string; cricket_teams: { name: string; slug: string } | null }) => ({
+      team_id: row.team_id,
+      team_name: (row.cricket_teams as { name: string; slug: string } | null)?.name ?? 'Unknown',
+      team_slug: (row.cricket_teams as { name: string; slug: string } | null)?.slug ?? '',
+      role: row.role,
+    }));
+
+    const storedTeamId = localStorage.getItem('vibe_current_team');
+    const validTeamIds = teams.map(t => t.team_id);
+    const currentTeamId = storedTeamId && validTeamIds.includes(storedTeamId)
+      ? storedTeamId
+      : validTeamIds[0] ?? null;
+
+    if (currentTeamId) localStorage.setItem('vibe_current_team', currentTeamId);
+    set({ userTeams: teams, currentTeamId });
+  },
+
+  setCurrentTeam: (teamId: string) => {
+    localStorage.setItem('vibe_current_team', teamId);
+    set({ currentTeamId: teamId });
   },
 
   setAuthMode: (mode: AuthMode) => {
