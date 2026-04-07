@@ -777,7 +777,7 @@ function localSaveMatches(matches: Match[]) {
 
 /* ── Main Component ── */
 export default function MatchSchedule() {
-  const { userAccess } = useAuthStore();
+  const { userAccess, currentTeamId } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const { selectedSeasonId } = useCricketStore();
 
@@ -861,7 +861,7 @@ export default function MatchSchedule() {
 
       const { data: row, error } = await supabase
         .from('cricket_schedule_matches')
-        .insert({ season_id: selectedSeasonId, ...data, status: 'upcoming' })
+        .insert({ season_id: selectedSeasonId, ...data, status: 'upcoming', team_id: currentTeamId })
         .select()
         .single();
 

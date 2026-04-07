@@ -7,8 +7,9 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Search, Users, Shield, ShieldCheck, UserX, AlertTriangle, Ban,
   MoreVertical, Crown, ShieldOff, UserCheck, Lock,
-  Activity, CheckCircle, Zap, BarChart3, Settings2
+  Activity, CheckCircle, Zap, BarChart3, Settings2, UsersRound
 } from 'lucide-react';
+import TeamManager from '@/components/TeamManager';
 import { AuthGate } from '@/components/AuthGate';
 import { Text, Drawer, DrawerHandle, DrawerHeader, DrawerBody, DrawerTitle } from '@/components/ui';
 import { toast } from 'sonner';
@@ -40,7 +41,7 @@ interface UserActivity {
   page_views_30d: number;
 }
 
-type AdminTab = 'users' | 'analytics';
+type AdminTab = 'users' | 'analytics' | 'teams';
 
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -115,7 +116,7 @@ function AdminContent() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '');
-      if (hash === 'analytics') return 'analytics';
+      if (hash === 'analytics' || hash === 'teams') return hash as AdminTab;
     }
     return 'users';
   });
@@ -314,6 +315,7 @@ function AdminContent() {
   const TABS: { key: AdminTab; label: string; icon: React.ReactNode }[] = [
     { key: 'users', label: 'Users', icon: <Users size={20} /> },
     { key: 'analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
+    { key: 'teams', label: 'Teams', icon: <UsersRound size={20} /> },
   ];
 
   // Analytics: users sorted by last_seen
@@ -852,6 +854,9 @@ function AdminContent() {
             )}
           </DrawerBody>
         </Drawer>
+
+        {/* ── Teams Tab Content ── */}
+        {activeTab === 'teams' && <TeamManager />}
 
         {/* Bottom spacer for tab bar */}
         <div className="h-24" />

@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Text } from '@/components/ui';
 import { PageFooter } from '@/components/PageFooter';
+import InviteHandler from '@/components/InviteHandler';
 import { formatCurrency } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
@@ -446,6 +447,7 @@ function CricketDashboard() {
 export default function CricketPage() {
   return (
     <AuthGate variant="cricket">
+      <InviteHandler />
       <RoleGate allowed={['cricket', 'admin']} feature="cricket">
         <CricketDashboard />
       </RoleGate>

@@ -37,6 +37,7 @@ jobs:
             "profiles"
             "cricket_teams"
             "team_members"
+            "team_invites"
             "vibes"
             "id_documents"
             "cricket_players"

@@ -21,6 +21,7 @@ jobs:
             "profiles"
             "cricket_teams"
             "team_members"
+            "team_invites"
             "cricket_players"
             "cricket_seasons"
             "cricket_expenses"

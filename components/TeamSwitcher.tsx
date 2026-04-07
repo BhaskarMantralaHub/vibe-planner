@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuthStore, type UserTeam } from '@/stores/auth-store';
-import { Text, Drawer, DrawerHandle, DrawerHeader, DrawerBody } from '@/components/ui';
+import { Text, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui';
 import { MdCheck, MdKeyboardArrowDown } from 'react-icons/md';
 
 /// Team switcher — shown in cricket header for multi-team users.
@@ -53,7 +53,7 @@ export default function TeamSwitcher() {
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerHandle />
         <DrawerHeader>
-          <Text size="lg" weight="bold">Switch Team</Text>
+          <DrawerTitle>Switch Team</DrawerTitle>
         </DrawerHeader>
         <DrawerBody>
           <div className="space-y-1 pb-4">

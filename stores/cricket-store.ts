@@ -15,7 +15,13 @@ import type {
   GalleryNotification,
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+
+/// Get current team ID from auth store (for multi-team query filtering)
+function getCurrentTeamId(): string | null {
+  return useAuthStore.getState().currentTeamId;
+}
 import { computeSplitAmounts } from '@/app/(tools)/cricket/lib/utils';
 
 const LOCAL_KEY = 'cricket_data';
@@ -112,7 +118,7 @@ interface CricketState {
   loadMoreGallery: () => Promise<void>;
 
   // Players
-  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; cricclub_id: string | null; shirt_size: string | null; email: string | null; designation: string | null; photo_url?: string | null; is_guest?: boolean }) => void;
+  addPlayer: (userId: string, data: { name: string; jersey_number: number | null; phone: string | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; cricclub_id: string | null; shirt_size: string | null; email: string | null; designation: string | null; photo_url?: string | null; is_guest?: boolean; linked_user_id?: string | null }) => void;
   updatePlayer: (id: string, updates: Partial<CricketPlayer>) => void;
   removePlayer: (id: string) => void;
   restorePlayer: (id: string) => void;
@@ -203,21 +209,40 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) { set({ loading: false }); return; }
 
-      // Load ALL team data — not filtered by user_id (shared team data)
+      const teamId = getCurrentTeamId();
+
+      // Build team-filtered queries (multi-team users see only active team's data)
+      let playersQ = supabase.from('cricket_players').select('*').order('created_at');
+      let seasonsQ = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
+      let expensesQ = supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false });
+      let settlementsQ = supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false });
+      let feesQ = supabase.from('cricket_season_fees').select('*').order('created_at');
+      let sponsorsQ = supabase.from('cricket_sponsorships').select('*').order('created_at');
+      let galleryQ = supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE);
+      let commentsQ = supabase.from('cricket_gallery_comments').select('*').order('created_at');
+      let notificationsQ = supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+
+      if (teamId) {
+        playersQ = playersQ.eq('team_id', teamId);
+        seasonsQ = seasonsQ.eq('team_id', teamId);
+        expensesQ = expensesQ.eq('team_id', teamId);
+        settlementsQ = settlementsQ.eq('team_id', teamId);
+        feesQ = feesQ.eq('team_id', teamId);
+        sponsorsQ = sponsorsQ.eq('team_id', teamId);
+        galleryQ = galleryQ.eq('team_id', teamId);
+        commentsQ = commentsQ.eq('team_id', teamId);
+        notificationsQ = notificationsQ.eq('team_id', teamId);
+      }
+
       const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes, sponsorsRes, galleryRes, galleryTagsRes, galleryCommentsRes, galleryLikesRes, commentReactionsRes, notificationsRes] = await Promise.all([
-        supabase.from('cricket_players').select('*').order('created_at'),
-        supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
-        supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false }),
+        playersQ, seasonsQ, expensesQ,
         supabase.from('cricket_expense_splits').select('*'),
-        supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false }),
-        supabase.from('cricket_season_fees').select('*').order('created_at'),
-        supabase.from('cricket_sponsorships').select('*').order('created_at'),
-        supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE),
+        settlementsQ, feesQ, sponsorsQ, galleryQ,
         supabase.from('cricket_gallery_tags').select('*'),
-        supabase.from('cricket_gallery_comments').select('*').order('created_at'),
+        commentsQ,
         supabase.from('cricket_gallery_likes').select('*'),
         supabase.from('cricket_comment_reactions').select('*'),
-        supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+        notificationsQ,
       ]);
 
       const players = (playersRes.data ?? []) as CricketPlayer[];
@@ -259,12 +284,23 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const supabase = getSupabaseClient();
     if (!supabase) { set({ loading: false }); return; }
 
+    const teamId = getCurrentTeamId();
+
     // Batch 1: Gallery posts + essential context only (4 queries instead of 13)
+    let playersQ = supabase.from('cricket_players').select('*').order('created_at');
+    let seasonsQ = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
+    let galleryQ = supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE);
+    let notificationsQ = supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+
+    if (teamId) {
+      playersQ = playersQ.eq('team_id', teamId);
+      seasonsQ = seasonsQ.eq('team_id', teamId);
+      galleryQ = galleryQ.eq('team_id', teamId);
+      notificationsQ = notificationsQ.eq('team_id', teamId);
+    }
+
     const [playersRes, seasonsRes, galleryRes, notificationsRes] = await Promise.all([
-      supabase.from('cricket_players').select('*').order('created_at'),
-      supabase.from('cricket_seasons').select('*').order('year', { ascending: false }),
-      supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE),
-      supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+      playersQ, seasonsQ, galleryQ, notificationsQ,
     ]);
 
     const players = (playersRes.data ?? []) as CricketPlayer[];
@@ -310,11 +346,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    const { data } = await supabase
-      .from('cricket_seasons')
-      .select('*')
-      .order('year', { ascending: false });
+    const teamId = getCurrentTeamId();
+    let q = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
+    if (teamId) q = q.eq('team_id', teamId);
 
+    const { data } = await q;
     const seasons = (data ?? []) as CricketSeason[];
     const selectedSeasonId = pickCurrentSeason(seasons);
     set({ seasons, selectedSeasonId });
@@ -330,12 +366,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     set({ loadingMoreGallery: true });
 
-    const { data, error } = await supabase
-      .from('cricket_gallery')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .range(galleryOffset, galleryOffset + GALLERY_PAGE_SIZE - 1);
+    const teamId = getCurrentTeamId();
+    let galleryQ = supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).range(galleryOffset, galleryOffset + GALLERY_PAGE_SIZE - 1);
+    if (teamId) galleryQ = galleryQ.eq('team_id', teamId);
+
+    const { data, error } = await galleryQ;
 
     if (error) {
       console.error('[cricket] loadMoreGallery failed:', error);
@@ -379,9 +414,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   addPlayer: (userId, data) => {
     const now = new Date().toISOString();
     const localId = genId();
+    const linkedUserId = data.linked_user_id ?? null;
     // user_id is null for admin-created players — linked later when the player signs up
+    const { linked_user_id: _, ...playerData } = data;
     const newPlayer: CricketPlayer = {
-      id: localId, user_id: null, ...data,
+      id: localId, user_id: linkedUserId, ...playerData,
       player_role: data.player_role as CricketPlayer['player_role'],
       batting_style: data.batting_style as CricketPlayer['batting_style'],
       bowling_style: data.bowling_style as CricketPlayer['bowling_style'],
@@ -398,12 +435,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       supabase?.from('cricket_players')
         .insert({
-          name: data.name, jersey_number: data.jersey_number,
-          phone: data.phone, player_role: data.player_role,
-          batting_style: data.batting_style, bowling_style: data.bowling_style,
-          cricclub_id: data.cricclub_id, shirt_size: data.shirt_size, email: data.email, designation: data.designation,
-          photo_url: data.photo_url ?? null,
-          is_guest: data.is_guest ?? false,
+          name: playerData.name, jersey_number: playerData.jersey_number,
+          phone: playerData.phone, player_role: playerData.player_role,
+          batting_style: playerData.batting_style, bowling_style: playerData.bowling_style,
+          cricclub_id: playerData.cricclub_id, shirt_size: playerData.shirt_size, email: playerData.email, designation: playerData.designation,
+          photo_url: playerData.photo_url ?? null,
+          is_guest: playerData.is_guest ?? false,
+          team_id: getCurrentTeamId(),
+          ...(linkedUserId ? { user_id: linkedUserId } : {}),
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketPlayer | null; error: unknown }) => {
@@ -417,10 +456,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   updatePlayer: (id, updates) => {
     const originalPlayer = get().players.find((p) => p.id === id);
+    const { linked_user_id: _, ...dbUpdates } = updates as Record<string, unknown>;
     set({ players: get().players.map((p) => p.id === id ? { ...p, ...updates } : p) });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_players').update(updates).eq('id', id).select().then(({ data, error }: { data: CricketPlayer[] | null; error: unknown }) => {
+      supabase?.from('cricket_players').update(dbUpdates).eq('id', id).select().then(({ data, error }: { data: CricketPlayer[] | null; error: unknown }) => {
         if (error) {
           console.error('[cricket] updatePlayer failed:', error);
           if (originalPlayer) set({ players: get().players.map((p) => p.id === id ? originalPlayer : p) });
@@ -480,7 +520,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_seasons')
-        .insert({ user_id: userId, name: data.name, year: data.year, season_type: data.season_type })
+        .insert({ user_id: userId, name: data.name, year: data.year, season_type: data.season_type, team_id: getCurrentTeamId() })
         .select().single()
         .then(({ data: row }: { data: CricketSeason | null }) => {
           if (row) {
@@ -530,6 +570,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
           created_by: createdBy ?? null,
+          team_id: getCurrentTeamId(),
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
@@ -594,7 +635,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_settlements')
-        .insert({ user_id: userId, season_id: seasonId, ...data })
+        .insert({ user_id: userId, season_id: seasonId, ...data, team_id: getCurrentTeamId() })
         .select().single()
         .then(({ data: row, error }: { data: CricketSettlement | null; error: unknown }) => {
           if (error) { console.error('[cricket] addSettlement failed:', error); toast.error('Couldn\'t save settlement. Check your connection and try again.'); }
@@ -643,7 +684,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_season_fees')
-        .insert({ season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, marked_by: by })
+        .insert({ season_id: seasonId, player_id: playerId, amount_paid: amountPaid, paid_date: today, marked_by: by, team_id: getCurrentTeamId() })
         .select().single()
         .then(({ data: row }: { data: CricketSeasonFee | null }) => {
           if (row) set({ fees: get().fees.map((f) => f.id === localId ? row : f) });
@@ -675,7 +716,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_sponsorships')
-        .insert({ season_id: seasonId, ...data, created_by: createdBy ?? null })
+        .insert({ season_id: seasonId, ...data, created_by: createdBy ?? null, team_id: getCurrentTeamId() })
         .select().single()
         .then(({ data: row }: { data: CricketSponsorship | null }) => {
           if (row) set({ sponsorships: get().sponsorships.map((s) => s.id === localId ? row : s) });
@@ -729,7 +770,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) return;
       supabase.from('cricket_gallery')
-        .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls.length > 0 ? photoUrls : null, caption, posted_by: postedBy })
+        .insert({ user_id: userId, season_id: seasonId, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls.length > 0 ? photoUrls : null, caption, posted_by: postedBy, team_id: getCurrentTeamId() })
         .select().single()
         .then(({ data: row, error }: { data: GalleryPost | null; error: unknown }) => {
           if (error) { console.error('[cricket] addGalleryPost failed:', error); toast.error('Couldn\'t create post. Check your connection and try again.'); }

@@ -190,6 +190,47 @@ export default function PlayerManager() {
   const [photoRemoved, setPhotoRemoved] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Player autocomplete suggestions
+  interface PlayerSuggestion { source: string; name: string; email: string | null; jersey_number: number | null; player_role: string | null; batting_style: string | null; bowling_style: string | null; shirt_size: string | null; cricclub_id: string | null; designation: string | null; user_id: string | null; }
+  const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestRequestRef = useRef(0);
+
+  const fetchSuggestions = (query: string) => {
+    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    if (query.length < 2 || editingPlayer) { setSuggestions([]); setShowSuggestions(false); return; }
+    suggestTimerRef.current = setTimeout(async () => {
+      const requestId = ++suggestRequestRef.current;
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      try {
+        const teamId = useAuthStore.getState().currentTeamId;
+        const { data, error } = await supabase.rpc('suggest_players', { p_query: query, p_team_id: teamId });
+        if (error || requestId !== suggestRequestRef.current) return; // stale or failed
+        const items = (data ?? []) as PlayerSuggestion[];
+        setSuggestions(items);
+        setShowSuggestions(items.length > 0);
+      } catch { /* network error — silently ignore */ }
+    }, 300);
+  };
+
+  const applySuggestion = (s: PlayerSuggestion) => {
+    setName(s.name);
+    if (s.email != null) setEmail(s.email);
+    if (s.jersey_number != null) setJersey(String(s.jersey_number));
+    if (s.player_role != null) setPlayerRole(s.player_role);
+    if (s.batting_style != null) setBattingStyle(s.batting_style);
+    if (s.bowling_style != null) setBowlingStyle(s.bowling_style);
+    if (s.shirt_size != null) setShirtSize(s.shirt_size);
+    if (s.cricclub_id != null) setCricclubId(s.cricclub_id);
+    if (s.designation != null) setDesignation(s.designation);
+    if (s.user_id) setLinkedUserId(s.user_id);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
   // Restore modal open state + editing player after iOS Safari reload
   useEffect(() => {
     if (draft && (draft.name || draft.jersey || draft.email)) {
@@ -215,7 +256,7 @@ export default function PlayerManager() {
   const resetForm = () => {
     setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setDesignation('');
-    setIsGuestPlayer(false);
+    setIsGuestPlayer(false); setLinkedUserId(null);
     setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(false);
     setEditingPlayer(null); setDesignationConflict(null);
     sessionStorage.removeItem(FORM_STORAGE_KEY);
@@ -310,6 +351,7 @@ export default function PlayerManager() {
       bowling_style: (isGuestPlayer ? null : (showBowling ? bowlingStyle || null : null)) as BowlingStyle | null,
       designation: (isGuestPlayer ? null : (designation || null)) as 'captain' | 'vice-captain' | null,
       is_guest: isGuestPlayer,
+      linked_user_id: linkedUserId,
     };
 
     // Handle photo: upload new, or clear if removed
@@ -511,11 +553,35 @@ export default function PlayerManager() {
               )}
 
               <div className="grid grid-cols-[1fr_72px] gap-2">
-                <div>
+                <div className="relative">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
-                  <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); }}
+                  <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); fetchSuggestions(e.target.value); }}
+                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    autoComplete="off"
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                     placeholder="Player name" />
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl max-h-48 overflow-y-auto">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={`${s.name}-${s.source}-${i}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applySuggestion(s)}
+                          className="w-full px-3 py-2.5 text-left cursor-pointer hover:bg-[var(--surface)] transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                        >
+                          <div>
+                            <Text size="sm" weight="medium">{s.name}</Text>
+                            <Text size="2xs" color="muted">{s.email ?? 'No email'}</Text>
+                          </div>
+                          <Text size="2xs" color="dim" className="capitalize">
+                            {s.source === 'member' ? 'Joined via invite' : 'Other team'}
+                          </Text>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>

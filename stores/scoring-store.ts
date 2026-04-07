@@ -18,6 +18,11 @@ import type {
   RetiredPlayer,
 } from '@/types/scoring';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { useAuthStore } from '@/stores/auth-store';
+
+function getCurrentTeamId(): string | null {
+  return useAuthStore.getState().currentTeamId;
+}
 import { toast } from 'sonner';
 
 let leaderboardRequestCounter = 0;
@@ -439,6 +444,7 @@ export const useScoringStore = create<ScoringState>()(
         p_scorer_name: scorerName,
         p_batting_first: battingFirst,
         p_players: allPlayers,
+        p_team_id: getCurrentTeamId(),
       });
 
       if (error) {
@@ -1686,7 +1692,7 @@ export const useScoringStore = create<ScoringState>()(
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data, error } = await supabase.rpc('get_deleted_matches', { result_limit: 20 });
+    const { data, error } = await supabase.rpc('get_deleted_matches', { result_limit: 20, p_team_id: getCurrentTeamId() });
     if (error) { console.error('[scoring] loadDeletedMatches failed:', error); return; }
     set({ deletedMatches: (data ?? []) as MatchHistoryItem[] });
   },
@@ -1695,7 +1701,7 @@ export const useScoringStore = create<ScoringState>()(
     if (!isCloudMode()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
-    const { data, error } = await supabase.rpc('get_guest_suggestions');
+    const { data, error } = await supabase.rpc('get_guest_suggestions', { p_team_id: getCurrentTeamId() });
     if (error) { console.error('[scoring] fetchGuestSuggestions:', error); return; }
     set({ guestSuggestions: (data ?? []) as { id: string; name: string }[] });
   },
@@ -1711,7 +1717,7 @@ export const useScoringStore = create<ScoringState>()(
     const requestId = ++leaderboardRequestCounter;
     set({ leaderboardLoading: true });
     const { leaderboardMatchLimit } = get();
-    const rpcParams: Record<string, unknown> = { p_category: category };
+    const rpcParams: Record<string, unknown> = { p_category: category, p_team_id: getCurrentTeamId() };
     if (leaderboardMatchLimit !== null) rpcParams.p_match_limit = leaderboardMatchLimit;
     const { data, error } = await supabase.rpc('get_practice_leaderboard', rpcParams);
     if (requestId !== leaderboardRequestCounter) return; // stale
@@ -1734,6 +1740,7 @@ export const useScoringStore = create<ScoringState>()(
       result_offset: offset,
       from_date: fromDate ?? null,
       to_date: toDate ?? null,
+      p_team_id: getCurrentTeamId(),
     });
     if (error) { console.error('[scoring] loadMatchHistory failed:', error); set({ historyLoading: false }); return; }
     const items = (data ?? []) as MatchHistoryItem[];
