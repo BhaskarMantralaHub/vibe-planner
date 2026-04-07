@@ -8,6 +8,7 @@ import { HamburgerMenu } from '@/components/HamburgerMenu';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
+import TeamSwitcher from '@/components/TeamSwitcher';
 import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 import { Button, Text } from '@/components/ui';
 import { toast } from 'sonner';
@@ -286,10 +287,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
           {isCricketContext ? (
             <>
-              <img src="/cricket-logo.png" alt="Sunrisers Manteca" className="h-9 transition-opacity group-hover:opacity-80" />
-              <Text size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-transparent">
-                Sunrisers Manteca
-              </Text>
+              <img src="/cricket-logo.png" alt="Team Logo" className="h-9 transition-opacity group-hover:opacity-80" />
+              <TeamSwitcher />
             </>
           ) : (
             <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">

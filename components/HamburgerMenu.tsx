@@ -12,7 +12,7 @@ interface HamburgerMenuProps {
 }
 
 export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
-  const { user, userAccess, userFeatures } = useAuthStore();
+  const { user, userAccess, userFeatures, userTeams, currentTeamId } = useAuthStore();
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -73,7 +73,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
           <div className="flex items-center justify-between">
             <Text as="h2" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] to-[var(--blue)] bg-clip-text text-transparent">
               {userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
-                ? 'Sunrisers Manteca'
+                ? (userTeams.find(t => t.team_id === currentTeamId)?.team_name ?? 'Cricket')
                 : "Viber\u0027s Toolkit"}
             </Text>
             <button

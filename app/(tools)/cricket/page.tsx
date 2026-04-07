@@ -111,9 +111,8 @@ const CAPSULE_TABS: CapsuleTab[] = [
 ];
 
 function CricketDashboard() {
-  const { user } = useAuthStore();
+  const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
   const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses, fees, sponsorships } = useCricketStore();
-  const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const [activeView, setActiveView] = useState<View>(() => {
@@ -159,7 +158,7 @@ function CricketDashboard() {
   const poolBalance = totalCollected - totalSpent;
 
   useEffect(() => {
-    document.title = 'Sunrisers Manteca';
+    document.title = userTeams.find(t => t.team_id === currentTeamId)?.team_name ?? 'Cricket';
     // Override ALL favicon links to cricket logo
     const iconLinks = document.querySelectorAll("link[rel~='icon'], link[rel='shortcut icon']");
     const prevHrefs = Array.from(iconLinks).map((l) => (l as HTMLLinkElement).href);
