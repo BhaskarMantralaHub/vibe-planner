@@ -164,9 +164,16 @@ Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `lab
 ### Multi-Team Tables
 Table `cricket_teams`: `id` (UUID), `name`, `slug` (unique, URL-safe), `logo_url`, `primary_color` (hex), `owner_id` (FK auth.users), `deleted_at`, `created_at`, `updated_at`. Soft delete via `deleted_at`.
 Table `team_members`: `id` (UUID), `team_id` (FK cricket_teams), `user_id` (FK auth.users), `role` ('owner'|'admin'|'player'), `joined_at`. UNIQUE(team_id, user_id). Owner escalation blocked by trigger.
+Table `team_invites`: `id` (UUID), `team_id` (FK cricket_teams CASCADE), `token` (UUID, unique), `created_by` (FK auth.users), `expires_at` (default 30 days), `max_uses` (NULL = unlimited), `use_count`, `is_active`, `created_at`. RLS: team admin or global admin only.
 Helper functions: `user_team_ids()` (STABLE SECURITY DEFINER, returns user's team IDs), `is_team_admin(team_id)`, `is_team_member(team_id)`, `is_global_admin()`.
+RPC: `validate_invite_token(token)` — public (no auth), returns team info if token is valid/active/not expired, NULL otherwise.
+RPC: `accept_invite(token)` — authenticated, adds user to team as player, grants cricket access/features, increments use_count. Idempotent (ON CONFLICT DO NOTHING).
+RPC: `create_team(name, slug, color)` — global admin only, creates team + owner membership in one transaction. Validates slug format.
+RPC: `suggest_players(query, team_id)` — autocomplete for adding players to a team. Returns two sources: (1) team members not yet on roster (enriched via LATERAL JOIN from other-team player records), (2) players from other teams not already on this team. Min 2 chars, limit 20.
+Trigger: `sync_player_profile_across_teams` — AFTER UPDATE on `cricket_players`, syncs global fields (name, email, photo_url, phone, player_role, batting/bowling style, shirt_size, cricclub_id) to all other records with same `user_id`. Team-specific fields (jersey_number, designation, is_guest, is_active, team_id) are NOT synced. Uses `pg_trigger_depth() > 1` guard to prevent recursion.
+`handle_new_user` trigger reads `team_slug` from signup metadata to auto-create `team_members` row. Fallback: if no team_slug but cricket access, uses first available team.
 All cricket tables have `team_id` FK to `cricket_teams`. RLS uses `team_id IN (SELECT * FROM user_team_ids())` for reads, `is_team_admin(team_id)` for writes.
-Full design: `docs/MULTI_TEAM_DESIGN.md`. Migration SQL: `docs/multi-team-migration.sql`.
+Full design: `docs/MULTI_TEAM_DESIGN.md`. Migration SQL: `docs/multi-team-migration.sql`. Phase 5 onboarding: `docs/multi-team-phase5-onboarding.sql`.
 
 ### Cricket Tables
 Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `team_id` (FK cricket_teams), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `is_guest` (BOOLEAN, true for auto-created guest players from practice matches — can be promoted to roster via `promote_guest_to_roster` RPC), `created_at`, `updated_at`. Unique index on `lower(name), team_id WHERE is_guest = true AND is_active = true` prevents duplicate guests per team.

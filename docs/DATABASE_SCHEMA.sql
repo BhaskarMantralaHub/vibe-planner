@@ -376,6 +376,50 @@ CREATE TABLE IF NOT EXISTS team_members (
 
 
 -- ============================================================================
+-- TABLE: team_invites (Phase 5: Team Onboarding)
+-- ============================================================================
+-- WHY: Invite link infrastructure for team onboarding. Team admins generate
+--      invite tokens (URLs) that new users can use to join a specific team.
+--      Tokens have optional expiry and max-use limits.
+-- COLUMNS:
+--   id         — UUID auto-generated
+--   team_id    — FK to cricket_teams (CASCADE on delete)
+--   token      — UUID unique invite token (used in invite URL)
+--   created_by — FK to auth.users who created the invite
+--   expires_at — Default 30 days from creation
+--   max_uses   — NULL = unlimited uses
+--   use_count  — Incremented on each accept
+--   is_active  — Can be deactivated by admin
+-- RLS: Team admin or global admin can read/create/update.
+-- RPCs:
+--   validate_invite_token(token) — public, no auth, returns team info or NULL
+--   accept_invite(token)         — authenticated, adds user to team + cricket access
+--   create_team(name, slug, color) — global admin only, creates team + owner membership
+--   suggest_players(query, team_id) — autocomplete for adding players from
+--     team members (not yet on roster) and other-team players (LATERAL JOIN enrichment)
+-- TRIGGER: sync_player_profile_across_teams — on UPDATE of cricket_players,
+--   syncs global fields (name, email, photo_url, phone, player_role, batting/bowling
+--   style, shirt_size, cricclub_id) to all other records with same user_id.
+--   Team-specific fields (jersey_number, designation, is_guest, is_active, team_id)
+--   are NOT synced. Uses pg_trigger_depth() guard to prevent recursion.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS team_invites (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id     UUID NOT NULL REFERENCES cricket_teams(id) ON DELETE CASCADE,
+  token       UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  created_by  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 days'),
+  max_uses    INTEGER DEFAULT NULL,
+  use_count   INTEGER NOT NULL DEFAULT 0,
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_team_invites_token ON team_invites(token);
+CREATE INDEX idx_team_invites_team ON team_invites(team_id);
+
+
+-- ============================================================================
 -- MULTI-TEAM: team_id Foreign Key on All Cricket Tables
 -- ============================================================================
 -- WHY: Every cricket table has a `team_id UUID NOT NULL REFERENCES cricket_teams(id)`
