@@ -91,23 +91,23 @@ function getCountdownSimple(dateStr: string, timeStr: string) {
   return getCountdown(dateStr, timeStr).text;
 }
 
-/* ── Add to Calendar (.ics) ── */
+/* ── Add to Calendar (.ics) — uses device local timezone ── */
+const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone; // e.g. "America/Los_Angeles"
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toICS = (d: Date) =>
+  `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}00`;
+
 function addToCalendar(match: Match) {
-  const [h, m] = match.match_time.split(':').map(Number);
   const start = new Date(`${match.match_date}T${match.match_time}:00`);
   const end = new Date(start.getTime() + 4 * 60 * 60 * 1000); // 4 hour duration
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toICS = (d: Date) =>
-    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
 
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//Sunrisers Manteca//Schedule//EN',
     'BEGIN:VEVENT',
-    `DTSTART:${toICS(start)}`,
-    `DTEND:${toICS(end)}`,
+    `DTSTART;TZID=${localTZ}:${toICS(start)}`,
+    `DTEND;TZID=${localTZ}:${toICS(end)}`,
     `SUMMARY:SRM vs ${match.opponent}`,
     `LOCATION:${match.venue}`,
     `DESCRIPTION:${match.overs} overs league match${match.notes ? ' — ' + match.notes : ''}`,
@@ -127,17 +127,13 @@ function addToCalendar(match: Match) {
 }
 
 function addAllToCalendar(matches: Match[]) {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toICS = (d: Date) =>
-    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
-
   const events = matches.map((match) => {
     const start = new Date(`${match.match_date}T${match.match_time}:00`);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     return [
       'BEGIN:VEVENT',
-      `DTSTART:${toICS(start)}`,
-      `DTEND:${toICS(end)}`,
+      `DTSTART;TZID=${localTZ}:${toICS(start)}`,
+      `DTEND;TZID=${localTZ}:${toICS(end)}`,
       `SUMMARY:SRM vs ${match.opponent}`,
       `LOCATION:${match.venue}`,
       `DESCRIPTION:20 overs league match${match.umpire ? ' | Umpires: ' + match.umpire : ''}${match.notes ? ' | ' + match.notes : ''}`,
