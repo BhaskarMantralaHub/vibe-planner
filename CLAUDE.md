@@ -161,8 +161,15 @@ Statuses: `spark`, `in_progress`, `scheduled`, `done`. Soft delete via `deleted_
 
 Table `id_documents`: `id` (UUID), `user_id`, `id_type`, `country` (US/IN), `label`, `owner_name`, `description`, `expiry_date`, `renewal_url`, `reminder_days` (integer array), `created_at`, `updated_at`.
 
+### Multi-Team Tables
+Table `cricket_teams`: `id` (UUID), `name`, `slug` (unique, URL-safe), `logo_url`, `primary_color` (hex), `owner_id` (FK auth.users), `deleted_at`, `created_at`, `updated_at`. Soft delete via `deleted_at`.
+Table `team_members`: `id` (UUID), `team_id` (FK cricket_teams), `user_id` (FK auth.users), `role` ('owner'|'admin'|'player'), `joined_at`. UNIQUE(team_id, user_id). Owner escalation blocked by trigger.
+Helper functions: `user_team_ids()` (STABLE SECURITY DEFINER, returns user's team IDs), `is_team_admin(team_id)`, `is_team_member(team_id)`, `is_global_admin()`.
+All cricket tables have `team_id` FK to `cricket_teams`. RLS uses `team_id IN (SELECT * FROM user_team_ids())` for reads, `is_team_admin(team_id)` for writes.
+Full design: `docs/MULTI_TEAM_DESIGN.md`. Migration SQL: `docs/multi-team-migration.sql`.
+
 ### Cricket Tables
-Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `is_guest` (BOOLEAN, true for auto-created guest players from practice matches — can be promoted to roster via `promote_guest_to_roster` RPC), `created_at`, `updated_at`. Unique index on `lower(name) WHERE is_guest = true AND is_active = true` prevents duplicate guests.
+Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `team_id` (FK cricket_teams), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `is_guest` (BOOLEAN, true for auto-created guest players from practice matches — can be promoted to roster via `promote_guest_to_roster` RPC), `created_at`, `updated_at`. Unique index on `lower(name), team_id WHERE is_guest = true AND is_active = true` prevents duplicate guests per team.
 Storage bucket `player-photos`: Public bucket for player profile photos. Path: `{user_id}/{player_id}.jpg`. Only the player themselves can upload (RLS by `auth.uid()`).
 Table `cricket_seasons`: `id`, `user_id`, `name`, `year`, `season_type`, `share_token` (UUID for public URL), `is_active`, `created_at`, `updated_at`.
 Table `cricket_expenses`: `id`, `user_id`, `season_id`, `paid_by` (player FK), `category`, `description`, `amount` (NUMERIC), `expense_date`, `created_by` (TEXT), `updated_by` (TEXT), `deleted_at`, `deleted_by` (TEXT), `created_at`, `updated_at`.

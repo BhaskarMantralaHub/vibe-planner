@@ -19,6 +19,8 @@ jobs:
 
           TABLES=(
             "profiles"
+            "cricket_teams"
+            "team_members"
             "cricket_players"
             "cricket_seasons"
             "cricket_expenses"
