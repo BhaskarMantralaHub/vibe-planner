@@ -37,6 +37,7 @@ export default function InviteHandler() {
   const [processing, setProcessing] = useState(false);
   const [teamInfo, setTeamInfo] = useState<{ team_name: string; team_slug: string } | null>(null);
   const [joined, setJoined] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState('');
 
   const joinToken = searchParams.get('join') || getPendingInvite();
@@ -99,20 +100,24 @@ export default function InviteHandler() {
     }
 
     clearPendingInvite();
-    setJoined(true);
     setProcessing(false);
-    toast.success(`Welcome to ${data.team_name}!`);
 
-    // Reload teams in auth store
-    await useAuthStore.getState().loadUserTeams();
-
-    // Remove ?join= from URL without reload
+    // Remove ?join= from URL
     const url = new URL(window.location.href);
     url.searchParams.delete('join');
     window.history.replaceState({}, '', url.pathname + url.search);
 
-    // Reload page to fetch new team data
-    setTimeout(() => window.location.reload(), 1500);
+    if (data.pending_approval) {
+      // Unknown player — needs admin approval
+      setPendingApproval(true);
+      toast('Request sent to team admin for approval');
+    } else {
+      // Pre-added or existing player — auto-approved
+      setJoined(true);
+      toast.success(`Welcome to ${data.team_name}!`);
+      await useAuthStore.getState().loadUserTeams();
+      setTimeout(() => window.location.reload(), 1500);
+    }
   };
 
   // No invite token in URL
@@ -123,6 +128,22 @@ export default function InviteHandler() {
     return (
       <Card className="mx-4 my-4 p-6 text-center">
         <Text size="sm" color="muted">{error}</Text>
+      </Card>
+    );
+  }
+
+  // Pending approval
+  if (pendingApproval) {
+    return (
+      <Card className="mx-4 my-4 p-6 text-center">
+        <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
+          style={{ background: 'color-mix(in srgb, var(--orange) 12%, transparent)' }}>
+          <Text size="xl">⏳</Text>
+        </div>
+        <Text size="sm" weight="semibold">Request sent</Text>
+        <Text size="xs" color="muted" className="mt-1">
+          The team admin has been notified. You'll get access once they approve your request.
+        </Text>
       </Card>
     );
   }
