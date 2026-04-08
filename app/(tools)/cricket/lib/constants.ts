@@ -13,6 +13,15 @@ export function getTeamCode(): string {
 }
 
 /// For backward compat — components that import TEAM_NAME get the dynamic value
+/// Get current team's logo URL (or null if no logo)
+export function getTeamLogoUrl(): string | null {
+  const { userTeams, currentTeamId } = useAuthStore.getState();
+  const team = userTeams.find(t => t.team_id === currentTeamId);
+  // Sunrisers has a local static logo as fallback
+  if (team?.team_slug === 'sunrisers-manteca' && !team.logo_url) return '/cricket-logo.png';
+  return team?.logo_url ?? null;
+}
+
 export const TEAM_NAME = 'Sunrisers Manteca'; // Legacy — prefer getTeamName()
 
 export type CategoryConfig = {

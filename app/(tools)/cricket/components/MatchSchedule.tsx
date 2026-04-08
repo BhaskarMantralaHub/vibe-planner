@@ -11,7 +11,7 @@ import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTr
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
-import { getTeamName, getTeamCode } from '../lib/constants';
+import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
 
 /* ── Types ── */
 interface Performer {
@@ -197,7 +197,9 @@ async function exportSchedulePDF(matches: Match[]) {
     doc.rect(0, i, W, 1, 'F');
   }
   try {
-    const res = await fetch('/cricket-logo.png');
+    const logoUrl = getTeamLogoUrl();
+    if (!logoUrl) throw new Error('no logo');
+    const res = await fetch(logoUrl);
     const blob = await res.blob();
     const b64 = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(blob); });
     doc.addImage(b64, 'PNG', M, 5, 14, 14);

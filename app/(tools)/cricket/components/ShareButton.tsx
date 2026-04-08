@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
-import { getTeamName, getCategoryConfig } from '../lib/constants';
+import { getTeamName, getTeamLogoUrl, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { FaFilePdf } from 'react-icons/fa';
 import { MdShare } from 'react-icons/md';
@@ -205,7 +205,9 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
 
   // Logo in banner
   try {
-    const logoRes = await fetch('/cricket-logo.png');
+    const logoUrl = getTeamLogoUrl();
+    if (!logoUrl) throw new Error('no logo');
+    const logoRes = await fetch(logoUrl);
     const logoBlob = await logoRes.blob();
     const logoBase64 = await new Promise<string>((resolve) => {
       const reader = new FileReader();
