@@ -271,6 +271,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const showNav = (!isCloud || !!user) && !needsPasswordReset;
 
+  // Apply team color as CSS variable override
+  const { userTeams, currentTeamId } = useAuthStore();
+  const currentTeam = userTeams.find(t => t.team_id === currentTeamId);
+  useEffect(() => {
+    if (isCricketContext && currentTeam?.primary_color) {
+      document.documentElement.style.setProperty('--cricket', currentTeam.primary_color);
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--cricket');
+    };
+  }, [isCricketContext, currentTeam?.primary_color]);
+
   return (
     <>
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-md">
