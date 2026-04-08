@@ -13,6 +13,12 @@ import { PasswordInput, passwordRequirements, allRequirementsMet, Spinner, Text 
 
 type AuthGateVariant = 'toolkit' | 'cricket';
 
+interface InviteTeamInfo {
+  team_name: string;
+  team_slug: string;
+  team_id: string;
+}
+
 /* ── Request Access screen — shown when user is logged in but lacks access for this variant ── */
 function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   const { user, logout } = useAuthStore();
@@ -184,7 +190,8 @@ const VARIANT_CONFIG = {
 export function AuthGate({ children, variant = 'toolkit' }: { children: React.ReactNode; variant?: AuthGateVariant }) {
   const { user, loading, isCloud, authMode, authError, syncing, login, signup, resetPassword, setAuthMode, clearError, init } =
     useAuthStore();
-  const v = VARIANT_CONFIG[variant];
+  const baseConfig = VARIANT_CONFIG[variant];
+  const [v, setV] = useState(baseConfig);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -201,6 +208,22 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   const showBatting = ['batsman', 'all-rounder', 'keeper'].includes(playerRole);
   const showBowling = ['bowler', 'all-rounder'].includes(playerRole);
 
+  // Invite token branding — detect ?join= param and fetch team info
+  const [inviteTeam, setInviteTeam] = useState<InviteTeamInfo | null>(null);
+
+  useEffect(() => {
+    if (variant !== 'cricket' || typeof window === 'undefined') return;
+    const joinToken = new URLSearchParams(window.location.search).get('join');
+    if (!joinToken) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    supabase.rpc('validate_invite_token', { p_token: joinToken })
+      .then(({ data }: { data: InviteTeamInfo | null }) => {
+        if (data && !('error' in data)) setInviteTeam(data);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant]);
+
   const handleRoleChange = (role: string) => {
     const newRole = playerRole === role ? '' : role;
     setPlayerRole(newRole);
@@ -212,10 +235,26 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     init();
   }, [init]);
 
+  // Override config with invite team branding when available
+  useEffect(() => {
+    if (inviteTeam?.team_name) {
+      const name = inviteTeam.team_name;
+      setV(prev => ({
+        ...prev,
+        tagline: name,
+        heroAlt: name,
+        loginTitle: `Welcome to ${name}`,
+        loginSubtitle: 'Log in to your team',
+        signupTitle: `Join ${name}`,
+        signupSubtitle: 'Create your account to join the team',
+      }));
+    }
+  }, [inviteTeam]);
+
   // Set favicon + title for cricket variant
   useEffect(() => {
     if (variant === 'cricket') {
-      document.title = 'Cricket';
+      document.title = inviteTeam?.team_name ?? 'Cricket';
       const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
         || document.createElement('link');
       link.rel = 'icon';
