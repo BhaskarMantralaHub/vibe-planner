@@ -14,7 +14,7 @@ import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCo
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { EmptyState, Text, CardMenu } from '@/components/ui';
+import { EmptyState, Text, CardMenu, Badge } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import PlayerProfile from './PlayerProfile';
@@ -195,6 +195,8 @@ export default function PlayerManager() {
   const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
+  const [linkedSource, setLinkedSource] = useState<string | null>(null); // 'member' | 'other_team' | null
+  const isLinkedProfile = !!linkedUserId;
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestRequestRef = useRef(0);
 
@@ -227,6 +229,7 @@ export default function PlayerManager() {
     if (s.cricclub_id != null) setCricclubId(s.cricclub_id);
     if (s.designation != null) setDesignation(s.designation);
     if (s.user_id) setLinkedUserId(s.user_id);
+    setLinkedSource(s.source);
     setShowSuggestions(false);
     setSuggestions([]);
   };
@@ -256,7 +259,7 @@ export default function PlayerManager() {
   const resetForm = () => {
     setName(''); setJersey(''); setEmail(''); setCricclubId(''); setShirtSize('');
     setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setDesignation('');
-    setIsGuestPlayer(false); setLinkedUserId(null);
+    setIsGuestPlayer(false); setLinkedUserId(null); setLinkedSource(null);
     setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(false);
     setEditingPlayer(null); setDesignationConflict(null);
     sessionStorage.removeItem(FORM_STORAGE_KEY);
@@ -321,13 +324,53 @@ export default function PlayerManager() {
   const handleSubmit = async () => {
     if (!user || !isFormValid() || submitting) return;
 
-    // Check for duplicate name
+    // Check for duplicate name on current team
     const duplicate = activePlayers.find(
       (p) => p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== editingPlayer
     );
     if (duplicate) {
-      setFormError(`A player named "${duplicate.name}" already exists.`);
+      setFormError(`A player named "${duplicate.name}" already exists on this team.`);
       return;
+    }
+    // If not linked, check if this player already exists (by email or cricclub ID)
+    if (!isLinkedProfile && !editingPlayer) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const teamId = useAuthStore.getState().currentTeamId;
+        const checkEmail = email.trim().toLowerCase();
+        // Check by email first (most reliable identifier)
+        if (checkEmail) {
+          const { data: emailMatch } = await supabase
+            .from('cricket_players')
+            .select('name, team_id')
+            .ilike('email', checkEmail)
+            .neq('team_id', teamId ?? '')
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+          if (emailMatch) {
+            setFormError(`A player with this email already exists (${emailMatch.name}). Type their name and use the suggestion dropdown to link their profile.`);
+            return;
+          }
+        }
+        // Check by CricClub ID
+        if (cricclubId.trim()) {
+          const { data: ccMatch } = await supabase
+            .from('cricket_players')
+            .select('name, team_id')
+            .eq('cricclub_id', cricclubId.trim())
+            .neq('team_id', teamId ?? '')
+            .eq('is_active', true)
+            .limit(1)
+            .single();
+          if (ccMatch) {
+            setFormError(`CricClub ID "${cricclubId.trim()}" belongs to ${ccMatch.name} on another team. Type their name and use the suggestion dropdown to link their profile.`);
+            return;
+          }
+        }
+        // Name matching removed — names vary (Bhaskar vs Bachi vs Bhaskar Bachi)
+        // Email and CricClub ID are the reliable identifiers
+      }
     }
     // Check for duplicate email
     const trimmedEmail = email.trim().toLowerCase();
@@ -384,7 +427,7 @@ export default function PlayerManager() {
     }
 
     setSubmitting(false);
-    if (!editingPlayer) toast.success('Player added');
+    // Toast handled by cricket-store after DB confirmation
     resetForm(); setShowPlayerForm(false);
   };
 
@@ -500,6 +543,192 @@ export default function PlayerManager() {
               <button onClick={() => { resetForm(); setShowPlayerForm(false); }} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer text-lg">✕</button>
             </div>
 
+            {/* Linked profile banner */}
+            {isLinkedProfile && !editingPlayer && (
+              <div className="mb-4 rounded-xl overflow-hidden border"
+                style={{ borderColor: 'color-mix(in srgb, var(--green) 30%, transparent)' }}>
+                <div className="flex items-center gap-2.5 px-3 py-2.5"
+                  style={{ background: 'color-mix(in srgb, var(--green) 8%, transparent)' }}>
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--green)' }}>
+                    <MdCheck size={13} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <Text size="xs" weight="semibold" className="leading-tight">Found {name.split(' ')[0]} in your roster</Text>
+                    <Text size="2xs" color="muted" className="leading-tight mt-0.5">Profile shared across teams. Assign jersey and designation below.</Text>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Linked profile: simplified form — only jersey + designation */}
+            {isLinkedProfile && !editingPlayer ? (
+              <div className="space-y-4">
+                {/* Player profile card — matches PlayerProfile design */}
+                {(() => {
+                  const allPlayers = useCricketStore.getState().players;
+                  const sourcePlayer = linkedUserId ? allPlayers.find(p => p.user_id === linkedUserId) : null;
+                  const photoUrl = sourcePlayer?.photo_url ?? null;
+                  const rc = roleConfig[playerRole ?? ''];
+                  const roleColor = rc?.color ?? 'var(--cricket)';
+                  const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+
+                  return (
+                    <div className="rounded-2xl border border-[var(--border)] overflow-hidden">
+                      {/* Header — centered photo + name + badges */}
+                      <div className="flex flex-col items-center pt-5 pb-3 px-5 rounded-t-2xl"
+                        style={{ background: colorAlpha(roleColor, 6) }}>
+                        {photoUrl ? (
+                          <img src={photoUrl} alt={name}
+                            className="h-16 w-16 rounded-full object-cover"
+                            style={{ border: `3px solid ${colorAlpha(roleColor, 30)}` }} />
+                        ) : (
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full text-[20px] font-extrabold"
+                            style={{ backgroundColor: colorAlpha(roleColor, 10), color: roleColor, border: `3px solid ${colorAlpha(roleColor, 25)}` }}>
+                            {initials}
+                          </div>
+                        )}
+                        <Text size="md" weight="bold" className="mt-2">{name}</Text>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
+                          {rc && (
+                            <Badge size="sm" className="inline-flex items-center gap-1"
+                              style={{ color: roleColor, background: colorAlpha(roleColor, 10) }}>
+                              {rc.icon} {rc.label}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills */}
+                      {(battingStyle || bowlingStyle || shirtSize) && (
+                        <div className="px-4 py-3 flex flex-wrap gap-2">
+                          {battingStyle && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px]"
+                              style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                              <MdSportsCricket size={14} style={{ color: roleColor }} />
+                              <span className="text-[var(--muted)]">Bat</span>
+                              <span className="font-semibold text-[var(--text)]">{battingStyle === 'right' ? 'Right' : 'Left'} Hand</span>
+                            </div>
+                          )}
+                          {bowlingStyle && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px]"
+                              style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                              <GiTennisBall size={13} style={{ color: roleColor }} />
+                              <span className="text-[var(--muted)]">Bowl</span>
+                              <span className="font-semibold text-[var(--text)]">{bowlingStyle.charAt(0).toUpperCase() + bowlingStyle.slice(1)}</span>
+                            </div>
+                          )}
+                          {shirtSize && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px]"
+                              style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                              <FaTshirt size={12} style={{ color: roleColor }} />
+                              <span className="text-[var(--muted)]">Size</span>
+                              <span className="font-semibold text-[var(--text)]">{shirtSize}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Contact */}
+                      {(email || cricclubId) && (
+                        <div className="px-4 pb-3 space-y-2">
+                          {email && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                              <div className="flex-shrink-0 h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
+                                <MdEmail size={14} style={{ color: roleColor }} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <Text size="2xs" weight="semibold" color="muted" className="block text-[9px] uppercase tracking-wider">Email</Text>
+                                <Text size="xs" weight="medium" className="block truncate">{email}</Text>
+                              </div>
+                              <button onClick={() => { navigator.clipboard.writeText(email); toast.success('Email copied'); }}
+                                className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                                title="Copy email">
+                                <MdContentCopy size={13} />
+                              </button>
+                            </div>
+                          )}
+                          {cricclubId && (
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                              <div className="flex-shrink-0 h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
+                                <MdBadge size={14} style={{ color: roleColor }} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <Text size="2xs" weight="semibold" color="muted" className="block text-[9px] uppercase tracking-wider">CricClub ID</Text>
+                                <Text size="xs" weight="semibold" className="block">{cricclubId}</Text>
+                              </div>
+                              <button onClick={() => { navigator.clipboard.writeText(cricclubId); toast.success('CricClub ID copied'); }}
+                                className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                                title="Copy CricClub ID">
+                                <MdContentCopy size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Guest Player toggle */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setIsGuestPlayer(!isGuestPlayer)}
+                    className="w-full flex items-center justify-between rounded-xl p-3 cursor-pointer transition-all border"
+                    style={{
+                      backgroundColor: isGuestPlayer ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'var(--surface)',
+                      borderColor: isGuestPlayer ? 'var(--cricket)' : 'var(--border)',
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Text size="sm" weight="medium">Guest Player</Text>
+                      <Text size="2xs" color="dim">Practice / fill-in player</Text>
+                    </div>
+                    <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
+                      <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                    </div>
+                  </button>
+                )}
+
+                {/* Jersey number */}
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey Number</label>
+                  <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                    placeholder="e.g. 7" />
+                </div>
+
+                {/* Designation (admin only, not for guests) */}
+                {isAdmin && !isGuestPlayer && (
+                  <div>
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
+                    <div className="flex gap-2">
+                      {[{ key: 'captain', label: 'Captain', icon: <FaCrown size={12} /> }, { key: 'vice-captain', label: 'Vice Captain', icon: <FaShieldAlt size={12} /> }].map((d) => (
+                        <button key={d.key} type="button" onClick={() => setDesignation(designation === d.key ? '' : d.key)}
+                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                          style={{
+                            backgroundColor: designation === d.key ? 'var(--cricket-accent)' : 'transparent',
+                            borderColor: designation === d.key ? 'var(--cricket-accent)' : 'var(--border)',
+                            color: designation === d.key ? 'white' : 'var(--muted)',
+                          }}>
+                          {d.icon} {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  disabled={submitting}
+                  onClick={handleSubmit}
+                  className="w-full rounded-xl py-3 text-[15px] font-semibold text-white cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+                  {submitting ? 'Adding...' : '+ Add to Team'}
+                </button>
+              </div>
+            ) : (
+
             <div className="space-y-4">
               {/* Photo upload — only for self-edit (signed-up player editing own card) */}
               {(isSelfEditing || (isAdmin && editingPlayer)) && (
@@ -552,36 +781,19 @@ export default function PlayerManager() {
                 </div>
               )}
 
+              <div className="relative">
               <div className="grid grid-cols-[1fr_72px] gap-2">
-                <div className="relative">
+                <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
-                  <input value={name} onChange={(e) => { setName(e.target.value); setFormError(''); fetchSuggestions(e.target.value); }}
+                  <input value={name} onChange={(e) => { if (!isLinkedProfile) { setName(e.target.value); setFormError(''); fetchSuggestions(e.target.value); } }}
                     onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    readOnly={isLinkedProfile}
                     autoComplete="off"
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                    className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                      isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
+                    }`}
                     placeholder="Player name" />
-                  {showSuggestions && suggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl max-h-48 overflow-y-auto">
-                      {suggestions.map((s, i) => (
-                        <button
-                          key={`${s.name}-${s.source}-${i}`}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => applySuggestion(s)}
-                          className="w-full px-3 py-2.5 text-left cursor-pointer hover:bg-[var(--surface)] transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
-                        >
-                          <div>
-                            <Text size="sm" weight="medium">{s.name}</Text>
-                            <Text size="2xs" color="muted">{s.email ?? 'No email'}</Text>
-                          </div>
-                          <Text size="2xs" color="dim" className="capitalize">
-                            {s.source === 'member' ? 'Joined via invite' : 'Other team'}
-                          </Text>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>
@@ -589,6 +801,42 @@ export default function PlayerManager() {
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors text-center"
                     placeholder="#" />
                 </div>
+              </div>
+              {/* Suggestions dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 z-50 mt-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] max-h-60 overflow-y-auto overflow-x-hidden"
+                  style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08)' }}>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={`${s.name}-${s.source}-${i}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applySuggestion(s)}
+                      className="w-full flex items-center gap-3 px-3 py-3 text-left cursor-pointer active:bg-[var(--surface)] hover:bg-[var(--surface)] transition-colors border-l-[3px]"
+                      style={{ borderLeftColor: s.source === 'member' ? 'var(--green)' : 'var(--blue)' }}
+                    >
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-[14px] shrink-0"
+                        style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+                        {s.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="truncate text-[14px] font-semibold text-[var(--text)]">{s.name}</span>
+                          {s.player_role && (
+                            <span className="shrink-0 text-[11px] text-[var(--dim)] capitalize">{s.player_role.replace('-', ' ')}</span>
+                          )}
+                        </div>
+                        {s.email && (
+                          <p className="truncate text-[12px] text-[var(--muted)] mt-0.5">{s.email}</p>
+                        )}
+                      </div>
+                      <svg className="h-4 w-4 shrink-0 text-[var(--dim)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              )}
               </div>
               {/* Guest Player toggle (only for new players, not editing) */}
               {isAdmin && !editingPlayer && (
@@ -614,14 +862,20 @@ export default function PlayerManager() {
               {!isGuestPlayer && <>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                <input type="email" value={email} onChange={(e) => { if (!isLinkedProfile) setEmail(e.target.value); }}
+                  readOnly={isLinkedProfile}
+                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                    isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
+                  }`}
                   placeholder="player@email.com" />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
-                <input value={cricclubId} onChange={(e) => setCricclubId(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                <input value={cricclubId} onChange={(e) => { if (!isLinkedProfile) setCricclubId(e.target.value); }}
+                  readOnly={isLinkedProfile}
+                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                    isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
+                  }`}
                   placeholder="Optional" />
               </div>
               {/* Designation (admin only) */}
@@ -652,8 +906,9 @@ export default function PlayerManager() {
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Shirt Size</label>
                 <div className="flex flex-wrap gap-1.5">
                   {SHIRT_SIZES.map((s) => (
-                    <button key={s.key} type="button" onClick={() => setShirtSize(shirtSize === s.key ? '' : s.key)}
-                      className="h-8 w-10 rounded-lg text-[12px] font-medium cursor-pointer transition-all border"
+                    <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setShirtSize(shirtSize === s.key ? '' : s.key); }}
+                      disabled={isLinkedProfile}
+                      className={`h-8 w-10 rounded-lg text-[12px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                       style={{ backgroundColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
                       {s.label}
                     </button>
@@ -668,8 +923,9 @@ export default function PlayerManager() {
                     const rc = roleConfig[r.key];
                     const isSelected = playerRole === r.key;
                     return (
-                      <button key={r.key} type="button" onClick={() => handleRoleChange(r.key)}
-                        className="flex items-center gap-2.5 rounded-xl p-2.5 cursor-pointer transition-all border-2 text-left"
+                      <button key={r.key} type="button" onClick={() => { if (!isLinkedProfile) handleRoleChange(r.key); }}
+                        disabled={isLinkedProfile}
+                        className={`flex items-center gap-2.5 rounded-xl p-2.5 transition-all border-2 text-left ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                         style={{
                           backgroundColor: isSelected ? 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)' : 'var(--surface)',
                           borderColor: isSelected ? 'var(--cricket-accent)' : 'var(--border)',
@@ -698,8 +954,9 @@ export default function PlayerManager() {
                       <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Batting *</label>
                       <div className="flex flex-col gap-1.5">
                         {BATTING_STYLES.map((s) => (
-                          <button key={s.key} type="button" onClick={() => setBattingStyle(battingStyle === s.key ? '' : s.key)}
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                          <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setBattingStyle(battingStyle === s.key ? '' : s.key); }}
+                            disabled={isLinkedProfile}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                             style={{ backgroundColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
                             {battingIcon()} {s.label}
                           </button>
@@ -712,8 +969,9 @@ export default function PlayerManager() {
                       <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Bowling *</label>
                       <div className="flex flex-col gap-1.5">
                         {BOWLING_STYLES.map((s) => (
-                          <button key={s.key} type="button" onClick={() => setBowlingStyle(bowlingStyle === s.key ? '' : s.key)}
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                          <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setBowlingStyle(bowlingStyle === s.key ? '' : s.key); }}
+                            disabled={isLinkedProfile}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                             style={{ backgroundColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
                             {bowlingIcon()} {s.label}
                           </button>
@@ -730,6 +988,7 @@ export default function PlayerManager() {
                 {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
               </Button>
             </div>
+            )}
           </div>
         </>,
         document.body,

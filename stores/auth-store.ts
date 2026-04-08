@@ -22,6 +22,8 @@ export interface UserTeam {
   team_name: string;
   team_slug: string;
   role: string;
+  logo_url: string | null;
+  primary_color: string | null;
 }
 
 interface AuthState {
@@ -460,16 +462,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data } = await supabase
       .from('team_members')
-      .select('team_id, role, cricket_teams(name, slug)')
+      .select('team_id, role, cricket_teams(name, slug, logo_url, primary_color)')
       .eq('user_id', get().user!.id);
 
     if (!data) return;
 
-    const teams: UserTeam[] = data.map((row: { team_id: string; role: string; cricket_teams: { name: string; slug: string } | null }) => ({
+    const teams: UserTeam[] = data.map((row: { team_id: string; role: string; cricket_teams: { name: string; slug: string; logo_url: string | null; primary_color: string | null } | null }) => ({
       team_id: row.team_id,
       team_name: (row.cricket_teams as { name: string; slug: string } | null)?.name ?? 'Unknown',
       team_slug: (row.cricket_teams as { name: string; slug: string } | null)?.slug ?? '',
       role: row.role,
+      logo_url: (row.cricket_teams as { logo_url: string | null } | null)?.logo_url ?? null,
+      primary_color: (row.cricket_teams as { primary_color: string | null } | null)?.primary_color ?? null,
     }));
 
     const storedTeamId = localStorage.getItem('vibe_current_team');

@@ -13,6 +13,8 @@ import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 import { Button, Text } from '@/components/ui';
 import { toast } from 'sonner';
 
+// Team logo removed — now integrated into the TeamSwitcher pill component
+
 type PlayerMeta = {
   jersey_number?: number;
   player_role?: string;
@@ -286,10 +288,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
           {isCricketContext ? (
-            <>
-              <img src="/cricket-logo.png" alt="Team Logo" className="h-9 transition-opacity group-hover:opacity-80" />
-              <TeamSwitcher />
-            </>
+            <TeamSwitcher />
           ) : (
             <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
               Viber&apos;s Toolkit
