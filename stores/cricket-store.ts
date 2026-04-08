@@ -457,7 +457,37 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         .select().single()
         .then(({ data: row, error }: { data: CricketPlayer | null; error: unknown }) => {
           if (error) { console.error('[cricket] addPlayer failed:', error); toast.error('Couldn\'t add player. Check your connection and try again.'); }
-          if (row) { set({ players: get().players.map((p) => p.id === localId ? row : p) }); toast.success('Player added'); }
+          if (row) {
+            set({ players: get().players.map((p) => p.id === localId ? row : p) });
+            toast.success('Player added');
+            // Auto-add to team_members if linked to a user (so they see the team switcher)
+            if (linkedUserId) {
+              const teamId = getCurrentTeamId();
+              if (teamId) {
+                supabase?.from('team_members')
+                  .insert({ team_id: teamId, user_id: linkedUserId, role: 'player' })
+                  .then(({ error: tmErr }: { error: { message: string } | null }) => {
+                    if (tmErr && !tmErr.message?.includes('duplicate')) {
+                      console.warn('[cricket] team_members insert failed:', tmErr.message);
+                    }
+                  });
+                // Ensure user has cricket access + feature
+                supabase?.from('profiles')
+                  .select('access, features')
+                  .eq('id', linkedUserId)
+                  .single()
+                  .then(({ data: profile }: { data: { access: string[] | null; features: string[] | null } | null }) => {
+                    if (!profile) return;
+                    const updates: Record<string, unknown> = {};
+                    if (!profile.access?.includes('cricket')) updates.access = [...(profile.access || []), 'cricket'];
+                    if (!profile.features?.includes('cricket')) updates.features = [...(profile.features || []), 'cricket'];
+                    if (Object.keys(updates).length > 0) {
+                      supabase?.from('profiles').update(updates).eq('id', linkedUserId).then(() => {});
+                    }
+                  });
+              }
+            }
+          }
         });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });

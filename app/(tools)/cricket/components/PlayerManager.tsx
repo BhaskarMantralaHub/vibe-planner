@@ -142,13 +142,24 @@ export default function PlayerManager() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    // Fetch admin emails from profiles (RLS: own row for regular admins, all for super admin)
-    supabase.from('profiles').select('email, access').then(({ data }: { data: { email: string; access: string[] }[] | null }) => {
-      if (!data) return;
-      setAdminEmails(new Set(
-        data.filter((p) => p.access?.includes('admin')).map((p) => p.email.toLowerCase())
-      ));
-    });
+    // Fetch team admin user_ids from team_members for current team
+    const teamId = useAuthStore.getState().currentTeamId;
+    if (teamId) {
+      supabase.from('team_members')
+        .select('user_id, role')
+        .eq('team_id', teamId)
+        .in('role', ['admin', 'owner'])
+        .then(({ data: tmData }: { data: { user_id: string; role: string }[] | null }) => {
+          if (!tmData) return;
+          const adminUserIds = new Set(tmData.map(m => m.user_id));
+          // Map user_ids to emails via players
+          const emails = new Set(
+            activePlayers.filter(p => p.user_id && adminUserIds.has(p.user_id) && p.email)
+              .map(p => p.email!.toLowerCase())
+          );
+          setAdminEmails(emails);
+        });
+    }
 
     // Fetch signed-up status via RPC (SECURITY DEFINER — bypasses RLS, checks auth.users)
     const playerEmails = activePlayers
@@ -437,27 +448,30 @@ export default function PlayerManager() {
   };
 
   const handleAdminAccess = async (p: CricketPlayer) => {
-    if (!p.email) {
-      setAdminModal({ player: p, status: 'no-email' });
+    if (!p.user_id) {
+      setAdminModal({ player: p, status: 'no-account' });
       return;
     }
     setAdminModal({ player: p, status: 'loading' });
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const teamId = useAuthStore.getState().currentTeamId;
+    if (!teamId) return;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, access')
-      .ilike('email', p.email!)
+    // Check team_members role (team-scoped, not global)
+    const { data: membership } = await supabase
+      .from('team_members')
+      .select('role')
+      .eq('user_id', p.user_id)
+      .eq('team_id', teamId)
       .single();
 
-    if (!profile) {
+    if (!membership) {
       setAdminModal({ player: p, status: 'no-account' });
       return;
     }
 
-    const access: string[] = profile.access ?? [];
-    if (access.includes('admin')) {
+    if (membership.role === 'admin' || membership.role === 'owner') {
       setAdminModal({ player: p, status: 'has-admin' });
     } else {
       setAdminModal({ player: p, status: 'can-grant' });
@@ -465,40 +479,38 @@ export default function PlayerManager() {
   };
 
   const grantAdmin = async () => {
-    if (!adminModal?.player.email) return;
+    if (!adminModal?.player.user_id) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const teamId = useAuthStore.getState().currentTeamId;
+    if (!teamId) return;
 
-    const { data: profile, error: fetchErr } = await supabase
-      .from('profiles')
-      .select('id, access')
-      .ilike('email', adminModal.player.email)
-      .single();
+    // Update team_members role to 'admin' (team-scoped, not global)
+    const { error } = await supabase.from('team_members')
+      .update({ role: 'admin' })
+      .eq('user_id', adminModal.player.user_id)
+      .eq('team_id', teamId);
 
-    if (fetchErr) { console.error('[cricket] grant admin fetch:', fetchErr); }
-    if (!profile) return;
-    const access: string[] = profile.access ?? [];
-    if (!access.includes('admin')) {
-      const { error: updateErr } = await supabase.from('profiles').update({ access: [...access, 'admin'], is_admin: true }).eq('id', profile.id);
-      if (updateErr) { console.error('[cricket] grant admin update:', updateErr); }
-    }
+    if (error) { console.error('[cricket] grant team admin:', error); toast.error('Failed to grant admin'); }
+    else { toast.success(`${adminModal.player.name} is now a team admin`); }
     setAdminModal(null);
   };
 
   const revokeAdmin = async () => {
-    if (!adminModal?.player.email) return;
+    if (!adminModal?.player.user_id) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const teamId = useAuthStore.getState().currentTeamId;
+    if (!teamId) return;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, access')
-      .ilike('email', adminModal.player.email)
-      .single();
+    // Revert team_members role to 'player' (team-scoped)
+    const { error } = await supabase.from('team_members')
+      .update({ role: 'player' })
+      .eq('user_id', adminModal.player.user_id)
+      .eq('team_id', teamId);
 
-    if (!profile) return;
-    const access: string[] = profile.access ?? [];
-    await supabase.from('profiles').update({ access: access.filter((a) => a !== 'admin'), is_admin: false }).eq('id', profile.id);
+    if (error) { console.error('[cricket] revoke team admin:', error); toast.error('Failed to revoke admin'); }
+    else { toast.success(`${adminModal.player.name} is no longer a team admin`); }
     setAdminModal(null);
   };
 
