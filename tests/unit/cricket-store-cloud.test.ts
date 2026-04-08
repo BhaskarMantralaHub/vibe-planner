@@ -83,6 +83,8 @@ function resetStore() {
     hasMoreGallery: false,
     galleryOffset: 0,
     selectedSeasonId: SEASONS[0].id,
+    lastLoadedAt: null,
+    lastLoadedTeamId: null,
     showPlayerForm: false,
     showExpenseForm: false,
     showSettleForm: false,

@@ -114,6 +114,8 @@ interface CricketState {
   hasMoreGallery: boolean;
   galleryOffset: number;
   selectedSeasonId: string | null;
+  lastLoadedAt: number | null;
+  lastLoadedTeamId: string | null;
 
   // UI state
   showPlayerForm: boolean;
@@ -206,20 +208,30 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   hasMoreGallery: false,
   galleryOffset: 0,
   selectedSeasonId: null,
+  lastLoadedAt: null,
+  lastLoadedTeamId: null,
 
   showPlayerForm: false,
   showExpenseForm: false,
   showSettleForm: false,
   editingPlayer: null,
 
-  loadAll: async (userId: string) => {
+  loadAll: async (userId: string, forceRefresh = false) => {
+    const STALE_MS = 30_000; // 30 seconds
+    const { lastLoadedAt, lastLoadedTeamId } = get();
+    const teamId = getCurrentTeamId();
+
+    // Skip if data is fresh and same team (unless forced)
+    if (!forceRefresh && lastLoadedAt && lastLoadedTeamId === teamId && Date.now() - lastLoadedAt < STALE_MS) {
+      set({ loading: false });
+      return;
+    }
+
     set({ loading: true });
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       if (!supabase) { set({ loading: false }); return; }
-
-      const teamId = getCurrentTeamId();
 
       // Build team-filtered queries (multi-team users see only active team's data)
       let playersQ = supabase.from('cricket_players').select('*').order('created_at');
@@ -258,9 +270,10 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const players = (playersRes.data ?? []) as CricketPlayer[];
       const seasons = (seasonsRes.data ?? []) as CricketSeason[];
       const expenses = (expensesRes.data ?? []) as CricketExpense[];
-      const splits = ((splitsRes.data ?? []) as (CricketExpenseSplit & { cricket_expenses?: unknown })[]).map(
-        ({ cricket_expenses: _, ...s }) => s as CricketExpenseSplit,
-      );
+      const expenseIds = new Set(expenses.map(e => e.id));
+      const splits = ((splitsRes.data ?? []) as (CricketExpenseSplit & { cricket_expenses?: unknown })[])
+        .map(({ cricket_expenses: _, ...s }) => s as CricketExpenseSplit)
+        .filter(s => expenseIds.has(s.expense_id));
       const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
       const fees = (feesRes.data ?? []) as CricketSeasonFee[];
       const sponsorships = (sponsorsRes.data ?? []) as CricketSponsorship[];
@@ -273,7 +286,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
       const selectedSeasonId = pickCurrentSeason(seasons);
       const hasMoreGallery = gallery.length === GALLERY_PAGE_SIZE;
-      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false });
+      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false, lastLoadedAt: Date.now(), lastLoadedTeamId: teamId });
     } else {
       const data = localLoad();
       const selectedSeasonId = pickCurrentSeason(data.seasons);
