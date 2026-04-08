@@ -105,6 +105,19 @@ BEGIN
         WHERE user_id = auth.uid() AND team_id = v_team_id
         ORDER BY created_at DESC LIMIT 50
       ) row
+    ),
+    'admin_user_ids', (
+      SELECT COALESCE(json_agg(tm.user_id), '[]'::json)
+      FROM team_members tm
+      WHERE tm.team_id = v_team_id AND tm.role IN ('admin', 'owner')
+    ),
+    'signed_up_emails', (
+      SELECT COALESCE(json_agg(lower(au.email)), '[]'::json)
+      FROM auth.users au
+      WHERE lower(au.email) IN (
+        SELECT lower(cp.email) FROM cricket_players cp
+        WHERE cp.team_id = v_team_id AND cp.is_active = true AND cp.email IS NOT NULL
+      )
     )
   ) INTO result;
 

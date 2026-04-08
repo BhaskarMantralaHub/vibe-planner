@@ -116,6 +116,8 @@ interface CricketState {
   selectedSeasonId: string | null;
   lastLoadedAt: number | null;
   lastLoadedTeamId: string | null;
+  adminUserIds: string[];
+  signedUpEmails: string[];
 
   // UI state
   showPlayerForm: boolean;
@@ -210,6 +212,8 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   selectedSeasonId: null,
   lastLoadedAt: null,
   lastLoadedTeamId: null,
+  adminUserIds: [],
+  signedUpEmails: [],
 
   showPlayerForm: false,
   showExpenseForm: false,
@@ -261,6 +265,10 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         galleryLikes = (d.gallery_likes ?? []) as GalleryLike[];
         commentReactions = (d.comment_reactions ?? []) as CommentReaction[];
         notifications = (d.notifications ?? []) as GalleryNotification[];
+        // Admin data included in RPC response
+        const adminUserIds = (d.admin_user_ids ?? []) as string[];
+        const signedUpEmails = (d.signed_up_emails ?? []) as string[];
+        set({ adminUserIds, signedUpEmails });
       } else {
         // Fallback: parallel queries (RPC not deployed yet or failed)
         if (rpcError) console.warn('[cricket] RPC fallback — get_dashboard_data failed:', rpcError.message);

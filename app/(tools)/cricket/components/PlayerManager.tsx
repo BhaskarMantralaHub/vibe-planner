@@ -136,42 +136,18 @@ export default function PlayerManager() {
   const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
   const [signedUpEmails, setSignedUpEmails] = useState<Set<string>>(new Set());
 
-  // Load admin emails from profiles + signed-up emails from auth.users via RPC
+  // Admin emails + signed-up status — now loaded from dashboard RPC (no extra queries)
+  const { adminUserIds: storeAdminUserIds, signedUpEmails: storeSignedUpEmails } = useCricketStore();
   useEffect(() => {
     if (!isAdmin) return;
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
-    // Fetch team admin user_ids from team_members for current team
-    const teamId = useAuthStore.getState().currentTeamId;
-    if (teamId) {
-      supabase.from('team_members')
-        .select('user_id, role')
-        .eq('team_id', teamId)
-        .in('role', ['admin', 'owner'])
-        .then(({ data: tmData }: { data: { user_id: string; role: string }[] | null }) => {
-          if (!tmData) return;
-          const adminUserIds = new Set(tmData.map(m => m.user_id));
-          // Map user_ids to emails via players
-          const emails = new Set(
-            activePlayers.filter(p => p.user_id && adminUserIds.has(p.user_id) && p.email)
-              .map(p => p.email!.toLowerCase())
-          );
-          setAdminEmails(emails);
-        });
-    }
-
-    // Fetch signed-up status via RPC (SECURITY DEFINER — bypasses RLS, checks auth.users)
-    const playerEmails = activePlayers
-      .map((p) => p.email?.toLowerCase())
-      .filter(Boolean) as string[];
-    if (playerEmails.length > 0) {
-      supabase.rpc('get_signed_up_emails', { check_emails: playerEmails }).then(({ data }: { data: string[] | null }) => {
-        if (!data) return;
-        setSignedUpEmails(new Set((data as string[]).map((e) => e.toLowerCase())));
-      });
-    }
-  }, [isAdmin, adminModal, activePlayers.length]); // re-fetch after granting/revoking or player changes
+    // Derive admin emails from store's adminUserIds
+    const adminUids = new Set(storeAdminUserIds);
+    setAdminEmails(new Set(
+      activePlayers.filter(p => p.user_id && adminUids.has(p.user_id) && p.email)
+        .map(p => p.email!.toLowerCase())
+    ));
+    setSignedUpEmails(new Set(storeSignedUpEmails.map((e: string) => e.toLowerCase())));
+  }, [isAdmin, storeAdminUserIds, storeSignedUpEmails, activePlayers.length]);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const guestMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);

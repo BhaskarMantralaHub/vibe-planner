@@ -460,6 +460,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const supabase = getSupabaseClient();
     if (!supabase || !get().user) return;
 
+    // Skip if teams already loaded (prevents duplicate calls from StrictMode / auth events)
+    if (get().userTeams.length > 0) return;
+
     const { data, error } = await supabase
       .from('team_members')
       .select('team_id, role, cricket_teams(name, slug, logo_url, primary_color)')
