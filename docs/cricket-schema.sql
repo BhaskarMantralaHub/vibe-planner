@@ -162,8 +162,10 @@ $$;
 
 GRANT EXECUTE ON FUNCTION validate_invite_token(UUID) TO anon, authenticated;
 
--- ── Accept Invite (called after signup/login) ───────────────
--- Adds user to team, increments invite use_count, adds cricket access
+-- ── Accept Invite v2 (pending approval for unknown players) ──
+-- Pre-added players (email match) → auto-approved + auto-linked
+-- Existing players from other teams → auto-approved
+-- Unknown emails → pending approval (admin must approve)
 CREATE OR REPLACE FUNCTION accept_invite(p_token UUID)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER
@@ -171,13 +173,17 @@ SET search_path = public
 AS $$
 DECLARE
   v_invite RECORD;
-  v_team_name TEXT;
+  v_user_email TEXT;
+  v_is_pre_added BOOLEAN := false;
+  v_is_existing_player BOOLEAN := false;
+  v_needs_approval BOOLEAN := false;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Authentication required';
   END IF;
 
-  -- Validate and lock the invite
+  SELECT email INTO v_user_email FROM auth.users WHERE id = auth.uid();
+
   SELECT ti.*, t.name AS team_name, t.slug AS team_slug
   INTO v_invite
   FROM team_invites ti
@@ -193,32 +199,43 @@ BEGIN
     RETURN json_build_object('error', 'Invalid or expired invite link');
   END IF;
 
-  -- Add user to team (skip if already a member)
+  v_is_pre_added := EXISTS (
+    SELECT 1 FROM cricket_players
+    WHERE team_id = v_invite.team_id AND lower(email) = lower(v_user_email) AND is_active = true
+  );
+
+  v_is_existing_player := EXISTS (
+    SELECT 1 FROM team_members WHERE user_id = auth.uid() AND team_id != v_invite.team_id
+  );
+
+  v_needs_approval := NOT v_is_pre_added AND NOT v_is_existing_player;
+
   INSERT INTO team_members (team_id, user_id, role)
   VALUES (v_invite.team_id, auth.uid(), 'player')
   ON CONFLICT (team_id, user_id) DO NOTHING;
 
-  -- Add cricket access if user doesn't have it
   UPDATE profiles
-  SET access = CASE
-    WHEN NOT (access @> '{cricket}') THEN array_append(access, 'cricket')
-    ELSE access
-  END,
-  features = CASE
-    WHEN NOT (features @> '{cricket}') THEN array_append(features, 'cricket')
-    ELSE features
-  END,
-  approved = true
+  SET access = CASE WHEN NOT (access @> '{cricket}') THEN array_append(access, 'cricket') ELSE access END,
+  features = CASE WHEN NOT (features @> '{cricket}') THEN array_append(features, 'cricket') ELSE features END,
+  approved = CASE
+    WHEN v_needs_approval AND approved = true THEN true
+    WHEN v_needs_approval THEN false
+    ELSE true
+  END
   WHERE id = auth.uid();
 
-  -- Increment use count
   UPDATE team_invites SET use_count = use_count + 1 WHERE id = v_invite.id;
 
+  IF v_is_pre_added THEN
+    UPDATE cricket_players SET user_id = auth.uid()
+    WHERE team_id = v_invite.team_id AND lower(email) = lower(v_user_email)
+      AND is_active = true AND user_id IS NULL;
+  END IF;
+
   RETURN json_build_object(
-    'success', true,
-    'team_id', v_invite.team_id,
-    'team_name', v_invite.team_name,
-    'team_slug', v_invite.team_slug
+    'success', true, 'team_id', v_invite.team_id,
+    'team_name', v_invite.team_name, 'team_slug', v_invite.team_slug,
+    'pending_approval', v_needs_approval
   );
 END;
 $$;
