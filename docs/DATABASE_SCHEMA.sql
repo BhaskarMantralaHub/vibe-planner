@@ -397,6 +397,11 @@ CREATE TABLE IF NOT EXISTS team_members (
 --   create_team(name, slug, color) — global admin only, creates team + owner membership
 --   suggest_players(query, team_id) — autocomplete for adding players from
 --     team members (not yet on roster) and other-team players (LATERAL JOIN enrichment)
+--   get_dashboard_data(team_id, gallery_limit) — consolidated RPC returning all
+--     dashboard data (players, seasons, expenses, splits, settlements, fees, sponsorships,
+--     gallery, tags, comments, likes, reactions, notifications, admin_user_ids,
+--     signed_up_emails) in one round-trip. Gallery sub-tables scoped to visible posts.
+--     Frontend falls back to parallel queries if RPC unavailable.
 -- TRIGGER: sync_player_profile_across_teams — on UPDATE of cricket_players,
 --   syncs global fields (name, email, photo_url, phone, player_role, batting/bowling
 --   style, shirt_size, cricclub_id) to all other records with same user_id.
