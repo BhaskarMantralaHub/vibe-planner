@@ -174,6 +174,7 @@ Trigger: `sync_player_profile_across_teams` — AFTER UPDATE on `cricket_players
 `handle_new_user` trigger reads `team_slug` from signup metadata to auto-create `team_members` row. Fallback: if no team_slug but cricket access, uses first available team.
 All cricket tables have `team_id` FK to `cricket_teams`. RLS uses `team_id IN (SELECT * FROM user_team_ids())` for reads, `is_team_admin(team_id)` for writes.
 Full design: `docs/MULTI_TEAM_DESIGN.md`. Migration SQL: `docs/multi-team-migration.sql`. Phase 5 onboarding: `docs/multi-team-phase5-onboarding.sql`.
+Performance: `docs/performance-indexes.sql` (4 indexes), `docs/get-dashboard-data.sql` (single RPC replaces 13 parallel queries with graceful fallback).
 
 ### Cricket Tables
 Table `cricket_players`: `id`, `user_id` (UUID, nullable — NULL for admin-created players until the player signs up and links via email match), `team_id` (FK cricket_teams), `name`, `jersey_number`, `phone`, `photo_url` (Supabase Storage public URL), `is_active`, `is_guest` (BOOLEAN, true for auto-created guest players from practice matches — can be promoted to roster via `promote_guest_to_roster` RPC), `created_at`, `updated_at`. Unique index on `lower(name), team_id WHERE is_guest = true AND is_active = true` prevents duplicate guests per team.
