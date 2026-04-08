@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
-import { TEAM_NAME, getCategoryConfig } from '../lib/constants';
+import { getTeamName, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { FaFilePdf } from 'react-icons/fa';
 import { MdShare } from 'react-icons/md';
@@ -24,7 +24,7 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
   const lines: string[] = [];
 
-  lines.push(`🏏 *${TEAM_NAME}*`);
+  lines.push(`🏏 *${getTeamName()}*`);
   lines.push(`📋 *${season.name} — Season Report*`);
   lines.push('━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
@@ -216,7 +216,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   } catch { /* skip logo */ }
 
   // Team name + season in banner
-  text(TEAM_NAME, M + 22, 17, { size: 22, bold: true, color: WHITE });
+  text(getTeamName(), M + 22, 17, { size: 22, bold: true, color: WHITE });
   text(`${season.name}  —  Season Report`, M + 22, 25, { size: 11, color: [255, 255, 240] });
   // Generated date
   text(
@@ -392,7 +392,7 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LGRAY);
-    doc.text(`${TEAM_NAME}  |  ${season.name}`, M, H - 8);
+    doc.text(`${getTeamName()}  |  ${season.name}`, M, H - 8);
     doc.text(`\u00A9 Designed by Bhaskar Mantrala`, W / 2, H - 8, { align: 'center' });
     doc.text(`Page ${i} of ${total}`, W - M, H - 8, { align: 'right' });
     doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2);
@@ -416,7 +416,7 @@ export default function ShareButton() {
     try {
       const doc = await generatePdf(useCricketStore.getState());
       if (doc) {
-        doc.save(`${TEAM_NAME.replace(/\s+/g, '_')}_${season.name.replace(/\s+/g, '_')}.pdf`);
+        doc.save(`${getTeamName().replace(/\s+/g, '_')}_${season.name.replace(/\s+/g, '_')}.pdf`);
       }
     } finally {
       setGenerating(false);
@@ -429,13 +429,13 @@ export default function ShareButton() {
       const doc = await generatePdf(useCricketStore.getState());
       if (!doc) return;
       const blob = doc.output('blob');
-      const file = new File([blob], `${TEAM_NAME}_${season.name}.pdf`, { type: 'application/pdf' });
+      const file = new File([blob], `${getTeamName()}_${season.name}.pdf`, { type: 'application/pdf' });
 
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${TEAM_NAME} — ${season.name}` });
+        await navigator.share({ files: [file], title: `${getTeamName()} — ${season.name}` });
       } else {
         // Fallback: download
-        doc.save(`${TEAM_NAME.replace(/\s+/g, '_')}_${season.name.replace(/\s+/g, '_')}.pdf`);
+        doc.save(`${getTeamName().replace(/\s+/g, '_')}_${season.name.replace(/\s+/g, '_')}.pdf`);
       }
     } finally {
       setGenerating(false);

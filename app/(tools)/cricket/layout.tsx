@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Sunrisers Manteca',
+  title: 'Cricket',
   icons: {
     icon: [
       { url: '/cricket-logo.png', sizes: '256x256', type: 'image/png' },

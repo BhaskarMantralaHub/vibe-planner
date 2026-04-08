@@ -558,7 +558,7 @@ function CaptionEditor({ initialCaption, players, onSave, onCancel }: {
 function isWelcomePost(caption: string | null): boolean {
   if (!caption) return false;
   const lower = caption.toLowerCase();
-  return lower.includes('welcome') || lower.includes('joined the team') || lower.includes('joined sunrisers');
+  return lower.includes('welcome') || lower.includes('joined the team') || lower.includes('joined the squad');
 }
 
 /* ── Main Post Card ── */

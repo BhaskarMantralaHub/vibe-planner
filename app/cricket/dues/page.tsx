@@ -6,7 +6,7 @@ export default function PublicDuesPage() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = 'Sunrisers Manteca - Team Dues';
+    document.title = 'Team Dues';
     // Extract token from URL path: /cricket/dues/<token>
     const segments = window.location.pathname.split('/').filter(Boolean);
     // Expected: ['cricket', 'dues', '<token>']
@@ -26,7 +26,7 @@ export default function PublicDuesPage() {
         </div>
 
         <h1 className="mb-2 text-[24px] font-bold text-[#E5E7EB]">
-          Sunrisers Manteca
+          Team Dues
         </h1>
         <h2 className="mb-6 text-[16px] text-[#9CA3AF]">
           Team Dues

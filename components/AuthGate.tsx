@@ -71,7 +71,7 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   };
 
   const config = variant === 'cricket' ? {
-    title: 'Sunrisers Manteca',
+    title: 'Cricket Team',
     subtitle: 'You need cricket access to view this page.',
     buttonText: 'Request Cricket Access',
     accentColor: 'var(--cricket)',
@@ -162,8 +162,8 @@ const VARIANT_CONFIG = {
   },
   cricket: {
     heroImage: '/cricket-hero.png?v=2',
-    heroAlt: 'Sunrisers Manteca',
-    tagline: 'Sunrisers Manteca Cricket',
+    heroAlt: 'Cricket Team',
+    tagline: 'Cricket Team Management',
     subtitle: 'Team expenses, dues, and more — all in one place.',
     pills: ['🏏 Cricket', '💰 Expenses', '📊 Dues', '🤝 Settle'],
     loginTitle: 'Welcome Back',
@@ -215,7 +215,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   // Set favicon + title for cricket variant
   useEffect(() => {
     if (variant === 'cricket') {
-      document.title = 'Sunrisers Manteca';
+      document.title = 'Cricket';
       const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
         || document.createElement('link');
       link.rel = 'icon';

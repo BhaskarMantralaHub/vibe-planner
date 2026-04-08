@@ -11,6 +11,7 @@ import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTr
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
+import { getTeamName, getTeamCode } from '../lib/constants';
 
 /* ── Types ── */
 interface Performer {
@@ -104,14 +105,14 @@ function addToCalendar(match: Match) {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Sunrisers Manteca//Schedule//EN',
+    `PRODID:-//${getTeamName()}//Schedule//EN`,
     'BEGIN:VEVENT',
     `DTSTART;TZID=${localTZ}:${toICS(start)}`,
     `DTEND;TZID=${localTZ}:${toICS(end)}`,
-    `SUMMARY:SRM vs ${match.opponent}`,
+    `SUMMARY:${getTeamCode()} vs ${match.opponent}`,
     `LOCATION:${match.venue}`,
     `DESCRIPTION:${match.overs} overs league match${match.notes ? ' — ' + match.notes : ''}`,
-    `UID:${match.id}@sunrisersmanteca`,
+    `UID:${match.id}@${getTeamName().toLowerCase().replace(/\s+/g, '')}`,
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
@@ -134,10 +135,10 @@ function addAllToCalendar(matches: Match[]) {
       'BEGIN:VEVENT',
       `DTSTART;TZID=${localTZ}:${toICS(start)}`,
       `DTEND;TZID=${localTZ}:${toICS(end)}`,
-      `SUMMARY:SRM vs ${match.opponent}`,
+      `SUMMARY:${getTeamCode()} vs ${match.opponent}`,
       `LOCATION:${match.venue}`,
       `DESCRIPTION:20 overs league match${match.umpire ? ' | Umpires: ' + match.umpire : ''}${match.notes ? ' | ' + match.notes : ''}`,
-      `UID:${match.id}@sunrisersmanteca`,
+      `UID:${match.id}@${getTeamName().toLowerCase().replace(/\s+/g, '')}`,
       'END:VEVENT',
     ].join('\r\n');
   });
@@ -145,8 +146,8 @@ function addAllToCalendar(matches: Match[]) {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Sunrisers Manteca//Schedule//EN',
-    'X-WR-CALNAME:SRM League Schedule',
+    `PRODID:-//${getTeamName()}//Schedule//EN`,
+    `X-WR-CALNAME:${getTeamCode()} League Schedule`,
     ...events,
     'END:VCALENDAR',
   ].join('\r\n');
@@ -201,7 +202,7 @@ async function exportSchedulePDF(matches: Match[]) {
     const b64 = await new Promise<string>((r) => { const rd = new FileReader(); rd.onloadend = () => r(rd.result as string); rd.readAsDataURL(blob); });
     doc.addImage(b64, 'PNG', M, 5, 14, 14);
   } catch { /* skip */ }
-  txt('Sunrisers Manteca', M + 18, 13, { size: 18, bold: true, color: WHITE });
+  txt(getTeamName(), M + 18, 13, { size: 18, bold: true, color: WHITE });
   txt('2026 MTCA Spring League  —  Division D', M + 18, 19, { size: 9, color: [255, 255, 230] });
   txt(`${matches.length} Matches`, W - M, 13, { size: 10, bold: true, color: [255, 220, 180], align: 'right' });
   txt(`Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, W - M, 19, { size: 7, color: [220, 200, 170], align: 'right' });
@@ -264,11 +265,11 @@ async function exportSchedulePDF(matches: Match[]) {
   doc.link(M, H - 12, 50, 5, { url: 'https://viberstoolkit.com/cricket/schedule/' });
 
   // Share or download
-  const fileName = 'SRM_Spring_2026_Schedule.pdf';
+  const fileName = `${getTeamCode()}_Schedule.pdf`;
   const blob = doc.output('blob');
   const file = new File([blob], fileName, { type: 'application/pdf' });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: 'SRM League Schedule' });
+    await navigator.share({ files: [file], title: `${getTeamCode()} League Schedule` });
   } else {
     doc.save(fileName);
     toast.success('Schedule PDF downloaded');
@@ -446,11 +447,11 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
         </div>
 
-        {/* Team names — SRM prominent, opponent secondary + home/away */}
+        {/* Team names — prominent, opponent secondary + home/away */}
         <div className="mb-4">
           <div className="flex items-center gap-2">
             <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
-              Sunrisers Manteca
+              {getTeamName()}
             </Text>
             {match.is_home != null && (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
@@ -656,7 +657,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         <div className="mx-3 mb-3 rounded-lg p-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">SRM</Text>
+              <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">{getTeamCode()}</Text>
               <div className="flex items-baseline gap-1.5">
                 <Text size="lg" weight="bold" tabular>{match.team_score}</Text>
                 <Text size="2xs" color="muted">({match.team_overs} ov)</Text>

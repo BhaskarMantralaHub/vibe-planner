@@ -1,4 +1,19 @@
-export const TEAM_NAME = 'Sunrisers Manteca';
+import { useAuthStore } from '@/stores/auth-store';
+
+/// Dynamic team name — reads from auth store, fallback to generic
+export function getTeamName(): string {
+  const { userTeams, currentTeamId } = useAuthStore.getState();
+  return userTeams.find(t => t.team_id === currentTeamId)?.team_name ?? 'Cricket Team';
+}
+
+/// Short team code (first letters of each word, max 3 chars)
+export function getTeamCode(): string {
+  const name = getTeamName();
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3);
+}
+
+/// For backward compat — components that import TEAM_NAME get the dynamic value
+export const TEAM_NAME = 'Sunrisers Manteca'; // Legacy — prefer getTeamName()
 
 export type CategoryConfig = {
   key: string;
