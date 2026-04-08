@@ -233,56 +233,88 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) { set({ loading: false }); return; }
 
-      // Build team-filtered queries (multi-team users see only active team's data)
-      let playersQ = supabase.from('cricket_players').select('*').order('created_at');
-      let seasonsQ = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
-      let expensesQ = supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false });
-      let settlementsQ = supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false });
-      let feesQ = supabase.from('cricket_season_fees').select('*').order('created_at');
-      let sponsorsQ = supabase.from('cricket_sponsorships').select('*').order('created_at');
-      let galleryQ = supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE);
-      let commentsQ = supabase.from('cricket_gallery_comments').select('*').order('created_at');
-      let notificationsQ = supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+      // Try batch RPC first (1 round-trip), fall back to parallel queries (13 round-trips)
+      const { data: dashboard, error: rpcError } = await supabase.rpc('get_dashboard_data', {
+        p_team_id: teamId,
+        p_gallery_limit: GALLERY_PAGE_SIZE,
+      });
 
-      if (teamId) {
-        playersQ = playersQ.eq('team_id', teamId);
-        seasonsQ = seasonsQ.eq('team_id', teamId);
-        expensesQ = expensesQ.eq('team_id', teamId);
-        settlementsQ = settlementsQ.eq('team_id', teamId);
-        feesQ = feesQ.eq('team_id', teamId);
-        sponsorsQ = sponsorsQ.eq('team_id', teamId);
-        galleryQ = galleryQ.eq('team_id', teamId);
-        commentsQ = commentsQ.eq('team_id', teamId);
-        notificationsQ = notificationsQ.eq('team_id', teamId);
+      let players: CricketPlayer[], seasons: CricketSeason[], expenses: CricketExpense[],
+        splits: CricketExpenseSplit[], settlements: CricketSettlement[], fees: CricketSeasonFee[],
+        sponsorships: CricketSponsorship[], gallery: GalleryPost[], galleryTags: GalleryTag[],
+        galleryComments: GalleryComment[], galleryLikes: GalleryLike[],
+        commentReactions: CommentReaction[], notifications: GalleryNotification[];
+
+      if (!rpcError && dashboard) {
+        // RPC succeeded — parse single JSON response
+        const d = dashboard as Record<string, unknown[]>;
+        players = (d.players ?? []) as CricketPlayer[];
+        seasons = (d.seasons ?? []) as CricketSeason[];
+        expenses = (d.expenses ?? []) as CricketExpense[];
+        splits = (d.splits ?? []) as CricketExpenseSplit[];
+        settlements = (d.settlements ?? []) as CricketSettlement[];
+        fees = (d.fees ?? []) as CricketSeasonFee[];
+        sponsorships = (d.sponsorships ?? []) as CricketSponsorship[];
+        gallery = (d.gallery ?? []) as GalleryPost[];
+        galleryTags = (d.gallery_tags ?? []) as GalleryTag[];
+        galleryComments = (d.gallery_comments ?? []) as GalleryComment[];
+        galleryLikes = (d.gallery_likes ?? []) as GalleryLike[];
+        commentReactions = (d.comment_reactions ?? []) as CommentReaction[];
+        notifications = (d.notifications ?? []) as GalleryNotification[];
+      } else {
+        // Fallback: parallel queries (RPC not deployed yet or failed)
+        if (rpcError) console.warn('[cricket] RPC fallback — get_dashboard_data failed:', rpcError.message);
+
+        let playersQ = supabase.from('cricket_players').select('*').order('created_at');
+        let seasonsQ = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
+        let expensesQ = supabase.from('cricket_expenses').select('*').order('expense_date', { ascending: false });
+        let settlementsQ = supabase.from('cricket_settlements').select('*').order('settled_date', { ascending: false });
+        let feesQ = supabase.from('cricket_season_fees').select('*').order('created_at');
+        let sponsorsQ = supabase.from('cricket_sponsorships').select('*').order('created_at');
+        let galleryQ = supabase.from('cricket_gallery').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(GALLERY_PAGE_SIZE);
+        let commentsQ = supabase.from('cricket_gallery_comments').select('*').order('created_at');
+        let notificationsQ = supabase.from('cricket_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+
+        if (teamId) {
+          playersQ = playersQ.eq('team_id', teamId);
+          seasonsQ = seasonsQ.eq('team_id', teamId);
+          expensesQ = expensesQ.eq('team_id', teamId);
+          settlementsQ = settlementsQ.eq('team_id', teamId);
+          feesQ = feesQ.eq('team_id', teamId);
+          sponsorsQ = sponsorsQ.eq('team_id', teamId);
+          galleryQ = galleryQ.eq('team_id', teamId);
+          commentsQ = commentsQ.eq('team_id', teamId);
+          notificationsQ = notificationsQ.eq('team_id', teamId);
+        }
+
+        const [pR, sR, eR, spR, stR, fR, spnR, gR, gtR, gcR, glR, crR, nR] = await Promise.all([
+          playersQ, seasonsQ, expensesQ,
+          supabase.from('cricket_expense_splits').select('*'),
+          settlementsQ, feesQ, sponsorsQ, galleryQ,
+          supabase.from('cricket_gallery_tags').select('*'),
+          commentsQ,
+          supabase.from('cricket_gallery_likes').select('*'),
+          supabase.from('cricket_comment_reactions').select('*'),
+          notificationsQ,
+        ]);
+
+        players = (pR.data ?? []) as CricketPlayer[];
+        seasons = (sR.data ?? []) as CricketSeason[];
+        expenses = (eR.data ?? []) as CricketExpense[];
+        const expenseIds = new Set(expenses.map(e => e.id));
+        splits = ((spR.data ?? []) as (CricketExpenseSplit & { cricket_expenses?: unknown })[])
+          .map(({ cricket_expenses: _, ...s }) => s as CricketExpenseSplit)
+          .filter(s => expenseIds.has(s.expense_id));
+        settlements = (stR.data ?? []) as CricketSettlement[];
+        fees = (fR.data ?? []) as CricketSeasonFee[];
+        sponsorships = (spnR.data ?? []) as CricketSponsorship[];
+        gallery = (gR.data ?? []) as GalleryPost[];
+        galleryTags = (gtR.data ?? []) as GalleryTag[];
+        galleryComments = (gcR.data ?? []) as GalleryComment[];
+        galleryLikes = (glR.data ?? []) as GalleryLike[];
+        commentReactions = (crR.data ?? []) as CommentReaction[];
+        notifications = (nR.data ?? []) as GalleryNotification[];
       }
-
-      const [playersRes, seasonsRes, expensesRes, splitsRes, settlementsRes, feesRes, sponsorsRes, galleryRes, galleryTagsRes, galleryCommentsRes, galleryLikesRes, commentReactionsRes, notificationsRes] = await Promise.all([
-        playersQ, seasonsQ, expensesQ,
-        supabase.from('cricket_expense_splits').select('*'),
-        settlementsQ, feesQ, sponsorsQ, galleryQ,
-        supabase.from('cricket_gallery_tags').select('*'),
-        commentsQ,
-        supabase.from('cricket_gallery_likes').select('*'),
-        supabase.from('cricket_comment_reactions').select('*'),
-        notificationsQ,
-      ]);
-
-      const players = (playersRes.data ?? []) as CricketPlayer[];
-      const seasons = (seasonsRes.data ?? []) as CricketSeason[];
-      const expenses = (expensesRes.data ?? []) as CricketExpense[];
-      const expenseIds = new Set(expenses.map(e => e.id));
-      const splits = ((splitsRes.data ?? []) as (CricketExpenseSplit & { cricket_expenses?: unknown })[])
-        .map(({ cricket_expenses: _, ...s }) => s as CricketExpenseSplit)
-        .filter(s => expenseIds.has(s.expense_id));
-      const settlements = (settlementsRes.data ?? []) as CricketSettlement[];
-      const fees = (feesRes.data ?? []) as CricketSeasonFee[];
-      const sponsorships = (sponsorsRes.data ?? []) as CricketSponsorship[];
-      const gallery = (galleryRes.data ?? []) as GalleryPost[];
-      const galleryTags = (galleryTagsRes.data ?? []) as GalleryTag[];
-      const galleryComments = (galleryCommentsRes.data ?? []) as GalleryComment[];
-      const galleryLikes = (galleryLikesRes.data ?? []) as GalleryLike[];
-      const commentReactions = (commentReactionsRes.data ?? []) as CommentReaction[];
-      const notifications = (notificationsRes.data ?? []) as GalleryNotification[];
 
       const selectedSeasonId = pickCurrentSeason(seasons);
       const hasMoreGallery = gallery.length === GALLERY_PAGE_SIZE;
