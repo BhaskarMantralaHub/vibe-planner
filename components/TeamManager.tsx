@@ -70,6 +70,7 @@ export default function TeamManager() {
 
   // Edit form state
   const [editName, setEditName] = useState('');
+  const [editSlug, setEditSlug] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
   const [editLogoPreview, setEditLogoPreview] = useState<string | null>(null);
@@ -87,13 +88,15 @@ export default function TeamManager() {
       .order('created_at');
 
     if (data) {
-      const { data: members } = await supabase
-        .from('team_members')
-        .select('team_id');
+      // Count roster players (not team_members — players is what users expect)
+      const { data: players } = await supabase
+        .from('cricket_players')
+        .select('team_id')
+        .eq('is_active', true);
 
       const counts = new Map<string, number>();
-      members?.forEach((m: { team_id: string }) => {
-        counts.set(m.team_id, (counts.get(m.team_id) || 0) + 1);
+      players?.forEach((p: { team_id: string }) => {
+        counts.set(p.team_id, (counts.get(p.team_id) || 0) + 1);
       });
 
       setTeams(data.map((t: Team) => ({ ...t, member_count: counts.get(t.id) || 0 })));
@@ -123,6 +126,7 @@ export default function TeamManager() {
 
   const startEditTeam = (team: Team) => {
     setEditName(team.name);
+    setEditSlug(team.slug);
     setEditColor(team.primary_color);
     setEditLogoFile(null);
     setEditLogoPreview(team.logo_url);
@@ -137,6 +141,7 @@ export default function TeamManager() {
 
     const updates: Record<string, unknown> = {
       name: editName.trim(),
+      slug: editSlug.trim().toLowerCase(),
       primary_color: editColor,
     };
 
@@ -253,7 +258,7 @@ export default function TeamManager() {
                 <div className="flex items-center gap-1.5">
                   <MdPeople size={14} className="text-[var(--muted)]" />
                   <Text size="xs" weight="medium">{team.member_count}</Text>
-                  <Text size="2xs" color="muted">members</Text>
+                  <Text size="2xs" color="muted">players</Text>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -359,6 +364,9 @@ export default function TeamManager() {
               {/* Name */}
               <Input label="Team Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
 
+              {/* Slug */}
+              <Input label="URL Slug" value={editSlug} onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+
               {/* Color presets */}
               <div>
                 <Text size="xs" weight="medium" className="mb-2">Team Color</Text>
@@ -390,7 +398,7 @@ export default function TeamManager() {
                     )}
                     <div>
                       <Text size="sm" weight="semibold">{editName}</Text>
-                      <Text size="2xs" color="muted" className="font-mono">/{editingTeam.slug}</Text>
+                      <Text size="2xs" color="muted" className="font-mono">/{editSlug}</Text>
                     </div>
                   </div>
                 </div>
