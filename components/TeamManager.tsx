@@ -7,6 +7,20 @@ import { Text, Button, Input, Card, Badge, Drawer, DrawerHandle, DrawerTitle, Dr
 import { MdAdd, MdContentCopy, MdLink, MdPeople, MdEdit, MdCameraAlt, MdShare } from 'react-icons/md';
 import { toast } from 'sonner';
 
+/// Compress logo image to fit within max dimensions (keeps aspect ratio)
+async function compressLogo(file: File, maxSize = 512): Promise<Blob> {
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
+  await new Promise((resolve) => { img.onload = resolve; });
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(img.src);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png', 0.9));
+}
+
 interface Team {
   id: string;
   name: string;
@@ -129,11 +143,18 @@ export default function TeamManager() {
     // Upload logo if changed
     if (editLogoFile) {
       try {
+        const compressed = await compressLogo(editLogoFile);
         const path = `${editingTeam.id}/logo.png`;
-        await supabase.storage.from('team-logos').upload(path, editLogoFile, { upsert: true, contentType: editLogoFile.type });
-        const { data: { publicUrl } } = supabase.storage.from('team-logos').getPublicUrl(path);
-        updates.logo_url = `${publicUrl}?t=${Date.now()}`;
-      } catch {
+        const { error: uploadErr } = await supabase.storage.from('team-logos').upload(path, compressed, { upsert: true, contentType: 'image/png' });
+        if (uploadErr) {
+          console.error('[team] logo upload error:', uploadErr);
+          toast.error(`Logo upload failed: ${uploadErr.message}`);
+        } else {
+          const { data: { publicUrl } } = supabase.storage.from('team-logos').getPublicUrl(path);
+          updates.logo_url = publicUrl;
+        }
+      } catch (err) {
+        console.error('[team] logo upload exception:', err);
         toast.error('Logo upload failed');
       }
     }
