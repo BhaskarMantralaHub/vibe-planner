@@ -414,26 +414,53 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             style={{ boxShadow: `0 20px 80px ${v.shadowColor}` }}>
 
             {/* Left: Hero image + tagline */}
-            <div className="flex-1 bg-[var(--surface)] p-4 lg:p-10 flex flex-col justify-center">
-              <img
-                src={v.heroImage}
-                alt={v.heroAlt}
-                className="w-full rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
-              />
-              <Text as="h1" size="lg" weight="semibold" align="center" className={`text-[18px] lg:text-[32px] bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
-                {v.tagline}
-              </Text>
-              <Text as="p" size="xs" color="muted" align="center" className="lg:text-[16px] leading-relaxed hidden lg:block">
-                {v.subtitle}
-              </Text>
-              {/* Feature pills — desktop only */}
-              <div className="hidden lg:flex items-center justify-center gap-2 mt-5">
-                {v.pills.map((f) => (
-                  <Text key={f} size="sm" color="muted" className="px-4 py-1.5 rounded-full border border-[var(--border)]">
-                    {f}
+            <div className="flex-1 bg-[var(--surface)] p-4 lg:p-10 flex flex-col justify-center items-center">
+              {/* Hero: team-branded card for invites, default image otherwise */}
+              {inviteTeam && inviteTeam.team_slug !== 'sunrisers-manteca' ? (
+                <div className="w-full max-w-sm mx-auto mb-4 lg:mb-8">
+                  {/* Branded team card */}
+                  <div className="rounded-2xl overflow-hidden shadow-lg" style={{ background: 'var(--card)' }}>
+                    {/* Color banner */}
+                    <div className="h-24 lg:h-32 flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, var(--cricket), var(--cricket-accent))` }}>
+                      <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center text-white font-black text-[36px] lg:text-[44px] bg-white/15 backdrop-blur-sm border-2 border-white/20">
+                        {inviteTeam.team_name.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                    <div className="p-4 text-center">
+                      <Text size="xs" color="dim" className="uppercase tracking-widest text-[10px] mb-1">You&apos;re invited to join</Text>
+                      <Text size="xl" weight="bold" className="lg:text-[24px]">{inviteTeam.team_name}</Text>
+                      <div className="flex items-center justify-center gap-2 mt-3">
+                        {['🏏 Cricket', '💰 Expenses', '📊 Stats'].map((f) => (
+                          <Text key={f} size="2xs" color="muted" className="px-2.5 py-1 rounded-full border border-[var(--border)]">{f}</Text>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <img
+                    src={v.heroImage}
+                    alt={v.heroAlt}
+                    className="w-full rounded-xl lg:rounded-2xl mb-3 lg:mb-6"
+                  />
+                  <Text as="h1" size="lg" weight="semibold" align="center" className={`text-[18px] lg:text-[32px] bg-gradient-to-r ${v.gradient} bg-clip-text text-transparent leading-tight mb-1 lg:mb-2`}>
+                    {v.tagline}
                   </Text>
-                ))}
-              </div>
+                  <Text as="p" size="xs" color="muted" align="center" className="lg:text-[16px] leading-relaxed hidden lg:block">
+                    {v.subtitle}
+                  </Text>
+                  {/* Feature pills — desktop only */}
+                  <div className="hidden lg:flex items-center justify-center gap-2 mt-5">
+                    {v.pills.map((f) => (
+                      <Text key={f} size="sm" color="muted" className="px-4 py-1.5 rounded-full border border-[var(--border)]">
+                        {f}
+                      </Text>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Right: Login form */}
@@ -443,6 +470,18 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               onSubmit={handleSubmit}
               className=""
             >
+              {/* Invite context banner */}
+              {inviteTeam && (
+                <div className="mb-4 rounded-xl px-3 py-2.5 text-center"
+                  style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
+                  <Text size="xs" weight="medium" color="muted">
+                    {isLogin
+                      ? 'Already have an account? Log in below to join the team.'
+                      : "New here? Create an account to join the team."}
+                  </Text>
+                </div>
+              )}
+
               <div className="mb-4 lg:mb-8 text-center">
                 <Text as="h2" size="xl" weight="semibold" className="mb-1 text-[20px] lg:text-[26px]">
                   {isLogin ? v.loginTitle : v.signupTitle}
