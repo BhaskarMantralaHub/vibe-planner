@@ -61,6 +61,24 @@ export default function InviteHandler() {
         clearPendingInvite();
         return;
       }
+
+      // Check if already a member of this team
+      const { data: membership } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('team_id', data.team_id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (membership) {
+        // Already a member — clear invite and clean URL
+        clearPendingInvite();
+        const url = new URL(window.location.href);
+        url.searchParams.delete('join');
+        window.history.replaceState({}, '', url.pathname + url.search);
+        return; // Don't show join prompt
+      }
+
       setTeamInfo(data);
     })();
   }, [joinToken, user]);
