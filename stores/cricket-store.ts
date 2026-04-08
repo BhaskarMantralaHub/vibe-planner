@@ -22,6 +22,16 @@ import { toast } from 'sonner';
 function getCurrentTeamId(): string | null {
   return useAuthStore.getState().currentTeamId;
 }
+
+/// Get current team ID for write operations — logs warning if null (prevents orphaned data)
+function requireTeamId(): string | null {
+  const teamId = getCurrentTeamId();
+  if (!teamId) {
+    console.warn('[cricket] team_id is null — data may be orphaned. Team context not yet loaded.');
+    toast.error('Team not loaded yet. Please refresh and try again.');
+  }
+  return teamId;
+}
 import { computeSplitAmounts } from '@/app/(tools)/cricket/lib/utils';
 
 const LOCAL_KEY = 'cricket_data';
@@ -441,7 +451,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           cricclub_id: playerData.cricclub_id, shirt_size: playerData.shirt_size, email: playerData.email, designation: playerData.designation,
           photo_url: playerData.photo_url ?? null,
           is_guest: playerData.is_guest ?? false,
-          team_id: getCurrentTeamId(),
+          team_id: requireTeamId(),
           ...(linkedUserId ? { user_id: linkedUserId } : {}),
         })
         .select().single()
@@ -570,7 +580,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
           created_by: createdBy ?? null,
-          team_id: getCurrentTeamId(),
+          team_id: requireTeamId(),
         })
         .select().single()
         .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {

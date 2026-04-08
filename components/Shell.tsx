@@ -286,15 +286,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="w-8" />
         )}
 
-        <Link href={isCricketContext ? '/cricket' : '/'} className="group flex items-center gap-2">
-          {isCricketContext ? (
-            <TeamSwitcher />
-          ) : (
+        {isCricketContext ? (
+          <TeamSwitcher />
+        ) : (
+          <Link href="/" className="group flex items-center gap-2">
             <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
               Viber&apos;s Toolkit
             </Text>
-          )}
-        </Link>
+          </Link>
+        )}
 
         <div className="flex items-center gap-1">
           {isCricketContext && <NotificationBell />}

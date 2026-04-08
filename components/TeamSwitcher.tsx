@@ -123,7 +123,7 @@ export default function TeamSwitcher() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed sm:absolute left-4 right-4 sm:left-0 sm:right-auto top-auto sm:top-full z-50 sm:mt-2.5 w-auto sm:w-[300px] rounded-2xl overflow-hidden"
+            className="fixed sm:absolute left-4 right-4 sm:left-0 sm:right-auto top-16 sm:top-full z-50 sm:mt-2.5 w-auto sm:w-[300px] rounded-2xl overflow-hidden"
             style={{
               background: 'var(--card)',
               border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',

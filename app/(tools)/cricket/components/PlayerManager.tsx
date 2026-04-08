@@ -337,34 +337,39 @@ export default function PlayerManager() {
       const supabase = getSupabaseClient();
       if (supabase) {
         const teamId = useAuthStore.getState().currentTeamId;
+        if (!teamId) { setFormError('Team not loaded yet. Please refresh.'); setSubmitting(false); return; }
         const checkEmail = email.trim().toLowerCase();
         // Check by email first (most reliable identifier)
         if (checkEmail) {
-          const { data: emailMatch } = await supabase
+          const { data: emailMatch, error: emailErr } = await supabase
             .from('cricket_players')
             .select('name, team_id')
             .ilike('email', checkEmail)
-            .neq('team_id', teamId ?? '')
+            .neq('team_id', teamId)
             .eq('is_active', true)
             .limit(1)
             .single();
+          if (emailErr) { console.warn('[player] email check failed:', emailErr.message); }
           if (emailMatch) {
             setFormError(`A player with this email already exists (${emailMatch.name}). Type their name and use the suggestion dropdown to link their profile.`);
+            setSubmitting(false);
             return;
           }
         }
         // Check by CricClub ID
         if (cricclubId.trim()) {
-          const { data: ccMatch } = await supabase
+          const { data: ccMatch, error: ccErr } = await supabase
             .from('cricket_players')
             .select('name, team_id')
             .eq('cricclub_id', cricclubId.trim())
-            .neq('team_id', teamId ?? '')
+            .neq('team_id', teamId)
             .eq('is_active', true)
             .limit(1)
             .single();
+          if (ccErr) { console.warn('[player] cricclub check failed:', ccErr.message); }
           if (ccMatch) {
             setFormError(`CricClub ID "${cricclubId.trim()}" belongs to ${ccMatch.name} on another team. Type their name and use the suggestion dropdown to link their profile.`);
+            setSubmitting(false);
             return;
           }
         }

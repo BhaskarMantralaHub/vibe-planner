@@ -460,11 +460,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const supabase = getSupabaseClient();
     if (!supabase || !get().user) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('team_members')
       .select('team_id, role, cricket_teams(name, slug, logo_url, primary_color)')
       .eq('user_id', get().user!.id);
 
+    if (error) {
+      console.warn('[auth] loadUserTeams failed:', error.message);
+      return;
+    }
     if (!data) return;
 
     const teams: UserTeam[] = data.map((row: { team_id: string; role: string; cricket_teams: { name: string; slug: string; logo_url: string | null; primary_color: string | null } | null }) => ({
