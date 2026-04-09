@@ -369,6 +369,7 @@ CREATE TABLE IF NOT EXISTS team_members (
   team_id   UUID NOT NULL REFERENCES cricket_teams(id) ON DELETE RESTRICT,
   user_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role      TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('owner', 'admin', 'player')),
+  approved  BOOLEAN NOT NULL DEFAULT true,  -- per-team approval; false = pending admin approval
   joined_at TIMESTAMPTZ DEFAULT now(),
 
   CONSTRAINT team_members_unique UNIQUE (team_id, user_id)
@@ -450,9 +451,9 @@ CREATE INDEX idx_team_invites_team ON team_invites(team_id);
 -- WHY: RLS policies use these SECURITY DEFINER functions for team-scoped access.
 --      All are STABLE (cacheable per statement) for performance.
 --
--- user_team_ids()          — Returns all team IDs the current user belongs to
--- is_team_admin(team_id)   — TRUE if current user is owner/admin of the team
--- is_team_member(team_id)  — TRUE if current user is any member of the team
+-- user_team_ids()          — Returns APPROVED team IDs only (chokepoint for all RLS)
+-- is_team_admin(team_id)   — TRUE if current user is approved owner/admin of the team
+-- is_team_member(team_id)  — TRUE if current user is approved member of the team
 -- is_global_admin()        — TRUE if current user has 'admin' in profiles.access
 -- is_active_scorer(match_id) — TRUE if current user is active scorer or creator
 -- ============================================================================

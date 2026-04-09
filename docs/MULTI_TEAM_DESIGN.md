@@ -46,6 +46,7 @@ CREATE TABLE team_members (
   team_id  UUID NOT NULL REFERENCES cricket_teams(id) ON DELETE RESTRICT,
   user_id  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role     TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('owner', 'admin', 'player')),
+  approved BOOLEAN NOT NULL DEFAULT true,  -- per-team approval
   joined_at TIMESTAMPTZ DEFAULT now(),
 
   CONSTRAINT team_members_unique UNIQUE (team_id, user_id)
@@ -83,13 +84,14 @@ CREATE TRIGGER trg_no_owner_escalation
 ## Helper Functions (RLS)
 
 ```sql
--- Returns all team IDs the current user belongs to (cached per statement)
+-- Returns APPROVED team IDs only (chokepoint for ALL RLS policies)
 CREATE OR REPLACE FUNCTION user_team_ids()
 RETURNS SETOF UUID
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT team_id FROM public.team_members WHERE user_id = auth.uid();
+  SELECT team_id FROM public.team_members
+  WHERE user_id = auth.uid() AND approved = true;
 $$;
 
 -- Team-scoped admin check
@@ -322,10 +324,22 @@ Offer 6-8 preset palettes (no full color picker — prevents accessibility issue
 
 ### Player Invite
 
-- Team admin gets shareable link: `/cricket?join=<uuid-token>`
-- Tokens stored in `team_invites` table with expiry (7 days) and max-use count
-- Clicking link → sign up → auto-join team (no approval needed for invite links)
-- Public/unknown signups → pending approval (existing flow)
+- Team admin gets a permanent shareable link: `/cricket?join=<uuid-token>`
+- Tokens stored in `team_invites` table (permanent, no expiry/max-use for primary link)
+- Direct `/cricket` signup is gated — requires an invite link (login still works without one)
+- `team_slug` passed through signup metadata for deterministic team assignment
+
+### Per-Team Approval
+
+- **Pre-added players** (admin added email to roster) → auto-approved on signup
+- **Existing multi-team players** (approved on another team) → auto-approved
+- **Unknown players** → `team_members.approved = false` + `profiles.approved = false`
+- `user_team_ids()` only returns teams where `approved = true` — single chokepoint for all RLS
+- Pending user is signed out and sees "Pending Approval" screen (existing auth-store flow via `profiles.approved`)
+- Admin sees "New Signups" popup in Shell header (PendingApprovals component) — scoped to current team
+- **Approve** → sets both `team_members.approved` and `profiles.approved` to true, creates player record + welcome post
+- **Reject** → deletes `team_members` row, removes cricket access or deletes user entirely
+- RPCs: `approve_team_member(team_id, user_id)`, `reject_team_member(team_id, user_id)`
 
 ---
 
