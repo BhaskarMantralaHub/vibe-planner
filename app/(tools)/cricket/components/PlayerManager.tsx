@@ -1522,14 +1522,16 @@ export default function PlayerManager() {
                   const supabase = getSupabaseClient();
                   if (!supabase) return;
                   const teamId = useAuthStore.getState().currentTeamId;
-                  // 1. Soft-delete player record on this team (audit trail)
-                  removePlayer(p.id);
+                  // 1. Hard-delete player record for THIS team only
+                  // (audit trail in team_audit_log captures full old_data)
+                  await supabase.from('cricket_players').delete().eq('id', p.id).eq('team_id', teamId);
+                  useCricketStore.setState({ players: useCricketStore.getState().players.filter(pl => pl.id !== p.id) });
                   // 2. Remove team membership for this team only
                   if (p.user_id && teamId) {
                     await supabase.from('team_members').delete().eq('user_id', p.user_id).eq('team_id', teamId);
                   }
                   setPermanentDeleting(null);
-                  toast.success(`${p.name} removed from team`);
+                  toast.success(`${p.name} permanently deleted`);
                 }}
               >
                 {permanentDeleting.id === myPlayer?.id ? 'Leave Team' : 'Delete Permanently'}
