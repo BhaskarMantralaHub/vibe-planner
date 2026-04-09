@@ -10,7 +10,7 @@ import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose, MdPersonAdd } from 'react-icons/md';
+import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose, MdPersonAdd, MdPersonOff } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -130,6 +130,7 @@ export default function PlayerManager() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<CricketPlayer | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState<CricketPlayer | null>(null);
   const [adminModal, setAdminModal] = useState<{ player: CricketPlayer; status: 'loading' | 'no-email' | 'no-account' | 'has-admin' | 'can-grant' } | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<{ name: string; url: string } | null>(null);
   const [profilePlayer, setProfilePlayer] = useState<CricketPlayer | null>(null);
@@ -1046,12 +1047,22 @@ export default function PlayerManager() {
                         <CardMenu
                           anchorRef={menuBtnRef}
                           onClose={() => setOpenMenu(null)}
-                          items={[
-                            { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
-                            { label: 'Admin Access', icon: <FaCrown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
-                            { label: 'Move to Guest', icon: <MdBadge size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
-                            { label: 'Remove', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
-                          ]}
+                          items={(() => {
+                            const isMe = p.id === myPlayer?.id;
+                            const items = [
+                              { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                              ...(isMe ? [
+                                { label: 'Leave Team', icon: <MdPersonOff size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p), dividerBefore: true },
+                              ] : []),
+                              ...(!isMe ? [
+                                { label: 'Admin Access', icon: <FaCrown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
+                                { label: 'Move to Guest', icon: <MdBadge size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
+                                { label: 'Remove', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
+                                ...(p.user_id ? [{ label: 'Delete Permanently', icon: <MdPersonOff size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p) }] : []),
+                              ] : []),
+                            ];
+                            return items;
+                          })()}
                         />
                       )}
                     </>
@@ -1460,6 +1471,73 @@ export default function PlayerManager() {
           onConfirm={() => { removePlayer(deletingPlayer.id); setDeletingPlayer(null); }}
           onCancel={() => setDeletingPlayer(null)}
         />
+      )}
+
+      {/* Permanent delete confirmation — soft-deletes player record + hard-deletes auth/profile/team_members */}
+      {permanentDeleting && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setPermanentDeleting(null)}
+        >
+          <div
+            className="w-[340px] rounded-2xl p-5"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const isLeavingSelf = permanentDeleting.id === myPlayer?.id;
+              return (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.15)' }}>
+                      <MdPersonOff size={20} style={{ color: 'var(--red)' }} />
+                    </div>
+                    <div>
+                      <Text as="p" size="sm" weight="semibold">{isLeavingSelf ? 'Leave Team' : 'Delete Permanently'}</Text>
+                      <Text as="p" size="xs" color="muted">
+                        {isLeavingSelf
+                          ? 'Leave this team?'
+                          : <>Remove <b>{permanentDeleting.name}</b> from this team?</>}
+                      </Text>
+                    </div>
+                  </div>
+                  <Text as="p" size="xs" color="dim" className="mb-4">
+                    {isLeavingSelf
+                      ? 'Your player record will be deactivated and you will lose access to this team. You can rejoin later with a new invite.'
+                      : 'This will deactivate their player record (kept for audit) and remove them from this team. Their login account and other team memberships are not affected.'}
+                  </Text>
+                </>
+              );
+            })()}
+            <div className="flex gap-2 justify-end">
+              <Button onClick={() => setPermanentDeleting(null)} variant="secondary" size="sm">
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={async () => {
+                  const p = permanentDeleting;
+                  const supabase = getSupabaseClient();
+                  if (!supabase) return;
+                  const teamId = useAuthStore.getState().currentTeamId;
+                  // 1. Soft-delete player record on this team (audit trail)
+                  removePlayer(p.id);
+                  // 2. Remove team membership for this team only
+                  if (p.user_id && teamId) {
+                    await supabase.from('team_members').delete().eq('user_id', p.user_id).eq('team_id', teamId);
+                  }
+                  setPermanentDeleting(null);
+                  toast.success(`${p.name} removed from team`);
+                }}
+              >
+                {permanentDeleting.id === myPlayer?.id ? 'Leave Team' : 'Delete Permanently'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {/* Admin access modal */}
