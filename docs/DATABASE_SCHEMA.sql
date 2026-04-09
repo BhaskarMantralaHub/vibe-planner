@@ -460,6 +460,19 @@ CREATE INDEX idx_team_invites_team ON team_invites(team_id);
 
 
 -- ============================================================================
+-- TABLE: team_audit_log
+-- ============================================================================
+-- Trigger-based audit trail. Automatic capture of all INSERT/UPDATE/DELETE
+-- on cricket tables. Zero client code changes. Human-readable via audit_feed view.
+-- See docs/audit-trail-migration.sql for full migration.
+-- ============================================================================
+
+-- team_audit_log (id BIGINT PK, team_id, table_name, action, record_id, actor_id, old_data JSONB, new_data JSONB, created_at)
+-- audit_feed VIEW — joins with profiles for human-readable descriptions
+-- audit_trigger() — generic trigger function applied to 8 tables
+
+
+-- ============================================================================
 -- POST-SETUP: Run these manually after signing up
 -- ============================================================================
 
