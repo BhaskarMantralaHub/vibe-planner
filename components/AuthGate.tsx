@@ -373,6 +373,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   }
 
   const isLogin = authMode === 'login';
+  const isInviteRequired = variant === 'cricket' && !inviteTeam && authMode === 'signup';
 
   const resetPlayerFields = () => {
     setJerseyNumber(''); setPlayerRole(''); setBattingStyle(''); setBowlingStyle(''); setShirtSize('');
@@ -391,7 +392,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
         bowling_style: showBowling ? bowlingStyle || undefined : undefined,
         shirt_size: shirtSize || undefined,
       } : undefined;
-      await signup(email, password, name, v.access, playerData);
+      await signup(email, password, name, v.access, playerData, inviteTeam?.team_slug);
     }
   }
 
@@ -463,9 +464,33 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               )}
             </div>
 
-            {/* Right: Login form */}
+            {/* Right: Login form or invite-required screen */}
             <div className="lg:w-[420px] lg:min-w-[420px] bg-[var(--card)] p-4 lg:p-10 flex items-center justify-center">
               <div className="w-full animate-slide-in">
+
+            {/* Invite-required screen for direct /cricket signup (no invite token) */}
+            {isInviteRequired ? (
+              <div className="text-center py-4">
+                <div className="mb-4 text-4xl">🔗</div>
+                <Text as="h2" size="xl" weight="semibold" className="mb-2 text-[20px] lg:text-[24px]">
+                  Invite Link Required
+                </Text>
+                <Text as="p" size="md" color="muted" className="mb-6 text-[15px] leading-relaxed">
+                  Ask your team captain or admin for an invite link to join a cricket team.
+                </Text>
+                <Text as="p" size="sm" color="muted" className="mt-6">
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => { setAuthMode('login'); clearError(); }}
+                    className="cursor-pointer font-medium hover:underline"
+                    style={{ color: v.accentColor }}
+                  >
+                    Log in
+                  </button>
+                </Text>
+              </div>
+            ) : (
+
             <form
               onSubmit={handleSubmit}
               className=""
@@ -656,6 +681,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 </button>
               </Text>
             </form>
+            )}
               </div>
             </div>
           </div>

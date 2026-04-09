@@ -37,7 +37,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 function PendingApprovals() {
-  const { user, userAccess } = useAuthStore();
+  const { user, userAccess, currentTeamId } = useAuthStore();
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [showPopup, setShowPopup] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
@@ -48,16 +48,26 @@ function PendingApprovals() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    supabase
-      .from('profiles')
-      .select('id, email, full_name, created_at, player_meta, access')
-      .eq('approved', false)
-      .eq('disabled', false)
-      .order('created_at', { ascending: false })
-      .then(({ data }: { data: PendingUser[] | null }) => {
-        setPending(data ?? []);
-      });
-  }, [user, isAdmin]);
+    (async () => {
+      // Get pending team_members for the current team
+      const teamFilter = currentTeamId
+        ? supabase.from('team_members').select('user_id').eq('team_id', currentTeamId).eq('approved', false)
+        : supabase.from('team_members').select('user_id').eq('approved', false);
+
+      const { data: pendingMembers } = await teamFilter;
+      const pendingUserIds = (pendingMembers ?? []).map((m: { user_id: string }) => m.user_id);
+      if (pendingUserIds.length === 0) { setPending([]); return; }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, created_at, player_meta, access')
+        .in('id', pendingUserIds)
+        .eq('disabled', false)
+        .order('created_at', { ascending: false });
+
+      setPending((data ?? []) as PendingUser[]);
+    })();
+  }, [user, isAdmin, currentTeamId]);
 
   const handleApprove = async (p: PendingUser) => {
     const supabase = getSupabaseClient();
@@ -113,6 +123,8 @@ function PendingApprovals() {
       if (access.includes('toolkit')) defaultFeatures.push('vibe-planner', 'id-tracker');
       if (access.includes('cricket')) defaultFeatures.push('cricket');
       await supabase.from('profiles').update({ approved: true, features: defaultFeatures }).eq('id', p.id);
+      // Also approve team membership (per-team approval)
+      await supabase.from('team_members').update({ approved: true }).eq('user_id', p.id).eq('approved', false);
       setPending((prev) => prev.filter((u) => u.id !== p.id));
 
       // Auto-post welcome message in Moments via DB function
@@ -135,6 +147,8 @@ function PendingApprovals() {
     const access: string[] = p.access ?? [];
     const hasOtherAccess = access.some((a) => a !== 'cricket');
 
+    // Clean up team membership first
+    await supabase.from('team_members').delete().eq('user_id', p.id).eq('approved', false);
     if (hasOtherAccess) {
       // Existing user (e.g., toolkit) requested cricket — just remove cricket access, restore approved
       const newAccess = access.filter((a) => a !== 'cricket');
@@ -156,8 +170,10 @@ function PendingApprovals() {
         className="relative cursor-pointer rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
         </svg>
         {/* Badge */}
         <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--red)] text-[9px] font-bold text-white">
@@ -168,78 +184,120 @@ function PendingApprovals() {
       {showPopup && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowPopup(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-[340px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl animate-[scaleIn_0.15s]">
-            <div className="p-4 border-b border-[var(--border)]">
-              <Text as="h3" size="md" weight="semibold">Pending Approvals</Text>
-              <Text as="p" size="xs" color="muted">{pending.length} cricket signup{pending.length !== 1 ? 's' : ''} awaiting approval</Text>
+          <div
+            className="absolute right-0 top-full mt-2 z-50 w-[360px] rounded-2xl overflow-hidden"
+            style={{
+              background: 'var(--card)',
+              border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 8px 20px rgba(0,0,0,0.1)',
+            }}
+          >
+            {/* Header with accent gradient stripe */}
+            <div
+              className="relative px-4 pt-4 pb-3"
+              style={{ background: 'color-mix(in srgb, var(--orange) 6%, var(--card))' }}
+            >
+              <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: 'linear-gradient(90deg, var(--orange), var(--cricket))' }} />
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: 'color-mix(in srgb, var(--orange) 15%, transparent)' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <line x1="19" y1="8" x2="19" y2="14" />
+                    <line x1="22" y1="11" x2="16" y2="11" />
+                  </svg>
+                </div>
+                <div>
+                  <Text as="h3" size="sm" weight="bold">New Signups</Text>
+                  <Text as="p" size="2xs" color="muted">{pending.length} awaiting your approval</Text>
+                </div>
+              </div>
             </div>
-            <div className="max-h-[400px] overflow-y-auto">
-              {pending.map((p) => {
+
+            {/* Pending list */}
+            <div className="max-h-[420px] overflow-y-auto">
+              {pending.map((p, i) => {
                 const meta = p.player_meta;
+                const isProcessing = approving === p.id;
                 return (
-                  <div key={p.id} className="p-3 border-b border-[var(--border)]/50 last:border-b-0">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full flex items-center justify-center text-[14px] font-bold text-white flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+                  <div
+                    key={p.id}
+                    className="px-4 py-3.5 transition-colors"
+                    style={{
+                      background: i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--surface) 50%, transparent)',
+                      borderBottom: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
+                    }}
+                  >
+                    <div className="flex gap-3">
+                      {/* Avatar */}
+                      <div
+                        className="h-10 w-10 rounded-xl flex items-center justify-center text-[15px] font-bold text-white flex-shrink-0 shadow-sm mt-0.5"
+                        style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
+                      >
                         {(p.full_name || p.email || '?')[0].toUpperCase()}
                       </div>
+                      {/* Content — name, badges, buttons all aligned */}
                       <div className="flex-1 min-w-0">
-                        <Text as="div" size="sm" weight="medium" truncate>{p.full_name || 'No name'}</Text>
-                        <Text as="div" size="2xs" color="muted" truncate>{p.email}</Text>
+                        <Text as="div" size="sm" weight="semibold" truncate>{p.full_name || 'No name'}</Text>
+                        <Text as="div" size="2xs" color="dim" truncate>{p.email}</Text>
+
+                        {meta && (meta.player_role || meta.jersey_number) && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {meta.jersey_number != null && (
+                              <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md"
+                                style={{ background: 'color-mix(in srgb, var(--cricket) 15%, transparent)', color: 'var(--cricket)' }}>
+                                #{meta.jersey_number}
+                              </span>
+                            )}
+                            {meta.player_role && (
+                              <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                                style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', color: 'var(--cricket)' }}>
+                                {ROLE_LABELS[meta.player_role] ?? meta.player_role}
+                              </span>
+                            )}
+                            {meta.batting_style && (
+                              <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-md"
+                                style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}>
+                                {meta.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
+                              </span>
+                            )}
+                            {meta.bowling_style && (
+                              <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-md"
+                                style={{ background: 'color-mix(in srgb, var(--green) 12%, transparent)', color: 'var(--green)' }}>
+                                {meta.bowling_style.charAt(0).toUpperCase() + meta.bowling_style.slice(1)}
+                              </span>
+                            )}
+                            {meta.shirt_size && (
+                              <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-md"
+                                style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
+                                {meta.shirt_size.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleApprove(p)}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center text-center h-9 rounded-xl text-[13px] font-semibold text-white cursor-pointer transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+                            style={{ background: 'linear-gradient(135deg, var(--green), color-mix(in srgb, var(--green) 80%, #000))' }}
+                          >
+                            {isProcessing ? '...' : '✓ Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleReject(p)}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center text-center h-9 rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-[0.97] disabled:opacity-50"
+                            style={{ background: 'color-mix(in srgb, var(--red) 10%, transparent)', color: 'var(--red)', border: '1px solid color-mix(in srgb, var(--red) 25%, transparent)' }}
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    {/* Player meta info */}
-                    {meta && (meta.player_role || meta.jersey_number) && (
-                      <div className="flex flex-wrap gap-1.5 mt-2 ml-12">
-                        {meta.jersey_number != null && (
-                          <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket-accent)' }}>
-                            #{meta.jersey_number}
-                          </span>
-                        )}
-                        {meta.player_role && (
-                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)', color: 'var(--cricket-accent)' }}>
-                            {ROLE_LABELS[meta.player_role] ?? meta.player_role}
-                          </span>
-                        )}
-                        {meta.batting_style && (
-                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ background: 'color-mix(in srgb, var(--blue) 15%, transparent)', color: 'var(--blue)' }}>
-                            {meta.batting_style === 'right' ? 'Right Hand' : 'Left Hand'}
-                          </span>
-                        )}
-                        {meta.bowling_style && (
-                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }}>
-                            {meta.bowling_style.charAt(0).toUpperCase() + meta.bowling_style.slice(1)}
-                          </span>
-                        )}
-                        {meta.shirt_size && (
-                          <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ background: 'var(--surface)', color: 'var(--dim)', border: '1px solid var(--border)' }}>
-                            {meta.shirt_size}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex gap-2 mt-2 ml-12">
-                      <Button
-                        onClick={() => handleApprove(p)}
-                        loading={approving === p.id}
-                        size="sm"
-                        className="flex-1 bg-[var(--green)] text-white hover:brightness-110"
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        variant="danger-outline"
-                        size="sm"
-                        onClick={() => handleReject(p)}
-                        className="flex-1"
-                      >
-                        Reject
-                      </Button>
                     </div>
                   </div>
                 );

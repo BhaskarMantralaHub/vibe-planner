@@ -9,22 +9,24 @@ export function useTeamContext() {
   const searchParams = useSearchParams();
   const { userTeams, currentTeamId, setCurrentTeam } = useAuthStore();
 
+  const approvedTeams = userTeams.filter(t => t.approved);
+
   // Layer 1: URL param (source of truth for deep links / sharing)
   const teamSlug = searchParams.get('team');
   if (teamSlug) {
-    const matched = userTeams.find(t => t.team_slug === teamSlug);
+    const matched = approvedTeams.find(t => t.team_slug === teamSlug);
     if (matched && matched.team_id !== currentTeamId) {
       setCurrentTeam(matched.team_id);
     }
   }
 
-  const currentTeam = userTeams.find(t => t.team_id === currentTeamId) ?? userTeams[0] ?? null;
+  const currentTeam = approvedTeams.find(t => t.team_id === currentTeamId) ?? approvedTeams[0] ?? null;
 
   return {
     currentTeamId: currentTeam?.team_id ?? null,
     currentTeam,
-    userTeams,
-    isMultiTeam: userTeams.length > 1,
+    userTeams: approvedTeams,
+    isMultiTeam: approvedTeams.length > 1,
     setCurrentTeam,
   };
 }

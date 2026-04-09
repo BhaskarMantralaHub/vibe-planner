@@ -1,6 +1,7 @@
 -- ============================================================
 -- Performance: Consolidated Dashboard RPC
 -- Replaces 13 parallel queries with 1 round-trip
+-- Includes pending_members for team admins (per-team approval)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION get_dashboard_data(
@@ -13,13 +14,18 @@ SET search_path = public
 AS $$
 DECLARE
   v_team_id UUID;
+  v_is_admin BOOLEAN;
   result JSON;
 BEGIN
   v_team_id := COALESCE(p_team_id, (
-    SELECT team_id FROM team_members WHERE user_id = auth.uid() ORDER BY joined_at ASC LIMIT 1
+    SELECT team_id FROM team_members
+    WHERE user_id = auth.uid() AND approved = true
+    ORDER BY joined_at ASC LIMIT 1
   ));
   IF v_team_id IS NULL THEN RETURN '{}'::json; END IF;
   IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN '{}'::json; END IF;
+
+  v_is_admin := is_team_admin(v_team_id) OR is_global_admin();
 
   -- Visible gallery posts (scoped to limit) — used by sub-table JOINs
   -- This prevents gallery_tags/likes/reactions from loading ALL posts
@@ -109,7 +115,7 @@ BEGIN
     'admin_user_ids', (
       SELECT COALESCE(json_agg(tm.user_id), '[]'::json)
       FROM team_members tm
-      WHERE tm.team_id = v_team_id AND tm.role IN ('admin', 'owner')
+      WHERE tm.team_id = v_team_id AND tm.role IN ('admin', 'owner') AND tm.approved = true
     ),
     'signed_up_emails', (
       SELECT COALESCE(json_agg(lower(au.email)), '[]'::json)
@@ -118,7 +124,19 @@ BEGIN
         SELECT lower(cp.email) FROM cricket_players cp
         WHERE cp.team_id = v_team_id AND cp.is_active = true AND cp.email IS NOT NULL
       )
-    )
+    ),
+    -- Pending members (only populated for admins)
+    'pending_members', CASE WHEN v_is_admin THEN (
+      SELECT COALESCE(json_agg(json_build_object(
+        'user_id', tm.user_id,
+        'joined_at', tm.joined_at,
+        'name', COALESCE(au.raw_user_meta_data->>'full_name', split_part(au.email, '@', 1)),
+        'email', au.email
+      ) ORDER BY tm.joined_at ASC), '[]'::json)
+      FROM team_members tm
+      JOIN auth.users au ON au.id = tm.user_id
+      WHERE tm.team_id = v_team_id AND tm.approved = false
+    ) ELSE '[]'::json END
   ) INTO result;
 
   RETURN result;

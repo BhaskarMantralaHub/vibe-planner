@@ -141,11 +141,18 @@ export type CommentReaction = {
 export type GalleryNotification = {
   id: string;
   user_id: string;
-  post_id: string;
-  type: 'tag' | 'comment' | 'like';
+  post_id: string | null;  // null for non-gallery notifications (join_request, approval)
+  type: 'tag' | 'comment' | 'like' | 'join_request' | 'approval';
   message: string;
   is_read: boolean;
   created_at: string;
+};
+
+export type PendingMember = {
+  user_id: string;
+  joined_at: string;
+  name: string;
+  email: string;
 };
 
 export type PlayerBalance = {

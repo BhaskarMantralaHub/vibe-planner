@@ -13,6 +13,7 @@ import type {
   GalleryLike,
   CommentReaction,
   GalleryNotification,
+  PendingMember,
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -118,6 +119,7 @@ interface CricketState {
   lastLoadedTeamId: string | null;
   adminUserIds: string[];
   signedUpEmails: string[];
+  pendingMembers: PendingMember[];
 
   // UI state
   showPlayerForm: boolean;
@@ -126,7 +128,7 @@ interface CricketState {
   editingPlayer: string | null;
 
   // Actions
-  loadAll: (userId: string) => Promise<void>;
+  loadAll: (userId: string, forceRefresh?: boolean) => Promise<void>;
   loadMoments: (userId: string) => Promise<void>;
   loadSeasons: () => Promise<void>;
   loadMoreGallery: () => Promise<void>;
@@ -184,6 +186,10 @@ interface CricketState {
   markNotificationsRead: () => void;
   clearNotifications: () => void;
 
+  // Pending members
+  approveMember: (userId: string) => Promise<void>;
+  rejectMember: (userId: string) => Promise<void>;
+
   // UI
   setShowPlayerForm: (show: boolean) => void;
   setShowExpenseForm: (show: boolean) => void;
@@ -214,6 +220,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   lastLoadedTeamId: null,
   adminUserIds: [],
   signedUpEmails: [],
+  pendingMembers: [],
 
   showPlayerForm: false,
   showExpenseForm: false,
@@ -268,7 +275,8 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         // Admin data included in RPC response
         const adminUserIds = (d.admin_user_ids ?? []) as string[];
         const signedUpEmails = (d.signed_up_emails ?? []) as string[];
-        set({ adminUserIds, signedUpEmails });
+        const pendingMembers = (d.pending_members ?? []) as PendingMember[];
+        set({ adminUserIds, signedUpEmails, pendingMembers });
       } else {
         // Fallback: parallel queries (RPC not deployed yet or failed)
         if (rpcError) console.warn('[cricket] RPC fallback — get_dashboard_data failed:', rpcError.message);
@@ -1084,6 +1092,51 @@ export const useCricketStore = create<CricketState>((set, get) => ({
   },
 
   // ── UI ───────────────────────────────────────────────────────────────
+
+  approveMember: async (userId: string) => {
+    const teamId = getCurrentTeamId();
+    if (!teamId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data, error } = await supabase.rpc('approve_team_member', {
+      p_team_id: teamId,
+      p_user_id: userId,
+    });
+
+    if (error || data?.error) {
+      toast.error(error?.message || data?.error || 'Failed to approve member');
+      return;
+    }
+
+    // Remove from pending list and refresh players
+    set({ pendingMembers: get().pendingMembers.filter(m => m.user_id !== userId) });
+    toast.success(`${data.player_name} has been approved!`);
+
+    // Reload to get the new player record
+    const user = useAuthStore.getState().user;
+    if (user) get().loadAll(user.id, true);
+  },
+
+  rejectMember: async (userId: string) => {
+    const teamId = getCurrentTeamId();
+    if (!teamId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const { data, error } = await supabase.rpc('reject_team_member', {
+      p_team_id: teamId,
+      p_user_id: userId,
+    });
+
+    if (error || data?.error) {
+      toast.error(error?.message || data?.error || 'Failed to reject member');
+      return;
+    }
+
+    set({ pendingMembers: get().pendingMembers.filter(m => m.user_id !== userId) });
+    toast('Member request rejected');
+  },
 
   setShowPlayerForm: (showPlayerForm) => set({ showPlayerForm }),
   setShowExpenseForm: (showExpenseForm) => set({ showExpenseForm }),

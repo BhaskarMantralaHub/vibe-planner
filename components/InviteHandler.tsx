@@ -66,17 +66,20 @@ export default function InviteHandler() {
       // Check if already a member of this team
       const { data: membership } = await supabase
         .from('team_members')
-        .select('id')
+        .select('id, approved')
         .eq('team_id', data.team_id)
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (membership) {
-        // Already a member — clear invite and clean URL
         clearPendingInvite();
         const url = new URL(window.location.href);
         url.searchParams.delete('join');
         window.history.replaceState({}, '', url.pathname + url.search);
+        if (!membership.approved) {
+          // Pending member — show pending state
+          setPendingApproval(true);
+        }
         return; // Don't show join prompt
       }
 

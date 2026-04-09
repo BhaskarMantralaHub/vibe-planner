@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS team_members (
   team_id   UUID NOT NULL REFERENCES cricket_teams(id) ON DELETE RESTRICT,
   user_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role      TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('owner', 'admin', 'player')),
+  approved  BOOLEAN NOT NULL DEFAULT true,  -- per-team approval; false = pending admin approval
   joined_at TIMESTAMPTZ DEFAULT now(),
 
   CONSTRAINT team_members_unique UNIQUE (team_id, user_id)
@@ -44,6 +45,7 @@ ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 -- Indexes for team_members (critical for RLS helper performance)
 CREATE INDEX IF NOT EXISTS idx_team_members_user_team ON team_members(user_id, team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team      ON team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_pending   ON team_members(team_id) WHERE approved = false;
 
 -- ── Privilege Escalation Prevention ─────────────────────────
 -- Owner role can only be transferred via dedicated RPC, not via UPDATE
@@ -81,7 +83,11 @@ CREATE POLICY "Owner can update team"
 
 CREATE POLICY "Members can read own team members"
   ON team_members FOR SELECT
-  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+  USING (
+    team_id IN (SELECT * FROM user_team_ids())
+    OR user_id = auth.uid()   -- can always see own rows (including pending)
+    OR is_global_admin()
+  );
 
 CREATE POLICY "Admin can add members"
   ON team_members FOR INSERT
@@ -162,10 +168,11 @@ $$;
 
 GRANT EXECUTE ON FUNCTION validate_invite_token(UUID) TO anon, authenticated;
 
--- ── Accept Invite v2 (pending approval for unknown players) ──
+-- ── Accept Invite v3 (per-team approval) ────────────────────
 -- Pre-added players (email match) → auto-approved + auto-linked
--- Existing players from other teams → auto-approved
--- Unknown emails → pending approval (admin must approve)
+-- Existing approved members from other teams → auto-approved
+-- Unknown emails → team_members.approved = false (team admin approves)
+-- No longer touches profiles.approved (global flag stays true)
 CREATE OR REPLACE FUNCTION accept_invite(p_token UUID)
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER
@@ -204,21 +211,39 @@ BEGIN
     WHERE team_id = v_invite.team_id AND lower(email) = lower(v_user_email) AND is_active = true
   );
 
+  -- Already an approved member of this team? Short-circuit.
+  IF EXISTS (
+    SELECT 1 FROM team_members
+    WHERE team_id = v_invite.team_id AND user_id = auth.uid() AND approved = true
+  ) THEN
+    UPDATE team_invites SET use_count = use_count + 1 WHERE id = v_invite.id;
+    RETURN json_build_object(
+      'success', true, 'team_id', v_invite.team_id,
+      'team_name', v_invite.team_name, 'team_slug', v_invite.team_slug,
+      'pending_approval', false, 'already_member', true
+    );
+  END IF;
+
   v_is_existing_player := EXISTS (
-    SELECT 1 FROM team_members WHERE user_id = auth.uid() AND team_id != v_invite.team_id
+    SELECT 1 FROM team_members
+    WHERE user_id = auth.uid() AND team_id != v_invite.team_id AND approved = true
   );
 
   v_needs_approval := NOT v_is_pre_added AND NOT v_is_existing_player;
 
-  INSERT INTO team_members (team_id, user_id, role)
-  VALUES (v_invite.team_id, auth.uid(), 'player')
-  ON CONFLICT (team_id, user_id) DO NOTHING;
+  -- Per-team approval: approved flag on team_members, not profiles
+  -- DO UPDATE upgrades approved (never downgrades) for re-join after rejection
+  INSERT INTO team_members (team_id, user_id, role, approved)
+  VALUES (v_invite.team_id, auth.uid(), 'player', NOT v_needs_approval)
+  ON CONFLICT (team_id, user_id) DO UPDATE
+    SET approved = GREATEST(team_members.approved, EXCLUDED.approved);
 
+  -- Add cricket access + features; sync profiles.approved with team approval
   UPDATE profiles
   SET access = CASE WHEN NOT (access @> '{cricket}') THEN array_append(access, 'cricket') ELSE access END,
   features = CASE WHEN NOT (features @> '{cricket}') THEN array_append(features, 'cricket') ELSE features END,
   approved = CASE
-    WHEN v_needs_approval AND approved = true THEN true
+    WHEN v_needs_approval AND approved = true THEN true  -- don't downgrade existing approved users
     WHEN v_needs_approval THEN false
     ELSE true
   END
@@ -230,6 +255,24 @@ BEGIN
     UPDATE cricket_players SET user_id = auth.uid()
     WHERE team_id = v_invite.team_id AND lower(email) = lower(v_user_email)
       AND is_active = true AND user_id IS NULL;
+  END IF;
+
+  -- Notify team admins about pending join request
+  IF v_needs_approval THEN
+    INSERT INTO cricket_notifications (user_id, post_id, team_id, type, message)
+    SELECT
+      tm.user_id,
+      NULL,  -- no gallery post for this notification type
+      v_invite.team_id,
+      'join_request',
+      COALESCE(
+        (SELECT raw_user_meta_data->>'full_name' FROM auth.users WHERE id = auth.uid()),
+        split_part(v_user_email, '@', 1)
+      ) || ' wants to join the team'
+    FROM team_members tm
+    WHERE tm.team_id = v_invite.team_id
+      AND tm.role IN ('owner', 'admin')
+      AND tm.approved = true;
   END IF;
 
   RETURN json_build_object(
@@ -448,16 +491,19 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
 -- ── Helper functions (multi-team) ───────────────────────────
 
--- Returns all team IDs the current user belongs to (cached per statement)
+-- Returns all team IDs the current user belongs to (approved only)
+-- This is the single chokepoint for ALL RLS policies — unapproved members
+-- are automatically locked out of all team data.
 CREATE OR REPLACE FUNCTION user_team_ids()
 RETURNS SETOF UUID
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT team_id FROM public.team_members WHERE user_id = auth.uid();
+  SELECT team_id FROM public.team_members
+  WHERE user_id = auth.uid() AND approved = true;
 $$;
 
--- Team-scoped admin check (owner or admin role)
+-- Team-scoped admin check (owner or admin role, must be approved)
 CREATE OR REPLACE FUNCTION is_team_admin(p_team_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -465,11 +511,12 @@ SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.team_members
-    WHERE team_id = p_team_id AND user_id = auth.uid() AND role IN ('owner', 'admin')
+    WHERE team_id = p_team_id AND user_id = auth.uid()
+      AND role IN ('owner', 'admin') AND approved = true
   );
 $$;
 
--- Team-scoped membership check
+-- Team-scoped membership check (approved members only)
 CREATE OR REPLACE FUNCTION is_team_member(p_team_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -477,7 +524,7 @@ SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.team_members
-    WHERE team_id = p_team_id AND user_id = auth.uid()
+    WHERE team_id = p_team_id AND user_id = auth.uid() AND approved = true
   );
 $$;
 
@@ -493,7 +540,7 @@ AS $$
   );
 $$;
 
--- Resolve team_id with fallback to user's first team
+-- Resolve team_id with fallback to user's first approved team
 CREATE OR REPLACE FUNCTION resolve_team_id(p_team_id UUID DEFAULT NULL)
 RETURNS UUID
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -501,7 +548,7 @@ SET search_path = ''
 AS $$
   SELECT COALESCE(
     p_team_id,
-    (SELECT team_id FROM public.team_members WHERE user_id = auth.uid() ORDER BY joined_at ASC LIMIT 1)
+    (SELECT team_id FROM public.team_members WHERE user_id = auth.uid() AND approved = true ORDER BY joined_at ASC LIMIT 1)
   );
 $$;
 
@@ -853,9 +900,9 @@ DECLARE
   ];
   caption TEXT;
 BEGIN
-  -- Resolve team: passed explicitly, or from the new user's membership
+  -- Resolve team: passed explicitly, or from the new user's approved membership
   v_team_id := COALESCE(p_team_id, (
-    SELECT team_id FROM team_members WHERE user_id = new_user_id LIMIT 1
+    SELECT team_id FROM team_members WHERE user_id = new_user_id AND approved = true LIMIT 1
   ));
   IF v_team_id IS NULL THEN RETURN; END IF;
 
@@ -880,10 +927,10 @@ BEGIN
   LIMIT 1;
   IF v_season_id IS NULL THEN RETURN; END IF;
 
-  -- Use an existing team admin as the post owner
+  -- Use an existing approved team admin as the post owner
   SELECT tm.user_id INTO admin_uid
   FROM team_members tm
-  WHERE tm.team_id = v_team_id AND tm.role IN ('owner', 'admin')
+  WHERE tm.team_id = v_team_id AND tm.role IN ('owner', 'admin') AND tm.approved = true
   ORDER BY tm.joined_at LIMIT 1;
   IF admin_uid IS NULL THEN RETURN; END IF;
 
@@ -923,7 +970,7 @@ DECLARE
   v_team_id UUID;
 BEGIN
   v_team_id := COALESCE(p_team_id, (
-    SELECT team_id FROM team_members WHERE user_id = new_user_id LIMIT 1
+    SELECT team_id FROM team_members WHERE user_id = new_user_id AND approved = true LIMIT 1
   ));
   IF auth.uid() != new_user_id
     AND NOT is_team_admin(v_team_id)
@@ -938,9 +985,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION create_welcome_post(UUID, TEXT, UUID) TO authenticated;
 
--- ── Handle new user trigger (reads access/approved/player meta + team_slug) ──
--- Phase 5: Now reads team_slug from signup metadata and creates team_members row.
--- Fallback: if no team_slug but cricket access, uses the first available team.
+-- ── Handle new user trigger (per-team approval) ─────────────
+-- profiles.approved always true; team_members.approved gates access.
+-- Pre-added players (email match) are auto-approved at team level.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -951,6 +998,7 @@ DECLARE
   meta JSONB;
   v_team_id UUID;
   v_team_slug TEXT;
+  v_is_pre_added BOOLEAN := false;
 BEGIN
   raw_access := NEW.raw_user_meta_data->>'access';
 
@@ -967,10 +1015,10 @@ BEGIN
     user_features := '{vibe-planner,id-tracker}';
   END IF;
 
-  user_approved := COALESCE(
-    (NEW.raw_user_meta_data->>'approved')::boolean,
-    true
-  );
+  -- Per-team approval: never trust client-supplied 'approved' metadata.
+  -- Non-cricket users are always approved. Cricket users are approved only
+  -- if pre-added (v_is_pre_added, checked below) — not from client metadata.
+  user_approved := (raw_access IS NULL OR raw_access != 'cricket');
 
   IF raw_access = 'cricket' THEN
     meta := jsonb_build_object(
@@ -984,6 +1032,7 @@ BEGIN
     meta := NULL;
   END IF;
 
+  -- profiles.approved synced with team approval (backward compat with existing Shell.tsx PendingApprovals)
   INSERT INTO public.profiles (id, email, full_name, access, approved, player_meta, features)
   VALUES (
     NEW.id,
@@ -1002,20 +1051,44 @@ BEGIN
     SELECT id INTO v_team_id FROM cricket_teams WHERE slug = v_team_slug AND deleted_at IS NULL;
   END IF;
 
-  -- Fallback: if no team_slug but cricket access, use the first available team
-  IF v_team_id IS NULL AND raw_access = 'cricket' THEN
-    SELECT id INTO v_team_id FROM cricket_teams WHERE deleted_at IS NULL ORDER BY created_at ASC LIMIT 1;
+  -- No fallback: signup without invite link → no team assigned.
+  -- The AuthGate UI requires invite links for cricket signup, so team_slug
+  -- should always be present. If somehow missing, user gets cricket access
+  -- but no team membership — RequestAccess flow handles recovery.
+
+  -- Check if player was pre-added (email match on target team)
+  IF v_team_id IS NOT NULL AND raw_access = 'cricket' THEN
+    v_is_pre_added := EXISTS (
+      SELECT 1 FROM cricket_players
+      WHERE team_id = v_team_id AND lower(email) = lower(NEW.email) AND is_active = true
+    );
   END IF;
 
-  -- Create team membership
+  -- Create team membership with per-team approval
   IF v_team_id IS NOT NULL THEN
-    INSERT INTO team_members (team_id, user_id, role)
-    VALUES (v_team_id, NEW.id, 'player')
+    INSERT INTO team_members (team_id, user_id, role, approved)
+    VALUES (v_team_id, NEW.id, 'player', user_approved OR v_is_pre_added)
     ON CONFLICT (team_id, user_id) DO NOTHING;
+
+    -- Notify team admins if pending approval
+    IF NOT user_approved AND NOT v_is_pre_added THEN
+      INSERT INTO cricket_notifications (user_id, post_id, team_id, type, message)
+      SELECT
+        tm.user_id,
+        NULL,  -- no gallery post for this notification type
+        v_team_id,
+        'join_request',
+        COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
+          || ' wants to join the team'
+      FROM team_members tm
+      WHERE tm.team_id = v_team_id
+        AND tm.role IN ('owner', 'admin')
+        AND tm.approved = true;
+    END IF;
   END IF;
 
   -- Auto-approved cricket player: claim pre-added player record (team-scoped)
-  IF raw_access = 'cricket' AND user_approved AND v_team_id IS NOT NULL THEN
+  IF raw_access = 'cricket' AND (user_approved OR v_is_pre_added) AND v_team_id IS NOT NULL THEN
     BEGIN
       UPDATE cricket_players
       SET user_id = NEW.id,
@@ -1061,21 +1134,181 @@ $$;
 
 GRANT EXECUTE ON FUNCTION reject_user(UUID) TO authenticated;
 
+-- ── Approve team member (per-team approval) ─────────────────
+-- Team admin approves a pending member: sets approved=true, creates player
+-- record if needed, posts welcome message, notifies the approved user.
+CREATE OR REPLACE FUNCTION approve_team_member(
+  p_team_id UUID,
+  p_user_id UUID
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_member RECORD;
+  v_player_name TEXT;
+BEGIN
+  IF NOT is_team_admin(p_team_id) AND NOT is_global_admin() THEN
+    RAISE EXCEPTION 'Only team admins can approve members';
+  END IF;
+
+  SELECT tm.*, au.email, au.raw_user_meta_data->>'full_name' AS full_name
+  INTO v_member
+  FROM team_members tm
+  JOIN auth.users au ON au.id = tm.user_id
+  WHERE tm.team_id = p_team_id AND tm.user_id = p_user_id AND tm.approved = false;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('error', 'No pending member found');
+  END IF;
+
+  UPDATE team_members SET approved = true
+  WHERE team_id = p_team_id AND user_id = p_user_id;
+
+  -- Sync profiles.approved (backward compat with existing PendingApprovals UI)
+  UPDATE profiles SET approved = true WHERE id = p_user_id;
+
+  v_player_name := COALESCE(v_member.full_name, split_part(v_member.email, '@', 1));
+
+  -- Create or link player record
+  IF NOT EXISTS (
+    SELECT 1 FROM cricket_players
+    WHERE team_id = p_team_id AND user_id = p_user_id AND is_active = true
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM cricket_players
+      WHERE team_id = p_team_id AND lower(email) = lower(v_member.email)
+        AND is_active = true AND user_id IS NULL
+    ) THEN
+      UPDATE cricket_players
+      SET user_id = p_user_id, updated_at = now()
+      WHERE team_id = p_team_id AND lower(email) = lower(v_member.email)
+        AND is_active = true AND user_id IS NULL;
+    ELSE
+      INSERT INTO cricket_players (team_id, user_id, name, email, is_active, is_guest)
+      VALUES (p_team_id, p_user_id, v_player_name, v_member.email, true, false);
+    END IF;
+  END IF;
+
+  BEGIN
+    PERFORM post_welcome_message(p_user_id, v_player_name, p_team_id);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'approve_team_member: welcome post failed: %', SQLERRM;
+  END;
+
+  INSERT INTO cricket_notifications (user_id, post_id, team_id, type, message)
+  VALUES (
+    p_user_id,
+    NULL,  -- no gallery post for this notification type
+    p_team_id,
+    'approval',
+    'Welcome! Your request to join the team has been approved'
+  );
+
+  RETURN json_build_object(
+    'success', true, 'user_id', p_user_id, 'player_name', v_player_name
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION approve_team_member(UUID, UUID) TO authenticated;
+
+-- ── Reject team member (per-team approval) ──────────────────
+-- Removes the pending team_members row. Does not delete auth account.
+CREATE OR REPLACE FUNCTION reject_team_member(
+  p_team_id UUID,
+  p_user_id UUID
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT is_team_admin(p_team_id) AND NOT is_global_admin() THEN
+    RAISE EXCEPTION 'Only team admins can reject members';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM team_members
+    WHERE team_id = p_team_id AND user_id = p_user_id AND approved = false
+  ) THEN
+    RETURN json_build_object('error', 'No pending member found');
+  END IF;
+
+  DELETE FROM team_members
+  WHERE team_id = p_team_id AND user_id = p_user_id AND approved = false;
+
+  -- Clean up admin notifications about THIS specific user's join request
+  DELETE FROM cricket_notifications
+  WHERE team_id = p_team_id AND type = 'join_request'
+    AND message LIKE (
+      COALESCE(
+        (SELECT raw_user_meta_data->>'full_name' FROM auth.users WHERE id = p_user_id),
+        split_part((SELECT email FROM auth.users WHERE id = p_user_id), '@', 1)
+      ) || ' wants to join the team'
+    );
+
+  RETURN json_build_object('success', true);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION reject_team_member(UUID, UUID) TO authenticated;
+
 -- ── Request cricket access for existing user (callable by anon) ──
 -- Used when a toolkit user tries to sign up on cricket page.
--- Adds 'cricket' to access array, sets approved=false for admin review.
+-- Per-team approval: adds cricket access/features, creates pending team_members row.
+-- profiles.approved stays true (per-team approval lives in team_members).
 CREATE OR REPLACE FUNCTION request_cricket_access(check_email TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_user_id UUID;
+  v_team_id UUID;
 BEGIN
+  -- Find the user
+  SELECT id INTO v_user_id FROM auth.users WHERE lower(email) = lower(check_email);
+  IF v_user_id IS NULL THEN RETURN false; END IF;
+
+  -- Add cricket access + features; set approved=false for admin review
   UPDATE profiles
-  SET access = array_append(access, 'cricket'),
+  SET access = CASE WHEN NOT (access @> '{cricket}') THEN array_append(access, 'cricket') ELSE access END,
+      features = CASE WHEN NOT (features @> '{cricket}') THEN array_append(features, 'cricket') ELSE features END,
       approved = false
-  WHERE lower(email) = lower(check_email)
+  WHERE id = v_user_id
     AND NOT (access @> '{cricket}');
-  RETURN FOUND;
+
+  IF NOT FOUND THEN RETURN false; END IF;
+
+  -- Find the first available team
+  SELECT id INTO v_team_id FROM cricket_teams WHERE deleted_at IS NULL ORDER BY created_at ASC LIMIT 1;
+  IF v_team_id IS NULL THEN RETURN true; END IF;
+
+  -- Create pending team membership
+  INSERT INTO team_members (team_id, user_id, role, approved)
+  VALUES (v_team_id, v_user_id, 'player', false)
+  ON CONFLICT (team_id, user_id) DO NOTHING;
+
+  -- Notify team admins
+  INSERT INTO cricket_notifications (user_id, post_id, team_id, type, message)
+  SELECT
+    tm.user_id,
+    NULL,  -- no gallery post for this notification type
+    v_team_id,
+    'join_request',
+    COALESCE(
+      (SELECT raw_user_meta_data->>'full_name' FROM auth.users WHERE id = v_user_id),
+      split_part(check_email, '@', 1)
+    ) || ' wants to join the team'
+  FROM team_members tm
+  WHERE tm.team_id = v_team_id
+    AND tm.role IN ('owner', 'admin')
+    AND tm.approved = true;
+
+  RETURN true;
 END;
 $$;
 
@@ -1203,13 +1436,16 @@ SET search_path = public
 AS $$
 DECLARE
   v_team_id UUID;
+  v_is_admin BOOLEAN;
   result JSON;
 BEGIN
   v_team_id := COALESCE(p_team_id, (
-    SELECT team_id FROM team_members WHERE user_id = auth.uid() ORDER BY joined_at ASC LIMIT 1
+    SELECT team_id FROM team_members WHERE user_id = auth.uid() AND approved = true ORDER BY joined_at ASC LIMIT 1
   ));
   IF v_team_id IS NULL THEN RETURN '{}'::json; END IF;
   IF NOT is_team_member(v_team_id) AND NOT is_global_admin() THEN RETURN '{}'::json; END IF;
+
+  v_is_admin := is_team_admin(v_team_id) OR is_global_admin();
 
   WITH visible_posts AS (
     SELECT id FROM cricket_gallery
@@ -1230,8 +1466,19 @@ BEGIN
     'gallery_likes', (SELECT COALESCE(json_agg(row), '[]'::json) FROM (SELECT l.* FROM cricket_gallery_likes l WHERE l.post_id IN (SELECT id FROM visible_posts)) row),
     'comment_reactions', (SELECT COALESCE(json_agg(row), '[]'::json) FROM (SELECT r.* FROM cricket_comment_reactions r JOIN cricket_gallery_comments c ON r.comment_id = c.id WHERE c.post_id IN (SELECT id FROM visible_posts)) row),
     'notifications', (SELECT COALESCE(json_agg(row ORDER BY row.created_at DESC), '[]'::json) FROM (SELECT * FROM cricket_notifications WHERE user_id = auth.uid() AND team_id = v_team_id ORDER BY created_at DESC LIMIT 50) row),
-    'admin_user_ids', (SELECT COALESCE(json_agg(tm.user_id), '[]'::json) FROM team_members tm WHERE tm.team_id = v_team_id AND tm.role IN ('admin', 'owner')),
-    'signed_up_emails', (SELECT COALESCE(json_agg(lower(au.email)), '[]'::json) FROM auth.users au WHERE lower(au.email) IN (SELECT lower(cp.email) FROM cricket_players cp WHERE cp.team_id = v_team_id AND cp.is_active = true AND cp.email IS NOT NULL))
+    'admin_user_ids', (SELECT COALESCE(json_agg(tm.user_id), '[]'::json) FROM team_members tm WHERE tm.team_id = v_team_id AND tm.role IN ('admin', 'owner') AND tm.approved = true),
+    'signed_up_emails', (SELECT COALESCE(json_agg(lower(au.email)), '[]'::json) FROM auth.users au WHERE lower(au.email) IN (SELECT lower(cp.email) FROM cricket_players cp WHERE cp.team_id = v_team_id AND cp.is_active = true AND cp.email IS NOT NULL)),
+    'pending_members', CASE WHEN v_is_admin THEN (
+      SELECT COALESCE(json_agg(json_build_object(
+        'user_id', tm.user_id,
+        'joined_at', tm.joined_at,
+        'name', COALESCE(au.raw_user_meta_data->>'full_name', split_part(au.email, '@', 1)),
+        'email', au.email
+      ) ORDER BY tm.joined_at ASC), '[]'::json)
+      FROM team_members tm
+      JOIN auth.users au ON au.id = tm.user_id
+      WHERE tm.team_id = v_team_id AND tm.approved = false
+    ) ELSE '[]'::json END
   ) INTO result;
   RETURN result;
 END;
@@ -1336,6 +1583,10 @@ CREATE INDEX IF NOT EXISTS idx_gallery_comments_team ON cricket_gallery_comments
 CREATE OR REPLACE FUNCTION set_gallery_child_team_id()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Skip for non-gallery notifications (join_request, approval) where team_id is set directly
+  IF NEW.post_id IS NULL THEN
+    RETURN NEW;
+  END IF;
   NEW.team_id := (SELECT team_id FROM cricket_gallery WHERE id = NEW.post_id);
   IF NEW.team_id IS NULL THEN
     RAISE EXCEPTION 'Cannot determine team_id from post %', NEW.post_id;
@@ -1408,8 +1659,8 @@ CREATE TABLE IF NOT EXISTS cricket_notifications (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   team_id       UUID NOT NULL REFERENCES cricket_teams(id),
   user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  post_id       UUID NOT NULL REFERENCES cricket_gallery(id) ON DELETE CASCADE,
-  type          TEXT NOT NULL,       -- 'tag' | 'comment' | 'like'
+  post_id       UUID REFERENCES cricket_gallery(id) ON DELETE CASCADE,  -- NULL for non-gallery notifications (join_request, approval)
+  type          TEXT NOT NULL,       -- 'tag' | 'comment' | 'like' | 'join_request' | 'approval'
   message       TEXT NOT NULL,
   is_read       BOOLEAN DEFAULT false,
   created_at    TIMESTAMPTZ DEFAULT now()

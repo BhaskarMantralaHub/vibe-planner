@@ -22,6 +22,7 @@ export interface UserTeam {
   team_name: string;
   team_slug: string;
   role: string;
+  approved: boolean;
   logo_url: string | null;
   primary_color: string | null;
 }
@@ -43,7 +44,7 @@ interface AuthState {
   init: () => void;
   updatePassword: (password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData) => Promise<void>;
+  signup: (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   setAuthMode: (mode: AuthMode) => void;
@@ -51,7 +52,7 @@ interface AuthState {
   hasAccess: (role: string) => boolean;
   hasFeature: (feature: string) => boolean;
   setCurrentTeam: (teamId: string) => void;
-  loadUserTeams: () => Promise<void>;
+  loadUserTeams: (forceRefresh?: boolean) => Promise<void>;
 }
 
 export const RESET_FLAG_KEY = 'vibe_needs_password_reset';
@@ -309,7 +310,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ syncing: false });
   },
 
-  signup: async (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData) => {
+  signup: async (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string) => {
     set({ authError: '', syncing: true });
 
     // Check max users from app_settings (no auth needed)
@@ -382,6 +383,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (playerData.bowling_style) metadata.bowling_style = playerData.bowling_style;
       if (playerData.shirt_size) metadata.shirt_size = playerData.shirt_size;
     }
+    // Pass team context for invite-based signups
+    if (teamSlug) metadata.team_slug = teamSlug;
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -456,16 +459,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return get().userFeatures.includes(feature);
   },
 
-  loadUserTeams: async () => {
+  loadUserTeams: async (forceRefresh = false) => {
     const supabase = getSupabaseClient();
     if (!supabase || !get().user) return;
 
     // Skip if teams already loaded (prevents duplicate calls from StrictMode / auth events)
-    if (get().userTeams.length > 0) return;
+    if (!forceRefresh && get().userTeams.length > 0) return;
 
     const { data, error } = await supabase
       .from('team_members')
-      .select('team_id, role, cricket_teams(name, slug, logo_url, primary_color)')
+      .select('team_id, role, approved, cricket_teams(name, slug, logo_url, primary_color)')
       .eq('user_id', get().user!.id);
 
     if (error) {
@@ -474,17 +477,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (!data) return;
 
-    const teams: UserTeam[] = data.map((row: { team_id: string; role: string; cricket_teams: { name: string; slug: string; logo_url: string | null; primary_color: string | null } | null }) => ({
+    const teams: UserTeam[] = data.map((row: { team_id: string; role: string; approved: boolean; cricket_teams: { name: string; slug: string; logo_url: string | null; primary_color: string | null } | null }) => ({
       team_id: row.team_id,
       team_name: (row.cricket_teams as { name: string; slug: string } | null)?.name ?? 'Unknown',
       team_slug: (row.cricket_teams as { name: string; slug: string } | null)?.slug ?? '',
       role: row.role,
+      approved: row.approved ?? true,
       logo_url: (row.cricket_teams as { logo_url: string | null } | null)?.logo_url ?? null,
       primary_color: (row.cricket_teams as { primary_color: string | null } | null)?.primary_color ?? null,
     }));
 
+    // Only approved teams are valid for selection
+    const approvedTeams = teams.filter(t => t.approved);
     const storedTeamId = localStorage.getItem('vibe_current_team');
-    const validTeamIds = teams.map(t => t.team_id);
+    const validTeamIds = approvedTeams.map(t => t.team_id);
     const currentTeamId = storedTeamId && validTeamIds.includes(storedTeamId)
       ? storedTeamId
       : validTeamIds[0] ?? null;

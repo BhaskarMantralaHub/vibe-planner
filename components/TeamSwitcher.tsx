@@ -51,9 +51,10 @@ export default function TeamSwitcher() {
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const currentTeam = userTeams.find(t => t.team_id === currentTeamId) ?? userTeams[0];
+  const approvedTeams = userTeams.filter(t => t.approved);
+  const currentTeam = approvedTeams.find(t => t.team_id === currentTeamId) ?? approvedTeams[0];
   const teamName = currentTeam?.team_name ?? 'Team';
-  const isMultiTeam = userTeams.length > 1;
+  const isMultiTeam = approvedTeams.length > 1;
 
   useEffect(() => {
     if (!open) return;
@@ -132,7 +133,7 @@ export default function TeamSwitcher() {
           >
             {/* Team list */}
             <div className="p-2">
-              {userTeams.map((team) => {
+              {approvedTeams.map((team) => {
                 const isActive = team.team_id === currentTeamId;
                 const isSwitching = switchingTo === team.team_id;
                 const color = getTeamColor(team);

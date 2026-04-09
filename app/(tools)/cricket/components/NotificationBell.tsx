@@ -39,9 +39,16 @@ export default function NotificationBell() {
     supabase?.from('cricket_notifications').update({ is_read: true }).eq('id', notifId).then(() => {});
   };
 
-  const handleNotificationClick = (notifId: string, postId: string) => {
+  const handleNotificationClick = (notifId: string, postId: string | null, type: string) => {
     setOpen(false);
     markOneRead(notifId);
+
+    // join_request/approval — stay on cricket dashboard (pending members show there)
+    if (type === 'join_request' || type === 'approval' || !postId) {
+      if (pathname !== '/cricket') router.push('/cricket');
+      return;
+    }
+
     if (pathname === '/cricket/moments') {
       window.dispatchEvent(new CustomEvent('gallery-scroll-to', { detail: postId }));
     } else {
@@ -115,7 +122,7 @@ export default function NotificationBell() {
                 notifications.slice(0, 30).map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => handleNotificationClick(n.id, n.post_id)}
+                    onClick={() => handleNotificationClick(n.id, n.post_id, n.type)}
                     className="w-full flex items-start gap-2.5 px-4 py-3 text-left cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
                     style={{ background: n.is_read ? 'transparent' : 'color-mix(in srgb, var(--cricket) 6%, transparent)' }}
                   >

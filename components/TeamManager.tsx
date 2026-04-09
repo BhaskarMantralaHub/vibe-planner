@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
-import { Text, Button, Input, Card, Badge, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, Spinner } from '@/components/ui';
+import { Text, Button, Input, Card, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, Spinner } from '@/components/ui';
 import { MdAdd, MdContentCopy, MdLink, MdPeople, MdEdit, MdCameraAlt, MdShare } from 'react-icons/md';
 import { toast } from 'sonner';
 
@@ -32,16 +32,6 @@ interface Team {
   member_count?: number;
 }
 
-interface Invite {
-  id: string;
-  token: string;
-  expires_at: string;
-  max_uses: number | null;
-  use_count: number;
-  is_active: boolean;
-  created_at: string;
-}
-
 const COLOR_PRESETS = [
   { name: 'Ocean', hex: '#0369a1' },
   { name: 'Emerald', hex: '#059669' },
@@ -56,10 +46,9 @@ const COLOR_PRESETS = [
 export default function TeamManager() {
   const { user } = useAuthStore();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [invites, setInvites] = useState<Record<string, Invite[]>>({});
+  const [teamInviteTokens, setTeamInviteTokens] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showInvites, setShowInvites] = useState<string | null>(null);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   // Create form state
@@ -99,19 +88,45 @@ export default function TeamManager() {
         counts.set(p.team_id, (counts.get(p.team_id) || 0) + 1);
       });
 
-      setTeams(data.map((t: Team) => ({ ...t, member_count: counts.get(t.id) || 0 })));
+      const teamList = data.map((t: Team) => ({ ...t, member_count: counts.get(t.id) || 0 }));
+      setTeams(teamList);
+      setLoading(false);
+
+      // Load invite tokens in parallel (non-blocking, after teams render)
+      const tokenResults = await Promise.all(
+        teamList.map(async (t: Team) => {
+          const { data: inv } = await supabase
+            .from('team_invites')
+            .select('token')
+            .eq('team_id', t.id)
+            .eq('is_active', true)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (inv) return { id: t.id, token: inv.token };
+
+          if (user) {
+            const { data: newInv } = await supabase
+              .from('team_invites')
+              .insert({ team_id: t.id, created_by: user.id, expires_at: '2099-12-31T23:59:59Z', max_uses: null })
+              .select('token')
+              .single();
+            if (newInv) return { id: t.id, token: newInv.token };
+          }
+          return null;
+        })
+      );
+
+      const tokens: Record<string, string> = {};
+      tokenResults.forEach(r => { if (r) tokens[r.id] = r.token; });
+      setTeamInviteTokens(tokens);
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => { loadTeams(); }, [loadTeams]);
-
-  const loadInvites = async (teamId: string) => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    const { data } = await supabase.from('team_invites').select('*').eq('team_id', teamId).order('created_at', { ascending: false });
-    if (data) setInvites(prev => ({ ...prev, [teamId]: data as Invite[] }));
-  };
 
   const createTeam = async () => {
     if (!newName.trim() || !newSlug.trim()) { toast.error('Team name and slug are required'); return; }
@@ -170,14 +185,6 @@ export default function TeamManager() {
     setSaving(false);
   };
 
-  const generateInvite = async (teamId: string) => {
-    const supabase = getSupabaseClient();
-    if (!supabase || !user) return;
-    const { error } = await supabase.from('team_invites').insert({ team_id: teamId, created_by: user.id });
-    if (error) { toast.error('Failed to generate invite'); }
-    else { toast.success('Invite link generated'); loadInvites(teamId); }
-  };
-
   const copyInviteLink = (token: string) => {
     const url = `${window.location.origin}/cricket?join=${token}`;
     navigator.clipboard.writeText(url);
@@ -193,27 +200,11 @@ export default function TeamManager() {
     toast.success('Invite link copied');
   };
 
-  const deactivateInvite = async (inviteId: string, teamId: string) => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    await supabase.from('team_invites').update({ is_active: false }).eq('id', inviteId);
-    toast.success('Invite revoked');
-    loadInvites(teamId);
-  };
-
   const handleNameChange = (name: string) => {
     setNewName(name);
     setNewSlug(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
   };
 
-  const getExpiryText = (expiresAt: string) => {
-    const diff = new Date(expiresAt).getTime() - Date.now();
-    if (diff <= 0) return 'Expired';
-    const days = Math.floor(diff / 86400000);
-    const hours = Math.floor((diff % 86400000) / 3600000);
-    if (days > 0) return `${days}d ${hours}h left`;
-    return `${hours}h left`;
-  };
 
   if (loading) return <div className="flex justify-center py-8"><Spinner /></div>;
 
@@ -261,15 +252,38 @@ export default function TeamManager() {
                   <Text size="2xs" color="muted">players</Text>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" onClick={() => { setShowInvites(team.id); loadInvites(team.id); }}>
-                  <MdLink size={16} />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => startEditTeam(team)}>
-                  <MdEdit size={16} />
-                </Button>
-              </div>
+              <Button size="sm" variant="ghost" onClick={() => startEditTeam(team)}>
+                <MdEdit size={16} />
+              </Button>
             </div>
+
+            {/* Permanent invite link */}
+            {teamInviteTokens[team.id] && (
+              <div
+                className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                <MdLink size={14} className="text-[var(--muted)] shrink-0" />
+                <Text size="2xs" color="muted" className="flex-1 font-mono truncate">
+                  /cricket?join={teamInviteTokens[team.id].slice(0, 8)}...
+                </Text>
+                <button
+                  onClick={() => shareInviteLink(teamInviteTokens[team.id], team.name)}
+                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                  title="Share"
+                >
+                  <MdShare size={14} className="text-[var(--muted)]" />
+                </button>
+                <button
+                  onClick={() => copyInviteLink(teamInviteTokens[team.id])}
+                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                  title="Copy link"
+                >
+                  <MdContentCopy size={14} className="text-[var(--muted)]" />
+                </button>
+              </div>
+            )}
+
           </div>
         </Card>
       ))}
@@ -412,64 +426,6 @@ export default function TeamManager() {
         </DrawerBody>
       </Drawer>
 
-      {/* ── Invite Links Drawer ── */}
-      <Drawer open={!!showInvites} onOpenChange={() => setShowInvites(null)}>
-        <DrawerHandle />
-        <DrawerHeader>
-          <div className="flex items-center justify-between w-full">
-            <DrawerTitle>Invite Links</DrawerTitle>
-            <Button size="sm" onClick={() => showInvites && generateInvite(showInvites)}>
-              <MdAdd size={16} className="mr-1" /> New Link
-            </Button>
-          </div>
-        </DrawerHeader>
-        <DrawerBody>
-          <div className="space-y-2 pb-6">
-            {showInvites && (invites[showInvites] ?? []).map((inv) => {
-              const expired = new Date(inv.expires_at) < new Date();
-              const exhausted = inv.max_uses !== null && inv.use_count >= inv.max_uses;
-              const active = inv.is_active && !expired && !exhausted;
-              const invTeam = teams.find(t => t.id === showInvites);
-
-              return (
-                <div key={inv.id} className={`p-3 rounded-xl border transition-colors ${active ? 'bg-[var(--surface)] border-[var(--border)]' : 'bg-[var(--surface)]/50 border-[var(--border)]/50 opacity-60'}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Text size="2xs" className="font-mono text-[var(--muted)]">{inv.token.slice(0, 12)}...</Text>
-                    {active ? (
-                      <Badge variant="green" size="sm">Active</Badge>
-                    ) : (
-                      <Badge variant="red" size="sm">{expired ? 'Expired' : exhausted ? 'Full' : 'Revoked'}</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Text size="2xs" color="muted">{inv.use_count} uses</Text>
-                      {active && <Text size="2xs" color="muted">{getExpiryText(inv.expires_at)}</Text>}
-                    </div>
-                    {active && (
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => shareInviteLink(inv.token, invTeam?.name ?? 'Team')}>
-                          <MdShare size={14} />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => copyInviteLink(inv.token)}>
-                          <MdContentCopy size={14} />
-                        </Button>
-                        <button onClick={() => showInvites && deactivateInvite(inv.id, showInvites)}
-                          className="text-[11px] text-[var(--red)] font-medium cursor-pointer hover:underline px-1">
-                          Revoke
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {showInvites && (!invites[showInvites] || invites[showInvites].length === 0) && (
-              <Text size="sm" color="muted" className="text-center py-4">No invite links yet. Generate one to share.</Text>
-            )}
-          </div>
-        </DrawerBody>
-      </Drawer>
     </div>
   );
 }

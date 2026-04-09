@@ -1,9 +1,10 @@
 -- ============================================================
--- Accept Invite v2: Pending approval for unknown players
+-- Accept Invite v3: Per-team approval for unknown players
 -- ============================================================
 -- Pre-added players (email match) → auto-approved
--- Existing players from other teams → auto-approved
--- Unknown emails → pending approval (admin must approve)
+-- Existing approved members from other teams → auto-approved
+-- Unknown emails → team_members.approved = false (team admin approves)
+-- No longer touches profiles.approved (stays true globally)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION accept_invite(p_token UUID)
@@ -54,17 +55,33 @@ BEGIN
     SELECT 1 FROM team_members
     WHERE user_id = auth.uid()
       AND team_id != v_invite.team_id
+      AND approved = true
   );
+
+  -- Already an approved member of this team? Short-circuit.
+  IF EXISTS (
+    SELECT 1 FROM team_members
+    WHERE team_id = v_invite.team_id AND user_id = auth.uid() AND approved = true
+  ) THEN
+    UPDATE team_invites SET use_count = use_count + 1 WHERE id = v_invite.id;
+    RETURN json_build_object(
+      'success', true, 'team_id', v_invite.team_id,
+      'team_name', v_invite.team_name, 'team_slug', v_invite.team_slug,
+      'pending_approval', false, 'already_member', true
+    );
+  END IF;
 
   -- Unknown player needs admin approval
   v_needs_approval := NOT v_is_pre_added AND NOT v_is_existing_player;
 
-  -- Add user to team (skip if already a member)
-  INSERT INTO team_members (team_id, user_id, role)
-  VALUES (v_invite.team_id, auth.uid(), 'player')
-  ON CONFLICT (team_id, user_id) DO NOTHING;
+  -- Per-team approval: approved flag on team_members, not profiles
+  -- DO UPDATE upgrades approved (never downgrades) for re-join after rejection
+  INSERT INTO team_members (team_id, user_id, role, approved)
+  VALUES (v_invite.team_id, auth.uid(), 'player', NOT v_needs_approval)
+  ON CONFLICT (team_id, user_id) DO UPDATE
+    SET approved = GREATEST(team_members.approved, EXCLUDED.approved);
 
-  -- Add cricket access + features
+  -- Add cricket access + features (profiles.approved always stays true)
   UPDATE profiles
   SET access = CASE
     WHEN NOT (access @> '{cricket}') THEN array_append(access, 'cricket')
@@ -74,12 +91,7 @@ BEGIN
     WHEN NOT (features @> '{cricket}') THEN array_append(features, 'cricket')
     ELSE features
   END,
-  -- Only auto-approve if pre-added or existing player
-  approved = CASE
-    WHEN v_needs_approval AND approved = true THEN true  -- don't downgrade existing approved users
-    WHEN v_needs_approval THEN false
-    ELSE true
-  END
+  approved = true
   WHERE id = auth.uid();
 
   -- Increment use count
@@ -93,6 +105,24 @@ BEGIN
       AND lower(email) = lower(v_user_email)
       AND is_active = true
       AND user_id IS NULL;
+  END IF;
+
+  -- Notify team admins about pending join request
+  IF v_needs_approval THEN
+    INSERT INTO cricket_notifications (user_id, post_id, team_id, type, message)
+    SELECT
+      tm.user_id,
+      NULL,  -- no gallery post for this notification type
+      v_invite.team_id,
+      'join_request',
+      COALESCE(
+        (SELECT raw_user_meta_data->>'full_name' FROM auth.users WHERE id = auth.uid()),
+        split_part(v_user_email, '@', 1)
+      ) || ' wants to join the team'
+    FROM team_members tm
+    WHERE tm.team_id = v_invite.team_id
+      AND tm.role IN ('owner', 'admin')
+      AND tm.approved = true;
   END IF;
 
   RETURN json_build_object(

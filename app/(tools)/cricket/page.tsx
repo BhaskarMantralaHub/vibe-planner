@@ -113,8 +113,10 @@ const CAPSULE_TABS: CapsuleTab[] = [
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses, fees, sponsorships } = useCricketStore();
-  const isAdmin = userAccess.includes('admin');
+  const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
+  const isGlobalAdmin = userAccess.includes('admin');
+  const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
+  const isAdmin = isGlobalAdmin || isTeamAdmin;
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
