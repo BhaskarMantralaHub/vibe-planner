@@ -35,14 +35,19 @@ jobs:
         id: schema_dump
         continue-on-error: true
         env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           mkdir -p "backups/$BACKUP_DATE"
 
           # Extract project ref from URL (https://xxxx.supabase.co -> xxxx)
           PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||' | sed 's|\.supabase\.co.*||')
-          DB_URL="postgresql://postgres.${PROJECT_REF}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+          # URL-encode the password (handles special chars like @, #, %)
+          ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SUPABASE_DB_PASSWORD', safe=''))")
+
+          # Use direct connection (not pooler) — required for pg_dump
+          DB_URL="postgresql://postgres:${ENCODED_PW}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
 
           echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
           supabase db dump \
