@@ -5,17 +5,92 @@ on:
     - cron: '0 6 * * *' # Daily at 6 AM UTC (11 PM PT)
   workflow_dispatch: # Manual trigger from GitHub Actions tab
 
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      BACKUP_DATE: '' # Set once in first step, shared across all steps
     steps:
+      - name: Set backup date
+        run: echo "BACKUP_DATE=$(date +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      - name: Install Supabase CLI
+        id: cli_install
+        continue-on-error: true
+        run: |
+          SUPABASE_VERSION="2.20.12"
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_linux_amd64.tar.gz" -o supabase.tar.gz
+          tar -xzf supabase.tar.gz
+          sudo mv supabase /usr/local/bin/
+          supabase --version
+
+      - name: Dump schema, policies, and roles
+        if: steps.cli_install.outcome == 'success'
+        id: schema_dump
+        continue-on-error: true
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          mkdir -p "backups/$BACKUP_DATE"
+
+          # Extract project ref from URL (https://xxxx.supabase.co -> xxxx)
+          PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||' | sed 's|\.supabase\.co.*||')
+          DB_URL="postgresql://postgres.${PROJECT_REF}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+          echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
+          supabase db dump \
+            --db-url "$DB_URL" \
+            --schema public \
+            > "backups/$BACKUP_DATE/schema.sql" 2>"backups/$BACKUP_DATE/schema.err" || {
+              echo "::error::Schema dump failed:"
+              cat "backups/$BACKUP_DATE/schema.err"
+              rm -f "backups/$BACKUP_DATE/schema.sql"
+            }
+
+          echo "Dumping role grants..."
+          supabase db dump \
+            --db-url "$DB_URL" \
+            --role-only \
+            > "backups/$BACKUP_DATE/roles.sql" 2>"backups/$BACKUP_DATE/roles.err" || {
+              echo "::error::Roles dump failed:"
+              cat "backups/$BACKUP_DATE/roles.err"
+              rm -f "backups/$BACKUP_DATE/roles.sql"
+            }
+
+          # Validate dump content
+          for f in "backups/$BACKUP_DATE/schema.sql" "backups/$BACKUP_DATE/roles.sql"; do
+            if [ -s "$f" ]; then
+              SIZE=$(wc -c < "$f" | tr -d ' ')
+              echo "  → $(basename $f): ${SIZE} bytes"
+            else
+              echo "  → $(basename $f): MISSING or EMPTY (dump failed)"
+            fi
+          done
+
+          # Validate schema.sql has real DDL content
+          if [ -s "backups/$BACKUP_DATE/schema.sql" ]; then
+            if ! grep -q "CREATE TABLE\|CREATE POLICY\|CREATE FUNCTION" "backups/$BACKUP_DATE/schema.sql"; then
+              echo "::error::schema.sql exists but contains no DDL statements — removing"
+              rm -f "backups/$BACKUP_DATE/schema.sql"
+            fi
+          fi
+
+          # Clean up stderr files (don't push to backup repo)
+          rm -f "backups/$BACKUP_DATE/schema.err" "backups/$BACKUP_DATE/roles.err"
+
       - name: Export all tables as JSON
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          DATE=$(date +%Y-%m-%d)
-          mkdir -p "backups/$DATE"
+          mkdir -p "backups/$BACKUP_DATE"
 
           TABLES=(
             "profiles"
@@ -43,6 +118,8 @@ jobs:
             "vibes"
             "id_documents"
             "user_activity"
+            "team_audit_log"
+            "app_settings"
           )
 
           for TABLE in "${TABLES[@]}"; do
@@ -51,15 +128,23 @@ jobs:
               -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Accept: application/json" \
+              -H "Range: 0-999999" \
               "$SUPABASE_URL/rest/v1/$TABLE?select=*" \
-              -o "backups/$DATE/$TABLE.json"
+              -o "backups/$BACKUP_DATE/$TABLE.json"
 
-            COUNT=$(jq length "backups/$DATE/$TABLE.json" 2>/dev/null || echo "?")
-            echo "  → $TABLE: $COUNT rows"
+            # Validate response is a JSON array (not an error object)
+            if ! jq -e 'type == "array"' "backups/$BACKUP_DATE/$TABLE.json" > /dev/null 2>&1; then
+              echo "  ⚠️ $TABLE: response is not a JSON array — possible API error"
+              cat "backups/$BACKUP_DATE/$TABLE.json"
+              echo ""
+            else
+              COUNT=$(jq length "backups/$BACKUP_DATE/$TABLE.json")
+              echo "  → $TABLE: $COUNT rows"
+            fi
           done
 
-          echo "$DATE" > backups/latest.txt
-          echo "Backup complete: $DATE"
+          echo "$BACKUP_DATE" > backups/latest.txt
+          echo "Backup complete: $BACKUP_DATE"
 
       - name: Push to backup repo
         env:
@@ -74,8 +159,27 @@ jobs:
           cd backup-repo
 
           # Keep only last 30 days of backups
-          ls -d 20??-??-?? 2>/dev/null | sort | head -n -30 | xargs rm -rf 2>/dev/null || true
+          ls -d 20??-??-?? 2>/dev/null | sort | head -n -30 | while read -r dir; do
+            echo "Pruning old backup: $dir"
+            rm -rf "$dir"
+          done
 
           git add -A
           git commit -m "backup: $(date +%Y-%m-%d)" || echo "No changes"
           git push
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+        run: |
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg to "$SUPER_ADMIN_EMAIL" \
+              --arg subject "Daily Backup Failed — Vibers Toolkit" \
+              --arg html "<div style='font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px'><div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px'><div style='font-size:16px;font-weight:700;color:#dc2626;margin-bottom:8px'>Daily Backup Failed</div><div style='font-size:13px;color:#666;line-height:20px'>The daily Supabase backup failed to complete. Check <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\" style=\"color:#4DBBEB\">GitHub Actions logs</a> for details.</div></div><div style='text-align:center;margin-top:16px;font-size:11px;color:#aaa'>Vibers Toolkit · viberstoolkit.com</div></div>" \
+              '{from: "Vibers Toolkit <noreply@viberstoolkit.com>", to: [$to], subject: $subject, html: $html}'
+            )"
