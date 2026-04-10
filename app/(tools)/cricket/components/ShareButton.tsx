@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getTeamName, getTeamLogoUrl, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { FaFilePdf } from 'react-icons/fa';
-import { MdShare } from 'react-icons/md';
+import { FileDown, Share2 } from 'lucide-react';
 
 function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   const { players, seasons, expenses, fees, selectedSeasonId } = store;
@@ -455,12 +454,12 @@ export default function ShareButton() {
           <button onClick={handleSharePdf} disabled={generating}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))', color: '#fff', border: '1.5px solid var(--cricket-accent)' }}>
-            <MdShare size={16} /> {generating ? 'Generating...' : 'Share PDF'}
+            <Share2 size={16} /> {generating ? 'Generating...' : 'Share PDF'}
           </button>
           <button onClick={handleDownloadPdf} disabled={generating}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
             style={{ background: 'var(--surface)', color: 'var(--text)', border: '1.5px solid var(--border)' }}>
-            <FaFilePdf size={16} /> Download
+            <FileDown size={16} /> Download
           </button>
         </div>
       </div>

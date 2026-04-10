@@ -5,8 +5,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
 import { EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Button, Text } from '@/components/ui';
-import { FaCheckCircle, FaExclamationCircle, FaTimesCircle } from 'react-icons/fa';
-import { MdEdit, MdUndo } from 'react-icons/md';
+import { CircleCheck, CircleAlert, CircleX, Pencil, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function FeeTracker() {
@@ -123,7 +122,7 @@ export default function FeeTracker() {
           {isAdmin && !editingFee ? (
             <button onClick={() => { setFeeInput(String(feeAmount)); setEditingFee(true); }}
               className="flex items-center gap-1.5 text-[15px] sm:text-[16px] font-extrabold text-[var(--cricket)] cursor-pointer hover:opacity-80 transition-opacity">
-              {formatCurrency(feeAmount)}<span className="text-[12px] font-semibold text-[var(--muted)]">/player</span> <MdEdit size={14} className="text-[var(--muted)]" />
+              {formatCurrency(feeAmount)}<span className="text-[12px] font-semibold text-[var(--muted)]">/player</span> <Pencil size={14} className="text-[var(--muted)]" />
             </button>
           ) : isAdmin && editingFee ? (
             <div className="flex items-center gap-2">
@@ -168,15 +167,15 @@ export default function FeeTracker() {
           </span>
           <div className="flex gap-2 sm:gap-3">
             <span className="inline-flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5" style={{ background: '#05966915', color: '#059669' }}>
-              <FaCheckCircle size={10} /> {paidCount}
+              <CircleCheck size={10} /> {paidCount}
             </span>
             {partialCount > 0 && (
               <span className="inline-flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5" style={{ background: 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)', color: 'var(--cricket-accent)' }}>
-                <FaExclamationCircle size={10} /> {partialCount}
+                <CircleAlert size={10} /> {partialCount}
               </span>
             )}
             <span className="inline-flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5" style={{ background: '#EF444415', color: '#EF4444' }}>
-              <FaTimesCircle size={10} /> {unpaidCount}
+              <CircleX size={10} /> {unpaidCount}
             </span>
           </div>
         </div>
@@ -239,9 +238,9 @@ export default function FeeTracker() {
                   {/* Status dot */}
                   <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: statusColor, border: '2px solid var(--surface)' }}>
-                    {isPaid && <FaCheckCircle size={8} color="#fff" />}
-                    {isPartial && <FaExclamationCircle size={8} color="#fff" />}
-                    {!isPaid && !isPartial && <FaTimesCircle size={8} color="#fff" />}
+                    {isPaid && <CircleCheck size={8} color="#fff" />}
+                    {isPartial && <CircleAlert size={8} color="#fff" />}
+                    {!isPaid && !isPartial && <CircleX size={8} color="#fff" />}
                   </div>
                 </div>
 
@@ -278,7 +277,7 @@ export default function FeeTracker() {
                       <button onClick={() => setUndoPlayer({ id: p.id, name: p.name })}
                         className="h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg cursor-pointer bg-[var(--red)]/10 text-[var(--red)] hover:bg-[var(--red)]/20 transition-colors"
                         title="Undo payment">
-                        <MdUndo size={15} />
+                        <Undo2 size={15} />
                       </button>
                     ) : (
                       <>

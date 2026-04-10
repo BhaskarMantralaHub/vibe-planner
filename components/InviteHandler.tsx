@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { Text, Button, Spinner, Card } from '@/components/ui';
-import { MdCheck, MdGroupAdd } from 'react-icons/md';
+import { Check, UserRoundPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 /// Handles `?join=<token>` invite links on the cricket page.
@@ -155,7 +155,7 @@ export default function InviteHandler() {
   if (joined) {
     return (
       <Card className="mx-4 my-4 p-6 text-center">
-        <MdCheck size={32} className="mx-auto mb-2 text-green-500" />
+        <Check size={32} className="mx-auto mb-2 text-green-500" />
         <Text size="sm" weight="semibold">You've joined the team!</Text>
         <Text size="xs" color="muted">Reloading...</Text>
       </Card>
@@ -167,7 +167,7 @@ export default function InviteHandler() {
     return (
       <Card className="mx-4 my-4 p-6">
         <div className="flex flex-col items-center gap-3">
-          <MdGroupAdd size={36} className="text-[var(--cricket)]" />
+          <UserRoundPlus size={36} className="text-[var(--cricket)]" />
           <Text size="md" weight="bold">Join {teamInfo.team_name}?</Text>
           <Text size="xs" color="muted" className="text-center">
             You've been invited to join this cricket team.

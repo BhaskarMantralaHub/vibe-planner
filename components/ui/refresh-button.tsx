@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MdRefresh } from 'react-icons/md';
+import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type RefreshVariant = 'bordered' | 'glass';
@@ -41,7 +41,7 @@ function RefreshButton({ onRefresh, variant = 'bordered', size = 18, className, 
       )}
       title={title}
     >
-      <MdRefresh
+      <RefreshCw
         size={size}
         className={cn(
           variant === 'bordered' ? 'text-[var(--cricket)]' : 'text-white',

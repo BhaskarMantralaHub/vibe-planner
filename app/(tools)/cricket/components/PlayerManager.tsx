@@ -7,10 +7,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
-import { FaCrown, FaShieldAlt, FaEllipsisV, FaTshirt } from 'react-icons/fa';
+import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badge as BadgeIcon, Copy, Check, ChevronRight, Camera, X, UserPlus, UserX } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdCheck, MdChevronRight, MdCameraAlt, MdClose, MdPersonAdd, MdPersonOff } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -45,7 +45,7 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
-            <MdDeleteOutline size={20} style={{ color: 'var(--red)' }} />
+            <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
           <div>
             <p className="text-[15px] font-semibold text-[var(--text)]">Remove Player</p>
@@ -544,7 +544,7 @@ export default function PlayerManager() {
                 <div className="flex items-center gap-2.5 px-3 py-2.5"
                   style={{ background: 'color-mix(in srgb, var(--green) 8%, transparent)' }}>
                   <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--green)' }}>
-                    <MdCheck size={13} className="text-white" />
+                    <Check size={13} className="text-white" />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col">
                     <Text size="xs" weight="semibold" className="leading-tight">Found {name.split(' ')[0]} in your roster</Text>
@@ -614,7 +614,7 @@ export default function PlayerManager() {
                           {shirtSize && (
                             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px]"
                               style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
-                              <FaTshirt size={12} style={{ color: roleColor }} />
+                              <Shirt size={12} style={{ color: roleColor }} />
                               <span className="text-[var(--muted)]">Size</span>
                               <span className="font-semibold text-[var(--text)]">{shirtSize}</span>
                             </div>
@@ -628,7 +628,7 @@ export default function PlayerManager() {
                           {email && (
                             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                               <div className="flex-shrink-0 h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
-                                <MdEmail size={14} style={{ color: roleColor }} />
+                                <Mail size={14} style={{ color: roleColor }} />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <Text size="2xs" weight="semibold" color="muted" className="block text-[9px] uppercase tracking-wider">Email</Text>
@@ -637,14 +637,14 @@ export default function PlayerManager() {
                               <button onClick={() => { navigator.clipboard.writeText(email); toast.success('Email copied'); }}
                                 className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
                                 title="Copy email">
-                                <MdContentCopy size={13} />
+                                <Copy size={13} />
                               </button>
                             </div>
                           )}
                           {cricclubId && (
                             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                               <div className="flex-shrink-0 h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
-                                <MdBadge size={14} style={{ color: roleColor }} />
+                                <BadgeIcon size={14} style={{ color: roleColor }} />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <Text size="2xs" weight="semibold" color="muted" className="block text-[9px] uppercase tracking-wider">CricClub ID</Text>
@@ -653,7 +653,7 @@ export default function PlayerManager() {
                               <button onClick={() => { navigator.clipboard.writeText(cricclubId); toast.success('CricClub ID copied'); }}
                                 className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
                                 title="Copy CricClub ID">
-                                <MdContentCopy size={13} />
+                                <Copy size={13} />
                               </button>
                             </div>
                           )}
@@ -697,7 +697,7 @@ export default function PlayerManager() {
                   <div>
                     <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
                     <div className="flex gap-2">
-                      {[{ key: 'captain', label: 'Captain', icon: <FaCrown size={12} /> }, { key: 'vice-captain', label: 'Vice Captain', icon: <FaShieldAlt size={12} /> }].map((d) => (
+                      {[{ key: 'captain', label: 'Captain', icon: <Crown size={12} /> }, { key: 'vice-captain', label: 'Vice Captain', icon: <ShieldCheck size={12} /> }].map((d) => (
                         <button key={d.key} type="button" onClick={() => setDesignation(designation === d.key ? '' : d.key)}
                           className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
                           style={{
@@ -739,13 +739,13 @@ export default function PlayerManager() {
                       <img src={photoPreview} alt="Player" className="h-full w-full object-cover" />
                     ) : (
                       <div className="h-full w-full flex flex-col items-center justify-center text-[var(--muted)]">
-                        <MdCameraAlt size={24} />
+                        <Camera size={24} />
                         <span className="text-[9px] font-semibold mt-0.5">Add Photo</span>
                       </div>
                     )}
                     {/* Hover overlay */}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                      <MdCameraAlt size={20} className="text-white" />
+                      <Camera size={20} className="text-white" />
                     </div>
                   </div>
                   {photoPreview && (
@@ -754,7 +754,7 @@ export default function PlayerManager() {
                       onClick={() => { setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(true); }}
                       className="text-[11px] text-[var(--red)] font-medium cursor-pointer hover:underline flex items-center gap-0.5"
                     >
-                      <MdClose size={14} /> Remove photo
+                      <X size={14} /> Remove photo
                     </button>
                   )}
                   <input
@@ -879,12 +879,12 @@ export default function PlayerManager() {
                   <button type="button" onClick={() => handleDesignation('captain')}
                     className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
                     style={{ backgroundColor: designation === 'captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
-                    <FaCrown size={13} /> Captain
+                    <Crown size={13} /> Captain
                   </button>
                   <button type="button" onClick={() => handleDesignation('vice-captain')}
                     className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
                     style={{ backgroundColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
-                    <FaShieldAlt size={12} /> Vice Captain
+                    <ShieldCheck size={12} /> Vice Captain
                   </button>
                 </div>
                 {designationConflict && (
@@ -1040,7 +1040,7 @@ export default function PlayerManager() {
                         onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === p.id ? null : p.id); }}
                         className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
                       >
-                        <FaEllipsisV size={14} />
+                        <EllipsisVertical size={14} />
                       </button>
 
                       {openMenu === p.id && (
@@ -1050,15 +1050,15 @@ export default function PlayerManager() {
                           items={(() => {
                             const isMe = p.id === myPlayer?.id;
                             const items = [
-                              { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                              { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
                               ...(isMe ? [
-                                { label: 'Leave Team', icon: <MdPersonOff size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p), dividerBefore: true },
+                                { label: 'Leave Team', icon: <UserX size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p), dividerBefore: true },
                               ] : []),
                               ...(!isMe ? [
-                                { label: 'Admin Access', icon: <FaCrown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
-                                { label: 'Move to Guest', icon: <MdBadge size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
-                                { label: 'Remove', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
-                                ...(p.user_id ? [{ label: 'Delete Permanently', icon: <MdPersonOff size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p) }] : []),
+                                { label: 'Admin Access', icon: <Crown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
+                                { label: 'Move to Guest', icon: <BadgeIcon size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
+                                { label: 'Remove', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
+                                ...(p.user_id ? [{ label: 'Delete Permanently', icon: <UserX size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p) }] : []),
                               ] : []),
                             ];
                             return items;
@@ -1074,7 +1074,7 @@ export default function PlayerManager() {
                       onClick={(e) => { e.stopPropagation(); handleEdit(p); }}
                       className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
                     >
-                      <MdEdit size={16} />
+                      <Pencil size={16} />
                     </button>
                   )}
 
@@ -1133,12 +1133,12 @@ export default function PlayerManager() {
                         >{p.name}</Text>
                         {isCaptain && (
                           <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 7%, transparent)' }}>
-                            <FaCrown size={8} /> C
+                            <Crown size={8} /> C
                           </span>
                         )}
                         {isVC && (
                           <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: '#6B7280', background: '#6B728012' }}>
-                            <FaShieldAlt size={8} /> VC
+                            <ShieldCheck size={8} /> VC
                           </span>
                         )}
                       </div>
@@ -1155,7 +1155,7 @@ export default function PlayerManager() {
                         )}
                         {/* Chevron */}
                         {hasDetails && (
-                          <MdChevronRight
+                          <ChevronRight
                             size={16}
                             className="flex-shrink-0 text-[var(--muted)] transition-transform duration-300 ml-auto"
                             style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
@@ -1200,7 +1200,7 @@ export default function PlayerManager() {
                         {p.shirt_size && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
                             style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
-                            <FaTshirt size={12} style={{ color: roleColor }} />
+                            <Shirt size={12} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Size</span>
                             <span className="font-semibold text-[var(--text)]">{p.shirt_size}</span>
                           </div>
@@ -1221,7 +1221,7 @@ export default function PlayerManager() {
                             }}
                           >
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
-                              <MdEmail size={16} style={{ color: roleColor }} />
+                              <Mail size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                               <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Email</span>
@@ -1229,8 +1229,8 @@ export default function PlayerManager() {
                             </div>
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
                               {copiedField === `email-${p.id}`
-                                ? <MdCheck size={16} style={{ color: 'var(--green)' }} />
-                                : <MdContentCopy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                                ? <Check size={16} style={{ color: 'var(--green)' }} />
+                                : <Copy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
                               }
                             </div>
                           </button>
@@ -1245,7 +1245,7 @@ export default function PlayerManager() {
                             }}
                           >
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
-                              <MdBadge size={16} style={{ color: roleColor }} />
+                              <BadgeIcon size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                               <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">CricClub ID</span>
@@ -1253,8 +1253,8 @@ export default function PlayerManager() {
                             </div>
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
                               {copiedField === `cc-${p.id}`
-                                ? <MdCheck size={16} style={{ color: 'var(--green)' }} />
-                                : <MdContentCopy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                                ? <Check size={16} style={{ color: 'var(--green)' }} />
+                                : <Copy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
                               }
                             </div>
                           </button>
@@ -1294,16 +1294,16 @@ export default function PlayerManager() {
                     onClick={(e) => { e.stopPropagation(); setOpenGuestMenu(openGuestMenu === p.id ? null : p.id); }}
                     className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
                   >
-                    <FaEllipsisV size={13} />
+                    <EllipsisVertical size={13} />
                   </button>
                   {openGuestMenu === p.id && (
                     <CardMenu
                       anchorRef={guestMenuBtnRef}
                       onClose={() => setOpenGuestMenu(null)}
                       items={[
-                        { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
-                        { label: 'Add to Squad', icon: <MdPersonAdd size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
-                        { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
+                        { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                        { label: 'Add to Squad', icon: <UserPlus size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
+                        { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
                       ]}
                     />
                   )}
@@ -1491,7 +1491,7 @@ export default function PlayerManager() {
                 <>
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.15)' }}>
-                      <MdPersonOff size={20} style={{ color: 'var(--red)' }} />
+                      <UserX size={20} style={{ color: 'var(--red)' }} />
                     </div>
                     <div>
                       <Text as="p" size="sm" weight="semibold">{isLeavingSelf ? 'Leave Team' : 'Delete Permanently'}</Text>
@@ -1554,7 +1554,7 @@ export default function PlayerManager() {
             className="absolute top-4 right-4 text-white/80 hover:text-white cursor-pointer"
             onClick={() => setLightboxPhoto(null)}
           >
-            <MdClose size={28} />
+            <X size={28} />
           </button>
           <img
             src={lightboxPhoto.url}
@@ -1580,7 +1580,7 @@ export default function PlayerManager() {
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.1)' }}>
-                <FaCrown size={18} style={{ color: 'var(--toolkit)' }} />
+                <Crown size={18} style={{ color: 'var(--toolkit)' }} />
               </div>
               <div>
                 <p className="text-[15px] font-semibold text-[var(--text)]">Admin Access</p>

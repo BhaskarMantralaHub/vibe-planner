@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '@/app/(tools)/cricket/lib/constants';
+import { Target, Star } from 'lucide-react';
 import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
-import { FaBullseye, FaStar } from 'react-icons/fa';
 import { MdSportsCricket } from 'react-icons/md';
 
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -141,8 +141,8 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
 /* ── Role icon + color config for signup chip buttons ── */
 const signupRoleConfig: Record<string, { icon: React.ReactNode; color: string }> = {
   batsman: { icon: <GiCricketBat size={13} />, color: 'var(--cricket)' },
-  bowler: { icon: <FaBullseye size={12} />, color: '#3B82F6' },
-  'all-rounder': { icon: <FaStar size={12} />, color: 'var(--cricket-accent)' },
+  bowler: { icon: <Target size={12} />, color: '#3B82F6' },
+  'all-rounder': { icon: <Star size={12} />, color: 'var(--cricket-accent)' },
   keeper: { icon: <GiBaseballGlove size={13} />, color: '#16A34A' },
 };
 

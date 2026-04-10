@@ -3,7 +3,7 @@
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { Text } from '@/components/ui';
-import { MdLeaderboard } from 'react-icons/md';
+import { ChartColumnBig } from 'lucide-react';
 import PracticeLeaderboard from '../components/PracticeLeaderboard';
 
 export default function LeaderboardPage() {
@@ -21,7 +21,7 @@ export default function LeaderboardPage() {
             }}
           >
             {/* Large decorative icon — top right */}
-            <MdLeaderboard
+            <ChartColumnBig
               size={80}
               className="absolute -right-2 -top-1 opacity-[0.07]"
               style={{ color: 'var(--cricket)' }}

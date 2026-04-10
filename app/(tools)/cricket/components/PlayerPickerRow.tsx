@@ -2,7 +2,8 @@
 
 import { cn } from '@/lib/utils';
 import { Text } from '@/components/ui';
-import { MdSportsCricket, MdCheck } from 'react-icons/md';
+import { Check } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
 import type { PlayerRole } from '@/types/cricket';
 
@@ -79,7 +80,7 @@ export default function PlayerPickerRow({
               : 'border-[var(--dim)] group-hover:border-[var(--muted)]',
           )}
         >
-          {selected && <MdCheck size={14} className="text-white" />}
+          {selected && <Check size={14} className="text-white" />}
         </div>
       )}
       {mode === 'radio' && (
@@ -179,7 +180,7 @@ export default function PlayerPickerRow({
           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
           style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
         >
-          <MdCheck size={14} className="text-white" />
+          <Check size={14} className="text-white" />
         </div>
       )}
     </button>

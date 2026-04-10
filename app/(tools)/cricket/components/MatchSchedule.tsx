@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { FaEllipsisV } from 'react-icons/fa';
-import { MdEdit, MdDeleteOutline, MdSportsCricket, MdScoreboard, MdRestoreFromTrash, MdDeleteForever, MdEventNote, MdDoneAll, MdLocationOn, MdAccessTime, MdCalendarMonth, MdShare } from 'react-icons/md';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, Scale } from 'lucide-react';
+import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
@@ -435,7 +435,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-full cursor-pointer text-white/80 hover:text-white transition-colors z-20"
           style={{ background: 'rgba(255,255,255,0.15)' }}
         >
-          <FaEllipsisV size={12} />
+          <EllipsisVertical size={12} />
         </button>
       )}
 
@@ -486,16 +486,16 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
         {/* Date / Time / Venue */}
         <div className="flex flex-col gap-1.5 text-[12px] text-white/70">
           <div className="flex items-center gap-1.5">
-            <MdAccessTime size={14} className="opacity-50 flex-shrink-0" />
+            <Clock size={14} className="opacity-50 flex-shrink-0" />
             <span>{dayName} {dayNum} {month} · {formatMatchTime(match.match_time)}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <MdLocationOn size={14} className="opacity-50 flex-shrink-0" />
+            <MapPin size={14} className="opacity-50 flex-shrink-0" />
             <span>{match.venue}</span>
           </div>
           {match.umpire && (
             <div className="flex items-center gap-1.5">
-              <MdSportsCricket size={14} className="opacity-50 flex-shrink-0" />
+              <Scale size={14} className="opacity-50 flex-shrink-0" />
               <span>Umpires: {match.umpire}</span>
             </div>
           )}
@@ -559,7 +559,7 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
             onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
             className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
           >
-            <FaEllipsisV size={11} />
+            <EllipsisVertical size={11} />
           </button>
         )}
 
@@ -569,10 +569,10 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
           </Text>
 
           <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
-            <MdAccessTime size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+            <Clock size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
             <span>{formatMatchTime(match.match_time)}</span>
             <span style={{ color: 'var(--border)' }}>|</span>
-            <MdLocationOn size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+            <MapPin size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
             <span>{match.venue}</span>
           </div>
 
@@ -632,7 +632,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
           className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
         >
-          <FaEllipsisV size={11} />
+          <EllipsisVertical size={11} />
         </button>
       )}
 
@@ -727,12 +727,12 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
           className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
         >
-          <FaEllipsisV size={11} />
+          <EllipsisVertical size={11} />
         </button>
       )}
 
       <div className="flex items-center gap-3 pr-8">
-        <MdDeleteOutline size={18} style={{ color: 'var(--dim)', flexShrink: 0 }} />
+        <Trash2 size={18} style={{ color: 'var(--dim)', flexShrink: 0 }} />
         <div className="min-w-0">
           <Text as="p" size="sm" weight="semibold" className="line-through">
             vs {match.opponent}
@@ -847,9 +847,9 @@ export default function MatchSchedule() {
 
   /* ── Bottom tab config ── */
   const tabs: { key: ScheduleTab; label: string; icon: React.ReactNode; count: number }[] = [
-    { key: 'upcoming', label: 'Upcoming', icon: <MdEventNote size={18} />, count: upcoming.length },
-    { key: 'completed', label: 'Completed', icon: <MdDoneAll size={18} />, count: completed.length },
-    { key: 'deleted', label: 'Deleted', icon: <MdDeleteOutline size={18} />, count: trashed.length },
+    { key: 'upcoming', label: 'Upcoming', icon: <CalendarDays size={18} />, count: upcoming.length },
+    { key: 'completed', label: 'Completed', icon: <CircleCheckBig size={18} />, count: completed.length },
+    { key: 'deleted', label: 'Deleted', icon: <Trash2 size={18} />, count: trashed.length },
   ];
 
   /* ── Handlers (Supabase + localStorage fallback) ── */
@@ -1025,16 +1025,16 @@ export default function MatchSchedule() {
 
     if (isDeleted) {
       return [
-        { label: 'Restore', icon: <MdRestoreFromTrash size={15} />, color: 'var(--cricket)', onClick: () => handleRestore(m.id) },
-        { label: 'Delete Forever', icon: <MdDeleteForever size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting({ id: m.id, opponent: m.opponent }), dividerBefore: true },
+        { label: 'Restore', icon: <ArchiveRestore size={15} />, color: 'var(--cricket)', onClick: () => handleRestore(m.id) },
+        { label: 'Delete Forever', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting({ id: m.id, opponent: m.opponent }), dividerBefore: true },
       ];
     }
 
     return [
-      { label: 'Add to Calendar', icon: <MdCalendarMonth size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
+      { label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
       { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) },
-      { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
-      { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
+      { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
+      { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
     ];
   };
 
@@ -1099,7 +1099,7 @@ export default function MatchSchedule() {
                 border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
               }}
             >
-              <MdCalendarMonth size={13} />
+              <Calendar size={13} />
               Cal
             </button>
             <button
@@ -1111,7 +1111,7 @@ export default function MatchSchedule() {
                 border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
               }}
             >
-              <MdShare size={13} />
+              <Share2 size={13} />
               Share
             </button>
           </div>
@@ -1256,7 +1256,7 @@ export default function MatchSchedule() {
           <>
             {!isAdmin ? (
               <EmptyState
-                icon={<MdDeleteOutline size={36} style={{ color: 'var(--dim)' }} />}
+                icon={<Trash2 size={36} style={{ color: 'var(--dim)' }} />}
                 title="Admin only"
                 description="Only admins can view and manage deleted matches"
               />
@@ -1285,7 +1285,7 @@ export default function MatchSchedule() {
               </div>
             ) : (
               <EmptyState
-                icon={<MdRestoreFromTrash size={36} style={{ color: 'var(--dim)' }} />}
+                icon={<ArchiveRestore size={36} style={{ color: 'var(--dim)' }} />}
                 title="Trash is empty"
                 description="Deleted matches will appear here"
               />

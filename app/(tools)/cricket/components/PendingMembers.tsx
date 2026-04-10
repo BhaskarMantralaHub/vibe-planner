@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { Text, Button, Card, Badge } from '@/components/ui';
-import { MdPersonAdd, MdCheck, MdClose } from 'react-icons/md';
+import { UserPlus, Check, X } from 'lucide-react';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -43,7 +43,7 @@ export default function PendingMembers() {
           borderBottom: '1px solid color-mix(in srgb, var(--orange) 20%, transparent)',
         }}
       >
-        <MdPersonAdd size={18} style={{ color: 'var(--orange)' }} />
+        <UserPlus size={18} style={{ color: 'var(--orange)' }} />
         <Text size="sm" weight="semibold">Pending Members</Text>
         <Badge variant="orange" className="ml-auto">{pendingMembers.length}</Badge>
       </div>
@@ -79,7 +79,7 @@ export default function PendingMembers() {
                   }}
                   title="Approve"
                 >
-                  <MdCheck size={22} />
+                  <Check size={22} />
                 </button>
                 <button
                   onClick={() => {
@@ -95,7 +95,7 @@ export default function PendingMembers() {
                   }}
                   title="Reject"
                 >
-                  <MdClose size={22} />
+                  <X size={22} />
                 </button>
               </div>
             </div>

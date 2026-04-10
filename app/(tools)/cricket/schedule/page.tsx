@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
-import { MdDateRange } from 'react-icons/md';
+import { CalendarRange } from 'lucide-react';
 import MatchSchedule from '../components/MatchSchedule';
 import SeasonSelector from '../components/SeasonSelector';
 
@@ -31,7 +31,7 @@ function ScheduleContent() {
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl"
             style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-            <MdDateRange size={20} className="text-white" />
+            <CalendarRange size={20} className="text-white" />
           </div>
           <div>
             <Text as="h1" size="lg" weight="bold">League Schedule</Text>

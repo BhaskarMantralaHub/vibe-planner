@@ -1,4 +1,5 @@
-import { MdDashboard, MdBadge, MdAccountBalanceWallet, MdAdminPanelSettings, MdScoreboard, MdLeaderboard, MdSportsCricket, MdDateRange, MdPhotoLibrary } from 'react-icons/md';
+import { Brain, IdCard, Wallet, ShieldCheck, CalendarRange, Images, ChartColumnBig, HandCoins } from 'lucide-react';
+import { MdScoreboard } from 'react-icons/md';
 
 export type Tool = {
   name: string;
@@ -13,7 +14,7 @@ export const tools: Tool[] = [
   {
     name: 'Vibe Planner',
     href: '/vibe-planner',
-    icon: <MdDashboard size={22} />,
+    icon: <Brain size={22} />,
     description: 'Capture sparks. Plan actions. Track flow.',
     roles: ['toolkit', 'admin'],
     feature: 'vibe-planner',
@@ -21,7 +22,7 @@ export const tools: Tool[] = [
   {
     name: 'ID Tracker',
     href: '/id-tracker',
-    icon: <MdBadge size={22} />,
+    icon: <IdCard size={22} />,
     description: 'Track IDs & get expiry reminders.',
     roles: ['toolkit', 'admin'],
     feature: 'id-tracker',
@@ -29,7 +30,7 @@ export const tools: Tool[] = [
   {
     name: 'Cricket',
     href: '/cricket',
-    icon: <MdAccountBalanceWallet size={22} />,
+    icon: <Wallet size={22} />,
     description: 'Team expenses & dues.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
@@ -45,7 +46,7 @@ export const tools: Tool[] = [
   {
     name: 'Practice Stats',
     href: '/cricket/scoring/leaderboard',
-    icon: <MdLeaderboard size={22} />,
+    icon: <ChartColumnBig size={22} />,
     description: 'Batting, bowling & fielding leaderboards.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
@@ -53,7 +54,7 @@ export const tools: Tool[] = [
   {
     name: 'Moments',
     href: '/cricket/moments',
-    icon: <MdPhotoLibrary size={22} />,
+    icon: <Images size={22} />,
     description: 'Team photos & highlights.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
@@ -61,7 +62,7 @@ export const tools: Tool[] = [
   {
     name: 'League Schedule',
     href: '/cricket/schedule',
-    icon: <MdDateRange size={22} />,
+    icon: <CalendarRange size={22} />,
     description: 'Upcoming matches & fixtures.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
@@ -69,7 +70,7 @@ export const tools: Tool[] = [
   {
     name: 'Coin Toss',
     href: '/cricket/toss',
-    icon: <MdSportsCricket size={22} />,
+    icon: <HandCoins size={22} />,
     description: 'Fair, cryptographic coin flip.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
@@ -77,7 +78,7 @@ export const tools: Tool[] = [
   {
     name: 'Admin',
     href: '/admin',
-    icon: <MdAdminPanelSettings size={22} />,
+    icon: <ShieldCheck size={22} />,
     description: 'Users, activity & stats.',
     roles: ['admin'],
   },

@@ -11,7 +11,7 @@ import CardNotes from './CardNotes';
 import CardMenu from './CardMenu';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Briefcase, Home, Palette, BookOpen, Heart, Calendar, CheckCircle } from 'lucide-react';
+import { Briefcase, Home, Palette, BookOpen, Heart, Calendar, CircleCheck } from 'lucide-react';
 import { Text } from '@/components/ui';
 
 function useIsMobile() {
@@ -130,7 +130,7 @@ export default function VibeCard({ vibe }: { vibe: Vibe }) {
           {/* Due date or completed date */}
           {vibe.status === 'done' && vibe.completed_at ? (
             <div className="flex items-center gap-1.5 mt-2">
-              <CheckCircle size={14} className="text-[var(--green)]" />
+              <CircleCheck size={14} className="text-[var(--green)]" />
               <Text size="sm" weight="semibold" color="success">
                 Completed {fmtDate(vibe.completed_at.split('T')[0])}
               </Text>

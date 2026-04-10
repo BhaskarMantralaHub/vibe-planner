@@ -5,8 +5,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { EmptyState, Text, CardMenu, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui';
-import { FaHandshake, FaEllipsisV } from 'react-icons/fa';
-import { MdEdit, MdDeleteOutline, MdRestore } from 'react-icons/md';
+import { Handshake, EllipsisVertical, Pencil, Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -94,7 +93,7 @@ export default function SponsorshipSection() {
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <FaHandshake size={18} style={{ color: 'var(--cricket)' }} />
+          <Handshake size={18} style={{ color: 'var(--cricket)' }} />
           <Text as="h3" size="lg" weight="bold">Sponsorships</Text>
           {totalSponsorship > 0 && (
             <Text size="sm" weight="bold" color="success">{formatCurrency(totalSponsorship)}</Text>
@@ -147,7 +146,7 @@ export default function SponsorshipSection() {
       {/* Active List */}
       {activeSponsors.length === 0 ? (
         <EmptyState
-          icon={<FaHandshake size={36} style={{ color: 'var(--cricket)' }} />}
+          icon={<Handshake size={36} style={{ color: 'var(--cricket)' }} />}
           title="No sponsors yet"
           description="Add team sponsors to track contributions"
           brand="cricket"
@@ -165,15 +164,15 @@ export default function SponsorshipSection() {
                   <button ref={openMenu === s.id ? menuBtnRef : null}
                     onClick={() => setOpenMenu(openMenu === s.id ? null : s.id)}
                     className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
-                    <FaEllipsisV size={12} />
+                    <EllipsisVertical size={12} />
                   </button>
                   {openMenu === s.id && (
                     <CardMenu
                       anchorRef={menuBtnRef}
                       onClose={() => setOpenMenu(null)}
                       items={[
-                        { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => handleEdit(s) },
-                        { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingSponsor({ id: s.id, name: s.sponsor_name }), dividerBefore: true },
+                        { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(s) },
+                        { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingSponsor({ id: s.id, name: s.sponsor_name }), dividerBefore: true },
                       ]}
                     />
                   )}
@@ -183,7 +182,7 @@ export default function SponsorshipSection() {
               <div className="flex items-start gap-3 pr-8">
                 <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
                   style={{ background: 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)' }}>
-                  <FaHandshake size={16} style={{ color: 'var(--cricket-accent)' }} />
+                  <Handshake size={16} style={{ color: 'var(--cricket-accent)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <Text as="p" size="sm" weight="semibold" truncate className="sm:text-[14px]">{s.sponsor_name}</Text>

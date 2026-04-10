@@ -4,17 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
-import { FaTshirt, FaTrophy, FaUtensils, FaBox } from 'react-icons/fa';
+import { Shirt, Trophy, Utensils, Package } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
-import type { IconType } from 'react-icons';
 
-const CATEGORY_ICONS: Record<string, IconType> = {
-  FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
+  FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
 };
 import { formatCurrency, formatDate } from '../lib/utils';
 import { EmptyState, FilterDropdown, Text, CardMenu } from '@/components/ui';
-import { FaExclamationTriangle, FaCheckCircle, FaWallet, FaEllipsisV } from 'react-icons/fa';
-import { MdEdit, MdDeleteOutline } from 'react-icons/md';
+import { TriangleAlert, CircleCheck, Wallet, EllipsisVertical, Pencil, Trash2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 /* ── Expense Card Menu ── */
@@ -30,7 +28,7 @@ function DeleteConfirm({ description, onConfirm, onCancel }: { description: stri
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
-            <MdDeleteOutline size={20} style={{ color: 'var(--red)' }} />
+            <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
           <div>
             <p className="text-[15px] font-semibold text-[var(--text)]">Delete Expense</p>
@@ -161,7 +159,7 @@ export default function ExpenseList() {
               </div>
               <div className="flex-shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center"
                 style={{ backgroundColor: `${balanceColor}12`, border: `2px solid ${balanceColor}25` }}>
-                <FaWallet size={20} style={{ color: balanceColor }} />
+                <Wallet size={20} style={{ color: balanceColor }} />
               </div>
             </div>
 
@@ -220,7 +218,7 @@ export default function ExpenseList() {
             {isLow && activePlayers.length > 0 && (
               <div className="p-3 rounded-xl flex items-start gap-2.5"
                 style={{ background: '#EF44440A', border: '1.5px solid #EF444425' }}>
-                <FaExclamationTriangle size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+                <TriangleAlert size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
                 <p className="text-[13px] leading-relaxed text-[var(--text)]">
                   Short <span className="font-extrabold" style={{ color: '#EF4444' }}>{formatCurrency(Math.abs(poolBalance))}</span> — collect <span className="font-extrabold" style={{ color: 'var(--cricket-accent)' }}>{formatCurrency(perPerson)}</span>/player to cover it.
                 </p>
@@ -230,7 +228,7 @@ export default function ExpenseList() {
             {!isLow && totalCollected > 0 && poolBalance > 0 && (
               <div className="p-3 rounded-xl flex items-center gap-2.5"
                 style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
-                <FaCheckCircle size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
+                <CircleCheck size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
                 <p className="text-[13px] text-[var(--text)]">
                   <span className="font-bold" style={{ color: 'var(--cricket)' }}>{formatCurrency(poolBalance)}</span>{' '}in the pool — any surplus rolls over to next season.
                 </p>
@@ -292,7 +290,7 @@ export default function ExpenseList() {
                         ref={openMenu === e.id ? menuBtnRef : null}
                         onClick={() => setOpenMenu(openMenu === e.id ? null : e.id)}
                         className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
-                        <FaEllipsisV size={12} />
+                        <EllipsisVertical size={12} />
                       </button>
 
                       {openMenu === e.id && (
@@ -300,8 +298,8 @@ export default function ExpenseList() {
                           anchorRef={menuBtnRef}
                           onClose={() => setOpenMenu(null)}
                           items={[
-                            { label: 'Edit', icon: <MdEdit size={15} />, color: 'var(--text)', onClick: () => setEditingExpense(e.id) },
-                            { label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeletingExpense({ id: e.id, desc: e.description || cfg.label }), dividerBefore: true },
+                            { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => setEditingExpense(e.id) },
+                            { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingExpense({ id: e.id, desc: e.description || cfg.label }), dividerBefore: true },
                           ]}
                         />
                       )}

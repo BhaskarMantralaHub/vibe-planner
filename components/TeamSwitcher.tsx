@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore, type UserTeam } from '@/stores/auth-store';
 import { Text, Spinner } from '@/components/ui';
-import { MdKeyboardArrowDown, MdCheck } from 'react-icons/md';
+import { ChevronDown, Check } from 'lucide-react';
 
 const DEFAULT_COLORS: Record<string, string> = {
   'sunrisers-manteca': '#0c4a6e',
@@ -104,7 +104,7 @@ export default function TeamSwitcher() {
           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           className="flex items-center"
         >
-          <MdKeyboardArrowDown size={16} className="text-[var(--muted)]" />
+          <ChevronDown size={16} className="text-[var(--muted)]" />
         </motion.div>
       </motion.button>
 
@@ -174,7 +174,7 @@ export default function TeamSwitcher() {
                         className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                         style={{ background: color }}
                       >
-                        <MdCheck size={14} className="text-white" />
+                        <Check size={14} className="text-white" />
                       </div>
                     ) : (
                       <div className="w-6 h-6 rounded-full border-[1.5px] border-[var(--border)] shrink-0" />

@@ -6,7 +6,7 @@ import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
 import GalleryUpload from './GalleryUpload';
-import { Camera, CheckCircle2, Loader2, Plus } from 'lucide-react';
+import { Camera, CircleCheck, LoaderCircle, Plus } from 'lucide-react';
 
 function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
@@ -80,7 +80,7 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
               >
                 {loadingMoreGallery ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 size={14} className="animate-spin" />
+                    <LoaderCircle size={14} className="animate-spin" />
                     Loading...
                   </span>
                 ) : (
@@ -90,7 +90,7 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
             </div>
           ) : posts.length > 2 && (
             <div className="mt-10 mb-6 flex flex-col items-center gap-2">
-              <CheckCircle2 size={20} strokeWidth={1.5} style={{ color: 'var(--dim)' }} />
+              <CircleCheck size={20} strokeWidth={1.5} style={{ color: 'var(--dim)' }} />
               <p className="text-[12px]" style={{ color: 'var(--dim)' }}>You&apos;re all caught up</p>
             </div>
           )}

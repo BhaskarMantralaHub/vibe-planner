@@ -4,16 +4,15 @@ import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
-import { FaTshirt, FaTrophy, FaUtensils, FaBox } from 'react-icons/fa';
+import { Shirt, Trophy, Utensils, Package } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
-import type { IconType } from 'react-icons';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
-const CATEGORY_ICONS: Record<string, IconType> = {
-  FaTshirt, MdSportsCricket, FaTrophy, FaUtensils, FaBox,
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
+  FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
 };
 
 const EXPENSE_FORM_KEY = 'cricket_expense_form_draft';

@@ -11,7 +11,8 @@ import type { CricketPlayer } from '@/types/cricket';
 import PlayerPickerRow from '@/app/(tools)/cricket/components/PlayerPickerRow';
 import { CoinFlipPage } from './CoinFlipPage';
 import { TossPage } from './TossPage';
-import { MdSportsCricket, MdArrowBack, MdArrowForward, MdCheck, MdPersonAdd, MdClose } from 'react-icons/md';
+import { ArrowLeft, ArrowRight, Check, UserPlus, X } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
 
 const TOTAL_STEPS = 5;
 
@@ -92,7 +93,7 @@ function AddGuestInline({ onAdd, suggestions = [], excludeNames = [] }: {
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-3 py-2.5 text-[var(--muted)] hover:border-[var(--cricket)]/40 hover:text-[var(--cricket)] transition-colors cursor-pointer"
       >
-        <MdPersonAdd size={18} />
+        <UserPlus size={18} />
         <Text size="sm" color="muted">Add guest player</Text>
       </button>
     );
@@ -110,8 +111,8 @@ function AddGuestInline({ onAdd, suggestions = [], excludeNames = [] }: {
           autoFocus
           className="flex-1 bg-transparent text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--dim)]"
         />
-        <button onClick={() => handleAdd()} className="text-[var(--cricket)] cursor-pointer"><MdCheck size={20} /></button>
-        <button onClick={() => { setOpen(false); setName(''); }} className="text-[var(--muted)] cursor-pointer"><MdClose size={20} /></button>
+        <button onClick={() => handleAdd()} className="text-[var(--cricket)] cursor-pointer"><Check size={20} /></button>
+        <button onClick={() => { setOpen(false); setName(''); }} className="text-[var(--muted)] cursor-pointer"><X size={20} /></button>
       </div>
 
       {/* Autocomplete dropdown */}
@@ -287,7 +288,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-md">
         <button onClick={handleBack} className="cursor-pointer rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
-          <MdArrowBack size={22} />
+          <ArrowLeft size={22} />
         </button>
         <Text size="lg" weight="semibold">
           {step === 1 && 'Match Details'}
@@ -396,7 +397,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
                         onClick={() => setTeamAGuests((prev) => prev.filter((x) => x.id !== g.id))}
                         className="text-[var(--muted)] hover:text-[var(--red)] cursor-pointer"
                       >
-                        <MdClose size={16} />
+                        <X size={16} />
                       </button>
                     </div>
                   ))}
@@ -453,7 +454,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
                         onClick={() => setTeamBGuests((prev) => prev.filter((x) => x.id !== g.id))}
                         className="text-[var(--muted)] hover:text-[var(--red)] cursor-pointer"
                       >
-                        <MdClose size={16} />
+                        <X size={16} />
                       </button>
                     </div>
                   ))}
@@ -570,7 +571,7 @@ export default function ScoringWizard({ onComplete, onBack }: { onComplete: () =
               </span>
             ) : (
               <span className="flex items-center gap-1">
-                Next <MdArrowForward size={16} />
+                Next <ArrowRight size={16} />
               </span>
             )}
           </Button>

@@ -6,7 +6,7 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { FaUsers, FaReceipt, FaShareAlt, FaMoneyBillWave, FaWallet } from 'react-icons/fa';
+import { Users, Receipt, Share2, Banknote, PiggyBank, PersonStanding } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,10 +63,10 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
   const feeColor = feesTotal > 0 && feesPaid === feesTotal ? 'var(--green)' : 'var(--blue)';
 
   const stats = [
-    { label: 'Total Spent', value: formatCurrency(animSpent), color: 'var(--red)', icon: <FaReceipt size={16} /> },
-    { label: 'Fees Paid', value: `${animPaid} of ${feesTotal}`, color: feeColor, icon: <FaMoneyBillWave size={16} /> },
-    { label: 'Pool Balance', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(animPool)}`, color: poolBalance < 0 ? 'var(--red)' : 'var(--green)', icon: <FaWallet size={16} /> },
-    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <MdSportsCricket size={18} /> },
+    { label: 'Total Spent', value: formatCurrency(animSpent), color: 'var(--red)', icon: <Receipt size={16} /> },
+    { label: 'Fees Paid', value: `${animPaid} of ${feesTotal}`, color: feeColor, icon: <Banknote size={16} /> },
+    { label: 'Pool Balance', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(animPool)}`, color: poolBalance < 0 ? 'var(--red)' : 'var(--green)', icon: <PiggyBank size={16} /> },
+    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <PersonStanding size={18} /> },
   ];
 
   return (
@@ -107,8 +107,8 @@ import { CapsuleTabs, SegmentedControl } from '@/components/ui';
 import type { CapsuleTab } from '@/components/ui';
 
 const CAPSULE_TABS: CapsuleTab[] = [
-  { key: 'players', label: 'Players', icon: <FaUsers size={16} /> },
-  { key: 'finances', label: 'Finances', icon: <FaReceipt size={16} /> },
+  { key: 'players', label: 'Players', icon: <Users size={16} /> },
+  { key: 'finances', label: 'Finances', icon: <Receipt size={16} /> },
 ];
 
 function CricketDashboard() {
@@ -352,7 +352,7 @@ function CricketDashboard() {
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 <span className="transition-all duration-200" style={{ color: 'var(--muted)', display: 'flex' }}>
-                  <FaShareAlt size={16} />
+                  <Share2 size={16} />
                 </span>
                 <span className="text-[10px] font-medium" style={{ color: 'var(--muted)', letterSpacing: '0.02em' }}>
                   Share

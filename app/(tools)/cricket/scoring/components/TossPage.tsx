@@ -2,7 +2,7 @@
 
 import { Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdCheck } from 'react-icons/md';
+import { Check } from 'lucide-react';
 import type { TeamSide, TossDecision } from '@/types/scoring';
 
 interface TossPageProps {
@@ -75,7 +75,7 @@ function TossPage({
                 }
               >
                 {isSelected ? (
-                  <MdCheck size={20} className="text-white" />
+                  <Check size={20} className="text-white" />
                 ) : (
                   <Text size="md" weight="bold" color="muted">{name[0]?.toUpperCase()}</Text>
                 )}

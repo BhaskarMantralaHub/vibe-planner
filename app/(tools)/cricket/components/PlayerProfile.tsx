@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { CricketPlayer } from '@/types/cricket';
-import { MdSportsCricket, MdEmail, MdBadge, MdContentCopy, MdEdit, MdCameraAlt, MdClose } from 'react-icons/md';
+import { Mail, Badge as BadgeIcon, Copy, Pencil, Camera, X, Crown, ShieldCheck, Shirt } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
-import { FaCrown, FaShieldAlt, FaTshirt } from 'react-icons/fa';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import { cn } from '@/lib/utils';
 import { Text } from '@/components/ui';
@@ -27,7 +27,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
       title={`Copy ${label}`}
     >
-      <MdContentCopy size={14} />
+      <Copy size={14} />
     </button>
   );
 }
@@ -162,7 +162,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div className="flex items-center justify-between">
               <Text as="h3" size="lg" weight="bold">Edit Profile</Text>
               <button onClick={cancelEditing} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer">
-                <MdClose size={20} />
+                <X size={20} />
               </button>
             </div>
 
@@ -176,8 +176,8 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                 )}
                 {player.designation && (
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] capitalize">
-                    {player.designation === 'captain' && <FaCrown size={9} />}
-                    {player.designation === 'vice-captain' && <FaShieldAlt size={9} />}
+                    {player.designation === 'captain' && <Crown size={9} />}
+                    {player.designation === 'vice-captain' && <ShieldCheck size={9} />}
                     {player.designation} <span className="text-[var(--dim)]">· set by admin</span>
                   </span>
                 )}
@@ -200,11 +200,11 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                   <img src={displayPhoto} alt={editName} className="h-full w-full object-cover" />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center" style={{ color: roleColor }}>
-                    <MdCameraAlt size={24} />
+                    <Camera size={24} />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                  <MdCameraAlt size={20} className="text-white" />
+                  <Camera size={20} className="text-white" />
                 </div>
               </div>
               <Text size="2xs" color="dim">Tap to change photo</Text>
@@ -341,7 +341,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               onClick={startEditing}
               className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer transition-colors bg-white/80 dark:bg-black/30 hover:bg-white dark:hover:bg-black/50 text-[var(--text)] border border-[var(--border)] z-10"
             >
-              <MdEdit size={14} /> Edit
+              <Pencil size={14} /> Edit
             </button>
           )}
 
@@ -384,12 +384,12 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             )}
             {player.designation === 'captain' && (
               <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 10%, transparent)' }}>
-                <FaCrown size={9} /> Captain
+                <Crown size={9} /> Captain
               </Badge>
             )}
             {player.designation === 'vice-captain' && (
               <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: '#6B7280', background: '#6B728015' }}>
-                <FaShieldAlt size={9} /> Vice Captain
+                <ShieldCheck size={9} /> Vice Captain
               </Badge>
             )}
           </div>
@@ -423,7 +423,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               {player.shirt_size && (
                 <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px]"
                   style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
-                  <FaTshirt size={13} style={{ color: roleColor }} />
+                  <Shirt size={13} style={{ color: roleColor }} />
                   <span className="text-[var(--muted)]">Size</span>
                   <span className="font-semibold text-[var(--text)]">{player.shirt_size}</span>
                 </div>
@@ -436,7 +436,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               {player.email && (
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
-                    <MdEmail size={16} style={{ color: roleColor }} />
+                    <Mail size={16} style={{ color: roleColor }} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <Text as="span" size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="block text-[10px]">Email</Text>
@@ -448,7 +448,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               {player.cricclub_id && (
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
-                    <MdBadge size={16} style={{ color: roleColor }} />
+                    <BadgeIcon size={16} style={{ color: roleColor }} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <Text as="span" size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="block text-[10px]">CricClub ID</Text>

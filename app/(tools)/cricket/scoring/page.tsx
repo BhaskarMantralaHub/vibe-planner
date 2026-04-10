@@ -11,8 +11,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode, getSupabaseClient } from '@/lib/supabase/client';
 import { Button, Text, EmptyState, Skeleton, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, CardMenu, SegmentedControl, RefreshButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { MdArrowBack, MdSportsCricket, MdAdd, MdDeleteOutline, MdRestoreFromTrash, MdDeleteForever, MdScoreboard, MdPlayArrow, MdSync } from 'react-icons/md';
-import { FaEllipsisV } from 'react-icons/fa';
+import { ArrowLeft, Plus, Trash2, ArchiveRestore, Play, RefreshCcw, EllipsisVertical } from 'lucide-react';
+import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import type { MatchHistoryItem } from '@/types/scoring';
 import ScoringWizard from './components/ScoringWizard';
 import { ScoringScreen } from './components/ScoringScreen';
@@ -109,7 +109,7 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
                 )}
                 title="Options"
               >
-                <FaEllipsisV size={11} />
+                <EllipsisVertical size={11} />
               </button>
             )}
           </div>
@@ -275,10 +275,10 @@ function MatchCard({ item, onTap, onDelete, onRestore, onPermanentDelete, onReve
           width={180}
           items={[
             { label: scorecardLoading ? 'Loading...' : 'View Scorecard', icon: <MdScoreboard size={15} />, color: 'var(--text)', onClick: onTap },
-            ...(onRevert ? [{ label: 'Resume Scoring', icon: <MdPlayArrow size={15} />, color: 'var(--cricket)', onClick: () => onRevert() }] : []),
-            ...(isDeleted && onRestore ? [{ label: restoring ? 'Restoring...' : 'Restore', icon: <MdRestoreFromTrash size={15} />, color: 'var(--cricket)', onClick: async () => { setRestoring(true); await onRestore(); setRestoring(false); } }] : []),
-            ...(!isDeleted && onDelete ? [{ label: 'Delete', icon: <MdDeleteOutline size={15} />, color: 'var(--red)', onClick: () => setDeleteOpen(true), dividerBefore: true }] : []),
-            ...(isDeleted && onPermanentDelete ? [{ label: 'Delete Forever', icon: <MdDeleteForever size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleteOpen(true), dividerBefore: true }] : []),
+            ...(onRevert ? [{ label: 'Resume Scoring', icon: <Play size={15} />, color: 'var(--cricket)', onClick: () => onRevert() }] : []),
+            ...(isDeleted && onRestore ? [{ label: restoring ? 'Restoring...' : 'Restore', icon: <ArchiveRestore size={15} />, color: 'var(--cricket)', onClick: async () => { setRestoring(true); await onRestore(); setRestoring(false); } }] : []),
+            ...(!isDeleted && onDelete ? [{ label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeleteOpen(true), dividerBefore: true }] : []),
+            ...(isDeleted && onPermanentDelete ? [{ label: 'Delete Forever', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleteOpen(true), dividerBefore: true }] : []),
           ]}
         />
       )}
@@ -510,7 +510,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                   className="flex-shrink-0 rounded-lg p-2 cursor-pointer text-[var(--cricket)] hover:bg-[var(--cricket)]/10 transition-colors"
                   title="Sync with server"
                 >
-                  <MdSync size={18} />
+                  <RefreshCcw size={18} />
                 </button>
               </div>
               <div className="px-4 pb-3">
@@ -549,7 +549,7 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
                 fullWidth
                 onClick={onNewMatch}
               >
-                <MdAdd size={20} /> Start New Match
+                <Plus size={20} /> Start New Match
               </Button>
             )
           )}

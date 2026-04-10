@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import type { GalleryPost as GalleryPostType, GalleryTag, GalleryComment, GalleryLike, CommentReaction, CricketPlayer } from '@/types/cricket';
-import { Heart, MessageCircle, MoreHorizontal, Send, X, Pencil, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Ellipsis, Send, X, Pencil, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
@@ -681,7 +681,7 @@ export default function GalleryPostCard({
           {(isOwn || isAdmin) && !editing && (
             <button onClick={() => setShowMenu(true)}
               className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer" title="More options">
-              <MoreHorizontal size={22} style={{ color: 'var(--muted)' }} />
+              <Ellipsis size={22} style={{ color: 'var(--muted)' }} />
             </button>
           )}
         </div>
@@ -942,7 +942,7 @@ export default function GalleryPostCard({
                             onClick={() => { setCommentActionId(c.id); setEditCommentText(c.text); }}
                             className="p-1 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer shrink-0 mt-0.5"
                           >
-                            <MoreHorizontal size={14} style={{ color: 'var(--dim)' }} />
+                            <Ellipsis size={14} style={{ color: 'var(--dim)' }} />
                           </button>
                         )}
                       </div>

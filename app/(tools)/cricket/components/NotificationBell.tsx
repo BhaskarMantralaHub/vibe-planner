@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { MdNotifications } from 'react-icons/md';
+import { Bell } from 'lucide-react';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -89,7 +89,7 @@ export default function NotificationBell() {
         className="relative p-2 rounded-xl hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
         title="Notifications"
       >
-        <MdNotifications size={20} style={{ color: unreadCount > 0 ? 'var(--cricket)' : 'var(--muted)' }} />
+        <Bell size={20} style={{ color: unreadCount > 0 ? 'var(--cricket)' : 'var(--muted)' }} />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold text-white px-0.5" style={{ background: 'var(--red)' }}>
             {unreadCount > 9 ? '9+' : unreadCount}

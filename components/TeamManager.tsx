@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { Text, Button, Input, Card, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, Spinner } from '@/components/ui';
-import { MdAdd, MdContentCopy, MdLink, MdPeople, MdEdit, MdCameraAlt, MdShare } from 'react-icons/md';
+import { Plus, Copy, Link, Users, Pencil, Camera, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /// Compress logo image to fit within max dimensions (keeps aspect ratio)
@@ -214,7 +214,7 @@ export default function TeamManager() {
       <div className="flex items-center justify-between">
         <Text size="lg" weight="bold">Teams</Text>
         <Button size="sm" onClick={() => setShowCreateForm(true)}>
-          <MdAdd size={16} className="mr-1" /> New Team
+          <Plus size={16} className="mr-1" /> New Team
         </Button>
       </div>
 
@@ -247,13 +247,13 @@ export default function TeamManager() {
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <MdPeople size={14} className="text-[var(--muted)]" />
+                  <Users size={14} className="text-[var(--muted)]" />
                   <Text size="xs" weight="medium">{team.member_count}</Text>
                   <Text size="2xs" color="muted">players</Text>
                 </div>
               </div>
               <Button size="sm" variant="ghost" onClick={() => startEditTeam(team)}>
-                <MdEdit size={16} />
+                <Pencil size={16} />
               </Button>
             </div>
 
@@ -263,7 +263,7 @@ export default function TeamManager() {
                 className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
-                <MdLink size={14} className="text-[var(--muted)] shrink-0" />
+                <Link size={14} className="text-[var(--muted)] shrink-0" />
                 <Text size="2xs" color="muted" className="flex-1 font-mono truncate">
                   /cricket?join={teamInviteTokens[team.id].slice(0, 8)}...
                 </Text>
@@ -272,14 +272,14 @@ export default function TeamManager() {
                   className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                   title="Share"
                 >
-                  <MdShare size={14} className="text-[var(--muted)]" />
+                  <Share2 size={14} className="text-[var(--muted)]" />
                 </button>
                 <button
                   onClick={() => copyInviteLink(teamInviteTokens[team.id])}
                   className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
                   title="Copy link"
                 >
-                  <MdContentCopy size={14} className="text-[var(--muted)]" />
+                  <Copy size={14} className="text-[var(--muted)]" />
                 </button>
               </div>
             )}
@@ -363,7 +363,7 @@ export default function TeamManager() {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <MdCameraAlt size={24} className="text-white" />
+                    <Camera size={24} className="text-white" />
                   </div>
                 </div>
                 <Text size="2xs" color="dim">Tap to change logo</Text>
