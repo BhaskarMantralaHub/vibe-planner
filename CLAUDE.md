@@ -14,6 +14,9 @@ Viber's Toolkit — personal productivity suite on Cloudflare Pages. Two users (
 **Roles:** `toolkit` (auto-approved), `cricket` (admin approval), `admin` (manual DB flag). Stored in `profiles.access`.
 **Features:** `profiles.features` controls tool visibility. `hasFeature()` = UI visibility, `hasAccess()` = RLS/privileges.
 **Tech:** Next.js 15 (static export), TypeScript, Tailwind v4, Zustand, Supabase (Postgres + Auth + RLS), Cloudflare Pages.
+**Monitoring:** Sentry (error tracking), Cloudflare Web Analytics (page views/Core Web Vitals).
+**Icons:** `lucide-react` (primary) + `react-icons` (6 cricket-specific) + custom SVGs in `components/icons/`.
+**PWA:** `manifest.json` + service worker for Add to Home Screen, offline fallback, auto-update toast.
 **Auth flows:** See `docs/SIGNUP_FLOWS.md`. **CRITICAL:** `AuthGate` only renders `RequestAccess` after `userAccess.length > 0`.
 **Player user_id linking:** Case-insensitive email match in 3 places (DB trigger, AuthGate, auth-store). Never set `user_id` to admin's auth ID.
 **Multi-team:** `cricket_teams`, `team_members`, `team_invites` tables with RLS. See `docs/MULTI_TEAM_DESIGN.md`.
