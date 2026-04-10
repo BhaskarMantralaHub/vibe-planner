@@ -26,7 +26,7 @@ jobs:
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Dump schema, policies, and roles
         id: schema_dump
@@ -48,7 +48,7 @@ jobs:
           DB_URL="postgresql://postgres.${PROJECT_REF}:${ENCODED_PW}@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
 
           echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
-          pg_dump "$DB_URL" \
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
             --schema-only \
             --schema=public \
             --no-owner \
@@ -60,7 +60,7 @@ jobs:
             }
 
           echo "Dumping role grants..."
-          pg_dumpall -d "$DB_URL" \
+          /usr/lib/postgresql/17/bin/pg_dumpall -d "$DB_URL" \
             --roles-only \
             > "backups/$BACKUP_DATE/roles.sql" 2>"backups/$BACKUP_DATE/roles.err" || {
               echo "::error::Roles dump failed:"
