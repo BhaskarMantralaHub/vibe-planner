@@ -24,7 +24,7 @@ jobs:
         id: cli_install
         continue-on-error: true
         run: |
-          SUPABASE_VERSION="2.20.12"
+          SUPABASE_VERSION="2.84.2"
           curl -fsSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_linux_amd64.tar.gz" -o supabase.tar.gz
           tar -xzf supabase.tar.gz
           sudo mv supabase /usr/local/bin/
