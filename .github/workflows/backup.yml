@@ -20,18 +20,7 @@ jobs:
       - name: Set backup date
         run: echo "BACKUP_DATE=$(date +%Y-%m-%d)" >> "$GITHUB_ENV"
 
-      - name: Install Supabase CLI
-        id: cli_install
-        continue-on-error: true
-        run: |
-          SUPABASE_VERSION="2.84.2"
-          curl -fsSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_linux_amd64.tar.gz" -o supabase.tar.gz
-          tar -xzf supabase.tar.gz
-          sudo mv supabase /usr/local/bin/
-          supabase --version
-
       - name: Dump schema, policies, and roles
-        if: steps.cli_install.outcome == 'success'
         id: schema_dump
         continue-on-error: true
         env:
@@ -46,13 +35,16 @@ jobs:
           # URL-encode the password (handles special chars like @, #, %)
           ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SUPABASE_DB_PASSWORD', safe=''))")
 
-          # Use direct connection (not pooler) — required for pg_dump
-          DB_URL="postgresql://postgres:${ENCODED_PW}@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          # Use session-mode pooler (port 5432, IPv4) with native pg_dump
+          # Avoids Docker entirely — no IPv6 issues, no image pull rate limits
+          DB_URL="postgresql://postgres.${PROJECT_REF}:${ENCODED_PW}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 
           echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
-          supabase db dump \
-            --db-url "$DB_URL" \
-            --schema public \
+          pg_dump "$DB_URL" \
+            --schema-only \
+            --schema=public \
+            --no-owner \
+            --no-privileges \
             > "backups/$BACKUP_DATE/schema.sql" 2>"backups/$BACKUP_DATE/schema.err" || {
               echo "::error::Schema dump failed:"
               cat "backups/$BACKUP_DATE/schema.err"
@@ -60,9 +52,8 @@ jobs:
             }
 
           echo "Dumping role grants..."
-          supabase db dump \
-            --db-url "$DB_URL" \
-            --role-only \
+          pg_dumpall -d "$DB_URL" \
+            --roles-only \
             > "backups/$BACKUP_DATE/roles.sql" 2>"backups/$BACKUP_DATE/roles.err" || {
               echo "::error::Roles dump failed:"
               cat "backups/$BACKUP_DATE/roles.err"
