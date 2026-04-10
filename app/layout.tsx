@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   description: 'Personal productivity suite',
   icons: {
     icon: '/favicon.ico',
+    apple: '/icons/icon-192.png',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: "Viber's Toolkit",
   },
 };
 
