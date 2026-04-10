@@ -1,5 +1,6 @@
-import { Brain, IdCard, Wallet, ShieldCheck, CalendarRange, Images, ChartColumnBig, HandCoins } from 'lucide-react';
+import { Brain, IdCard, ShieldCheck, CalendarRange, Images, ChartColumnBig, HandCoins } from 'lucide-react';
 import { MdScoreboard } from 'react-icons/md';
+import CricketIcon from '@/components/icons/CricketIcon';
 
 export type Tool = {
   name: string;
@@ -30,7 +31,7 @@ export const tools: Tool[] = [
   {
     name: 'Cricket',
     href: '/cricket',
-    icon: <Wallet size={22} />,
+    icon: <CricketIcon size={22} />,
     description: 'Team expenses & dues.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',

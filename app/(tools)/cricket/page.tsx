@@ -6,8 +6,9 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Users, Receipt, Share2, Banknote, PiggyBank, PersonStanding } from 'lucide-react';
+import { Users, Receipt, Share2, Banknote, PiggyBank } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
+import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -66,7 +67,7 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
     { label: 'Total Spent', value: formatCurrency(animSpent), color: 'var(--red)', icon: <Receipt size={16} /> },
     { label: 'Fees Paid', value: `${animPaid} of ${feesTotal}`, color: feeColor, icon: <Banknote size={16} /> },
     { label: 'Pool Balance', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(animPool)}`, color: poolBalance < 0 ? 'var(--red)' : 'var(--green)', icon: <PiggyBank size={16} /> },
-    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <PersonStanding size={18} /> },
+    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <CricketPlayerIcon size={18} /> },
   ];
 
   return (
@@ -107,7 +108,7 @@ import { CapsuleTabs, SegmentedControl } from '@/components/ui';
 import type { CapsuleTab } from '@/components/ui';
 
 const CAPSULE_TABS: CapsuleTab[] = [
-  { key: 'players', label: 'Players', icon: <Users size={16} /> },
+  { key: 'players', label: 'Players', icon: <CricketPlayerIcon size={16} /> },
   { key: 'finances', label: 'Finances', icon: <Receipt size={16} /> },
 ];
 

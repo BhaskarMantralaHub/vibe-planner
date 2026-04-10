@@ -1,4 +1,4 @@
-export default function UmpireIcon({
+export default function BowlerIcon({
   size = 48,
   color = "currentColor",
   strokeWidth = 2,
@@ -19,18 +19,24 @@ export default function UmpireIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {/* Hat */}
-      <path d="M6 7h12" />
-      <path d="M8 7c0-2 2-3 4-3s4 1 4 3" />
-
-      {/* Face */}
-      <circle cx="12" cy="11" r="2.5" />
+      {/* Head */}
+      <circle cx="12" cy="4" r="2" />
 
       {/* Body */}
-      <path d="M6 20c0-3 3-5 6-5s6 2 6 5" />
+      <path d="M12 6v6" />
 
-      {/* Tie */}
-      <path d="M12 15l-1 2h2l-1-2z" />
+      {/* Bowling arm (raised) */}
+      <path d="M12 7l4-2" />
+
+      {/* Ball */}
+      <circle cx="17" cy="5" r="1" />
+
+      {/* Front arm */}
+      <path d="M12 8l-3 2" />
+
+      {/* Legs (bowling action) */}
+      <path d="M12 12l-2 5" />
+      <path d="M12 12l3 5" />
     </svg>
   );
 }
