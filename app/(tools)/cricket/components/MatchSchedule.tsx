@@ -6,8 +6,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, Scale } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2 } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
+import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
@@ -495,7 +496,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           </div>
           {match.umpire && (
             <div className="flex items-center gap-1.5">
-              <Scale size={14} className="opacity-50 flex-shrink-0" />
+              <UmpireIcon size={14} />
               <span>Umpires: {match.umpire}</span>
             </div>
           )}
