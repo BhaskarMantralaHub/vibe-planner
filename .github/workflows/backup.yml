@@ -37,7 +37,7 @@ jobs:
 
           # Use session-mode pooler (port 5432, IPv4) with native pg_dump
           # Avoids Docker entirely — no IPv6 issues, no image pull rate limits
-          DB_URL="postgresql://postgres.${PROJECT_REF}:${ENCODED_PW}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
+          DB_URL="postgresql://postgres.${PROJECT_REF}:${ENCODED_PW}@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
 
           echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
           pg_dump "$DB_URL" \
