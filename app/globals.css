@@ -60,6 +60,14 @@
   --cricket-hover: #3AAAD9;
   --cricket-glow: rgba(77, 187, 235, 0.25);
 
+  /* Split debt/credit semantic colors */
+  --split-owe: #F87171;
+  --split-owe-bg: rgba(248, 113, 113, 0.08);
+  --split-owe-border: rgba(248, 113, 113, 0.20);
+  --split-credit: #34D399;
+  --split-credit-bg: rgba(52, 211, 153, 0.08);
+  --split-credit-border: rgba(52, 211, 153, 0.20);
+
   /* Leaderboard-specific tokens */
   --row-alt: #1A1D3B;
   --table-header-bg: color-mix(in srgb, var(--cricket) 8%, var(--surface));
@@ -109,6 +117,14 @@
   --cricket-accent: #0E5B86;
   --cricket-hover: #156490;
   --cricket-glow: rgba(26, 117, 168, 0.20);
+
+  /* Split debt/credit semantic colors — light mode */
+  --split-owe: #DC2626;
+  --split-owe-bg: rgba(220, 38, 38, 0.06);
+  --split-owe-border: rgba(220, 38, 38, 0.18);
+  --split-credit: #059669;
+  --split-credit-bg: rgba(5, 150, 105, 0.06);
+  --split-credit-border: rgba(5, 150, 105, 0.18);
 
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
   --toolkit: #1A75A8;
@@ -324,11 +340,47 @@ code, pre, .font-mono {
 .animate-gold-pulse  { animation: gold-pulse 3s ease-in-out infinite; }
 .animate-shimmer     { animation: shimmer-slide 4s ease-in-out infinite; }
 
+/* Smooth card expand/collapse */
+.expand-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.expand-collapse.expanded { grid-template-rows: 1fr; }
+.expand-collapse > * { overflow: hidden; }
+
+/* Tab content enter */
+.tab-enter { animation: tabFadeSlide 0.2s ease-out; }
+@keyframes tabFadeSlide {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Proportion bar fill */
+.proportion-bar {
+  position: relative;
+  overflow: hidden;
+}
+.proportion-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left;
+  transform: scaleX(var(--fill, 0));
+  transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.proportion-bar.owe::after { background: var(--split-owe-bg); }
+.proportion-bar.credit::after { background: var(--split-credit-bg); }
+
 @media (prefers-reduced-motion: reduce) {
   .animate-badge-shine { animation: none; }
   .animate-podium-rise { animation: none; opacity: 1; transform: none; }
   .animate-gold-pulse  { animation: none; }
   .animate-shimmer     { animation: none; }
+  .expand-collapse { transition: none; }
+  .tab-enter { animation: none; }
+  .proportion-bar::after { transition: none; }
 }
 
 /* ── Scrollbar ── */

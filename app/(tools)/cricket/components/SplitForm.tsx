@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
 import { Button, Text, Badge } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -52,6 +52,15 @@ export default function SplitForm() {
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
+  const amountInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus amount input after drawer animation completes (iOS Safari fix)
+  useEffect(() => {
+    if (showSplitForm) {
+      const timer = setTimeout(() => amountInputRef.current?.focus(), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplitForm]);
 
   // Pre-fill fields when editing an existing split
   useEffect(() => {
@@ -190,12 +199,12 @@ export default function SplitForm() {
           <div className="flex items-center justify-center gap-1">
             <Text size="3xl" weight="bold" color="muted" className="leading-none">$</Text>
             <input
+              ref={amountInputRef}
               type="text" inputMode="decimal" value={amount}
               onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
               placeholder="0.00"
               className="bg-transparent text-center outline-none font-bold text-[40px] leading-none max-w-[200px]"
               style={{ color: 'var(--text)', caretColor: 'var(--cricket)', fontVariantNumeric: 'tabular-nums' }}
-              autoFocus
             />
           </div>
         </div>
@@ -356,9 +365,16 @@ export default function SplitForm() {
             })}
             <div className="pt-2 border-t border-[var(--border)]/50 flex items-center justify-between">
               <Text size="xs" color="muted" weight="medium">Remaining</Text>
-              <Text size="sm" weight="bold" tabular style={{ color: Math.abs(remaining) < 0.01 ? '#059669' : remaining > 0 ? 'var(--cricket)' : '#EF4444' }}>${remaining.toFixed(2)}</Text>
+              <Text size="sm" weight="bold" tabular style={{ color: Math.abs(remaining) < 0.01 ? 'var(--split-credit)' : remaining > 0 ? 'var(--cricket)' : 'var(--split-owe)' }}>${remaining.toFixed(2)}</Text>
             </div>
           </div>
+        )}
+
+        {/* Validation hint — explains why button is disabled */}
+        {!canSubmit && (numAmount > 0 || selectedCount > 0) && (
+          <Text as="p" size="xs" color="dim" className="text-center -mb-2">
+            {numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+          </Text>
         )}
 
         <Button onClick={handleSubmit} disabled={!canSubmit} variant="primary" brand="cricket" size="xl" fullWidth>

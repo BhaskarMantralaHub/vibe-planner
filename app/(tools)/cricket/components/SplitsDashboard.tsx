@@ -9,23 +9,26 @@ import { nameToGradient } from '@/lib/avatar';
 import { Text, CardMenu, FilterDropdown } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp } from 'lucide-react';
 import SplitForm from './SplitForm';
 import SplitSettleDrawer from './SplitSettleDrawer';
 import { createPortal } from 'react-dom';
+
+/* ── Reusable sub-components ── */
 
 function Pagination({ page, setPage, totalItems, pageSize }: { page: number; setPage: (p: number) => void; totalItems: number; pageSize: number }) {
   const totalPages = Math.ceil(totalItems / pageSize);
   if (totalPages <= 1) return null;
   return (
-    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-[var(--border)]/50">
+    <div className="flex items-center justify-center gap-3 mt-4 pt-4 border-t border-[var(--border)]/50">
       <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
-        className="px-4 py-2.5 min-h-[44px] rounded-lg text-[12px] font-medium cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed"
-        style={{ color: 'var(--muted)' }}>Prev</button>
-      <Text size="xs" color="muted" tabular>{page + 1} / {totalPages}</Text>
+        className="px-5 py-2.5 min-h-[44px] rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[var(--hover-bg)]"
+        style={{ color: 'var(--text)' }}>Prev</button>
+      <Text size="xs" color="muted" tabular weight="semibold">{page + 1} / {totalPages}</Text>
       <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
-        className="px-4 py-2.5 min-h-[44px] rounded-lg text-[12px] font-medium cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed"
-        style={{ color: 'var(--muted)' }}>Next</button>
+        className="px-5 py-2.5 min-h-[44px] rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[var(--hover-bg)]"
+        style={{ color: 'var(--text)' }}>Next</button>
     </div>
   );
 }
@@ -39,21 +42,33 @@ function PlayerAvatar({ name, photoUrl, size = 'md', opacity = 1 }: { name: stri
   }
   return (
     <div className={`${dims} rounded-full font-bold text-white flex items-center justify-center flex-shrink-0`}
-      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})`, opacity }}>{initials}</div>
+      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})`, opacity }}
+      role="img" aria-label={name}>{initials}</div>
   );
 }
 
 function DeleteConfirm({ description, paidBy, date, amount, type, onConfirm, onCancel }: { description: string; paidBy?: string; date?: string; amount?: string; type?: 'split' | 'settlement'; onConfirm: () => void; onCancel: () => void }) {
   const isSettlement = type === 'settlement';
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  // Focus trap + escape key
+  useEffect(() => {
+    confirmRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onCancel}>
-      <div className="w-[360px] rounded-2xl p-5"
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in"
+      role="alertdialog" aria-modal="true" aria-label={isSettlement ? 'Undo settlement' : 'Delete split'}
+      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }} onClick={onCancel}>
+      <div className="w-full max-w-[360px] rounded-2xl p-5"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: isSettlement ? 'rgba(245,158,11,0.1)' : 'rgba(248,113,113,0.1)' }}>
-            {isSettlement ? <Handshake size={20} style={{ color: '#D97706' }} /> : <Trash2 size={20} style={{ color: 'var(--red)' }} />}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: isSettlement ? 'rgba(245,158,11,0.1)' : 'var(--split-owe-bg)' }}>
+            {isSettlement ? <Handshake size={20} style={{ color: '#D97706' }} /> : <Trash2 size={20} style={{ color: 'var(--split-owe)' }} />}
           </div>
           <div>
             <Text size="sm" weight="semibold">{isSettlement ? 'Undo Settlement' : 'Delete Split'}</Text>
@@ -61,7 +76,6 @@ function DeleteConfirm({ description, paidBy, date, amount, type, onConfirm, onC
           </div>
         </div>
 
-        {/* Details card */}
         <div className="rounded-xl p-3 mb-4 space-y-1.5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           {paidBy && (
             <div className="flex justify-between">
@@ -78,30 +92,61 @@ function DeleteConfirm({ description, paidBy, date, amount, type, onConfirm, onC
           {amount && (
             <div className="flex justify-between">
               <Text size="xs" color="muted">Amount</Text>
-              <Text size="xs" weight="bold" tabular style={{ color: isSettlement ? '#059669' : '#EF4444' }}>{amount}</Text>
+              <Text size="xs" weight="bold" tabular style={{ color: isSettlement ? 'var(--split-credit)' : 'var(--split-owe)' }}>{amount}</Text>
             </div>
           )}
-          {isSettlement && (
-            <div className="border-t border-[var(--border)]/50 pt-1.5 mt-1.5">
-              <Text as="p" size="2xs" color="dim">This will restore the debt between these two players.</Text>
-            </div>
-          )}
-          {!isSettlement && (
-            <div className="border-t border-[var(--border)]/50 pt-1.5 mt-1.5">
-              <Text as="p" size="2xs" color="dim">This will remove the split and all associated shares. Settlements are not affected.</Text>
-            </div>
-          )}
+          <div className="border-t border-[var(--border)]/50 pt-1.5 mt-1.5">
+            <Text as="p" size="2xs" color="dim">
+              {isSettlement ? 'This will restore the debt between these two players.' : 'This will remove the split and all associated shares. Settlements are not affected.'}
+            </Text>
+          </div>
         </div>
 
         <div className="flex gap-2 justify-end">
-          <button onClick={onCancel} className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">{isSettlement ? 'Undo' : 'Delete'}</button>
+          <button onClick={onCancel} className="px-4 py-2.5 min-h-[44px] rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">Cancel</button>
+          <button ref={confirmRef} onClick={onConfirm} className="px-4 py-2.5 min-h-[44px] rounded-xl text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-opacity"
+            style={{ background: 'var(--split-owe)' }}>{isSettlement ? 'Undo' : 'Delete'}</button>
         </div>
       </div>
     </div>,
     document.body,
   );
 }
+
+/* ── Loading skeleton ── */
+function SplitsSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* Hero skeleton */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+        <Skeleton className="h-3 w-24 mb-3 rounded" />
+        <Skeleton className="h-10 w-36 mb-3 rounded" />
+        <Skeleton className="h-4 w-32 mb-4 rounded" />
+        <div className="flex gap-3">
+          <Skeleton className="flex-1 h-16 rounded-xl" />
+          <Skeleton className="flex-1 h-16 rounded-xl" />
+        </div>
+      </div>
+      {/* Tab bar skeleton */}
+      <Skeleton className="h-10 w-full rounded-xl" />
+      {/* Card skeletons */}
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-40 rounded" />
+              <Skeleton className="h-3 w-24 rounded" />
+            </div>
+            <Skeleton className="h-6 w-16 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Main Dashboard ── */
 
 export default function SplitsDashboard() {
   const { user } = useAuthStore();
@@ -132,7 +177,7 @@ export default function SplitsDashboard() {
   );
   const hasSplits = activeSplits.length > 0 || seasonSettlements.length > 0;
 
-  // Pre-build shares lookup map: splitId → CricketSplitShare[]
+  // Pre-build shares lookup map
   const sharesMap = useMemo(() => {
     const map = new Map<string, typeof shares>();
     for (const sh of shares) {
@@ -143,24 +188,21 @@ export default function SplitsDashboard() {
     return map;
   }, [shares]);
 
-  // My personal debts for quick settle strip
-  // Direct per-person debts (not simplified — shows every person you interact with)
+  // My personal debts
   const { myDebtsIOwe, myDebtsOwedToMe } = useMemo(() => {
     if (!myPlayer) return { myDebtsIOwe: [] as { id: string; name: string; photo: string | null; amount: number }[], myDebtsOwedToMe: [] as { id: string; name: string; photo: string | null; amount: number }[] };
 
-    const perPerson: Record<string, number> = {}; // positive = they owe me, negative = I owe them
+    const perPerson: Record<string, number> = {};
 
     for (const s of activeSplits) {
       const splitShareList = sharesMap.get(s.id) ?? [];
       if (s.paid_by === myPlayer.id) {
-        // I paid — everyone else's share is what they owe me
         for (const sh of splitShareList) {
           if (sh.player_id !== myPlayer.id) {
             perPerson[sh.player_id] = (perPerson[sh.player_id] ?? 0) + Number(sh.share_amount);
           }
         }
       } else {
-        // Someone else paid — my share is what I owe them
         const myShareEntry = splitShareList.find((sh) => sh.player_id === myPlayer.id);
         if (myShareEntry) {
           perPerson[s.paid_by] = (perPerson[s.paid_by] ?? 0) - Number(myShareEntry.share_amount);
@@ -168,13 +210,10 @@ export default function SplitsDashboard() {
       }
     }
 
-    // Factor in settlements
     for (const st of seasonSettlements) {
       if (st.from_player === myPlayer.id) {
-        // I paid someone → reduces what I owe them (or they owe me more)
         perPerson[st.to_player] = (perPerson[st.to_player] ?? 0) + Number(st.amount);
       } else if (st.to_player === myPlayer.id) {
-        // Someone paid me → reduces what they owe me
         perPerson[st.from_player] = (perPerson[st.from_player] ?? 0) - Number(st.amount);
       }
     }
@@ -195,9 +234,9 @@ export default function SplitsDashboard() {
       myDebtsIOwe: iOwe.sort((a, b) => b.amount - a.amount),
       myDebtsOwedToMe: owedToMe.sort((a, b) => b.amount - a.amount),
     };
-  }, [myPlayer, activeSplits, shares, seasonSettlements, activePlayers]);
+  }, [myPlayer, activeSplits, sharesMap, seasonSettlements, activePlayers]);
 
-  // Activity feed: merge splits + settlements chronologically
+  // Activity feed
   const activityFeed = useMemo(() => {
     const items: { id: string; type: 'split' | 'settlement'; date: string; description: string; amount: number; paidByName: string; paidByPhoto: string | null; paidById: string; splitCount: number }[] = [];
     for (const s of activeSplits) {
@@ -205,7 +244,7 @@ export default function SplitsDashboard() {
       items.push({ id: s.id, type: 'split', date: s.split_date, description: s.description || s.category, amount: Number(s.amount), paidByName: payer?.name ?? 'Unknown', paidByPhoto: payer?.photo_url ?? null, paidById: s.paid_by, splitCount: (sharesMap.get(s.id) ?? []).length });
     }
     return items.sort((a, b) => b.date.localeCompare(a.date));
-  }, [activeSplits, seasonSettlements, activePlayers, shares]);
+  }, [activeSplits, activePlayers, sharesMap]);
 
   // UI state
   type SplitSubTab = 'balances' | 'activity' | 'settlements';
@@ -231,14 +270,18 @@ export default function SplitsDashboard() {
     useSplitsStore.getState().deleteSplit(id, myPlayer?.name ?? 'Admin');
   };
 
-  if (loading) {
-    return <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--cricket)] border-t-transparent" /></div>;
-  }
+  // Max amounts for proportion bars
+  const maxOwe = myDebtsIOwe.length > 0 ? Math.max(...myDebtsIOwe.map((d) => d.amount)) : 0;
+  const maxOwed = myDebtsOwedToMe.length > 0 ? Math.max(...myDebtsOwedToMe.map((d) => d.amount)) : 0;
+
+  if (loading) return <SplitsSkeleton />;
 
   if (!hasSplits) {
     return (
       <>
-        <EmptyState icon="💸" title="No splits yet" description="Split expenses with your teammates. Someone bought snacks? Log it here." brand="cricket"
+        <EmptyState icon={<Receipt size={32} />} title="No splits yet"
+          description="Track who paid for what and split it fairly. Separate from the team pool fund — splits are just between people involved."
+          brand="cricket"
           action={{ label: '+ Split an Expense', onClick: () => useSplitsStore.setState({ showSplitForm: true }) }} />
         <SplitForm />
         <SplitSettleDrawer />
@@ -246,51 +289,75 @@ export default function SplitsDashboard() {
     );
   }
 
+  const totalIOwe = myDebtsIOwe.reduce((sum, d) => sum + d.amount, 0);
+  const totalOwedToMe = myDebtsOwedToMe.reduce((sum, d) => sum + d.amount, 0);
+  const heroNet = Math.round((totalOwedToMe - totalIOwe) * 100) / 100;
+  const allSettled = myDebtsIOwe.length === 0 && myDebtsOwedToMe.length === 0;
+
   return (
     <div className="space-y-4">
-      {/* ── Hero Net Balance Card ── */}
-      {(() => {
-        const totalIOwe = myDebtsIOwe.reduce((sum, d) => sum + d.amount, 0);
-        const totalOwedToMe = myDebtsOwedToMe.reduce((sum, d) => sum + d.amount, 0);
-        const heroNet = Math.round((totalOwedToMe - totalIOwe) * 100) / 100;
-        const allSettled = myDebtsIOwe.length === 0 && myDebtsOwedToMe.length === 0;
 
-        return (
-        <div className="rounded-2xl border p-4 sm:p-5 overflow-hidden" style={{ borderColor: allSettled ? 'color-mix(in srgb, var(--cricket) 25%, transparent)' : heroNet >= 0 ? '#05966940' : '#EF444440', background: 'var(--card)' }}>
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-1">Your Net Balance</Text>
+      {/* ── Hero Net Balance Card ── */}
+      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: allSettled ? 'color-mix(in srgb, var(--cricket) 25%, transparent)' : heroNet >= 0 ? 'var(--split-credit-border)' : 'var(--split-owe-border)', background: 'var(--card)' }}>
+        {/* Accent stripe */}
+        <div className="h-1" style={{ background: allSettled ? 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))' : heroNet >= 0 ? 'linear-gradient(90deg, var(--split-credit), #6EE7B7)' : 'linear-gradient(90deg, var(--split-owe), #FCA5A5)' }} />
+        <div className="p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-1">
+            <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider">Your Net Balance</Text>
+            {!allSettled && (
+              <div className="flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: heroNet >= 0 ? 'var(--split-credit-bg)' : 'var(--split-owe-bg)' }}>
+                {heroNet >= 0 ? <TrendingUp size={12} style={{ color: 'var(--split-credit)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />}
+                <Text size="2xs" weight="bold" style={{ color: heroNet >= 0 ? 'var(--split-credit)' : 'var(--split-owe)' }}>
+                  {heroNet >= 0 ? 'Positive' : 'Negative'}
+                </Text>
+              </div>
+            )}
+          </div>
           {allSettled ? (
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={28} style={{ color: 'var(--cricket)' }} />
-              <Text as="p" size="3xl" weight="bold" tabular tracking="tight" className="leading-none" style={{ color: 'var(--cricket)' }}>$0.00</Text>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 15%, transparent)' }}>
+                <CheckCircle2 size={22} style={{ color: 'var(--cricket)' }} />
+              </div>
+              <div>
+                <Text as="p" size="2xl" weight="bold" tabular tracking="tight" className="leading-none" style={{ color: 'var(--cricket)' }}>$0.00</Text>
+                <Text as="p" size="sm" color="muted" className="mt-0.5">All settled up — nice work!</Text>
+              </div>
             </div>
           ) : (
-            <Text as="p" size="3xl" weight="bold" tabular tracking="tight" className="leading-none" style={{ color: heroNet > 0 ? '#059669' : '#EF4444' }}>
-              {heroNet > 0 ? '+' : '-'}{formatCurrency(Math.abs(heroNet))}
-            </Text>
+            <>
+              <Text as="p" size="3xl" weight="bold" tabular tracking="tight" className="leading-none mt-1" style={{ color: heroNet > 0 ? 'var(--split-credit)' : 'var(--split-owe)' }}>
+                {heroNet > 0 ? '+' : '-'}{formatCurrency(Math.abs(heroNet))}
+              </Text>
+              <Text as="p" size="sm" color="muted" className="mt-1.5">
+                {heroNet > 0 ? 'You are owed overall' : 'You owe overall'}
+              </Text>
+            </>
           )}
-          <Text as="p" size="sm" color="muted" className="mt-2">
-            {allSettled ? 'All settled up!' : heroNet > 0 ? 'You are owed overall' : 'You owe overall'}
-          </Text>
           {(totalIOwe > 0 || totalOwedToMe > 0) && (
             <div className="flex gap-3 mt-4">
-              <div className="flex-1 rounded-xl p-3" style={{ background: '#EF444410' }}>
-                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">You Owe</Text>
-                <Text as="p" size="lg" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(totalIOwe)}</Text>
+              <div className="flex-1 rounded-xl p-3 border" style={{ background: 'var(--split-owe-bg)', borderColor: 'var(--split-owe-border)' }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />
+                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px]">You Owe</Text>
+                </div>
+                <Text as="p" size="lg" weight="bold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(totalIOwe)}</Text>
               </div>
-              <div className="flex-1 rounded-xl p-3" style={{ background: '#05966910' }}>
-                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">You&apos;re Owed</Text>
-                <Text as="p" size="lg" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(totalOwedToMe)}</Text>
+              <div className="flex-1 rounded-xl p-3 border" style={{ background: 'var(--split-credit-bg)', borderColor: 'var(--split-credit-border)' }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <ArrowUpRight size={12} style={{ color: 'var(--split-credit)' }} />
+                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px]">You&apos;re Owed</Text>
+                </div>
+                <Text as="p" size="lg" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>{formatCurrency(totalOwedToMe)}</Text>
               </div>
             </div>
           )}
         </div>
-        );
-      })()}
+      </div>
 
       {/* Sub-tabs */}
       <SegmentedControl
         options={[
-          { key: 'balances', label: `My Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
+          { key: 'balances', label: `Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
           { key: 'activity', label: `Activity${activityFeed.length > 0 ? ` (${activityFeed.length})` : ''}` },
           { key: 'settlements', label: `Settled${seasonSettlements.length > 0 ? ` (${seasonSettlements.length})` : ''}` },
         ]}
@@ -299,184 +366,217 @@ export default function SplitsDashboard() {
       />
 
       {/* ── Balances tab ── */}
-      {subTab === 'balances' && <>
+      {subTab === 'balances' && <div key="balances" className="tab-enter">
 
-      {/* ── Quick Settle Strip — expandable cards ── */}
       {(myDebtsIOwe.length > 0 || myDebtsOwedToMe.length > 0) && (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
-          <Text as="h3" size="md" weight="bold" tracking="tight" className="mb-3">
-            <Handshake size={16} className="inline mr-2" style={{ color: 'var(--cricket)' }} />
-            My Balances
-          </Text>
-          <div className="space-y-2">
-          {myDebtsIOwe.map((d) => {
-            const isExp = expandedDebtId === `owe-${d.id}`;
-            // Both directions: they paid (I owe) + I paid (they owe me — offsets)
-            const relatedSplits = myPlayer ? activeSplits.filter((s) =>
-              (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id))
-              || (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id)),
-            ) : [];
-            return (
-              <div key={`owe-${d.id}`} className="rounded-xl overflow-hidden border" style={{ borderColor: isExp ? '#EF444430' : '#EF444420', background: '#EF444406' }}>
-                <div className="flex items-center">
-                  <button onClick={() => setExpandedDebtId(isExp ? null : `owe-${d.id}`)}
-                    className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0">
-                    <PlayerAvatar name={d.name} photoUrl={d.photo} />
-                    <div className="flex-1 min-w-0 text-left">
-                      <Text size="sm" weight="medium" truncate>You owe <Text weight="bold">{d.name.split(' ')[0]}</Text></Text>
-                    </div>
-                    <Text size="md" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(d.amount)}</Text>
-                    <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
-                  </button>
-                  <div className="pr-3">
-                    <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
-                      className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[12px] font-bold cursor-pointer transition-all active:scale-95"
-                      style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>Settle</button>
-                  </div>
+        <div className="space-y-3">
+          {/* You Owe section */}
+          {myDebtsIOwe.length > 0 && (
+            <div className="rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-owe-border)' }}>
+              <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
+                  <ArrowDownRight size={13} style={{ color: 'var(--split-owe)' }} />
                 </div>
-                {isExp && (() => {
-                  // Past settlements between me and this person
-                  const pastSettlements = myPlayer ? seasonSettlements.filter((st) =>
-                    (st.from_player === myPlayer.id && st.to_player === d.id) || (st.from_player === d.id && st.to_player === myPlayer.id),
+                <Text size="sm" weight="bold" style={{ color: 'var(--split-owe)' }}>You Owe</Text>
+                <Text size="xs" color="dim" className="ml-auto">{myDebtsIOwe.length} {myDebtsIOwe.length === 1 ? 'person' : 'people'}</Text>
+              </div>
+              <div className="px-3 pb-3 space-y-2">
+                {myDebtsIOwe.map((d) => {
+                  const isExp = expandedDebtId === `owe-${d.id}`;
+                  const relatedSplits = myPlayer ? activeSplits.filter((s) =>
+                    (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id))
+                    || (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id)),
                   ) : [];
+                  const fill = maxOwe > 0 ? d.amount / maxOwe : 0;
                   return (
-                  <div className="px-3 pb-3 animate-fade-in">
-                    <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
-                      {relatedSplits.map((s) => {
-                        const iOwe = s.paid_by === d.id; // they paid → I owe
-                        const relevantShare = myPlayer ? (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (iOwe ? myPlayer.id : d.id)) : null;
-                        const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
-                        return (
-                          <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${iOwe ? '#EF4444' : '#059669'}` }}>
-                            <div className="flex-1 min-w-0">
-                              <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
-                              <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
+                    <div key={`owe-${d.id}`} className="rounded-xl overflow-hidden border transition-colors duration-200" style={{ borderColor: isExp ? 'var(--split-owe-border)' : 'var(--border)' }}>
+                      {/* Row with proportion bar background */}
+                      <div className="proportion-bar owe" style={{ ['--fill' as string]: fill }}>
+                        <div className="flex items-center relative z-[1]">
+                          <button onClick={() => setExpandedDebtId(isExp ? null : `owe-${d.id}`)}
+                            className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0">
+                            <PlayerAvatar name={d.name} photoUrl={d.photo} />
+                            <div className="flex-1 min-w-0 text-left">
+                              <Text size="sm" weight="semibold" truncate>{d.name}</Text>
+                              <Text as="p" size="2xs" color="dim">{relatedSplits.length} split{relatedSplits.length !== 1 ? 's' : ''}</Text>
                             </div>
-                            <Text size="xs" weight="bold" tabular style={{ color: iOwe ? '#EF4444' : '#059669' }}>{iOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
+                            <Text size="md" weight="bold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(d.amount)}</Text>
+                            <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform duration-200" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Animated expand/collapse */}
+                      <div className={`expand-collapse ${isExp ? 'expanded' : ''}`}>
+                        <div>
+                          <div className="px-3 pb-3">
+                            <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
+                              {relatedSplits.map((s) => {
+                                const iOwe = s.paid_by === d.id;
+                                const relevantShare = myPlayer ? (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (iOwe ? myPlayer.id : d.id)) : null;
+                                const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                                return (
+                                  <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2.5" style={{ background: 'var(--surface)', borderLeft: `3px solid ${iOwe ? 'var(--split-owe)' : 'var(--split-credit)'}` }}>
+                                    <div className="flex-1 min-w-0">
+                                      <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
+                                      <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
+                                    </div>
+                                    <Text size="xs" weight="bold" tabular style={{ color: iOwe ? 'var(--split-owe)' : 'var(--split-credit)' }}>{iOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
+                                  </div>
+                                );
+                              })}
+                              {/* Past settlements */}
+                              {(() => {
+                                const pastSettlements = myPlayer ? seasonSettlements.filter((st) =>
+                                  (st.from_player === myPlayer.id && st.to_player === d.id) || (st.from_player === d.id && st.to_player === myPlayer.id),
+                                ) : [];
+                                if (pastSettlements.length === 0) return null;
+                                return (
+                                  <div className="mt-1.5 rounded-lg p-2.5" style={{ background: 'var(--split-credit-bg)', borderLeft: '3px solid var(--split-credit)' }}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Handshake size={12} style={{ color: 'var(--split-credit)' }} />
+                                      <Text size="2xs" weight="bold" style={{ color: 'var(--split-credit)' }}>Previously settled ({pastSettlements.length})</Text>
+                                    </div>
+                                    {pastSettlements.map((st) => (
+                                      <div key={st.id} className="flex items-center justify-between py-0.5">
+                                        <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
+                                        <Text size="xs" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>-{formatCurrency(Number(st.amount))}</Text>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {/* Settle button inside expanded area */}
+                            <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
+                              className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
+                              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white', boxShadow: '0 2px 12px var(--cricket-glow)' }}>
+                              <Handshake size={16} />
+                              Settle {formatCurrency(d.amount)}
+                            </button>
                           </div>
-                        );
-                      })}
-                      {pastSettlements.length > 0 && (
-                        <details className="mt-1">
-                          <summary className="text-[11px] font-semibold cursor-pointer py-1.5" style={{ color: 'var(--muted)' }}>
-                            Previously settled ({pastSettlements.length})
-                          </summary>
-                          <div className="space-y-1.5 mt-1.5">
-                            {pastSettlements.map((st) => (
-                              <div key={st.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: '#05966906', borderLeft: '2px solid #059669' }}>
-                                <Handshake size={12} style={{ color: '#059669' }} className="flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
-                                </div>
-                                <Text size="xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(Number(st.amount))}</Text>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
                   );
-                })()}
+                })}
               </div>
-            );
-          })}
-          {myDebtsOwedToMe.map((d) => {
-            const isExp = expandedDebtId === `owed-${d.id}`;
-            // Both directions: I paid (they owe) + they paid (I owe — offsets)
-            const relatedSplits = myPlayer ? activeSplits.filter((s) =>
-              (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id))
-              || (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id)),
-            ) : [];
-            return (
-              <div key={`owed-${d.id}`} className="rounded-xl overflow-hidden border" style={{ borderColor: isExp ? '#05966930' : '#05966920', background: '#05966906' }}>
-                <div className="flex items-center">
-                  <button onClick={() => setExpandedDebtId(isExp ? null : `owed-${d.id}`)}
-                    className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0">
-                    <PlayerAvatar name={d.name} photoUrl={d.photo} />
-                    <div className="flex-1 min-w-0 text-left">
-                      <Text size="sm" weight="medium" truncate><Text weight="bold">{d.name.split(' ')[0]}</Text> owes you</Text>
-                    </div>
-                    <Text size="md" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(d.amount)}</Text>
-                    <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
-                  </button>
-                  <div className="pr-3">
-                    <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
-                      className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[12px] font-bold cursor-pointer transition-all active:scale-95"
-                      style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>Settle</button>
-                  </div>
+            </div>
+          )}
+
+          {/* Owed To You section */}
+          {myDebtsOwedToMe.length > 0 && (
+            <div className="rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-credit-border)' }}>
+              <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-credit-bg)' }}>
+                  <ArrowUpRight size={13} style={{ color: 'var(--split-credit)' }} />
                 </div>
-                {isExp && (() => {
-                  const pastSettlements = seasonSettlements.filter((st) =>
-                    (st.from_player === d.id && st.to_player === myPlayer?.id) || (st.from_player === myPlayer?.id && st.to_player === d.id),
-                  );
-                  return (
-                  <div className="px-3 pb-3 animate-fade-in">
-                    <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
-                      {relatedSplits.map((s) => {
-                        const theyOwe = myPlayer && s.paid_by === myPlayer.id; // I paid → they owe
-                        const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (theyOwe ? d.id : myPlayer?.id ?? ''));
-                        const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
-                        return (
-                          <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${theyOwe ? '#059669' : '#EF4444'}` }}>
-                            <div className="flex-1 min-w-0">
-                              <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
-                              <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
-                            </div>
-                            <Text size="xs" weight="bold" tabular style={{ color: theyOwe ? '#059669' : '#EF4444' }}>{theyOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
-                          </div>
-                        );
-                      })}
-                      {pastSettlements.length > 0 && (
-                        <details className="mt-1">
-                          <summary className="text-[11px] font-semibold cursor-pointer py-1.5" style={{ color: 'var(--muted)' }}>
-                            Previously settled ({pastSettlements.length})
-                          </summary>
-                          <div className="space-y-1.5 mt-1.5">
-                            {pastSettlements.map((st) => (
-                              <div key={st.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: '#05966906', borderLeft: '2px solid #059669' }}>
-                                <Handshake size={12} style={{ color: '#059669' }} className="flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
-                                </div>
-                                <Text size="xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(Number(st.amount))}</Text>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })()}
+                <Text size="sm" weight="bold" style={{ color: 'var(--split-credit)' }}>Owed To You</Text>
+                <Text size="xs" color="dim" className="ml-auto">{myDebtsOwedToMe.length} {myDebtsOwedToMe.length === 1 ? 'person' : 'people'}</Text>
               </div>
-            );
-          })}
-          </div>
+              <div className="px-3 pb-3 space-y-2">
+                {myDebtsOwedToMe.map((d) => {
+                  const isExp = expandedDebtId === `owed-${d.id}`;
+                  const relatedSplits = myPlayer ? activeSplits.filter((s) =>
+                    (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id))
+                    || (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id)),
+                  ) : [];
+                  const fill = maxOwed > 0 ? d.amount / maxOwed : 0;
+                  return (
+                    <div key={`owed-${d.id}`} className="rounded-xl overflow-hidden border transition-colors duration-200" style={{ borderColor: isExp ? 'var(--split-credit-border)' : 'var(--border)' }}>
+                      <div className="proportion-bar credit" style={{ ['--fill' as string]: fill }}>
+                        <div className="flex items-center relative z-[1]">
+                          <button onClick={() => setExpandedDebtId(isExp ? null : `owed-${d.id}`)}
+                            className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0">
+                            <PlayerAvatar name={d.name} photoUrl={d.photo} />
+                            <div className="flex-1 min-w-0 text-left">
+                              <Text size="sm" weight="semibold" truncate>{d.name}</Text>
+                              <Text as="p" size="2xs" color="dim">{relatedSplits.length} split{relatedSplits.length !== 1 ? 's' : ''}</Text>
+                            </div>
+                            <Text size="md" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>{formatCurrency(d.amount)}</Text>
+                            <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform duration-200" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className={`expand-collapse ${isExp ? 'expanded' : ''}`}>
+                        <div>
+                          <div className="px-3 pb-3">
+                            <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
+                              {relatedSplits.map((s) => {
+                                const theyOwe = myPlayer && s.paid_by === myPlayer.id;
+                                const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (theyOwe ? d.id : myPlayer?.id ?? ''));
+                                const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                                return (
+                                  <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2.5" style={{ background: 'var(--surface)', borderLeft: `3px solid ${theyOwe ? 'var(--split-credit)' : 'var(--split-owe)'}` }}>
+                                    <div className="flex-1 min-w-0">
+                                      <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
+                                      <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
+                                    </div>
+                                    <Text size="xs" weight="bold" tabular style={{ color: theyOwe ? 'var(--split-credit)' : 'var(--split-owe)' }}>{theyOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
+                                  </div>
+                                );
+                              })}
+                              {/* Past settlements */}
+                              {(() => {
+                                const pastSettlements = seasonSettlements.filter((st) =>
+                                  (st.from_player === d.id && st.to_player === myPlayer?.id) || (st.from_player === myPlayer?.id && st.to_player === d.id),
+                                );
+                                if (pastSettlements.length === 0) return null;
+                                return (
+                                  <div className="mt-1.5 rounded-lg p-2.5" style={{ background: 'var(--split-credit-bg)', borderLeft: '3px solid var(--split-credit)' }}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Handshake size={12} style={{ color: 'var(--split-credit)' }} />
+                                      <Text size="2xs" weight="bold" style={{ color: 'var(--split-credit)' }}>Previously settled ({pastSettlements.length})</Text>
+                                    </div>
+                                    {pastSettlements.map((st) => (
+                                      <div key={st.id} className="flex items-center justify-between py-0.5">
+                                        <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
+                                        <Text size="xs" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>-{formatCurrency(Number(st.amount))}</Text>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {/* Settle button inside expanded area */}
+                            <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
+                              className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
+                              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white', boxShadow: '0 2px 12px var(--cricket-glow)' }}>
+                              <Handshake size={16} />
+                              Settle {formatCurrency(d.amount)}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* All settled celebration */}
-      {myDebtsIOwe.length === 0 && myDebtsOwedToMe.length === 0 && hasSplits && (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 text-center">
-          <PartyPopper size={32} className="mx-auto mb-3" style={{ color: 'var(--cricket)' }} />
+      {allSettled && hasSplits && (
+        <div className="rounded-2xl border bg-[var(--card)] p-6 text-center" style={{ borderColor: 'color-mix(in srgb, var(--cricket) 25%, transparent)' }}>
+          <div className="h-14 w-14 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+            <PartyPopper size={28} style={{ color: 'var(--cricket)' }} />
+          </div>
           <Text as="h3" size="lg" weight="bold" className="mb-1">All settled up!</Text>
-          <Text as="p" size="sm" color="muted">No outstanding balances.</Text>
+          <Text as="p" size="sm" color="muted">No outstanding balances. Great teamwork.</Text>
         </div>
       )}
 
-      </>}
+      </div>}
 
       {/* ── Activity tab ── */}
-      {subTab === 'activity' && <>
-      {/* ── Activity Feed — expandable, visible to everyone ── */}
-      {activityFeed.length > 0 && (() => {
+      {subTab === 'activity' && <div key="activity" className="tab-enter">
+      {activityFeed.length > 0 ? (() => {
         const filteredActivity = activityFilter === 'all' ? activityFeed
           : activityFilter === 'mine' ? activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id))
           : activityFeed.filter((a) => a.paidById === activityFilter || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === activityFilter));
         const pagedActivity = filteredActivity.slice(activityPage * PAGE_SIZE, (activityPage + 1) * PAGE_SIZE);
 
-        // Unique people involved in activity for filter dropdown
         const activityPeople = new Map<string, string>();
         for (const a of activityFeed) {
           const splitShrs = sharesMap.get(a.id) ?? [];
@@ -487,8 +587,8 @@ export default function SplitsDashboard() {
         }
 
         return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
-          <div className="mb-3">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+          <div className="p-4 pb-3">
             <FilterDropdown
               options={[
                 { key: 'mine', label: 'Mine', count: activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id)).length },
@@ -503,39 +603,33 @@ export default function SplitsDashboard() {
               brand="cricket"
             />
           </div>
-          <div className="space-y-2">
+          <div className="px-3 pb-3 space-y-2">
             {pagedActivity.map((a) => {
               const expanded = expandedId === a.id;
               const splitShares = a.type === 'split' ? (sharesMap.get(a.id) ?? []) : [];
 
-              // My relationship to this split
               const iAmPayer = myPlayer?.id === a.paidById;
               const myShare = myPlayer ? splitShares.find((sh) => sh.player_id === myPlayer.id) : null;
               const myShareAmt = myShare ? Number(myShare.share_amount) : 0;
-              // If I paid: others owe me (total - my share). If I have a share: I owe the payer.
               const myRelation = iAmPayer
                 ? { label: 'You paid', color: 'var(--cricket)', amount: a.amount }
                 : myShare
-                  ? { label: 'You owe', color: '#EF4444', amount: myShareAmt }
+                  ? { label: 'You owe', color: 'var(--split-owe)', amount: myShareAmt }
                   : null;
 
               return (
-                <div key={a.id} className="rounded-xl overflow-hidden border" style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'var(--border)' }}>
-                  {/* Row — tap to expand */}
+                <div key={a.id} className="rounded-xl overflow-hidden border transition-colors duration-200" style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'var(--border)' }}>
                   <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'var(--surface)' }}>
                     <button
                       onClick={() => setExpandedId(expanded ? null : a.id)}
-                      className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0"
+                      className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
                     >
-                      {/* Icon */}
-                      {a.type === 'settlement'
-                        ? <div className="h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#05966910' }}><Handshake size={16} style={{ color: '#059669' }} /></div>
-                        : <PlayerAvatar name={a.paidByName} photoUrl={a.paidByPhoto} />}
+                      <PlayerAvatar name={a.paidByName} photoUrl={a.paidByPhoto} />
                       <div className="flex-1 min-w-0 text-left">
                         <Text size="sm" weight="semibold" truncate className="block">{a.description}</Text>
                         <Text as="p" size="2xs" color="dim">
-                          {a.type === 'split' ? `${a.paidByName.split(' ')[0]} paid` : ''} · {formatDate(a.date)}
-                          {a.type === 'split' && a.splitCount > 0 && ` · ${a.splitCount} people`}
+                          {a.paidByName.split(' ')[0]} paid · {formatDate(a.date)}
+                          {a.splitCount > 0 && ` · ${a.splitCount} people`}
                         </Text>
                         {myRelation && (
                           <Text as="p" size="2xs" weight="bold" style={{ color: myRelation.color }}>
@@ -543,18 +637,14 @@ export default function SplitsDashboard() {
                           </Text>
                         )}
                       </div>
-                      <Text size="md" weight="bold" tabular className="flex-shrink-0"
-                        style={{ color: 'var(--text)' }}>
+                      <Text size="md" weight="bold" tabular className="flex-shrink-0" style={{ color: 'var(--text)' }}>
                         {formatCurrency(a.amount)}
                       </Text>
-                      {a.type === 'split' && (
-                        <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
-                      )}
+                      <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform duration-200" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
                     </button>
 
-                    {/* Three-dot menu for admin */}
                     {isAdmin && (
-                      <div className="pr-2">
+                      <div className="pr-2 border-l border-[var(--border)]/30 ml-1">
                         <button
                           ref={openMenu === a.id ? menuBtnRef : null}
                           onClick={() => setOpenMenu(openMenu === a.id ? null : a.id)}
@@ -577,7 +667,7 @@ export default function SplitsDashboard() {
                                     : () => useSplitsStore.setState({ editingSplitId: a.id, showSplitForm: true }),
                                 }];
                               })() : []),
-                              { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingItem({ id: a.id, type: a.type, desc: a.description, paidBy: a.paidByName, date: a.date, amount: formatCurrency(a.amount) }), dividerBefore: a.type === 'split' },
+                              { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--split-owe)', onClick: () => setDeletingItem({ id: a.id, type: a.type, desc: a.description, paidBy: a.paidByName, date: a.date, amount: formatCurrency(a.amount) }), dividerBefore: a.type === 'split' },
                             ]}
                           />
                         )}
@@ -585,114 +675,117 @@ export default function SplitsDashboard() {
                     )}
                   </div>
 
-                  {/* Expanded — per-person share breakdown */}
-                  {expanded && a.type === 'split' && (() => {
-                    return (
-                    <div className="px-3 pb-3 animate-fade-in" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
-                      <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
-                        {/* Payer first, then others */}
-                        {[...splitShares]
-                          .sort((x, y) => {
-                            if (x.player_id === a.paidById) return -1;
-                            if (y.player_id === a.paidById) return 1;
-                            return 0;
-                          })
-                          .map((sh) => {
-                          const p = activePlayers.find((pl) => pl.id === sh.player_id);
-                          if (!p) return null;
-                          const isPayer = sh.player_id === a.paidById;
-                          const isMe = sh.player_id === myPlayer?.id;
-                          const shareAmt = Number(sh.share_amount);
-                          const borderColor = isPayer ? 'var(--cricket)' : '#EF4444';
+                  {/* Expanded per-person breakdown */}
+                  <div className={`expand-collapse ${expanded ? 'expanded' : ''}`}>
+                    <div>
+                      {a.type === 'split' && (
+                      <div className="px-3 pb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
+                        <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
+                          {[...splitShares]
+                            .sort((x, y) => {
+                              if (x.player_id === a.paidById) return -1;
+                              if (y.player_id === a.paidById) return 1;
+                              return 0;
+                            })
+                            .map((sh) => {
+                            const p = activePlayers.find((pl) => pl.id === sh.player_id);
+                            if (!p) return null;
+                            const isPayer = sh.player_id === a.paidById;
+                            const isMe = sh.player_id === myPlayer?.id;
+                            const shareAmt = Number(sh.share_amount);
+                            const borderColor = isPayer ? 'var(--cricket)' : 'var(--split-owe)';
 
-                          // Show Settle only if there's still a net debt between them
-                          const stillOwes = !isPayer && (
-                            (myPlayer?.id === a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id))
-                            || (isMe && myDebtsIOwe.some((d) => d.id === a.paidById))
-                          );
+                            const stillOwes = !isPayer && (
+                              (myPlayer?.id === a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id))
+                              || (isMe && myDebtsIOwe.some((d) => d.id === a.paidById))
+                            );
 
-                          return (
-                            <div key={sh.id}
-                              className="flex items-center gap-3 rounded-lg p-2.5"
-                              style={{
-                                background: isPayer ? 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' : 'var(--surface)',
-                                borderLeft: `3px solid ${borderColor}`,
-                              }}>
-                              <PlayerAvatar name={p.name} photoUrl={p.photo_url} size="sm" />
-                              <div className="flex-1 min-w-0">
-                                <Text size="sm" weight="semibold" truncate>
-                                  {p.name}{isMe ? ' (You)' : ''}
+                            return (
+                              <div key={sh.id}
+                                className="flex items-center gap-3 rounded-lg p-2.5"
+                                style={{
+                                  background: isPayer ? 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' : 'var(--surface)',
+                                  borderLeft: `3px solid ${borderColor}`,
+                                }}>
+                                <PlayerAvatar name={p.name} photoUrl={p.photo_url} size="sm" />
+                                <div className="flex-1 min-w-0">
+                                  <Text size="sm" weight="semibold" truncate>
+                                    {p.name}{isMe ? ' (You)' : ''}
+                                  </Text>
+                                  {isPayer ? (
+                                    <Text as="p" size="2xs" style={{ color: 'var(--cricket)' }}>Paid {formatCurrency(a.amount)}</Text>
+                                  ) : (
+                                    <Text as="p" size="2xs" color="dim">Owes {activePlayers.find((pl) => pl.id === a.paidById)?.name?.split(' ')[0]}</Text>
+                                  )}
+                                </div>
+                                <Text size="sm" weight="bold" tabular className="flex-shrink-0"
+                                  style={{ color: isPayer ? 'var(--cricket)' : 'var(--split-owe)' }}>
+                                  {formatCurrency(shareAmt)}
                                 </Text>
-                                {isPayer ? (
-                                  <Text as="p" size="2xs" style={{ color: 'var(--cricket)' }}>Paid {formatCurrency(a.amount)}</Text>
-                                ) : (
-                                  <Text as="p" size="2xs" color="dim">Owes {activePlayers.find((pl) => pl.id === a.paidById)?.name?.split(' ')[0]}</Text>
+                                {stillOwes && myPlayer && (
+                                  <button onClick={() => {
+                                    if (isMe) openSettleDrawer(myPlayer.id, a.paidById, shareAmt);
+                                    else openSettleDrawer(sh.player_id, myPlayer.id, shareAmt);
+                                  }}
+                                    className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[11px] font-bold cursor-pointer transition-all active:scale-95"
+                                    style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>
+                                    Settle
+                                  </button>
                                 )}
                               </div>
-                              <Text size="sm" weight="bold" tabular className="flex-shrink-0"
-                                style={{ color: isPayer ? 'var(--cricket)' : '#EF4444' }}>
-                                {formatCurrency(shareAmt)}
-                              </Text>
-                              {stillOwes && myPlayer && (
-                                <button onClick={() => {
-                                  if (isMe) openSettleDrawer(myPlayer.id, a.paidById, shareAmt);
-                                  else openSettleDrawer(sh.player_id, myPlayer.id, shareAmt);
-                                }}
-                                  className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[11px] font-bold cursor-pointer transition-all active:scale-95"
-                                  style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>
-                                  Settle
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
 
-                        {/* Settle All — one shot for all people who owe you */}
-                        {myPlayer?.id === a.paidById && (() => {
-                          // People in this split who still owe me (from the direct debts data)
-                          const unsettledInSplit = splitShares.filter((sh) =>
-                            sh.player_id !== a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id),
-                          );
-                          if (unsettledInSplit.length < 2) return null;
-                          return (
-                            <button
-                              onClick={() => {
-                                if (!user || !selectedSeasonId || !myPlayer) return;
-                                for (const sh of unsettledInSplit) {
-                                  const netDebt = myDebtsOwedToMe.find((d) => d.id === sh.player_id);
-                                  if (!netDebt) continue;
-                                  useSplitsStore.getState().addSplitSettlement(user.id, selectedSeasonId, {
-                                    from_player: sh.player_id, to_player: myPlayer.id,
-                                    amount: netDebt.amount, settled_date: new Date().toISOString().split('T')[0],
-                                  });
-                                }
-                              }}
-                              className="w-full mt-3 flex items-center justify-center gap-2 rounded-lg py-2.5 text-[13px] font-bold cursor-pointer transition-all active:scale-[0.98]"
-                              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>
-                              <Handshake size={15} />
-                              Settle All ({unsettledInSplit.length} people)
-                            </button>
-                          );
-                        })()}
+                          {/* Settle All */}
+                          {myPlayer?.id === a.paidById && (() => {
+                            const unsettledInSplit = splitShares.filter((sh) =>
+                              sh.player_id !== a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id),
+                            );
+                            if (unsettledInSplit.length < 2) return null;
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (!confirm(`Settle all ${unsettledInSplit.length} people at once?`)) return;
+                                  if (!user || !selectedSeasonId || !myPlayer) return;
+                                  for (const sh of unsettledInSplit) {
+                                    const netDebt = myDebtsOwedToMe.find((d) => d.id === sh.player_id);
+                                    if (!netDebt) continue;
+                                    useSplitsStore.getState().addSplitSettlement(user.id, selectedSeasonId, {
+                                      from_player: sh.player_id, to_player: myPlayer.id,
+                                      amount: netDebt.amount, settled_date: new Date().toISOString().split('T')[0],
+                                    });
+                                  }
+                                }}
+                                className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[13px] font-bold cursor-pointer transition-all active:scale-[0.97] border-2 border-dashed"
+                                style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, transparent)', color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 5%, transparent)' }}>
+                                <Handshake size={15} />
+                                Settle All ({unsettledInSplit.length} people)
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
+                      )}
                     </div>
-                    );
-                  })()}
+                  </div>
                 </div>
               );
             })}
           </div>
-          <Pagination page={activityPage} setPage={setActivityPage} totalItems={filteredActivity.length} pageSize={PAGE_SIZE} />
+          <div className="px-3 pb-3">
+            <Pagination page={activityPage} setPage={setActivityPage} totalItems={filteredActivity.length} pageSize={PAGE_SIZE} />
+          </div>
         </div>
         );
-      })()}
+      })() : (
+        <EmptyState icon={<Receipt size={28} />} title="No activity yet" description="Splits you create will appear here as a timeline." brand="cricket" />
+      )}
 
-      </>}
+      </div>}
 
       {/* ── Settlements tab ── */}
-      {subTab === 'settlements' && <>
-      {/* ── Recent Settlements — expandable cards with related splits ── */}
-      {seasonSettlements.length > 0 && (() => {
+      {subTab === 'settlements' && <div key="settlements" className="tab-enter">
+      {seasonSettlements.length > 0 ? (() => {
         const sortedSettlements = [...seasonSettlements].sort((a, b) => b.created_at.localeCompare(a.created_at));
         const filteredSettlements = settlementFilter === 'all' ? sortedSettlements
           : settlementFilter === 'mine' ? sortedSettlements.filter((st) => st.from_player === myPlayer?.id || st.to_player === myPlayer?.id)
@@ -708,8 +801,8 @@ export default function SplitsDashboard() {
         }
 
         return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
-          <div className="mb-3">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+          <div className="p-4 pb-3">
             <FilterDropdown
               options={[
                 { key: 'mine', label: 'Mine', count: sortedSettlements.filter((st) => st.from_player === myPlayer?.id || st.to_player === myPlayer?.id).length },
@@ -724,17 +817,13 @@ export default function SplitsDashboard() {
               brand="cricket"
             />
           </div>
-          <div className="space-y-2">
+          <div className="px-3 pb-3 space-y-2">
             {pagedSettlements.map((st) => {
                 const from = activePlayers.find((p) => p.id === st.from_player);
                 const to = activePlayers.find((p) => p.id === st.to_player);
                 if (!from || !to) return null;
                 const isExpanded = expandedSettlementId === st.id;
 
-                // All splits between these two people (both directions)
-                // "owes" = to_player paid, from_player has a share (from owes to)
-                // "offset" = from_player paid, to_player has a share (to owes from — reduces net)
-                // Only splits created BEFORE this settlement was recorded
                 const owesSplits = activeSplits.filter((s) =>
                   s.created_at <= st.created_at && s.paid_by === st.to_player && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === st.from_player),
                 );
@@ -744,25 +833,26 @@ export default function SplitsDashboard() {
                 const relatedSplits = [...owesSplits, ...offsetSplits];
 
                 return (
-                  <div key={st.id} className="rounded-xl overflow-hidden border" style={{ borderColor: isExpanded ? '#05966930' : 'var(--border)' }}>
-                    {/* Collapsed row */}
-                    <div className="flex items-center" style={{ background: isExpanded ? '#05966906' : 'var(--surface)' }}>
+                  <div key={st.id} className="rounded-xl overflow-hidden border transition-colors duration-200" style={{ borderColor: isExpanded ? 'var(--split-credit-border)' : 'var(--border)' }}>
+                    <div className="flex items-center" style={{ background: isExpanded ? 'var(--split-credit-bg)' : 'var(--surface)' }}>
                       <button
                         onClick={() => setExpandedSettlementId(isExpanded ? null : st.id)}
-                        className="flex-1 flex items-center gap-2.5 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0"
+                        className="flex-1 flex items-center gap-2.5 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
                       >
-                        <PlayerAvatar name={from.name} photoUrl={from.photo_url} size="sm" />
+                        <div className="h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--split-credit-bg)' }}>
+                          <Handshake size={16} style={{ color: 'var(--split-credit)' }} />
+                        </div>
                         <div className="flex-1 min-w-0 text-left">
                           <Text size="sm" weight="semibold" truncate className="block">
                             {from.name.split(' ')[0]} paid {to.name.split(' ')[0]}
                           </Text>
                           <Text as="p" size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
                         </div>
-                        <Text size="md" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(Number(st.amount))}</Text>
-                        <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExpanded ? 'rotate(180deg)' : undefined }} />
+                        <Text size="md" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>{formatCurrency(Number(st.amount))}</Text>
+                        <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : undefined }} />
                       </button>
                       {isAdmin && (
-                        <div className="pr-2">
+                        <div className="pr-2 border-l border-[var(--border)]/30 ml-1">
                           <button
                             ref={openMenu === st.id ? menuBtnRef : null}
                             onClick={() => setOpenMenu(openMenu === st.id ? null : st.id)}
@@ -771,96 +861,100 @@ export default function SplitsDashboard() {
                           </button>
                           {openMenu === st.id && (
                             <CardMenu anchorRef={menuBtnRef} onClose={() => setOpenMenu(null)} items={[
-                              { label: 'Undo Settlement', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingItem({ id: st.id, type: 'settlement', desc: `${from.name.split(' ')[0]} paid ${to.name.split(' ')[0]}`, paidBy: from.name, date: st.settled_date, amount: formatCurrency(Number(st.amount)) }) },
+                              { label: 'Undo Settlement', icon: <Trash2 size={15} />, color: 'var(--split-owe)', onClick: () => setDeletingItem({ id: st.id, type: 'settlement', desc: `${from.name.split(' ')[0]} paid ${to.name.split(' ')[0]}`, paidBy: from.name, date: st.settled_date, amount: formatCurrency(Number(st.amount)) }) },
                             ]} />
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* Expanded — related splits */}
-                    {isExpanded && (
-                      <div className="px-3 pb-3 animate-fade-in" style={{ background: '#05966904' }}>
-                        <div className="border-t border-[var(--border)]/50 pt-2">
-                          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Related Splits</Text>
-                          {relatedSplits.length > 0 ? (
-                            <div className="space-y-1.5">
-                              {relatedSplits.map((s) => {
-                                const payer = activePlayers.find((pl) => pl.id === s.paid_by);
-                                const shareCount = (sharesMap.get(s.id) ?? []).length;
-                                const isOwes = s.paid_by === st.to_player; // to paid → from owes
-                                const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (isOwes ? st.from_player : st.to_player));
-                                const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
-                                return (
-                                  <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${isOwes ? '#EF4444' : '#059669'}` }}>
-                                    <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" />
-                                    <div className="flex-1 min-w-0">
-                                      <Text size="xs" weight="semibold" truncate className="block">{s.description || s.category}</Text>
-                                      <Text as="p" size="2xs" color="dim">{payer?.name?.split(' ')[0]} paid {formatCurrency(Number(s.amount))} · {shareCount} people · {formatDate(s.split_date)}</Text>
+                    <div className={`expand-collapse ${isExpanded ? 'expanded' : ''}`}>
+                      <div>
+                        <div className="px-3 pb-3">
+                          <div className="border-t border-[var(--border)]/50 pt-2">
+                            <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Related Splits</Text>
+                            {relatedSplits.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {relatedSplits.map((s) => {
+                                  const payer = activePlayers.find((pl) => pl.id === s.paid_by);
+                                  const shareCount = (sharesMap.get(s.id) ?? []).length;
+                                  const isOwes = s.paid_by === st.to_player;
+                                  const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (isOwes ? st.from_player : st.to_player));
+                                  const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                                  return (
+                                    <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2.5" style={{ background: 'var(--surface)', borderLeft: `3px solid ${isOwes ? 'var(--split-owe)' : 'var(--split-credit)'}` }}>
+                                      <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" />
+                                      <div className="flex-1 min-w-0">
+                                        <Text size="xs" weight="semibold" truncate className="block">{s.description || s.category}</Text>
+                                        <Text as="p" size="2xs" color="dim">{payer?.name?.split(' ')[0]} paid {formatCurrency(Number(s.amount))} · {shareCount} people · {formatDate(s.split_date)}</Text>
+                                      </div>
+                                      <Text size="xs" weight="bold" tabular style={{ color: isOwes ? 'var(--split-owe)' : 'var(--split-credit)' }}>
+                                        {isOwes ? '+' : '-'}{formatCurrency(shareAmt)}
+                                      </Text>
                                     </div>
-                                    <span className="flex-shrink-0 text-[13px] font-bold" style={{ color: isOwes ? '#EF4444' : '#059669', fontVariantNumeric: 'tabular-nums' }}>
-                                      {isOwes ? '+' : '-'}{formatCurrency(shareAmt)}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <Text as="p" size="xs" color="dim" className="py-2">No related splits found</Text>
-                          )}
-
-                          {/* Summary: total owed vs this settlement */}
-                          {relatedSplits.length > 0 && (() => {
-                            // Net: owes splits add debt, offset splits reduce debt
-                            const totalOwes = owesSplits.reduce((sum, s) => {
-                              const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.from_player);
-                              return sum + (sh ? Number(sh.share_amount) : 0);
-                            }, 0);
-                            const totalOffset = offsetSplits.reduce((sum, s) => {
-                              const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.to_player);
-                              return sum + (sh ? Number(sh.share_amount) : 0);
-                            }, 0);
-                            const netOwed = Math.round((totalOwes - totalOffset) * 100) / 100;
-                            const settledAmt = Number(st.amount);
-                            const remaining = Math.round((netOwed - settledAmt) * 100) / 100;
-                            return (
-                              <div className="rounded-lg p-2 mt-2 space-y-1" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                                <div className="flex justify-between">
-                                  <Text size="2xs" color="muted">Net owed</Text>
-                                  <Text size="2xs" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(Math.max(0, netOwed))}</Text>
-                                </div>
-                                <div className="flex justify-between">
-                                  <Text size="2xs" color="muted">This settlement</Text>
-                                  <Text size="2xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(settledAmt)}</Text>
-                                </div>
-                                <div className="h-px" style={{ background: 'var(--border)' }} />
-                                <div className="flex justify-between">
-                                  <Text size="2xs" weight="semibold">Remaining</Text>
-                                  <Text size="2xs" weight="bold" tabular style={{ color: remaining <= 0 ? '#059669' : '#EF4444' }}>
-                                    {remaining <= 0 ? 'Fully settled' : formatCurrency(remaining)}
-                                  </Text>
-                                </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })()}
+                            ) : (
+                              <Text as="p" size="xs" color="dim" className="py-2">No related splits found</Text>
+                            )}
+
+                            {relatedSplits.length > 0 && (() => {
+                              const totalOwes = owesSplits.reduce((sum, s) => {
+                                const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.from_player);
+                                return sum + (sh ? Number(sh.share_amount) : 0);
+                              }, 0);
+                              const totalOffset = offsetSplits.reduce((sum, s) => {
+                                const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.to_player);
+                                return sum + (sh ? Number(sh.share_amount) : 0);
+                              }, 0);
+                              const netOwed = Math.round((totalOwes - totalOffset) * 100) / 100;
+                              const settledAmt = Number(st.amount);
+                              const remaining = Math.round((netOwed - settledAmt) * 100) / 100;
+                              return (
+                                <div className="rounded-xl p-3 mt-3 space-y-1.5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                                  <div className="flex justify-between">
+                                    <Text size="xs" color="muted">Net owed</Text>
+                                    <Text size="xs" weight="bold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(Math.max(0, netOwed))}</Text>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <Text size="xs" color="muted">This settlement</Text>
+                                    <Text size="xs" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>-{formatCurrency(settledAmt)}</Text>
+                                  </div>
+                                  <div className="h-px" style={{ background: 'var(--border)' }} />
+                                  <div className="flex justify-between">
+                                    <Text size="xs" weight="semibold">Remaining</Text>
+                                    <Text size="xs" weight="bold" tabular style={{ color: remaining <= 0 ? 'var(--split-credit)' : 'var(--split-owe)' }}>
+                                      {remaining <= 0 ? 'Fully settled' : formatCurrency(remaining)}
+                                    </Text>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
           </div>
 
-          <Pagination page={settlementPage} setPage={setSettlementPage} totalItems={filteredSettlements.length} pageSize={PAGE_SIZE} />
+          <div className="px-3 pb-3">
+            <Pagination page={settlementPage} setPage={setSettlementPage} totalItems={filteredSettlements.length} pageSize={PAGE_SIZE} />
+          </div>
         </div>
         );
-      })()}
+      })() : (
+        <EmptyState icon={<Handshake size={28} />} title="No settlements yet" description="When someone pays back a debt, it shows up here." brand="cricket" />
+      )}
 
-      </>}
+      </div>}
 
       {/* FAB */}
       <button onClick={() => useSplitsStore.setState({ showSplitForm: true })}
-        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg cursor-pointer transition-all active:scale-90 hover:shadow-xl hover:-translate-y-0.5"
+        aria-label="Add new split"
+        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg cursor-pointer transition-all active:scale-95 hover:shadow-xl hover:-translate-y-0.5"
         style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: '16px', background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', boxShadow: '0 4px 20px var(--cricket-glow), 0 0 0 3px color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
         <Plus size={24} className="text-white" />
       </button>
@@ -883,9 +977,9 @@ export default function SplitsDashboard() {
 
       {/* Edit blocked — split has settlements */}
       {editBlockedSplit && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={() => setEditBlockedSplit(null)}>
-          <div className="w-[340px] rounded-2xl p-5"
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }} onClick={() => setEditBlockedSplit(null)}>
+          <div className="w-full max-w-[340px] rounded-2xl p-5"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-3">
@@ -932,7 +1026,7 @@ export default function SplitsDashboard() {
                 }}
                 className="w-full flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-all active:scale-[0.98] border border-[var(--border)] hover:bg-[var(--hover-bg)]"
               >
-                <Trash2 size={18} style={{ color: '#EF4444' }} />
+                <Trash2 size={18} style={{ color: 'var(--split-owe)' }} />
                 <div className="flex-1 text-left">
                   <Text size="sm" weight="semibold">Delete &amp; re-add</Text>
                   <Text as="p" size="2xs" color="dim">Remove this split and create a new one</Text>
@@ -942,7 +1036,7 @@ export default function SplitsDashboard() {
               );
             })()}
             <button onClick={() => setEditBlockedSplit(null)}
-              className="w-full mt-3 py-2 rounded-xl text-[13px] font-medium text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+              className="w-full mt-3 py-2.5 min-h-[44px] rounded-xl text-[13px] font-medium text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
               Cancel
             </button>
           </div>

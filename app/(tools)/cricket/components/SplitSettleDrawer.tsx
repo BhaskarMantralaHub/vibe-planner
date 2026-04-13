@@ -54,6 +54,7 @@ export default function SplitSettleDrawer() {
 
   const [settleAmount, setSettleAmount] = useState('');
   const [settled, setSettled] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus the amount input when drawer opens
@@ -100,9 +101,9 @@ export default function SplitSettleDrawer() {
   }, [settleTarget, splits, shares, settlements]);
 
   const handleSettle = () => {
-    if (!user || !selectedSeasonId || !settleTarget || numAmount <= 0) return;
+    if (!user || !selectedSeasonId || !settleTarget || numAmount <= 0 || submitting) return;
+    setSubmitting(true);
 
-    // Capture settlement count before adding so we can identify the new one for undo
     const countBefore = useSplitsStore.getState().settlements.length;
     const settledAmount = numAmount;
 
@@ -117,9 +118,9 @@ export default function SplitSettleDrawer() {
     setTimeout(() => {
       setSettled(false);
       setSettleAmount('');
+      setSubmitting(false);
       setOpen(false);
 
-      // Show undo toast after drawer closes
       const latestSettlements = useSplitsStore.getState().settlements;
       const newSettlement = latestSettlements.length > countBefore ? latestSettlements[0] : null;
       if (newSettlement) {
@@ -135,7 +136,7 @@ export default function SplitSettleDrawer() {
   };
 
   const handleClose = (v: boolean) => {
-    if (!v) { setSettled(false); setSettleAmount(''); }
+    if (!v) { setSettled(false); setSettleAmount(''); setSubmitting(false); }
     setOpen(v);
   };
 
@@ -219,6 +220,9 @@ export default function SplitSettleDrawer() {
               {numAmount > 0 && numAmount < suggestedAmount && (
                 <Text as="p" size="xs" color="muted" className="mt-1.5">Partial — {formatCurrency(newBalance)} will remain</Text>
               )}
+              {numAmount > suggestedAmount && suggestedAmount > 0 && (
+                <Text as="p" size="xs" className="mt-1.5" style={{ color: 'var(--split-owe)' }}>Amount exceeds balance of {formatCurrency(suggestedAmount)}</Text>
+              )}
             </div>
 
             {/* Activity — what led to this debt */}
@@ -257,13 +261,13 @@ export default function SplitSettleDrawer() {
 
             {/* Summary */}
             <div className="rounded-xl p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--cricket) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 15%, transparent)' }}>
-              <div className="flex justify-between"><Text size="sm" color="muted">Current balance</Text><Text size="sm" weight="semibold" tabular style={{ color: '#EF4444' }}>{formatCurrency(suggestedAmount)}</Text></div>
-              <div className="flex justify-between"><Text size="sm" color="muted">This settlement</Text><Text size="sm" weight="semibold" tabular style={{ color: '#059669' }}>-{formatCurrency(numAmount)}</Text></div>
+              <div className="flex justify-between"><Text size="sm" color="muted">Current balance</Text><Text size="sm" weight="semibold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(suggestedAmount)}</Text></div>
+              <div className="flex justify-between"><Text size="sm" color="muted">This settlement</Text><Text size="sm" weight="semibold" tabular style={{ color: 'var(--split-credit)' }}>-{formatCurrency(numAmount)}</Text></div>
               <div className="h-px" style={{ background: 'var(--border)' }} />
-              <div className="flex justify-between"><Text size="sm" weight="bold">New balance</Text><Text size="sm" weight="bold" tabular style={{ color: newBalance === 0 ? 'var(--cricket)' : '#EF4444' }}>{newBalance === 0 ? 'Settled!' : formatCurrency(newBalance)}</Text></div>
+              <div className="flex justify-between"><Text size="sm" weight="bold">New balance</Text><Text size="sm" weight="bold" tabular style={{ color: newBalance === 0 ? 'var(--cricket)' : 'var(--split-owe)' }}>{newBalance === 0 ? 'Settled!' : formatCurrency(newBalance)}</Text></div>
             </div>
 
-            <Button onClick={handleSettle} disabled={numAmount <= 0} variant="primary" brand="cricket" size="xl" fullWidth>
+            <Button onClick={handleSettle} disabled={numAmount <= 0 || submitting} variant="primary" brand="cricket" size="xl" fullWidth loading={submitting}>
               <Handshake size={18} />Confirm Settlement
             </Button>
           </>
