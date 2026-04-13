@@ -6,10 +6,11 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { nameToGradient } from '@/lib/avatar';
-import { Text, CardMenu, FilterDropdown } from '@/components/ui';
+import { Text, CardMenu, FilterDropdown, RefreshButton } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp } from 'lucide-react';
 import SplitForm from './SplitForm';
 import SplitSettleDrawer from './SplitSettleDrawer';
@@ -304,14 +305,17 @@ export default function SplitsDashboard() {
         <div className="p-4 sm:p-5">
           <div className="flex items-center justify-between mb-1">
             <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider">Your Net Balance</Text>
-            {!allSettled && (
-              <div className="flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: heroNet >= 0 ? 'var(--split-credit-bg)' : 'var(--split-owe-bg)' }}>
-                {heroNet >= 0 ? <TrendingUp size={12} style={{ color: 'var(--split-credit)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />}
-                <Text size="2xs" weight="bold" style={{ color: heroNet >= 0 ? 'var(--split-credit)' : 'var(--split-owe)' }}>
-                  {heroNet >= 0 ? 'Positive' : 'Negative'}
-                </Text>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {!allSettled && (
+                <div className="flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: heroNet >= 0 ? 'var(--split-credit-bg)' : 'var(--split-owe-bg)' }}>
+                  {heroNet >= 0 ? <TrendingUp size={12} style={{ color: 'var(--split-credit)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />}
+                  <Text size="2xs" weight="bold" style={{ color: heroNet >= 0 ? 'var(--split-credit)' : 'var(--split-owe)' }}>
+                    {heroNet >= 0 ? 'Positive' : 'Negative'}
+                  </Text>
+                </div>
+              )}
+              <RefreshButton onRefresh={async () => { if (selectedSeasonId) { await loadSplits(selectedSeasonId); toast.success('Splits refreshed'); } }} variant="bordered" title="Refresh splits" />
+            </div>
           </div>
           {allSettled ? (
             <div className="flex items-center gap-3 mt-1">
