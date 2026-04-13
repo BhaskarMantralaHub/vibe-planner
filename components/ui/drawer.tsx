@@ -97,12 +97,14 @@ function DrawerHeader({ children, className }: { children: ReactNode; className?
 function DrawerBody({ children, className }: { children: ReactNode; className?: string }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll focused input into view when keyboard opens (iOS Safari)
+  // Auto-scroll focused input into view when keyboard opens (iOS Safari).
+  // Uses 'nearest' so inputs already visible (like the amount at top) don't scroll away,
+  // while inputs lower in the form still scroll into view when focused.
   const handleFocusCapture = useCallback((e: React.FocusEvent) => {
     const target = e.target;
     if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
       setTimeout(() => {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 350);
     }
   }, []);
