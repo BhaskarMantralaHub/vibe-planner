@@ -1735,3 +1735,121 @@ USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldern
 CREATE POLICY "Players can delete own photo"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================================
+-- Peer-to-Peer Splits (internal, never in reports/PDFs/emails)
+-- ============================================================
+-- Completely separate from cricket_expenses (pool fund).
+-- These tables are for Splitwise-style bill splitting between
+-- team members for snacks, tea, transport, etc.
+
+CREATE TABLE IF NOT EXISTS cricket_splits (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id      UUID NOT NULL REFERENCES cricket_teams(id),
+  season_id    UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  paid_by      UUID NOT NULL REFERENCES cricket_players(id) ON DELETE RESTRICT,  -- players are soft-deleted, never hard-deleted
+  category     TEXT NOT NULL DEFAULT 'other'
+    CHECK (category IN ('snacks', 'drinks', 'food', 'other')),
+  description  TEXT,
+  amount       NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  split_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_by   TEXT DEFAULT NULL,
+  deleted_at   TIMESTAMPTZ DEFAULT NULL,
+  deleted_by   TEXT DEFAULT NULL,
+  created_at   TIMESTAMPTZ DEFAULT now(),
+  updated_at   TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE cricket_splits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Team members can read splits"
+  ON cricket_splits FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
+-- Any team member can create splits (not admin-only like pool expenses)
+CREATE POLICY "Team members can create splits"
+  ON cricket_splits FOR INSERT
+  WITH CHECK (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
+CREATE POLICY "Team admin can update splits"
+  ON cricket_splits FOR UPDATE
+  USING (is_team_admin(team_id) OR is_global_admin());
+
+CREATE POLICY "Team admin can delete splits"
+  ON cricket_splits FOR DELETE
+  USING (is_team_admin(team_id) OR is_global_admin());
+
+-- Composite index covers team-only and team+season queries (single-column team index is redundant)
+CREATE INDEX IF NOT EXISTS idx_splits_team_season ON cricket_splits(team_id, season_id);
+
+-- Auto-update updated_at on modification
+CREATE TRIGGER set_cricket_splits_updated_at BEFORE UPDATE ON cricket_splits
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ── Split Shares (per-player amounts) ──────────────────────────
+CREATE TABLE IF NOT EXISTS cricket_split_shares (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  split_id     UUID NOT NULL REFERENCES cricket_splits(id) ON DELETE CASCADE,
+  player_id    UUID NOT NULL REFERENCES cricket_players(id) ON DELETE CASCADE,
+  share_amount NUMERIC(10,2) NOT NULL CHECK (share_amount >= 0),  -- payer can have $0 share
+
+  CONSTRAINT uq_split_shares_split_player UNIQUE (split_id, player_id)
+);
+
+ALTER TABLE cricket_split_shares ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Team members can read split shares"
+  ON cricket_split_shares FOR SELECT
+  USING (
+    split_id IN (SELECT id FROM cricket_splits WHERE team_id IN (SELECT * FROM user_team_ids()))
+    OR is_global_admin()
+  );
+
+CREATE POLICY "Team members can create split shares"
+  ON cricket_split_shares FOR INSERT
+  WITH CHECK (
+    split_id IN (SELECT id FROM cricket_splits WHERE team_id IN (SELECT * FROM user_team_ids()))
+    OR is_global_admin()
+  );
+
+CREATE POLICY "Team admin can delete split shares"
+  ON cricket_split_shares FOR DELETE
+  USING (
+    split_id IN (SELECT id FROM cricket_splits WHERE is_team_admin(team_id))
+    OR is_global_admin()
+  );
+
+-- UNIQUE constraint creates implicit index on (split_id, player_id); add split-only for share lookups
+CREATE INDEX IF NOT EXISTS idx_split_shares_split ON cricket_split_shares(split_id);
+
+-- ── Split Settlements (peer-to-peer payments) ──────────────────
+CREATE TABLE IF NOT EXISTS cricket_split_settlements (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id      UUID NOT NULL REFERENCES cricket_teams(id),
+  season_id    UUID NOT NULL REFERENCES cricket_seasons(id) ON DELETE CASCADE,
+  from_player  UUID NOT NULL REFERENCES cricket_players(id),
+  to_player    UUID NOT NULL REFERENCES cricket_players(id),
+  amount       NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  settled_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at   TIMESTAMPTZ DEFAULT now(),
+
+  CONSTRAINT chk_settlement_no_self CHECK (from_player <> to_player)
+);
+
+ALTER TABLE cricket_split_settlements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Team members can read split settlements"
+  ON cricket_split_settlements FOR SELECT
+  USING (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
+CREATE POLICY "Team members can create split settlements"
+  ON cricket_split_settlements FOR INSERT
+  WITH CHECK (team_id IN (SELECT * FROM user_team_ids()) OR is_global_admin());
+
+CREATE POLICY "Team admin can delete split settlements"
+  ON cricket_split_settlements FOR DELETE
+  USING (is_team_admin(team_id) OR is_global_admin());
+
+CREATE INDEX IF NOT EXISTS idx_split_settlements_team ON cricket_split_settlements(team_id, season_id);
+CREATE INDEX IF NOT EXISTS idx_split_settlements_from ON cricket_split_settlements(from_player);
+CREATE INDEX IF NOT EXISTS idx_split_settlements_to   ON cricket_split_settlements(to_player);

@@ -11,6 +11,7 @@ function Toaster() {
       theme={(resolvedTheme as 'light' | 'dark') ?? 'light'}
       position="bottom-right"
       richColors
+      duration={2000}
       toastOptions={{
         style: {
           background: 'var(--surface)',

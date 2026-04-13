@@ -46,6 +46,9 @@ jobs:
             "cricket_expenses"
             "cricket_expense_splits"
             "cricket_settlements"
+            "cricket_splits"
+            "cricket_split_shares"
+            "cricket_split_settlements"
             "cricket_season_fees"
             "cricket_sponsorships"
             "cricket_gallery"
@@ -77,7 +80,7 @@ jobs:
 
           echo "" >> "$OUTPUT"
           echo "-- Uncomment the next line to wipe existing data first:" >> "$OUTPUT"
-          echo "-- TRUNCATE team_audit_log, user_activity, cricket_schedule_matches, practice_balls, practice_innings, practice_match_players, practice_matches, cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, team_invites, team_members, cricket_teams, app_settings, profiles CASCADE;" >> "$OUTPUT"
+          echo "-- TRUNCATE team_audit_log, user_activity, cricket_schedule_matches, practice_balls, practice_innings, practice_match_players, practice_matches, cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_split_settlements, cricket_split_shares, cricket_splits, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, team_invites, team_members, cricket_teams, app_settings, profiles CASCADE;" >> "$OUTPUT"
           echo "" >> "$OUTPUT"
 
           for TABLE in "${TABLES_ORDERED[@]}"; do

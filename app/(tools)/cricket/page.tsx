@@ -25,7 +25,8 @@ import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors';
+import SplitsDashboard from './components/SplitsDashboard';
+type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'splits';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -122,7 +123,7 @@ function CricketDashboard() {
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'sponsors'].includes(hash)) return hash;
+      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'splits'].includes(hash)) return hash;
     }
     return 'players';
   });
@@ -141,7 +142,7 @@ function CricketDashboard() {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'charts', '5': 'sponsors' };
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'splits', '5': 'charts', '6': 'sponsors' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -373,7 +374,7 @@ function CricketDashboard() {
           )}
           {activeTab === 'finances' && (
             <SegmentedControl
-              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'charts', label: 'Charts' }, { key: 'sponsors', label: 'Sponsors' }]}
+              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'splits', label: 'Splits' }, { key: 'charts', label: 'Charts' }, { key: 'sponsors', label: 'Sponsors' }]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
               className="mb-4"
@@ -411,7 +412,7 @@ function CricketDashboard() {
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
-          {activeView !== 'expenses' && (
+          {(activeView === 'players' || activeView === 'fees' || activeView === 'charts' || activeView === 'sponsors') && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -425,6 +426,7 @@ function CricketDashboard() {
           <div key={activeView} className="min-w-0 animate-fade-in">
             {activeView === 'players' && <PlayerManager />}
             {activeView === 'expenses' && <ExpenseList />}
+            {activeView === 'splits' && <SplitsDashboard />}
             {activeView === 'charts' && (
               <div className="space-y-5">
                 <CategoryDonut />

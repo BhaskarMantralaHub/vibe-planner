@@ -1,4 +1,5 @@
 export type ExpenseCategory = 'ground' | 'equipment' | 'tournament' | 'food' | 'other';
+export type SplitCategory = 'snacks' | 'drinks' | 'food' | 'other';
 export type SeasonType = 'spring' | 'summer' | 'fall';
 export type PlayerRole = 'batsman' | 'bowler' | 'all-rounder' | 'keeper';
 export type BattingStyle = 'right' | 'left';
@@ -164,4 +165,41 @@ export type PlayerBalance = {
   settlements_paid: number;
   settlements_received: number;
   net_balance: number;
+};
+
+
+/* ── Peer-to-peer Splits (completely separate from pool expenses) ── */
+
+export type CricketSplit = {
+  id: string;
+  team_id: string;
+  season_id: string;
+  paid_by: string;
+  category: SplitCategory;
+  description: string;
+  amount: number;
+  split_date: string;
+  created_by: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CricketSplitShare = {
+  id: string;
+  split_id: string;
+  player_id: string;
+  share_amount: number;
+};
+
+export type CricketSplitSettlement = {
+  id: string;
+  team_id: string;
+  season_id: string;
+  from_player: string;
+  to_player: string;
+  amount: number;
+  settled_date: string;
+  created_at: string;
 };

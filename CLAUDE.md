@@ -39,6 +39,7 @@ npm run test:coverage # Coverage report
 - **Role-based access** — `RoleGate` checks both role AND feature; `AuthGate` variant prop for themed login
 - **RLS enforced** — every query filters by `user_id`/`team_id`, server-side RLS as backup
 - **Soft delete** — `deleted_at` column with Recently Deleted UI + restore
+- **Splits** — peer-to-peer expense splitting (Splitwise-style), completely separate from pool fund. Tables: `cricket_splits`, `cricket_split_shares`, `cricket_split_settlements`. Store: `splits-store.ts`. Never in reports/PDFs/emails.
 - **Public pages** — `/cricket/dues/` bypasses auth via SECURITY DEFINER RPC
 
 ## Git Workflow

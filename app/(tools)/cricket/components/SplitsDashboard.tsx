@@ -1,0 +1,954 @@
+'use client';
+
+import { useMemo, useEffect, useState, useRef } from 'react';
+import { useCricketStore } from '@/stores/cricket-store';
+import { useSplitsStore } from '@/stores/splits-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { formatCurrency, formatDate } from '../lib/utils';
+import { nameToGradient } from '@/lib/avatar';
+import { Text, CardMenu, FilterDropdown } from '@/components/ui';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2 } from 'lucide-react';
+import SplitForm from './SplitForm';
+import SplitSettleDrawer from './SplitSettleDrawer';
+import { createPortal } from 'react-dom';
+
+function Pagination({ page, setPage, totalItems, pageSize }: { page: number; setPage: (p: number) => void; totalItems: number; pageSize: number }) {
+  const totalPages = Math.ceil(totalItems / pageSize);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-[var(--border)]/50">
+      <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}
+        className="px-4 py-2.5 min-h-[44px] rounded-lg text-[12px] font-medium cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed"
+        style={{ color: 'var(--muted)' }}>Prev</button>
+      <Text size="xs" color="muted" tabular>{page + 1} / {totalPages}</Text>
+      <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
+        className="px-4 py-2.5 min-h-[44px] rounded-lg text-[12px] font-medium cursor-pointer transition-all active:scale-95 border border-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed"
+        style={{ color: 'var(--muted)' }}>Next</button>
+    </div>
+  );
+}
+
+function PlayerAvatar({ name, photoUrl, size = 'md', opacity = 1 }: { name: string; photoUrl?: string | null; size?: 'sm' | 'md' | 'lg'; opacity?: number }) {
+  const [gF, gT] = nameToGradient(name);
+  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  const dims = size === 'sm' ? 'h-7 w-7 text-[9px]' : size === 'lg' ? 'h-14 w-14 text-[16px]' : 'h-9 w-9 text-[11px]';
+  if (photoUrl) {
+    return <img src={photoUrl} alt={name} className={`${dims} rounded-full object-cover flex-shrink-0`} style={{ opacity }} />;
+  }
+  return (
+    <div className={`${dims} rounded-full font-bold text-white flex items-center justify-center flex-shrink-0`}
+      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})`, opacity }}>{initials}</div>
+  );
+}
+
+function DeleteConfirm({ description, paidBy, date, amount, type, onConfirm, onCancel }: { description: string; paidBy?: string; date?: string; amount?: string; type?: 'split' | 'settlement'; onConfirm: () => void; onCancel: () => void }) {
+  const isSettlement = type === 'settlement';
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onCancel}>
+      <div className="w-[360px] rounded-2xl p-5"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: isSettlement ? 'rgba(245,158,11,0.1)' : 'rgba(248,113,113,0.1)' }}>
+            {isSettlement ? <Handshake size={20} style={{ color: '#D97706' }} /> : <Trash2 size={20} style={{ color: 'var(--red)' }} />}
+          </div>
+          <div>
+            <Text size="sm" weight="semibold">{isSettlement ? 'Undo Settlement' : 'Delete Split'}</Text>
+            <Text as="p" size="xs" color="muted">{isSettlement ? 'Revert' : 'Remove'} <b>{description}</b>?</Text>
+          </div>
+        </div>
+
+        {/* Details card */}
+        <div className="rounded-xl p-3 mb-4 space-y-1.5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          {paidBy && (
+            <div className="flex justify-between">
+              <Text size="xs" color="muted">{isSettlement ? 'From' : 'Paid by'}</Text>
+              <Text size="xs" weight="semibold">{paidBy}</Text>
+            </div>
+          )}
+          {date && (
+            <div className="flex justify-between">
+              <Text size="xs" color="muted">Date</Text>
+              <Text size="xs" weight="semibold">{formatDate(date)}</Text>
+            </div>
+          )}
+          {amount && (
+            <div className="flex justify-between">
+              <Text size="xs" color="muted">Amount</Text>
+              <Text size="xs" weight="bold" tabular style={{ color: isSettlement ? '#059669' : '#EF4444' }}>{amount}</Text>
+            </div>
+          )}
+          {isSettlement && (
+            <div className="border-t border-[var(--border)]/50 pt-1.5 mt-1.5">
+              <Text as="p" size="2xs" color="dim">This will restore the debt between these two players.</Text>
+            </div>
+          )}
+          {!isSettlement && (
+            <div className="border-t border-[var(--border)]/50 pt-1.5 mt-1.5">
+              <Text as="p" size="2xs" color="dim">This will remove the split and all associated shares. Settlements are not affected.</Text>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel} className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">Cancel</button>
+          <button onClick={onConfirm} className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">{isSettlement ? 'Undo' : 'Delete'}</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export default function SplitsDashboard() {
+  const { user } = useAuthStore();
+  const { players, selectedSeasonId, adminUserIds } = useCricketStore();
+  const { splits, shares, settlements, loading, loadSplits } = useSplitsStore();
+  const { userAccess } = useAuthStore();
+  const isGlobalAdmin = userAccess.includes('admin');
+  const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
+  const isAdmin = isGlobalAdmin || isTeamAdmin;
+
+  useEffect(() => {
+    if (selectedSeasonId) loadSplits(selectedSeasonId);
+  }, [selectedSeasonId, loadSplits]);
+
+  const activePlayers = useMemo(() => players.filter((p) => p.is_active), [players]);
+
+  const seasonSplits = useMemo(() => splits.filter((s) => s.season_id === selectedSeasonId), [splits, selectedSeasonId]);
+  const seasonSettlements = useMemo(() => settlements.filter((s) => s.season_id === selectedSeasonId), [settlements, selectedSeasonId]);
+
+  const myPlayer = useMemo(
+    () => activePlayers.find((p) => p.email?.toLowerCase() === user?.email?.toLowerCase()),
+    [activePlayers, user?.email],
+  );
+
+  const activeSplits = useMemo(
+    () => seasonSplits.filter((s) => !s.deleted_at).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [seasonSplits],
+  );
+  const hasSplits = activeSplits.length > 0 || seasonSettlements.length > 0;
+
+  // Pre-build shares lookup map: splitId → CricketSplitShare[]
+  const sharesMap = useMemo(() => {
+    const map = new Map<string, typeof shares>();
+    for (const sh of shares) {
+      const arr = map.get(sh.split_id);
+      if (arr) arr.push(sh);
+      else map.set(sh.split_id, [sh]);
+    }
+    return map;
+  }, [shares]);
+
+  // My personal debts for quick settle strip
+  // Direct per-person debts (not simplified — shows every person you interact with)
+  const { myDebtsIOwe, myDebtsOwedToMe } = useMemo(() => {
+    if (!myPlayer) return { myDebtsIOwe: [] as { id: string; name: string; photo: string | null; amount: number }[], myDebtsOwedToMe: [] as { id: string; name: string; photo: string | null; amount: number }[] };
+
+    const perPerson: Record<string, number> = {}; // positive = they owe me, negative = I owe them
+
+    for (const s of activeSplits) {
+      const splitShareList = sharesMap.get(s.id) ?? [];
+      if (s.paid_by === myPlayer.id) {
+        // I paid — everyone else's share is what they owe me
+        for (const sh of splitShareList) {
+          if (sh.player_id !== myPlayer.id) {
+            perPerson[sh.player_id] = (perPerson[sh.player_id] ?? 0) + Number(sh.share_amount);
+          }
+        }
+      } else {
+        // Someone else paid — my share is what I owe them
+        const myShareEntry = splitShareList.find((sh) => sh.player_id === myPlayer.id);
+        if (myShareEntry) {
+          perPerson[s.paid_by] = (perPerson[s.paid_by] ?? 0) - Number(myShareEntry.share_amount);
+        }
+      }
+    }
+
+    // Factor in settlements
+    for (const st of seasonSettlements) {
+      if (st.from_player === myPlayer.id) {
+        // I paid someone → reduces what I owe them (or they owe me more)
+        perPerson[st.to_player] = (perPerson[st.to_player] ?? 0) + Number(st.amount);
+      } else if (st.to_player === myPlayer.id) {
+        // Someone paid me → reduces what they owe me
+        perPerson[st.from_player] = (perPerson[st.from_player] ?? 0) - Number(st.amount);
+      }
+    }
+
+    const iOwe: { id: string; name: string; photo: string | null; amount: number }[] = [];
+    const owedToMe: { id: string; name: string; photo: string | null; amount: number }[] = [];
+
+    for (const [pid, net] of Object.entries(perPerson)) {
+      const rounded = Math.round(net * 100) / 100;
+      if (Math.abs(rounded) < 0.01) continue;
+      const p = activePlayers.find((pl) => pl.id === pid);
+      if (!p) continue;
+      if (rounded > 0) owedToMe.push({ id: pid, name: p.name, photo: p.photo_url ?? null, amount: rounded });
+      else iOwe.push({ id: pid, name: p.name, photo: p.photo_url ?? null, amount: Math.abs(rounded) });
+    }
+
+    return {
+      myDebtsIOwe: iOwe.sort((a, b) => b.amount - a.amount),
+      myDebtsOwedToMe: owedToMe.sort((a, b) => b.amount - a.amount),
+    };
+  }, [myPlayer, activeSplits, shares, seasonSettlements, activePlayers]);
+
+  // Activity feed: merge splits + settlements chronologically
+  const activityFeed = useMemo(() => {
+    const items: { id: string; type: 'split' | 'settlement'; date: string; description: string; amount: number; paidByName: string; paidByPhoto: string | null; paidById: string; splitCount: number }[] = [];
+    for (const s of activeSplits) {
+      const payer = activePlayers.find((p) => p.id === s.paid_by);
+      items.push({ id: s.id, type: 'split', date: s.split_date, description: s.description || s.category, amount: Number(s.amount), paidByName: payer?.name ?? 'Unknown', paidByPhoto: payer?.photo_url ?? null, paidById: s.paid_by, splitCount: (sharesMap.get(s.id) ?? []).length });
+    }
+    return items.sort((a, b) => b.date.localeCompare(a.date));
+  }, [activeSplits, seasonSettlements, activePlayers, shares]);
+
+  // UI state
+  type SplitSubTab = 'balances' | 'activity' | 'settlements';
+  const [subTab, setSubTab] = useState<SplitSubTab>('balances');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedSettlementId, setExpandedSettlementId] = useState<string | null>(null);
+  const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
+  const [settlementPage, setSettlementPage] = useState(0);
+  const [activityPage, setActivityPage] = useState(0);
+  const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [settlementFilter, setSettlementFilter] = useState<string>('all');
+  const PAGE_SIZE = 5;
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const [deletingItem, setDeletingItem] = useState<{ id: string; type: 'split' | 'settlement'; desc: string; paidBy?: string; date?: string; amount?: string } | null>(null);
+  const [editBlockedSplit, setEditBlockedSplit] = useState<{ id: string; paidById: string; desc: string } | null>(null);
+
+  const openSettleDrawer = (fromId: string, toId: string, amount: number) => {
+    useSplitsStore.setState({ showSettleForm: true, settleTarget: { fromId, toId, amount } });
+  };
+
+  const handleDeleteSplit = (id: string) => {
+    useSplitsStore.getState().deleteSplit(id, myPlayer?.name ?? 'Admin');
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--cricket)] border-t-transparent" /></div>;
+  }
+
+  if (!hasSplits) {
+    return (
+      <>
+        <EmptyState icon="💸" title="No splits yet" description="Split expenses with your teammates. Someone bought snacks? Log it here." brand="cricket"
+          action={{ label: '+ Split an Expense', onClick: () => useSplitsStore.setState({ showSplitForm: true }) }} />
+        <SplitForm />
+        <SplitSettleDrawer />
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ── Hero Net Balance Card ── */}
+      {(() => {
+        const totalIOwe = myDebtsIOwe.reduce((sum, d) => sum + d.amount, 0);
+        const totalOwedToMe = myDebtsOwedToMe.reduce((sum, d) => sum + d.amount, 0);
+        const heroNet = Math.round((totalOwedToMe - totalIOwe) * 100) / 100;
+        const allSettled = myDebtsIOwe.length === 0 && myDebtsOwedToMe.length === 0;
+
+        return (
+        <div className="rounded-2xl border p-4 sm:p-5 overflow-hidden" style={{ borderColor: allSettled ? 'color-mix(in srgb, var(--cricket) 25%, transparent)' : heroNet >= 0 ? '#05966940' : '#EF444440', background: 'var(--card)' }}>
+          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-1">Your Net Balance</Text>
+          {allSettled ? (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={28} style={{ color: 'var(--cricket)' }} />
+              <Text as="p" size="3xl" weight="bold" tabular tracking="tight" className="leading-none" style={{ color: 'var(--cricket)' }}>$0.00</Text>
+            </div>
+          ) : (
+            <Text as="p" size="3xl" weight="bold" tabular tracking="tight" className="leading-none" style={{ color: heroNet > 0 ? '#059669' : '#EF4444' }}>
+              {heroNet > 0 ? '+' : '-'}{formatCurrency(Math.abs(heroNet))}
+            </Text>
+          )}
+          <Text as="p" size="sm" color="muted" className="mt-2">
+            {allSettled ? 'All settled up!' : heroNet > 0 ? 'You are owed overall' : 'You owe overall'}
+          </Text>
+          {(totalIOwe > 0 || totalOwedToMe > 0) && (
+            <div className="flex gap-3 mt-4">
+              <div className="flex-1 rounded-xl p-3" style={{ background: '#EF444410' }}>
+                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">You Owe</Text>
+                <Text as="p" size="lg" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(totalIOwe)}</Text>
+              </div>
+              <div className="flex-1 rounded-xl p-3" style={{ background: '#05966910' }}>
+                <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-0.5">You&apos;re Owed</Text>
+                <Text as="p" size="lg" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(totalOwedToMe)}</Text>
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
+
+      {/* Sub-tabs */}
+      <SegmentedControl
+        options={[
+          { key: 'balances', label: `My Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
+          { key: 'activity', label: `Activity${activityFeed.length > 0 ? ` (${activityFeed.length})` : ''}` },
+          { key: 'settlements', label: `Settled${seasonSettlements.length > 0 ? ` (${seasonSettlements.length})` : ''}` },
+        ]}
+        active={subTab}
+        onChange={(key) => { setSubTab(key as SplitSubTab); setActivityPage(0); setSettlementPage(0); }}
+      />
+
+      {/* ── Balances tab ── */}
+      {subTab === 'balances' && <>
+
+      {/* ── Quick Settle Strip — expandable cards ── */}
+      {(myDebtsIOwe.length > 0 || myDebtsOwedToMe.length > 0) && (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
+          <Text as="h3" size="md" weight="bold" tracking="tight" className="mb-3">
+            <Handshake size={16} className="inline mr-2" style={{ color: 'var(--cricket)' }} />
+            My Balances
+          </Text>
+          <div className="space-y-2">
+          {myDebtsIOwe.map((d) => {
+            const isExp = expandedDebtId === `owe-${d.id}`;
+            // Both directions: they paid (I owe) + I paid (they owe me — offsets)
+            const relatedSplits = myPlayer ? activeSplits.filter((s) =>
+              (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id))
+              || (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id)),
+            ) : [];
+            return (
+              <div key={`owe-${d.id}`} className="rounded-xl overflow-hidden border" style={{ borderColor: isExp ? '#EF444430' : '#EF444420', background: '#EF444406' }}>
+                <div className="flex items-center">
+                  <button onClick={() => setExpandedDebtId(isExp ? null : `owe-${d.id}`)}
+                    className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0">
+                    <PlayerAvatar name={d.name} photoUrl={d.photo} />
+                    <div className="flex-1 min-w-0 text-left">
+                      <Text size="sm" weight="medium" truncate>You owe <Text weight="bold">{d.name.split(' ')[0]}</Text></Text>
+                    </div>
+                    <Text size="md" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(d.amount)}</Text>
+                    <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
+                  </button>
+                  <div className="pr-3">
+                    <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
+                      className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[12px] font-bold cursor-pointer transition-all active:scale-95"
+                      style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>Settle</button>
+                  </div>
+                </div>
+                {isExp && (() => {
+                  // Past settlements between me and this person
+                  const pastSettlements = myPlayer ? seasonSettlements.filter((st) =>
+                    (st.from_player === myPlayer.id && st.to_player === d.id) || (st.from_player === d.id && st.to_player === myPlayer.id),
+                  ) : [];
+                  return (
+                  <div className="px-3 pb-3 animate-fade-in">
+                    <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
+                      {relatedSplits.map((s) => {
+                        const iOwe = s.paid_by === d.id; // they paid → I owe
+                        const relevantShare = myPlayer ? (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (iOwe ? myPlayer.id : d.id)) : null;
+                        const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                        return (
+                          <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${iOwe ? '#EF4444' : '#059669'}` }}>
+                            <div className="flex-1 min-w-0">
+                              <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
+                              <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
+                            </div>
+                            <Text size="xs" weight="bold" tabular style={{ color: iOwe ? '#EF4444' : '#059669' }}>{iOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
+                          </div>
+                        );
+                      })}
+                      {pastSettlements.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="text-[11px] font-semibold cursor-pointer py-1.5" style={{ color: 'var(--muted)' }}>
+                            Previously settled ({pastSettlements.length})
+                          </summary>
+                          <div className="space-y-1.5 mt-1.5">
+                            {pastSettlements.map((st) => (
+                              <div key={st.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: '#05966906', borderLeft: '2px solid #059669' }}>
+                                <Handshake size={12} style={{ color: '#059669' }} className="flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
+                                </div>
+                                <Text size="xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(Number(st.amount))}</Text>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                  );
+                })()}
+              </div>
+            );
+          })}
+          {myDebtsOwedToMe.map((d) => {
+            const isExp = expandedDebtId === `owed-${d.id}`;
+            // Both directions: I paid (they owe) + they paid (I owe — offsets)
+            const relatedSplits = myPlayer ? activeSplits.filter((s) =>
+              (s.paid_by === myPlayer.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === d.id))
+              || (s.paid_by === d.id && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === myPlayer.id)),
+            ) : [];
+            return (
+              <div key={`owed-${d.id}`} className="rounded-xl overflow-hidden border" style={{ borderColor: isExp ? '#05966930' : '#05966920', background: '#05966906' }}>
+                <div className="flex items-center">
+                  <button onClick={() => setExpandedDebtId(isExp ? null : `owed-${d.id}`)}
+                    className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0">
+                    <PlayerAvatar name={d.name} photoUrl={d.photo} />
+                    <div className="flex-1 min-w-0 text-left">
+                      <Text size="sm" weight="medium" truncate><Text weight="bold">{d.name.split(' ')[0]}</Text> owes you</Text>
+                    </div>
+                    <Text size="md" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(d.amount)}</Text>
+                    <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExp ? 'rotate(180deg)' : undefined }} />
+                  </button>
+                  <div className="pr-3">
+                    <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
+                      className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[12px] font-bold cursor-pointer transition-all active:scale-95"
+                      style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>Settle</button>
+                  </div>
+                </div>
+                {isExp && (() => {
+                  const pastSettlements = seasonSettlements.filter((st) =>
+                    (st.from_player === d.id && st.to_player === myPlayer?.id) || (st.from_player === myPlayer?.id && st.to_player === d.id),
+                  );
+                  return (
+                  <div className="px-3 pb-3 animate-fade-in">
+                    <div className="border-t border-[var(--border)]/50 pt-2 space-y-1.5">
+                      {relatedSplits.map((s) => {
+                        const theyOwe = myPlayer && s.paid_by === myPlayer.id; // I paid → they owe
+                        const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (theyOwe ? d.id : myPlayer?.id ?? ''));
+                        const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                        return (
+                          <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${theyOwe ? '#059669' : '#EF4444'}` }}>
+                            <div className="flex-1 min-w-0">
+                              <Text size="xs" weight="semibold" truncate>{s.description || s.category}</Text>
+                              <Text as="p" size="2xs" color="dim">Total {formatCurrency(Number(s.amount))} · {formatDate(s.split_date)}</Text>
+                            </div>
+                            <Text size="xs" weight="bold" tabular style={{ color: theyOwe ? '#059669' : '#EF4444' }}>{theyOwe ? '+' : '-'}{formatCurrency(shareAmt)}</Text>
+                          </div>
+                        );
+                      })}
+                      {pastSettlements.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="text-[11px] font-semibold cursor-pointer py-1.5" style={{ color: 'var(--muted)' }}>
+                            Previously settled ({pastSettlements.length})
+                          </summary>
+                          <div className="space-y-1.5 mt-1.5">
+                            {pastSettlements.map((st) => (
+                              <div key={st.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: '#05966906', borderLeft: '2px solid #059669' }}>
+                                <Handshake size={12} style={{ color: '#059669' }} className="flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <Text size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
+                                </div>
+                                <Text size="xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(Number(st.amount))}</Text>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                  );
+                })()}
+              </div>
+            );
+          })}
+          </div>
+        </div>
+      )}
+
+      {/* All settled celebration */}
+      {myDebtsIOwe.length === 0 && myDebtsOwedToMe.length === 0 && hasSplits && (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 text-center">
+          <PartyPopper size={32} className="mx-auto mb-3" style={{ color: 'var(--cricket)' }} />
+          <Text as="h3" size="lg" weight="bold" className="mb-1">All settled up!</Text>
+          <Text as="p" size="sm" color="muted">No outstanding balances.</Text>
+        </div>
+      )}
+
+      </>}
+
+      {/* ── Activity tab ── */}
+      {subTab === 'activity' && <>
+      {/* ── Activity Feed — expandable, visible to everyone ── */}
+      {activityFeed.length > 0 && (() => {
+        const filteredActivity = activityFilter === 'all' ? activityFeed
+          : activityFilter === 'mine' ? activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id))
+          : activityFeed.filter((a) => a.paidById === activityFilter || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === activityFilter));
+        const pagedActivity = filteredActivity.slice(activityPage * PAGE_SIZE, (activityPage + 1) * PAGE_SIZE);
+
+        // Unique people involved in activity for filter dropdown
+        const activityPeople = new Map<string, string>();
+        for (const a of activityFeed) {
+          const splitShrs = sharesMap.get(a.id) ?? [];
+          for (const sh of splitShrs) {
+            const p = activePlayers.find((pl) => pl.id === sh.player_id);
+            if (p && p.id !== myPlayer?.id) activityPeople.set(p.id, p.name);
+          }
+        }
+
+        return (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
+          <div className="mb-3">
+            <FilterDropdown
+              options={[
+                { key: 'mine', label: 'Mine', count: activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id)).length },
+                ...[...activityPeople.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({
+                  key: id, label: name, count: activityFeed.filter((a) => a.paidById === id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === id)).length,
+                })),
+              ]}
+              value={activityFilter === 'all' ? '' : activityFilter}
+              onChange={(key) => { setActivityFilter(key || 'all'); setActivityPage(0); }}
+              allLabel="All Activity"
+              allCount={activityFeed.length}
+              brand="cricket"
+            />
+          </div>
+          <div className="space-y-2">
+            {pagedActivity.map((a) => {
+              const expanded = expandedId === a.id;
+              const splitShares = a.type === 'split' ? (sharesMap.get(a.id) ?? []) : [];
+
+              // My relationship to this split
+              const iAmPayer = myPlayer?.id === a.paidById;
+              const myShare = myPlayer ? splitShares.find((sh) => sh.player_id === myPlayer.id) : null;
+              const myShareAmt = myShare ? Number(myShare.share_amount) : 0;
+              // If I paid: others owe me (total - my share). If I have a share: I owe the payer.
+              const myRelation = iAmPayer
+                ? { label: 'You paid', color: 'var(--cricket)', amount: a.amount }
+                : myShare
+                  ? { label: 'You owe', color: '#EF4444', amount: myShareAmt }
+                  : null;
+
+              return (
+                <div key={a.id} className="rounded-xl overflow-hidden border" style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'var(--border)' }}>
+                  {/* Row — tap to expand */}
+                  <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'var(--surface)' }}>
+                    <button
+                      onClick={() => setExpandedId(expanded ? null : a.id)}
+                      className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0"
+                    >
+                      {/* Icon */}
+                      {a.type === 'settlement'
+                        ? <div className="h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#05966910' }}><Handshake size={16} style={{ color: '#059669' }} /></div>
+                        : <PlayerAvatar name={a.paidByName} photoUrl={a.paidByPhoto} />}
+                      <div className="flex-1 min-w-0 text-left">
+                        <Text size="sm" weight="semibold" truncate className="block">{a.description}</Text>
+                        <Text as="p" size="2xs" color="dim">
+                          {a.type === 'split' ? `${a.paidByName.split(' ')[0]} paid` : ''} · {formatDate(a.date)}
+                          {a.type === 'split' && a.splitCount > 0 && ` · ${a.splitCount} people`}
+                        </Text>
+                        {myRelation && (
+                          <Text as="p" size="2xs" weight="bold" style={{ color: myRelation.color }}>
+                            {myRelation.label} {formatCurrency(myRelation.amount)}
+                          </Text>
+                        )}
+                      </div>
+                      <Text size="md" weight="bold" tabular className="flex-shrink-0"
+                        style={{ color: 'var(--text)' }}>
+                        {formatCurrency(a.amount)}
+                      </Text>
+                      {a.type === 'split' && (
+                        <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
+                      )}
+                    </button>
+
+                    {/* Three-dot menu for admin */}
+                    {isAdmin && (
+                      <div className="pr-2">
+                        <button
+                          ref={openMenu === a.id ? menuBtnRef : null}
+                          onClick={() => setOpenMenu(openMenu === a.id ? null : a.id)}
+                          className="h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                        >
+                          <EllipsisVertical size={14} />
+                        </button>
+                        {openMenu === a.id && (
+                          <CardMenu
+                            anchorRef={menuBtnRef}
+                            onClose={() => setOpenMenu(null)}
+                            items={[
+                              ...(a.type === 'split' ? (() => {
+                                const thisShareHolders = new Set(splitShares.map((sh) => sh.player_id));
+                                const hasSettlements = seasonSettlements.some((st) => st.to_player === a.paidById && thisShareHolders.has(st.from_player));
+                                return [{
+                                  label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)',
+                                  onClick: hasSettlements
+                                    ? () => setEditBlockedSplit({ id: a.id, paidById: a.paidById, desc: a.description })
+                                    : () => useSplitsStore.setState({ editingSplitId: a.id, showSplitForm: true }),
+                                }];
+                              })() : []),
+                              { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingItem({ id: a.id, type: a.type, desc: a.description, paidBy: a.paidByName, date: a.date, amount: formatCurrency(a.amount) }), dividerBefore: a.type === 'split' },
+                            ]}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expanded — per-person share breakdown */}
+                  {expanded && a.type === 'split' && (() => {
+                    return (
+                    <div className="px-3 pb-3 animate-fade-in" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
+                      <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
+                        {/* Payer first, then others */}
+                        {[...splitShares]
+                          .sort((x, y) => {
+                            if (x.player_id === a.paidById) return -1;
+                            if (y.player_id === a.paidById) return 1;
+                            return 0;
+                          })
+                          .map((sh) => {
+                          const p = activePlayers.find((pl) => pl.id === sh.player_id);
+                          if (!p) return null;
+                          const isPayer = sh.player_id === a.paidById;
+                          const isMe = sh.player_id === myPlayer?.id;
+                          const shareAmt = Number(sh.share_amount);
+                          const borderColor = isPayer ? 'var(--cricket)' : '#EF4444';
+
+                          // Show Settle only if there's still a net debt between them
+                          const stillOwes = !isPayer && (
+                            (myPlayer?.id === a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id))
+                            || (isMe && myDebtsIOwe.some((d) => d.id === a.paidById))
+                          );
+
+                          return (
+                            <div key={sh.id}
+                              className="flex items-center gap-3 rounded-lg p-2.5"
+                              style={{
+                                background: isPayer ? 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' : 'var(--surface)',
+                                borderLeft: `3px solid ${borderColor}`,
+                              }}>
+                              <PlayerAvatar name={p.name} photoUrl={p.photo_url} size="sm" />
+                              <div className="flex-1 min-w-0">
+                                <Text size="sm" weight="semibold" truncate>
+                                  {p.name}{isMe ? ' (You)' : ''}
+                                </Text>
+                                {isPayer ? (
+                                  <Text as="p" size="2xs" style={{ color: 'var(--cricket)' }}>Paid {formatCurrency(a.amount)}</Text>
+                                ) : (
+                                  <Text as="p" size="2xs" color="dim">Owes {activePlayers.find((pl) => pl.id === a.paidById)?.name?.split(' ')[0]}</Text>
+                                )}
+                              </div>
+                              <Text size="sm" weight="bold" tabular className="flex-shrink-0"
+                                style={{ color: isPayer ? 'var(--cricket)' : '#EF4444' }}>
+                                {formatCurrency(shareAmt)}
+                              </Text>
+                              {stillOwes && myPlayer && (
+                                <button onClick={() => {
+                                  if (isMe) openSettleDrawer(myPlayer.id, a.paidById, shareAmt);
+                                  else openSettleDrawer(sh.player_id, myPlayer.id, shareAmt);
+                                }}
+                                  className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[11px] font-bold cursor-pointer transition-all active:scale-95"
+                                  style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>
+                                  Settle
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Settle All — one shot for all people who owe you */}
+                        {myPlayer?.id === a.paidById && (() => {
+                          // People in this split who still owe me (from the direct debts data)
+                          const unsettledInSplit = splitShares.filter((sh) =>
+                            sh.player_id !== a.paidById && myDebtsOwedToMe.some((d) => d.id === sh.player_id),
+                          );
+                          if (unsettledInSplit.length < 2) return null;
+                          return (
+                            <button
+                              onClick={() => {
+                                if (!user || !selectedSeasonId || !myPlayer) return;
+                                for (const sh of unsettledInSplit) {
+                                  const netDebt = myDebtsOwedToMe.find((d) => d.id === sh.player_id);
+                                  if (!netDebt) continue;
+                                  useSplitsStore.getState().addSplitSettlement(user.id, selectedSeasonId, {
+                                    from_player: sh.player_id, to_player: myPlayer.id,
+                                    amount: netDebt.amount, settled_date: new Date().toISOString().split('T')[0],
+                                  });
+                                }
+                              }}
+                              className="w-full mt-3 flex items-center justify-center gap-2 rounded-lg py-2.5 text-[13px] font-bold cursor-pointer transition-all active:scale-[0.98]"
+                              style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', color: 'white' }}>
+                              <Handshake size={15} />
+                              Settle All ({unsettledInSplit.length} people)
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
+          </div>
+          <Pagination page={activityPage} setPage={setActivityPage} totalItems={filteredActivity.length} pageSize={PAGE_SIZE} />
+        </div>
+        );
+      })()}
+
+      </>}
+
+      {/* ── Settlements tab ── */}
+      {subTab === 'settlements' && <>
+      {/* ── Recent Settlements — expandable cards with related splits ── */}
+      {seasonSettlements.length > 0 && (() => {
+        const sortedSettlements = [...seasonSettlements].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        const filteredSettlements = settlementFilter === 'all' ? sortedSettlements
+          : settlementFilter === 'mine' ? sortedSettlements.filter((st) => st.from_player === myPlayer?.id || st.to_player === myPlayer?.id)
+          : sortedSettlements.filter((st) => st.from_player === settlementFilter || st.to_player === settlementFilter);
+        const pagedSettlements = filteredSettlements.slice(settlementPage * PAGE_SIZE, (settlementPage + 1) * PAGE_SIZE);
+
+        const settlementPeople = new Map<string, string>();
+        for (const st of seasonSettlements) {
+          const f = activePlayers.find((p) => p.id === st.from_player);
+          const t = activePlayers.find((p) => p.id === st.to_player);
+          if (f && f.id !== myPlayer?.id) settlementPeople.set(f.id, f.name);
+          if (t && t.id !== myPlayer?.id) settlementPeople.set(t.id, t.name);
+        }
+
+        return (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5">
+          <div className="mb-3">
+            <FilterDropdown
+              options={[
+                { key: 'mine', label: 'Mine', count: sortedSettlements.filter((st) => st.from_player === myPlayer?.id || st.to_player === myPlayer?.id).length },
+                ...[...settlementPeople.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({
+                  key: id, label: name, count: sortedSettlements.filter((st) => st.from_player === id || st.to_player === id).length,
+                })),
+              ]}
+              value={settlementFilter === 'all' ? '' : settlementFilter}
+              onChange={(key) => { setSettlementFilter(key || 'all'); setSettlementPage(0); }}
+              allLabel="All Settlements"
+              allCount={seasonSettlements.length}
+              brand="cricket"
+            />
+          </div>
+          <div className="space-y-2">
+            {pagedSettlements.map((st) => {
+                const from = activePlayers.find((p) => p.id === st.from_player);
+                const to = activePlayers.find((p) => p.id === st.to_player);
+                if (!from || !to) return null;
+                const isExpanded = expandedSettlementId === st.id;
+
+                // All splits between these two people (both directions)
+                // "owes" = to_player paid, from_player has a share (from owes to)
+                // "offset" = from_player paid, to_player has a share (to owes from — reduces net)
+                // Only splits created BEFORE this settlement was recorded
+                const owesSplits = activeSplits.filter((s) =>
+                  s.created_at <= st.created_at && s.paid_by === st.to_player && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === st.from_player),
+                );
+                const offsetSplits = activeSplits.filter((s) =>
+                  s.created_at <= st.created_at && s.paid_by === st.from_player && (sharesMap.get(s.id) ?? []).some((sh) => sh.player_id === st.to_player),
+                );
+                const relatedSplits = [...owesSplits, ...offsetSplits];
+
+                return (
+                  <div key={st.id} className="rounded-xl overflow-hidden border" style={{ borderColor: isExpanded ? '#05966930' : 'var(--border)' }}>
+                    {/* Collapsed row */}
+                    <div className="flex items-center" style={{ background: isExpanded ? '#05966906' : 'var(--surface)' }}>
+                      <button
+                        onClick={() => setExpandedSettlementId(isExpanded ? null : st.id)}
+                        className="flex-1 flex items-center gap-2.5 p-3 cursor-pointer transition-all active:scale-[0.99] min-w-0"
+                      >
+                        <PlayerAvatar name={from.name} photoUrl={from.photo_url} size="sm" />
+                        <div className="flex-1 min-w-0 text-left">
+                          <Text size="sm" weight="semibold" truncate className="block">
+                            {from.name.split(' ')[0]} paid {to.name.split(' ')[0]}
+                          </Text>
+                          <Text as="p" size="2xs" color="dim">{formatDate(st.settled_date)}</Text>
+                        </div>
+                        <Text size="md" weight="bold" tabular style={{ color: '#059669' }}>{formatCurrency(Number(st.amount))}</Text>
+                        <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform" style={{ transform: isExpanded ? 'rotate(180deg)' : undefined }} />
+                      </button>
+                      {isAdmin && (
+                        <div className="pr-2">
+                          <button
+                            ref={openMenu === st.id ? menuBtnRef : null}
+                            onClick={() => setOpenMenu(openMenu === st.id ? null : st.id)}
+                            className="h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                            <EllipsisVertical size={14} />
+                          </button>
+                          {openMenu === st.id && (
+                            <CardMenu anchorRef={menuBtnRef} onClose={() => setOpenMenu(null)} items={[
+                              { label: 'Undo Settlement', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingItem({ id: st.id, type: 'settlement', desc: `${from.name.split(' ')[0]} paid ${to.name.split(' ')[0]}`, paidBy: from.name, date: st.settled_date, amount: formatCurrency(Number(st.amount)) }) },
+                            ]} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expanded — related splits */}
+                    {isExpanded && (
+                      <div className="px-3 pb-3 animate-fade-in" style={{ background: '#05966904' }}>
+                        <div className="border-t border-[var(--border)]/50 pt-2">
+                          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Related Splits</Text>
+                          {relatedSplits.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {relatedSplits.map((s) => {
+                                const payer = activePlayers.find((pl) => pl.id === s.paid_by);
+                                const shareCount = (sharesMap.get(s.id) ?? []).length;
+                                const isOwes = s.paid_by === st.to_player; // to paid → from owes
+                                const relevantShare = (sharesMap.get(s.id) ?? []).find((sh) => sh.player_id === (isOwes ? st.from_player : st.to_player));
+                                const shareAmt = relevantShare ? Number(relevantShare.share_amount) : 0;
+                                return (
+                                  <div key={s.id} className="flex items-center gap-2.5 rounded-lg p-2" style={{ background: 'var(--surface)', borderLeft: `2px solid ${isOwes ? '#EF4444' : '#059669'}` }}>
+                                    <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" />
+                                    <div className="flex-1 min-w-0">
+                                      <Text size="xs" weight="semibold" truncate className="block">{s.description || s.category}</Text>
+                                      <Text as="p" size="2xs" color="dim">{payer?.name?.split(' ')[0]} paid {formatCurrency(Number(s.amount))} · {shareCount} people · {formatDate(s.split_date)}</Text>
+                                    </div>
+                                    <span className="flex-shrink-0 text-[13px] font-bold" style={{ color: isOwes ? '#EF4444' : '#059669', fontVariantNumeric: 'tabular-nums' }}>
+                                      {isOwes ? '+' : '-'}{formatCurrency(shareAmt)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <Text as="p" size="xs" color="dim" className="py-2">No related splits found</Text>
+                          )}
+
+                          {/* Summary: total owed vs this settlement */}
+                          {relatedSplits.length > 0 && (() => {
+                            // Net: owes splits add debt, offset splits reduce debt
+                            const totalOwes = owesSplits.reduce((sum, s) => {
+                              const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.from_player);
+                              return sum + (sh ? Number(sh.share_amount) : 0);
+                            }, 0);
+                            const totalOffset = offsetSplits.reduce((sum, s) => {
+                              const sh = shares.find((x) => x.split_id === s.id && x.player_id === st.to_player);
+                              return sum + (sh ? Number(sh.share_amount) : 0);
+                            }, 0);
+                            const netOwed = Math.round((totalOwes - totalOffset) * 100) / 100;
+                            const settledAmt = Number(st.amount);
+                            const remaining = Math.round((netOwed - settledAmt) * 100) / 100;
+                            return (
+                              <div className="rounded-lg p-2 mt-2 space-y-1" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                                <div className="flex justify-between">
+                                  <Text size="2xs" color="muted">Net owed</Text>
+                                  <Text size="2xs" weight="bold" tabular style={{ color: '#EF4444' }}>{formatCurrency(Math.max(0, netOwed))}</Text>
+                                </div>
+                                <div className="flex justify-between">
+                                  <Text size="2xs" color="muted">This settlement</Text>
+                                  <Text size="2xs" weight="bold" tabular style={{ color: '#059669' }}>-{formatCurrency(settledAmt)}</Text>
+                                </div>
+                                <div className="h-px" style={{ background: 'var(--border)' }} />
+                                <div className="flex justify-between">
+                                  <Text size="2xs" weight="semibold">Remaining</Text>
+                                  <Text size="2xs" weight="bold" tabular style={{ color: remaining <= 0 ? '#059669' : '#EF4444' }}>
+                                    {remaining <= 0 ? 'Fully settled' : formatCurrency(remaining)}
+                                  </Text>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+
+          <Pagination page={settlementPage} setPage={setSettlementPage} totalItems={filteredSettlements.length} pageSize={PAGE_SIZE} />
+        </div>
+        );
+      })()}
+
+      </>}
+
+      {/* FAB */}
+      <button onClick={() => useSplitsStore.setState({ showSplitForm: true })}
+        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg cursor-pointer transition-all active:scale-90 hover:shadow-xl hover:-translate-y-0.5"
+        style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: '16px', background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', boxShadow: '0 4px 20px var(--cricket-glow), 0 0 0 3px color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
+        <Plus size={24} className="text-white" />
+      </button>
+
+      <SplitForm />
+      <SplitSettleDrawer />
+
+      {deletingItem && (
+        <DeleteConfirm
+          description={deletingItem.desc} paidBy={deletingItem.paidBy} date={deletingItem.date}
+          amount={deletingItem.amount} type={deletingItem.type}
+          onCancel={() => setDeletingItem(null)}
+          onConfirm={() => {
+            if (deletingItem.type === 'split') handleDeleteSplit(deletingItem.id);
+            else useSplitsStore.getState().deleteSplitSettlement(deletingItem.id);
+            setDeletingItem(null);
+          }}
+        />
+      )}
+
+      {/* Edit blocked — split has settlements */}
+      {editBlockedSplit && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={() => setEditBlockedSplit(null)}>
+          <div className="w-[340px] rounded-2xl p-5"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                <Pencil size={18} style={{ color: 'var(--cricket)' }} />
+              </div>
+              <div>
+                <Text size="sm" weight="semibold">Can&apos;t edit directly</Text>
+                <Text as="p" size="xs" color="muted"><b>{editBlockedSplit.desc}</b> has settlements</Text>
+              </div>
+            </div>
+            <Text as="p" size="xs" color="dim" className="mb-4">
+              Choose an option to proceed:
+            </Text>
+            {(() => {
+              const splitShareHolders = new Set((sharesMap.get(editBlockedSplit.id) ?? []).map((sh) => sh.player_id));
+              const toDelete = seasonSettlements.filter((st) => st.to_player === editBlockedSplit.paidById && splitShareHolders.has(st.from_player));
+              const totalUndoAmount = toDelete.reduce((sum, st) => sum + Number(st.amount), 0);
+              return (
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  for (const st of toDelete) {
+                    useSplitsStore.getState().deleteSplitSettlement(st.id);
+                  }
+                  useSplitsStore.setState({ editingSplitId: editBlockedSplit.id, showSplitForm: true });
+                  setEditBlockedSplit(null);
+                }}
+                className="w-full flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-all active:scale-[0.98] border border-[var(--border)] hover:bg-[var(--hover-bg)]"
+              >
+                <Handshake size={18} style={{ color: '#F59E0B' }} />
+                <div className="flex-1 text-left">
+                  <Text size="sm" weight="semibold">Undo {toDelete.length} settlement{toDelete.length !== 1 ? 's' : ''} &amp; edit</Text>
+                  <Text as="p" size="2xs" color="dim">
+                    Reverts {formatCurrency(totalUndoAmount)} across {toDelete.length} settlement{toDelete.length !== 1 ? 's' : ''} between this split&apos;s members and payer
+                  </Text>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  setEditBlockedSplit(null);
+                  setDeletingItem({ id: editBlockedSplit.id, type: 'split', desc: editBlockedSplit.desc });
+                }}
+                className="w-full flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-all active:scale-[0.98] border border-[var(--border)] hover:bg-[var(--hover-bg)]"
+              >
+                <Trash2 size={18} style={{ color: '#EF4444' }} />
+                <div className="flex-1 text-left">
+                  <Text size="sm" weight="semibold">Delete &amp; re-add</Text>
+                  <Text as="p" size="2xs" color="dim">Remove this split and create a new one</Text>
+                </div>
+              </button>
+            </div>
+              );
+            })()}
+            <button onClick={() => setEditBlockedSplit(null)}
+              className="w-full mt-3 py-2 rounded-xl text-[13px] font-medium text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
