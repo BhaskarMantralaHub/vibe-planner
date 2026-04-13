@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
 import { Button, Text, Badge } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -52,15 +52,8 @@ export default function SplitForm() {
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
-  const amountInputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-focus amount input after drawer animation completes (iOS Safari fix)
-  useEffect(() => {
-    if (showSplitForm) {
-      const timer = setTimeout(() => amountInputRef.current?.focus(), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [showSplitForm]);
+  // No auto-focus — iOS Safari keyboard pushes the drawer and covers the input.
+  // Let the user tap the amount field when ready.
 
   // Pre-fill fields when editing an existing split
   useEffect(() => {
@@ -199,7 +192,6 @@ export default function SplitForm() {
           <div className="flex items-center justify-center gap-1">
             <Text size="3xl" weight="bold" color="muted" className="leading-none">$</Text>
             <input
-              ref={amountInputRef}
               type="text" inputMode="decimal" value={amount}
               onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
               placeholder="0.00"

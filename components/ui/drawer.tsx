@@ -90,23 +90,30 @@ function DrawerBody({ children, className }: { children: ReactNode; className?: 
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll focused input into view when keyboard opens (iOS Safari)
+  // The extra 60px accounts for the iOS keyboard form toolbar (prev/next/done bar)
   const handleFocusCapture = useCallback((e: React.FocusEvent) => {
     const target = e.target;
     if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
       setTimeout(() => {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300); // iOS keyboard animation takes ~250ms
+      }, 350);
     }
   }, []);
+
+  // Extra buffer for iOS keyboard toolbar (~44px) + breathing room
+  const toolbarBuffer = keyboardHeight > 0 ? 50 : 0;
 
   return (
     <div
       ref={bodyRef}
-      className={cn('px-5 pb-6 pt-4 space-y-4 overflow-y-auto overscroll-contain', className)}
+      className={cn('px-5 pt-4 space-y-4 overflow-y-auto overscroll-contain', className)}
       style={{
         maxHeight: keyboardHeight > 0
-          ? `calc(70dvh - ${keyboardHeight}px)`
+          ? `calc(70dvh - ${keyboardHeight + toolbarBuffer}px)`
           : '70dvh',
+        // When keyboard is open, add generous bottom padding so first inputs can
+        // scroll fully above the keyboard toolbar via scrollIntoView
+        paddingBottom: keyboardHeight > 0 ? '160px' : '24px',
       }}
       onFocusCapture={handleFocusCapture}
     >
