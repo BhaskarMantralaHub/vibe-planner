@@ -17,16 +17,9 @@ export function ServiceWorkerRegister() {
 
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            toast('New version available', {
-              duration: Infinity,
-              action: {
-                label: 'Refresh',
-                onClick: () => {
-                  newWorker.postMessage({ type: 'SKIP_WAITING' });
-                  window.location.reload();
-                },
-              },
-            });
+            // Auto-update silently — skip waiting and reload
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+            window.location.reload();
           }
         });
       });
