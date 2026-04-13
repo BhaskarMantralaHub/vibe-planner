@@ -1,17 +1,19 @@
 'use client';
 
 import { Drawer as VaulDrawer } from 'vaul';
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 
-/// ── Shared Drawer (vaul wrapper with iOS Safari keyboard fixes) ──
+/// ── Shared Drawer (vaul wrapper) ──
 ///
-/// All iOS Safari issues are handled automatically:
-/// - `repositionInputs={false}` prevents vaul's double-shift bug (GitHub #619, #294)
-/// - `handleOnly` prevents scroll-to-dismiss conflicts
-/// - `useKeyboardHeight` pushes the entire drawer above the keyboard
-/// - Inputs inside auto-scroll into view on focus (350ms delay for keyboard animation)
+/// iOS Safari keyboard handling is delegated entirely to vaul's built-in system:
+/// - `repositionInputs` defaults to `true` — vaul repositions the drawer above
+///   the keyboard, prevents Safari scroll, and scrolls inputs into view.
+/// - `handleOnly` prevents scroll-to-dismiss conflicts with body content.
+///
+/// IMPORTANT: Do NOT add a custom keyboard-offset system (useKeyboardHeight,
+/// manual bottom/transform). Vaul handles this internally. Running two systems
+/// causes the "double-shift" bug where the drawer moves up by 2x keyboard height.
 ///
 /// Usage:
 /// ```tsx
@@ -33,24 +35,19 @@ interface DrawerProps {
 }
 
 function Drawer({ open, onOpenChange, children, dismissible = true }: DrawerProps) {
-  const keyboardHeight = useKeyboardHeight();
-
   return (
     <VaulDrawer.Root
       open={open}
       onOpenChange={onOpenChange}
       direction="bottom"
       handleOnly
-      repositionInputs={false}
       dismissible={dismissible}
     >
       <VaulDrawer.Portal>
         <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md" />
         <VaulDrawer.Content
-          className="fixed left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-2xl outline-none"
+          className="fixed bottom-0 left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-2xl outline-none"
           style={{
-            bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
-            transition: 'bottom 0.25s ease-out',
             background: 'var(--card)',
             border: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
             borderBottom: 'none',
@@ -93,28 +90,15 @@ function DrawerHeader({ children, className }: { children: ReactNode; className?
   );
 }
 
-/* ── Body (scrollable content — max 70dvh, auto-scrolls inputs on focus) ── */
+/* ── Body (scrollable content — max 70dvh) ── */
 function DrawerBody({ children, className }: { children: ReactNode; className?: string }) {
   const bodyRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll focused input into view when keyboard opens (iOS Safari).
-  // Uses 'nearest' so inputs already visible (like the amount at top) don't scroll away,
-  // while inputs lower in the form still scroll into view when focused.
-  const handleFocusCapture = useCallback((e: React.FocusEvent) => {
-    const target = e.target;
-    if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
-      setTimeout(() => {
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 350);
-    }
-  }, []);
 
   return (
     <div
       ref={bodyRef}
       className={cn('px-5 pb-6 pt-4 space-y-4 overflow-y-auto overscroll-contain', className)}
       style={{ maxHeight: '70dvh' }}
-      onFocusCapture={handleFocusCapture}
     >
       {children}
     </div>
