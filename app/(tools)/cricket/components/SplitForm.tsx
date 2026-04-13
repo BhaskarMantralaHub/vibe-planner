@@ -10,7 +10,7 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
 import { nameToGradient } from '@/lib/avatar';
-import { Check, Cookie, CupSoda, Utensils, Package, Users, Search, X } from 'lucide-react';
+import { Check, CheckCircle2, Cookie, CupSoda, Utensils, Package, Users, Search, X } from 'lucide-react';
 import type { SplitCategory } from '@/types/cricket';
 
 type CategoryDef = { key: SplitCategory; label: string; renderIcon: (color: string) => React.ReactNode; color: string };
@@ -51,6 +51,7 @@ export default function SplitForm() {
   const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal');
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
+  const [paidBySearch, setPaidBySearch] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
   // No auto-focus — iOS Safari keyboard pushes the drawer and covers the input.
   // Let the user tap the amount field when ready.
@@ -129,7 +130,7 @@ export default function SplitForm() {
     setAmount(''); setDescription(''); setCategory('snacks');
     setPaidById(null); setSelectedPlayerIds(new Set());
     setSplitType('equal'); setCustomAmounts({}); setShowPaidByPicker(false);
-    setPlayerSearch('');
+    setPaidBySearch(''); setPlayerSearch('');
   };
 
   const handleSubmit = () => {
@@ -221,42 +222,111 @@ export default function SplitForm() {
           </div>
         </div>
 
-        {/* Paid by */}
+        {/* Paid by — inline quick select with animated expansion */}
         <div>
           <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Paid By</Text>
           {!showPaidByPicker ? (
-            <button onClick={() => setShowPaidByPicker(true)}
-              className="w-full flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
-              {effectivePaidBy ? (() => {
+            /* ── Collapsed: avatar + name + Change link ── */
+            <div className="flex items-center gap-3 min-h-[44px]">
+              {(() => {
                 const p = activePlayers.find((pl) => pl.id === effectivePaidBy);
-                if (!p) return <Text size="md" color="dim">Select who paid</Text>;
-                const [gF, gT] = nameToGradient(p.name);
-                const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                return (<>
-                  <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
-                  <Text size="md" weight="medium">{p.name}</Text>
-                  {p.id === myPlayer?.id && <Badge variant="blue" size="sm">You</Badge>}
-                </>);
-              })() : <Text size="md" color="dim">Select who paid</Text>}
-              <svg className="ml-auto text-[var(--dim)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-          ) : (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 space-y-1 max-h-[200px] overflow-y-auto overscroll-contain">
-              {activePlayers.map((p) => {
-                const [gF, gT] = nameToGradient(p.name);
-                const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                const selected = p.id === effectivePaidBy;
-                return (
-                  <button key={p.id} onClick={() => handlePaidBySelect(p.id)}
-                    className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-all active:scale-[0.98]"
-                    style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 10%, transparent)' : 'transparent' }}>
-                    <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
-                    <Text size="sm" weight={selected ? 'semibold' : 'medium'} truncate style={{ color: selected ? 'var(--cricket)' : undefined }}>{p.name}</Text>
-                    {p.id === myPlayer?.id && <Badge variant="blue" size="sm">You</Badge>}
-                    {selected && <Check size={16} className="ml-auto flex-shrink-0" style={{ color: 'var(--cricket)' }} />}
+                if (!p) return (
+                  <button onClick={() => setShowPaidByPicker(true)} className="flex items-center gap-2 cursor-pointer active:opacity-70 transition-opacity">
+                    <Text size="sm" color="dim">Select who paid</Text>
+                    <Text size="xs" weight="semibold" style={{ color: 'var(--cricket)' }}>Choose</Text>
                   </button>
                 );
-              })}
+                const [gF, gT] = nameToGradient(p.name);
+                const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                return (
+                  <>
+                    <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
+                    <Text size="sm" weight="semibold">{p.id === myPlayer?.id ? 'You' : p.name}</Text>
+                    {p.id === myPlayer?.id && <Text size="2xs" color="dim">({p.name.split(' ')[0]})</Text>}
+                    <button onClick={() => { setShowPaidByPicker(true); setPaidBySearch(''); }}
+                      className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 min-h-[36px] cursor-pointer active:scale-95 transition-all"
+                      style={{ color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 8%, transparent)' }}>
+                      <Text size="xs" weight="bold" style={{ color: 'var(--cricket)' }}>Change</Text>
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            /* ── Expanded: search + player list ── */
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden animate-fade-in">
+              {/* Search header */}
+              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
+                <Search size={16} className="text-[var(--muted)] flex-shrink-0" />
+                <input
+                  type="text" value={paidBySearch} onChange={(e) => setPaidBySearch(e.target.value)}
+                  placeholder="Search players..."
+                  className="flex-1 bg-transparent text-[14px] outline-none"
+                  style={{ color: 'var(--text)' }}
+                />
+                <button onClick={() => { setShowPaidByPicker(false); setPaidBySearch(''); }}
+                  className="p-2 -mr-2 cursor-pointer text-[var(--muted)] active:text-[var(--text)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
+                  <X size={18} />
+                </button>
+              </div>
+              {/* Player list */}
+              <div className="max-h-[220px] overflow-y-auto overscroll-contain">
+                {(() => {
+                  const q = paidBySearch.toLowerCase().trim();
+                  // Pin "You" at top, then filter others alphabetically
+                  const others = activePlayers.filter((p) => p.id !== myPlayer?.id);
+                  const filteredOthers = q ? others.filter((p) => p.name.toLowerCase().includes(q)) : others;
+                  const showMe = myPlayer && (!q || myPlayer.name.toLowerCase().includes(q) || 'you'.includes(q));
+
+                  return (
+                    <>
+                      {/* "You" pinned at top */}
+                      {showMe && myPlayer && (() => {
+                        const [gF, gT] = nameToGradient(myPlayer.name);
+                        const initials = myPlayer.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                        const selected = myPlayer.id === effectivePaidBy;
+                        return (
+                          <>
+                            <button onClick={() => { handlePaidBySelect(myPlayer.id); setPaidBySearch(''); }}
+                              className="w-full flex items-center gap-3 px-3 py-3 min-h-[48px] cursor-pointer transition-colors active:opacity-80"
+                              style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'transparent' }}>
+                              <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
+                                style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
+                              <div className="flex-1 min-w-0 text-left">
+                                <Text size="sm" weight="semibold">You</Text>
+                                <Text as="p" size="2xs" color="muted">{myPlayer.name}</Text>
+                              </div>
+                              {selected && <CheckCircle2 size={20} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />}
+                            </button>
+                            {filteredOthers.length > 0 && <div className="h-px mx-3" style={{ background: 'var(--border)' }} />}
+                          </>
+                        );
+                      })()}
+                      {/* Other players */}
+                      {filteredOthers.map((p) => {
+                        const [gF, gT] = nameToGradient(p.name);
+                        const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                        const selected = p.id === effectivePaidBy;
+                        return (
+                          <button key={p.id} onClick={() => { handlePaidBySelect(p.id); setPaidBySearch(''); }}
+                            className="w-full flex items-center gap-3 px-3 py-3 min-h-[48px] cursor-pointer transition-colors active:opacity-80"
+                            style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'transparent' }}>
+                            <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
+                              style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
+                            <Text size="sm" weight={selected ? 'semibold' : 'medium'} truncate className="flex-1 text-left"
+                              style={{ color: selected ? 'var(--cricket)' : undefined }}>{p.name}</Text>
+                            {selected && <CheckCircle2 size={20} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />}
+                          </button>
+                        );
+                      })}
+                      {showMe === false && filteredOthers.length === 0 && (
+                        <Text as="p" size="xs" color="dim" className="text-center py-4">No players match &ldquo;{paidBySearch}&rdquo;</Text>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           )}
         </div>
