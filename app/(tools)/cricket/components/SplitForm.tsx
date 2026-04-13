@@ -432,16 +432,18 @@ export default function SplitForm() {
           </div>
         )}
 
-        {/* Validation hint — explains why button is disabled */}
-        {!canSubmit && (numAmount > 0 || selectedCount > 0) && (
-          <Text as="p" size="xs" color="dim" className="text-center -mb-2">
-            {numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
-          </Text>
-        )}
+        <div>
+          {/* Validation hint — explains why button is disabled */}
+          {!canSubmit && (numAmount > 0 || selectedCount > 0) && (
+            <Text as="p" size="xs" color="dim" className="text-center mb-2">
+              {numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+            </Text>
+          )}
 
-        <Button onClick={handleSubmit} disabled={!canSubmit} variant="primary" brand="cricket" size="xl" fullWidth>
-          {editingSplitId ? 'Update' : 'Split'} ${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}
-        </Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit} variant="primary" brand="cricket" size="xl" fullWidth>
+            {editingSplitId ? 'Update' : 'Split'} ${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}
+          </Button>
+        </div>
       </DrawerBody>
     </Drawer>
   );
