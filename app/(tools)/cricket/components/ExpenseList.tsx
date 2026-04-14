@@ -294,7 +294,8 @@ export default function ExpenseList() {
           const path = `${teamId}/${expenseId}_${fileId}.${ext}`;
           const { error } = await supabase.storage.from('expense-receipts').upload(path, blob, { upsert: true, contentType });
           if (!error) {
-            uploadedUrls.push(`/storage/expense-receipts/${path}`);
+            const { data: { publicUrl } } = supabase.storage.from('expense-receipts').getPublicUrl(path);
+            uploadedUrls.push(publicUrl);
           } else {
             console.error('[cricket] receipt upload:', error);
           }

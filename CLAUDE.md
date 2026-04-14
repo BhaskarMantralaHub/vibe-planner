@@ -41,7 +41,7 @@ npm run test:coverage # Coverage report
 - **Soft delete** — `deleted_at` column with Recently Deleted UI + restore
 - **Splits** — peer-to-peer expense splitting (Splitwise-style), completely separate from pool fund. Tables: `cricket_splits`, `cricket_split_shares`, `cricket_split_settlements`. Store: `splits-store.ts`. Never in reports/PDFs/emails.
 - **Public pages** — `/cricket/dues/` bypasses auth via SECURITY DEFINER RPC
-- **Receipt uploads** — expenses support multiple image/PDF attachments. Stored in `expense-receipts` Supabase Storage bucket (path: `{team_id}/{expense_id}_{random}.{ext}`). Images compressed to 1200px/0.85 JPEG; PDFs uploaded as-is. Max 10 per expense.
+- **Receipt uploads** — expenses support multiple image/PDF attachments. Stored in `expense-receipts` Supabase Storage bucket (path: `{team_id}/{expense_id}_{random}.{ext}`). Images compressed to 1200px/0.85 JPEG; PDFs uploaded as-is. Max 10 per expense. Direct Supabase public URLs (no proxy).
 - **Storage backup** — Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`, `expense-receipts`) backed up daily to Cloudflare R2 via `rclone copy --checksum` in the backup workflow.
 
 ## Git Workflow

@@ -697,7 +697,8 @@ export const useCricketStore = create<CricketState>((set, get) => ({
                 if (uploadErr) {
                   console.error('[cricket] receipt upload:', uploadErr);
                 } else {
-                  urls.push(`/storage/expense-receipts/${path}`);
+                  const { data: { publicUrl } } = supabase.storage.from('expense-receipts').getPublicUrl(path);
+                  urls.push(publicUrl);
                 }
               }
               toast.dismiss(uploadToast);
