@@ -692,6 +692,7 @@ CREATE TABLE IF NOT EXISTS cricket_expenses (
   description  TEXT,
   amount       NUMERIC(10,2) NOT NULL,
   expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  receipt_urls TEXT[] DEFAULT NULL,  -- Supabase Storage public URLs (expense-receipts bucket)
   created_by   TEXT DEFAULT NULL,
   updated_by   TEXT DEFAULT NULL,
   deleted_at   TIMESTAMPTZ DEFAULT NULL,
@@ -1735,6 +1736,40 @@ USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldern
 CREATE POLICY "Players can delete own photo"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'player-photos' AND has_cricket_access() AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ── Storage: expense-receipts bucket ─────────────────────────
+-- Public bucket, 5MB limit, image/jpeg + image/png + image/webp + application/pdf
+-- Path pattern: {team_id}/{expense_id}_{index}.jpg
+-- Any cricket user can view; only team admins can upload/update/delete
+-- Uses is_team_admin() with team_id extracted from the folder path
+
+CREATE POLICY "Cricket users can view expense receipts"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'expense-receipts' AND has_cricket_access());
+
+CREATE POLICY "Team admins can upload expense receipts"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'expense-receipts'
+  AND has_cricket_access()
+  AND (is_team_admin((storage.foldername(name))[1]::uuid) OR is_global_admin())
+);
+
+CREATE POLICY "Team admins can update expense receipts"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'expense-receipts'
+  AND has_cricket_access()
+  AND (is_team_admin((storage.foldername(name))[1]::uuid) OR is_global_admin())
+);
+
+CREATE POLICY "Team admins can delete expense receipts"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'expense-receipts'
+  AND has_cricket_access()
+  AND (is_team_admin((storage.foldername(name))[1]::uuid) OR is_global_admin())
+);
 
 -- ============================================================
 -- Peer-to-Peer Splits (internal, never in reports/PDFs/emails)

@@ -74,14 +74,14 @@ export const EXPENSES: CricketExpense[] = [
   {
     id: 'exp-1', user_id: ADMIN_USER.id, season_id: 'season-spring-2026',
     paid_by: 'p1', category: 'ground', description: 'Ground rental March',
-    amount: 200, expense_date: '2026-03-15', created_by: 'Bhaskar Bachi',
+    amount: 200, expense_date: '2026-03-15', receipt_urls: null, created_by: 'Bhaskar Bachi',
     updated_by: null, deleted_at: null, deleted_by: null,
     created_at: '2026-03-15T00:00:00Z', updated_at: '2026-03-15T00:00:00Z',
   },
   {
     id: 'exp-2', user_id: ADMIN_USER.id, season_id: 'season-spring-2026',
     paid_by: 'p1', category: 'equipment', description: 'Cricket balls',
-    amount: 50, expense_date: '2026-03-10', created_by: 'Bhaskar Bachi',
+    amount: 50, expense_date: '2026-03-10', receipt_urls: null, created_by: 'Bhaskar Bachi',
     updated_by: null, deleted_at: '2026-03-20T00:00:00Z', deleted_by: 'Bhaskar Bachi',
     created_at: '2026-03-10T00:00:00Z', updated_at: '2026-03-20T00:00:00Z',
   },

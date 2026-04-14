@@ -8,7 +8,7 @@
 - Keeps last 30 days, auto-deletes older backups
 - Can trigger manually: Actions → Daily Supabase Backup → Run workflow
 - **Failure alerts** — sends email via Resend if backup job fails
-- **Storage backup** — syncs all Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`) to Cloudflare R2 (S3-compatible, zero egress fees)
+- **Storage backup** — syncs all Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`, `expense-receipts`) to Cloudflare R2 (S3-compatible, zero egress fees)
 - Storage sync is incremental — only new/changed files are uploaded each run
 - Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`, `VIBE_PLANNER_BACKUP` (GitHub PAT), `RESEND_API_KEY`, `SUPER_ADMIN_EMAIL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_BUCKET` (optional, defaults to `vibers-toolkit-backups`)
 
@@ -60,6 +60,7 @@ When creating a new table, you **MUST** add it to both `.github/workflows/backup
    rclone copy r2:vibers-toolkit-backups/player-photos ./player-photos
    rclone copy r2:vibers-toolkit-backups/gallery-photos ./gallery-photos
    rclone copy r2:vibers-toolkit-backups/team-logos ./team-logos
+   rclone copy r2:vibers-toolkit-backups/expense-receipts ./expense-receipts
    # Then upload to new Supabase Storage via dashboard or supabase CLI
    ```
 
@@ -71,4 +72,4 @@ When creating a new table, you **MUST** add it to both `.github/workflows/backup
 | Schema + RPCs + triggers (`schema.sql` dump) | Supabase project config |
 | RLS policies (`schema.sql` dump) | Edge Functions (deploy from git) |
 | Role grants (`roles.sql` dump) | |
-| Storage images (player-photos, gallery-photos, team-logos → Cloudflare R2) | |
+| Storage files (player-photos, gallery-photos, team-logos, expense-receipts → Cloudflare R2) | |

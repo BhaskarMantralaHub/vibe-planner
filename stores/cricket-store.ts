@@ -150,9 +150,11 @@ interface CricketState {
     seasonId: string,
     data: { category: string; description: string; amount: number; expense_date: string },
     createdBy?: string,
+    receiptFiles?: Blob[],
   ) => void;
   updateExpense: (id: string, updates: Partial<CricketExpense>, updatedBy?: string) => void;
   deleteExpense: (id: string, deletedBy?: string) => void;
+  permanentDeleteExpense: (id: string) => void;
   restoreExpense: (id: string) => void;
 
   // Settlements
@@ -648,14 +650,14 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   // ── Expenses ─────────────────────────────────────────────────────────
 
-  addExpense: (userId, seasonId, data, createdBy) => {
+  addExpense: (userId, seasonId, data, createdBy, receiptFiles) => {
     const now = new Date().toISOString();
     const expenseId = genId();
     const newExpense: CricketExpense = {
       id: expenseId, user_id: userId, season_id: seasonId,
       paid_by: userId, category: data.category as CricketExpense['category'],
       description: data.description, amount: data.amount,
-      expense_date: data.expense_date,
+      expense_date: data.expense_date, receipt_urls: null,
       created_by: createdBy ?? null, updated_by: null,
       deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
     };
@@ -666,18 +668,52 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) return;
 
+      const teamId = requireTeamId();
       supabase.from('cricket_expenses')
         .insert({
           user_id: userId, season_id: seasonId,
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
           created_by: createdBy ?? null,
-          team_id: requireTeamId(),
+          team_id: teamId,
         })
         .select().single()
-        .then(({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
-          if (error) { console.error('[cricket] addExpense failed:', error); toast.error('Couldn\'t save expense. Check your connection and try again.'); }
-          if (row) { set({ expenses: get().expenses.map((e) => e.id === expenseId ? row : e) }); toast.success('Expense added'); }
+        .then(async ({ data: row, error }: { data: CricketExpense | null; error: unknown }) => {
+          if (error) { console.error('[cricket] addExpense failed:', error); toast.error('Couldn\'t save expense. Check your connection and try again.'); return; }
+          if (row) {
+            set({ expenses: get().expenses.map((e) => e.id === expenseId ? row : e) });
+            // Upload receipts after expense is saved (need server-generated ID for path)
+            if (receiptFiles?.length && teamId) {
+              const uploadToast = toast.loading(`Uploading ${receiptFiles.length} receipt${receiptFiles.length > 1 ? 's' : ''}...`);
+              const urls: string[] = [];
+              for (let i = 0; i < receiptFiles.length; i++) {
+                const blob = receiptFiles[i];
+                const isPdf = blob.type === 'application/pdf';
+                const ext = isPdf ? 'pdf' : 'jpg';
+                const contentType = isPdf ? 'application/pdf' : 'image/jpeg';
+                const fileId = crypto.randomUUID().slice(0, 8);
+                const path = `${teamId}/${row.id}_${fileId}.${ext}`;
+                const { error: uploadErr } = await supabase.storage.from('expense-receipts').upload(path, blob, { upsert: true, contentType });
+                if (uploadErr) {
+                  console.error('[cricket] receipt upload:', uploadErr);
+                } else {
+                  urls.push(`/storage/expense-receipts/${path}`);
+                }
+              }
+              toast.dismiss(uploadToast);
+              if (urls.length > 0) {
+                await supabase.from('cricket_expenses').update({ receipt_urls: urls }).eq('id', row.id);
+                set({ expenses: get().expenses.map((e) => e.id === row.id ? { ...e, receipt_urls: urls } : e) });
+              }
+              if (urls.length < receiptFiles.length) {
+                toast.warning('Expense added but some receipts failed. Edit to retry.');
+              } else {
+                toast.success('Expense added');
+              }
+            } else {
+              toast.success('Expense added');
+            }
+          }
         });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
@@ -698,14 +734,69 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   deleteExpense: (id, deletedBy) => {
     const now = new Date().toISOString();
+    const expense = get().expenses.find((e) => e.id === id);
     set({
-      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: now, deleted_by: deletedBy ?? null } : e),
+      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: now, deleted_by: deletedBy ?? null, receipt_urls: null } : e),
     });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      supabase?.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id).then(({ error }: { error: unknown }) => {
+      if (!supabase) return;
+
+      // Soft-delete the expense row and clear receipt_urls
+      supabase.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null, receipt_urls: null }).eq('id', id).then(({ error }: { error: unknown }) => {
         if (error) { console.error('[cricket] deleteExpense failed:', error); toast.error('Couldn\'t delete expense. Check your connection and try again.'); }
         else toast.success('Expense deleted');
+      });
+
+      // Delete receipt files from storage (fire-and-forget)
+      if (expense?.receipt_urls?.length) {
+        const teamId = getCurrentTeamId();
+        if (teamId) {
+          const paths = expense.receipt_urls.map((url) => {
+            // Extract path from public URL: ...expense-receipts/{team_id}/{file} → {team_id}/{file}
+            const match = url.split('/expense-receipts/')[1];
+            return match ? match.split('?')[0] : null;
+          }).filter(Boolean) as string[];
+          if (paths.length > 0) {
+            supabase.storage.from('expense-receipts').remove(paths).then(({ error }: { error: unknown }) => {
+              if (error) console.error('[cricket] receipt cleanup:', error);
+            });
+          }
+        }
+      }
+    } else {
+      localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
+    }
+  },
+
+  permanentDeleteExpense: (id) => {
+    const expense = get().expenses.find((e) => e.id === id);
+    set({ expenses: get().expenses.filter((e) => e.id !== id) });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      // Delete receipt files from storage
+      if (expense?.receipt_urls?.length) {
+        const teamId = getCurrentTeamId();
+        if (teamId) {
+          const paths = expense.receipt_urls.map((url) => {
+            const match = url.split('/expense-receipts/')[1];
+            return match ? match.split('?')[0] : null;
+          }).filter(Boolean) as string[];
+          if (paths.length > 0) {
+            supabase.storage.from('expense-receipts').remove(paths).then(({ error }: { error: unknown }) => {
+              if (error) console.error('[cricket] receipt cleanup:', error);
+            });
+          }
+        }
+      }
+
+      // Hard delete the row
+      supabase.from('cricket_expenses').delete().eq('id', id).then(({ error }: { error: unknown }) => {
+        if (error) { console.error('[cricket] permanentDeleteExpense failed:', error); toast.error('Couldn\'t permanently delete expense.'); }
+        else toast.success('Expense permanently deleted');
       });
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });

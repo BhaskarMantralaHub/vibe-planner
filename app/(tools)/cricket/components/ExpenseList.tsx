@@ -11,15 +11,17 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
   FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
 };
 import { formatCurrency, formatDate } from '../lib/utils';
-import { EmptyState, FilterDropdown, Text, CardMenu } from '@/components/ui';
-import { TriangleAlert, CircleCheck, Wallet, EllipsisVertical, Pencil, Trash2 } from 'lucide-react';
+import { EmptyState, FilterDropdown, Text, CardMenu, Spinner } from '@/components/ui';
+import { TriangleAlert, CircleCheck, Wallet, EllipsisVertical, Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { compressReceiptImage } from '../lib/image';
+import { toast } from 'sonner';
 
-/* ── Expense Card Menu ── */
-// ExpenseMenu replaced by shared CardMenu
+const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 
 /* ── Delete Confirm ── */
-function DeleteConfirm({ description, onConfirm, onCancel }: { description: string; onConfirm: () => void; onCancel: () => void }) {
+function DeleteConfirm({ description, permanent, onConfirm, onCancel }: { description: string; permanent?: boolean; onConfirm: () => void; onCancel: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
       style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onCancel}>
@@ -31,8 +33,10 @@ function DeleteConfirm({ description, onConfirm, onCancel }: { description: stri
             <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
           <div>
-            <p className="text-[15px] font-semibold text-[var(--text)]">Delete Expense</p>
-            <p className="text-[13px] text-[var(--muted)]">Remove <b>{description}</b>?</p>
+            <p className="text-[15px] font-semibold text-[var(--text)]">{permanent ? 'Delete Permanently' : 'Delete Expense'}</p>
+            <p className="text-[13px] text-[var(--muted)]">
+              {permanent ? <>Permanently delete <b>{description}</b>? This cannot be undone.</> : <>Remove <b>{description}</b>?</>}
+            </p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
@@ -42,7 +46,7 @@ function DeleteConfirm({ description, onConfirm, onCancel }: { description: stri
           </button>
           <button onClick={onConfirm}
             className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">
-            Delete
+            {permanent ? 'Delete Forever' : 'Delete'}
           </button>
         </div>
       </div>
@@ -51,16 +55,62 @@ function DeleteConfirm({ description, onConfirm, onCancel }: { description: stri
   );
 }
 
-/* ── Inline Edit Form ── */
+/* ── Inline Edit Form with Receipt Upload ── */
 function InlineEditForm({ expense, onSave, onCancel }: {
-  expense: { category: string; description: string; amount: number; expense_date: string };
-  onSave: (updates: { category: string; description: string; amount: number; expense_date: string }) => void;
+  expense: { id: string; category: string; description: string; amount: number; expense_date: string; receipt_urls: string[] | null };
+  onSave: (updates: { category: string; description: string; amount: number; expense_date: string; receipt_urls?: string[] | null }, newReceiptFiles?: Blob[]) => void;
   onCancel: () => void;
 }) {
   const [cat, setCat] = useState(expense.category);
   const [desc, setDesc] = useState(expense.description);
   const [amt, setAmt] = useState(String(expense.amount));
   const [date, setDate] = useState(expense.expense_date);
+  const [existingUrls, setExistingUrls] = useState<string[]>(expense.receipt_urls ?? []);
+  const [newFiles, setNewFiles] = useState<{ preview: string; compressed: Blob | null; isPdf: boolean }[]>([]);
+  const [compressing, setCompressing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        toast.error(`${file.name}: only images and PDFs are supported.`);
+        continue;
+      }
+      const filePdf = file.type === 'application/pdf';
+      const preview = filePdf ? '' : URL.createObjectURL(file);
+      if (filePdf) {
+        setNewFiles((prev) => [...prev, { preview, compressed: file, isPdf: true }]);
+      } else {
+        setNewFiles((prev) => [...prev, { preview, compressed: null, isPdf: false }]);
+        setCompressing(true);
+        try {
+          const compressed = await compressReceiptImage(file);
+          setNewFiles((prev) => prev.map((f) => f.preview === preview ? { ...f, compressed } : f));
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : `Failed to compress ${file.name}`);
+          setNewFiles((prev) => prev.filter((f) => f.preview !== preview));
+        } finally {
+          setCompressing(false);
+        }
+      }
+    }
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const removeExisting = (index: number) => setExistingUrls((prev) => prev.filter((_, i) => i !== index));
+  const removeNew = (index: number) => {
+    setNewFiles((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  useEffect(() => {
+    return () => { newFiles.forEach((f) => URL.revokeObjectURL(f.preview)); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -92,16 +142,90 @@ function InlineEditForm({ expense, onSave, onCancel }: {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
           className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
       </div>
+
+      {/* Receipt management */}
+      <div>
+        <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" aria-label="Select receipt images or PDFs" onChange={handleFiles} />
+
+        {(existingUrls.length > 0 || newFiles.length > 0) && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {existingUrls.map((url, i) => (
+              <div key={`existing-${i}`} className="relative">
+                {isUrlPdf(url) ? (
+                  <div className="h-16 w-16 rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-0.5">
+                    <FileText size={20} className="text-red-500" />
+                    <span className="text-[8px] font-bold text-[var(--muted)] uppercase">PDF</span>
+                  </div>
+                ) : (
+                  <img src={url} alt={`Receipt ${i + 1}`} className="h-16 w-16 rounded-lg object-cover border border-[var(--border)]"
+                    onError={(ev) => { ev.currentTarget.style.display = 'none'; }} />
+                )}
+                <button onClick={() => removeExisting(i)}
+                  aria-label={`Remove receipt ${i + 1}`}
+                  className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90">
+                  <span className="h-5 w-5 rounded-full bg-black/70 flex items-center justify-center">
+                    <X size={10} className="text-white" />
+                  </span>
+                </button>
+              </div>
+            ))}
+            {newFiles.map((f, i) => (
+              <div key={`new-${i}`} className="relative">
+                {f.isPdf ? (
+                  <div className="h-16 w-16 rounded-lg border-2 border-dashed border-[var(--cricket)] bg-[var(--surface)] flex flex-col items-center justify-center gap-0.5">
+                    <FileText size={20} className="text-red-500" />
+                    <span className="text-[8px] font-bold text-[var(--muted)] uppercase">PDF</span>
+                  </div>
+                ) : (
+                  <img src={f.preview} alt={`New receipt ${i + 1}`} className="h-16 w-16 rounded-lg object-cover border-2 border-dashed border-[var(--cricket)]" />
+                )}
+                <button onClick={() => removeNew(i)}
+                  aria-label={`Remove new receipt ${i + 1}`}
+                  className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90">
+                  <span className="h-5 w-5 rounded-full bg-black/70 flex items-center justify-center">
+                    <X size={10} className="text-white" />
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={() => fileRef.current?.click()} disabled={compressing}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 min-h-[44px] border-2 border-dashed cursor-pointer active:scale-[0.98] transition-all"
+          style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 4%, transparent)' }}>
+          {compressing ? (
+            <>
+              <Spinner size="sm" />
+              <span className="text-[12px] font-medium text-[var(--muted)]">Compressing...</span>
+            </>
+          ) : (
+            <>
+              <Camera size={16} style={{ color: 'var(--cricket)' }} />
+              <span className="text-[12px] font-semibold" style={{ color: 'var(--cricket)' }}>
+                {existingUrls.length + newFiles.length > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
+              </span>
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel}
           className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">
           Cancel
         </button>
-        <button onClick={() => onSave({ category: cat, description: desc, amount: parseFloat(amt), expense_date: date })}
-          disabled={!amt}
+        <button onClick={() => {
+          const blobs = newFiles.map((f) => f.compressed).filter(Boolean) as Blob[];
+          onSave(
+            { category: cat, description: desc, amount: parseFloat(amt), expense_date: date, receipt_urls: existingUrls.length > 0 ? existingUrls : null },
+            blobs.length > 0 ? blobs : undefined,
+          );
+        }}
+          disabled={!amt || compressing}
           className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white cursor-pointer disabled:opacity-40"
           style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}>
-          Save
+          {compressing ? 'Compressing...' : 'Save'}
         </button>
       </div>
     </div>
@@ -111,11 +235,12 @@ function InlineEditForm({ expense, onSave, onCancel }: {
 export default function ExpenseList() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { expenses, fees, sponsorships, players, selectedSeasonId, deleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
+  const { expenses, fees, sponsorships, players, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string } | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string; permanent?: boolean } | null>(null);
   const [editingExpense, setEditingExpense] = useState<string | null>(null);
+  const [expandedExpense, setExpandedExpense] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -136,6 +261,42 @@ export default function ExpenseList() {
   const perPerson = activePlayers.length > 0 ? Math.ceil(Math.abs(poolBalance) / activePlayers.length) : 0;
 
   const currentUserName = (user?.user_metadata?.full_name as string) || user?.email || '';
+
+  const handleEditSave = async (
+    expenseId: string,
+    updates: { category: string; description: string; amount: number; expense_date: string; receipt_urls?: string[] | null },
+    newReceiptFiles?: Blob[],
+  ) => {
+    const teamId = useAuthStore.getState().currentTeamId;
+
+    if (newReceiptFiles?.length && isCloudMode() && teamId) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const existingUrls = updates.receipt_urls ?? [];
+        const startIndex = existingUrls.length;
+        const uploadedUrls: string[] = [...existingUrls];
+
+        for (let i = 0; i < newReceiptFiles.length; i++) {
+          const blob = newReceiptFiles[i];
+          const blobIsPdf = blob.type === 'application/pdf';
+          const ext = blobIsPdf ? 'pdf' : 'jpg';
+          const contentType = blobIsPdf ? 'application/pdf' : 'image/jpeg';
+          const fileId = crypto.randomUUID().slice(0, 8);
+          const path = `${teamId}/${expenseId}_${fileId}.${ext}`;
+          const { error } = await supabase.storage.from('expense-receipts').upload(path, blob, { upsert: true, contentType });
+          if (!error) {
+            uploadedUrls.push(`/storage/expense-receipts/${path}`);
+          } else {
+            console.error('[cricket] receipt upload:', error);
+          }
+        }
+        updates.receipt_urls = uploadedUrls.length > 0 ? uploadedUrls : null;
+      }
+    }
+
+    updateExpense(expenseId, updates as Partial<import('@/types/cricket').CricketExpense>, currentUserName);
+    setEditingExpense(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -198,13 +359,10 @@ export default function ExpenseList() {
                   </span>
                 </div>
                 <div className="relative h-3 rounded-full overflow-hidden flex" style={{ background: 'var(--border)' }}>
-                  {/* Fees portion */}
                   <div className="h-full transition-all duration-700" style={{ width: `${feesPct}%`, background: 'linear-gradient(90deg, #059669, #10B981)' }} />
-                  {/* Sponsors portion */}
                   {totalSponsorship > 0 && (
                     <div className="h-full transition-all duration-700" style={{ width: `${100 - feesPct}%`, background: 'linear-gradient(90deg, var(--cricket-accent), var(--cricket))' }} />
                   )}
-                  {/* Spent overlay hatching */}
                   <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 pointer-events-none"
                     style={{
                       width: `${spentPct}%`,
@@ -279,8 +437,11 @@ export default function ExpenseList() {
           <div className="space-y-2">
             {(categoryFilter ? seasonExpenses.filter((e) => e.category === categoryFilter) : seasonExpenses).map((e) => {
               const cfg = getCategoryConfig(e.category);
+              const hasReceipts = e.receipt_urls && e.receipt_urls.length > 0;
+              const isExpanded = expandedExpense === e.id;
+
               return (
-                <div key={e.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 overflow-hidden"
+                <div key={e.id} className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
                   style={{ borderLeftWidth: '4px', borderLeftColor: cfg.color }}>
 
                   {/* Three-dot menu */}
@@ -289,7 +450,7 @@ export default function ExpenseList() {
                       <button
                         ref={openMenu === e.id ? menuBtnRef : null}
                         onClick={() => setOpenMenu(openMenu === e.id ? null : e.id)}
-                        className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors">
+                        className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10">
                         <EllipsisVertical size={12} />
                       </button>
 
@@ -306,69 +467,128 @@ export default function ExpenseList() {
                     </>
                   )}
 
-                  {editingExpense === e.id ? (
-                    <InlineEditForm
-                      expense={e}
-                      onSave={(updates) => { updateExpense(e.id, updates as Partial<typeof e>, currentUserName); setEditingExpense(null); }}
-                      onCancel={() => setEditingExpense(null)}
-                    />
-                  ) : (
-                    <>
-                      <div className="flex items-start gap-3 pr-8">
-                        {/* Category icon */}
-                        <div className="flex-shrink-0">
-                          {(() => {
-                            const Icon = CATEGORY_ICONS[cfg.iconName];
-                            return (
-                              <div className="h-10 w-10 rounded-xl flex items-center justify-center"
-                                style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
-                                {Icon && <Icon size={18} style={{ color: cfg.color }} />}
-                              </div>
-                            );
-                          })()}
+                  <div className="p-3">
+                    {editingExpense === e.id ? (
+                      <InlineEditForm
+                        expense={e}
+                        onSave={(updates, newFiles) => handleEditSave(e.id, updates, newFiles)}
+                        onCancel={() => setEditingExpense(null)}
+                      />
+                    ) : (
+                      <>
+                        {/* Card content — tappable to expand if receipts exist */}
+                        <div
+                          className={hasReceipts ? 'cursor-pointer' : ''}
+                          onClick={() => hasReceipts && setExpandedExpense(isExpanded ? null : e.id)}
+                        >
+                          <div className="flex items-start gap-3 pr-8">
+                            {/* Category icon */}
+                            <div className="flex-shrink-0">
+                              {(() => {
+                                const Icon = CATEGORY_ICONS[cfg.iconName];
+                                return (
+                                  <div className="h-10 w-10 rounded-xl flex items-center justify-center"
+                                    style={{ backgroundColor: `${cfg.color}15`, border: `1.5px solid ${cfg.color}30` }}>
+                                    {Icon && <Icon size={18} style={{ color: cfg.color }} />}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <Text as="p" size="md" weight="semibold" truncate className="sm:text-[15px]">
+                                {e.description || cfg.label}
+                              </Text>
+                              <Text as="p" size="xs" color="muted" className="mt-0.5">
+                                {formatDate(e.expense_date)}
+                              </Text>
+                            </div>
+
+                            {/* Amount */}
+                            <div className="flex-shrink-0 text-right">
+                              <Text as="p" size="lg" weight="bold" className="sm:text-[18px]">
+                                {formatCurrency(Number(e.amount))}
+                              </Text>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <Text as="p" size="md" weight="semibold" truncate className="sm:text-[15px]">
-                            {e.description || cfg.label}
-                          </Text>
-                          <Text as="p" size="xs" color="muted" className="mt-0.5">
-                            {formatDate(e.expense_date)}
-                          </Text>
-                        </div>
+                        {/* Receipt badge + expand indicator */}
+                        {hasReceipts && (
+                          <button
+                            onClick={() => setExpandedExpense(isExpanded ? null : e.id)}
+                            aria-expanded={isExpanded}
+                            className="mt-2 py-1.5 flex items-center gap-1.5 min-h-[44px] cursor-pointer active:scale-95 transition-transform"
+                          >
+                            <Receipt size={12} style={{ color: 'var(--cricket)' }} />
+                            <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--cricket)' }}>
+                              {e.receipt_urls!.length} Receipt{e.receipt_urls!.length > 1 ? 's' : ''}
+                            </span>
+                            <ChevronDown
+                              size={12}
+                              style={{ color: 'var(--cricket)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}
+                            />
+                          </button>
+                        )}
 
-                        {/* Amount */}
-                        <div className="flex-shrink-0 text-right">
-                          <Text as="p" size="lg" weight="bold" className="sm:text-[18px]">
-                            {formatCurrency(Number(e.amount))}
-                          </Text>
-                        </div>
-                      </div>
+                        {/* Expanded receipts */}
+                        {isExpanded && hasReceipts && (
+                          <div className="mt-2 pt-2 border-t border-[var(--border)]/30">
+                            <div className="flex flex-wrap gap-2">
+                              {e.receipt_urls!.map((url, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => window.open(url, '_blank')}
+                                  aria-label={`Open receipt ${i + 1}${isUrlPdf(url) ? ' (PDF)' : ''}`}
+                                  className="relative group cursor-pointer active:scale-95 transition-transform"
+                                >
+                                  {isUrlPdf(url) ? (
+                                    <div className="h-20 w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1">
+                                      <FileText size={28} className="text-red-500" />
+                                      <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wide">PDF</span>
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={url}
+                                      alt={`Receipt ${i + 1}`}
+                                      className="h-20 w-20 rounded-lg object-cover border border-[var(--border)]"
+                                      onError={(ev) => { ev.currentTarget.style.opacity = '0.3'; }}
+                                    />
+                                  )}
+                                  <div className="absolute inset-0 rounded-lg bg-black/10 sm:bg-black/0 sm:group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <ExternalLink size={16} className="text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                      {/* Footer */}
-                      <div className="mt-2.5 pt-2 border-t border-[var(--border)]/30 space-y-1 text-[11px]">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-                            style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-                            Added
-                          </span>
-                          <span className="text-[var(--text)] font-bold">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
-                          {e.created_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.created_by}</span></span>}
-                        </div>
-                        {e.updated_at && e.updated_at !== e.created_at && (
+                        {/* Footer */}
+                        <div className="mt-2.5 pt-2 border-t border-[var(--border)]/30 space-y-1 text-[11px]">
                           <div className="flex items-center gap-2">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
                               style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-                              Updated
+                              Added
                             </span>
-                            <span className="text-[var(--text)] font-bold">{formatDate(e.updated_at.split('T')[0])}</span>
-                            {e.updated_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.updated_by}</span></span>}
+                            <span className="text-[var(--text)] font-bold">{formatDate(e.created_at?.split('T')[0] || e.expense_date)}</span>
+                            {e.created_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.created_by}</span></span>}
                           </div>
-                        )}
-                      </div>
-                    </>
-                  )}
+                          {e.updated_at && e.updated_at !== e.created_at && (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                                style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
+                                Updated
+                              </span>
+                              <span className="text-[var(--text)] font-bold">{formatDate(e.updated_at.split('T')[0])}</span>
+                              {e.updated_by && <span className="text-[var(--muted)] font-medium">by <span className="text-[var(--text)] font-bold">{e.updated_by}</span></span>}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -409,13 +629,22 @@ export default function ExpenseList() {
                       </Text>
                     </div>
                     <Text size="md" weight="bold" className="flex-shrink-0">{formatCurrency(Number(e.amount))}</Text>
-                    <button
-                      onClick={() => restoreExpense(e.id)}
-                      className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
-                      style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}
-                    >
-                      Restore
-                    </button>
+                    <div className="flex-shrink-0 flex gap-1.5">
+                      <button
+                        onClick={() => restoreExpense(e.id)}
+                        className="rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
+                        style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => setDeletingExpense({ id: e.id, desc: e.description || cfg.label, permanent: true })}
+                        className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
+                        style={{ background: 'var(--surface)', color: 'var(--red)', border: '1.5px solid color-mix(in srgb, var(--red) 30%, var(--border))' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -428,7 +657,15 @@ export default function ExpenseList() {
       {deletingExpense && (
         <DeleteConfirm
           description={deletingExpense.desc}
-          onConfirm={() => { deleteExpense(deletingExpense.id, currentUserName); setDeletingExpense(null); }}
+          permanent={deletingExpense.permanent}
+          onConfirm={() => {
+            if (deletingExpense.permanent) {
+              permanentDeleteExpense(deletingExpense.id);
+            } else {
+              deleteExpense(deletingExpense.id, currentUserName);
+            }
+            setDeletingExpense(null);
+          }}
           onCancel={() => setDeletingExpense(null)}
         />
       )}

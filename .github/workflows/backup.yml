@@ -209,7 +209,7 @@ jobs:
           export RCLONE_CONFIG_R2_ACL=private
           export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
-          BUCKETS=("player-photos" "gallery-photos" "team-logos")
+          BUCKETS=("player-photos" "gallery-photos" "team-logos" "expense-receipts")
           TOTAL_FILES=0
           ERRORS=0
 
