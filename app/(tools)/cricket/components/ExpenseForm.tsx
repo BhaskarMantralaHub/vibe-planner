@@ -112,11 +112,15 @@ export default function ExpenseForm() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeReceipt = (index: number) => {
+  const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
+
+  const removeReceipt = () => {
+    if (pendingRemoveIdx === null) return;
     setReceiptFiles((prev) => {
-      URL.revokeObjectURL(prev[index].preview);
-      return prev.filter((_, i) => i !== index);
+      if (prev[pendingRemoveIdx]?.preview) URL.revokeObjectURL(prev[pendingRemoveIdx].preview);
+      return prev.filter((_, i) => i !== pendingRemoveIdx);
     });
+    setPendingRemoveIdx(null);
   };
 
   const resetAndClose = () => {
@@ -262,7 +266,7 @@ export default function ExpenseForm() {
                     />
                   )}
                   <button
-                    onClick={() => removeReceipt(i)}
+                    onClick={() => setPendingRemoveIdx(i)}
                     aria-label={`Remove receipt ${i + 1}`}
                     className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
                   >
@@ -277,6 +281,30 @@ export default function ExpenseForm() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Inline remove confirmation */}
+          {pendingRemoveIdx !== null && (
+            <div className="rounded-xl p-3 mb-2 space-y-2.5"
+              style={{ background: '#EF44440A', border: '1px solid #EF444425' }}>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EF444415' }}>
+                  <X size={14} style={{ color: '#EF4444' }} />
+                </div>
+                <Text size="sm" weight="medium">Remove <Text weight="bold">Receipt {pendingRemoveIdx + 1}</Text>?</Text>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingRemoveIdx(null)}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
+                  Cancel
+                </button>
+                <button onClick={removeReceipt}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-bold text-white cursor-pointer active:scale-95"
+                  style={{ background: '#EF4444' }}>
+                  Remove
+                </button>
+              </div>
             </div>
           )}
 

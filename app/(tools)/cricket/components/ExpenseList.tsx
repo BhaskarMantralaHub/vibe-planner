@@ -68,7 +68,7 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
   const [amt, setAmt] = useState(String(expense.amount));
   const [date, setDate] = useState(expense.expense_date);
   const [existingUrls, setExistingUrls] = useState<string[]>(expense.receipt_urls ?? []);
-  const [newFiles, setNewFiles] = useState<{ preview: string; compressed: Blob | null; isPdf: boolean }[]>([]);
+  const [newFiles, setNewFiles] = useState<{ preview: string; compressed: Blob | null; isPdf: boolean; fileName: string }[]>([]);
   const [compressing, setCompressing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -83,9 +83,9 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
       const filePdf = file.type === 'application/pdf';
       const preview = filePdf ? '' : URL.createObjectURL(file);
       if (filePdf) {
-        setNewFiles((prev) => [...prev, { preview, compressed: file, isPdf: true }]);
+        setNewFiles((prev) => [...prev, { preview, compressed: file, isPdf: true, fileName: file.name }]);
       } else {
-        setNewFiles((prev) => [...prev, { preview, compressed: null, isPdf: false }]);
+        setNewFiles((prev) => [...prev, { preview, compressed: null, isPdf: false, fileName: file.name }]);
         setCompressing(true);
         try {
           const compressed = await compressReceiptImage(file);
@@ -101,12 +101,17 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const removeExisting = (index: number) => setExistingUrls((prev) => prev.filter((_, i) => i !== index));
-  const removeNew = (index: number) => {
-    setNewFiles((prev) => {
-      URL.revokeObjectURL(prev[index].preview);
-      return prev.filter((_, i) => i !== index);
-    });
+  const [pendingRemove, setPendingRemove] = useState<{ type: 'existing' | 'new'; index: number } | null>(null);
+
+  const confirmRemove = () => {
+    if (!pendingRemove) return;
+    if (pendingRemove.type === 'existing') {
+      setExistingUrls((prev) => prev.filter((_, i) => i !== pendingRemove.index));
+    } else {
+      URL.revokeObjectURL(newFiles[pendingRemove.index].preview);
+      setNewFiles((prev) => prev.filter((_, i) => i !== pendingRemove.index));
+    }
+    setPendingRemove(null);
   };
 
   useEffect(() => {
@@ -187,17 +192,18 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
                   {isUrlPdf(url) ? (
                     <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
                       <FileText size={22} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
-                        Invoice {i + 1}
-                      </span>
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight">Receipt {i + 1}.pdf</span>
                     </div>
                   ) : (
                     <img src={url} alt={`Receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)]"
                       onError={(ev) => { ev.currentTarget.style.opacity = '0.3'; }} />
                   )}
-                  <button onClick={() => removeExisting(i)} aria-label={`Remove receipt ${i + 1}`}
+                  <button onClick={() => setPendingRemove({ type: 'existing', index: i })}
+                    aria-label={`Remove receipt ${i + 1}`}
                     className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90">
-                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center"><X size={12} className="text-white" /></span>
+                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
+                      <X size={12} className="text-white" />
+                    </span>
                   </button>
                 </div>
               ))}
@@ -206,20 +212,49 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
                   {f.isPdf ? (
                     <div className="h-20 w-20 rounded-xl border-2 border-dashed border-[var(--cricket)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
                       <FileText size={22} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight">New PDF</span>
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
+                        {f.fileName.length > 14 ? f.fileName.slice(0, 12) + '…' : f.fileName}
+                      </span>
                     </div>
                   ) : (
                     <img src={f.preview} alt={`New receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border-2 border-dashed border-[var(--cricket)]" />
                   )}
-                  <button onClick={() => removeNew(i)} aria-label={`Remove new receipt ${i + 1}`}
+                  <button onClick={() => setPendingRemove({ type: 'new', index: i })}
+                    aria-label={`Remove new receipt ${i + 1}`}
                     className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90">
-                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center"><X size={12} className="text-white" /></span>
+                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
+                      <X size={12} className="text-white" />
+                    </span>
                   </button>
                   {!f.compressed && (
                     <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center"><Spinner size="sm" /></div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Inline remove confirmation */}
+          {pendingRemove && (
+            <div className="rounded-xl p-3 mb-2 space-y-2.5"
+              style={{ background: '#EF44440A', border: '1px solid #EF444425' }}>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EF444415' }}>
+                  <Trash2 size={14} style={{ color: '#EF4444' }} />
+                </div>
+                <Text size="sm" weight="medium">Remove <Text weight="bold">Receipt {pendingRemove.index + 1}</Text>?</Text>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingRemove(null)}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
+                  Cancel
+                </button>
+                <button onClick={confirmRemove}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-bold text-white cursor-pointer active:scale-95"
+                  style={{ background: '#EF4444' }}>
+                  Remove
+                </button>
+              </div>
             </div>
           )}
 
@@ -251,7 +286,6 @@ export default function ExpenseList() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string; permanent?: boolean } | null>(null);
   const [editingExpense, setEditingExpense] = useState<typeof seasonExpenses[0] | null>(null);
-  const [expandedExpense, setExpandedExpense] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -390,7 +424,6 @@ export default function ExpenseList() {
             {(categoryFilter ? seasonExpenses.filter((e) => e.category === categoryFilter) : seasonExpenses).map((e) => {
               const cfg = getCategoryConfig(e.category);
               const hasReceipts = e.receipt_urls && e.receipt_urls.length > 0;
-              const isExpanded = expandedExpense === e.id;
               const pctOfTotal = totalSpent > 0 ? (Number(e.amount) / totalSpent) * 100 : 0;
 
               return (
@@ -448,62 +481,39 @@ export default function ExpenseList() {
                         </div>
 
                         {/* Secondary row: category + date */}
-                        <div className="flex items-center justify-between mt-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold"
-                              style={{ background: `${cfg.color}12`, color: cfg.color }}>
-                              {cfg.label}
-                            </span>
-                            <Text size="2xs" color="muted">{formatDate(e.expense_date)}</Text>
-                          </div>
-                          {hasReceipts && (
-                            <button
-                              onClick={(ev) => { ev.stopPropagation(); setExpandedExpense(isExpanded ? null : e.id); }}
-                              aria-expanded={isExpanded}
-                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer active:scale-95 transition-all"
-                              style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)' }}
-                            >
-                              <Receipt size={11} style={{ color: 'var(--cricket)' }} />
-                              <Text size="2xs" weight="bold" style={{ color: 'var(--cricket)' }}>
-                                {e.receipt_urls!.length}
-                              </Text>
-                              <ChevronDown size={9} style={{ color: 'var(--cricket)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-                            </button>
-                          )}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                            style={{ background: `${cfg.color}12`, color: cfg.color }}>
+                            {cfg.label}
+                          </span>
+                          <Text size="2xs" color="muted">{formatDate(e.expense_date)}</Text>
                         </div>
 
-                        {/* Expanded receipts */}
-                        {isExpanded && hasReceipts && (
-                          <div className="mt-2 pt-2 border-t border-[var(--border)]/30">
-                            <div className="flex flex-wrap gap-2">
-                              {e.receipt_urls!.map((url, i) => (
+                        {/* Attachments — inline file list */}
+                        {hasReceipts && (
+                          <div className="mt-2 space-y-0.5">
+                            {e.receipt_urls!.map((url, i) => {
+                              const pdf = isUrlPdf(url);
+                              const ext = pdf ? '.pdf' : '.jpg';
+                              const label = `Receipt ${i + 1}${ext}`;
+                              return (
                                 <button
                                   key={i}
                                   onClick={() => window.open(url, '_blank')}
-                                  aria-label={`Open receipt ${i + 1}${isUrlPdf(url) ? ' (PDF)' : ''}`}
-                                  className="relative group cursor-pointer active:scale-95 transition-transform"
+                                  className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
                                 >
-                                  {isUrlPdf(url) ? (
-                                    <div className="h-20 w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
-                                      <FileText size={22} className="text-red-500" />
-                                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
-                                        Invoice {i + 1}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <img
-                                      src={url}
-                                      alt={`Receipt ${i + 1}`}
-                                      className="h-20 w-20 rounded-lg object-cover border border-[var(--border)]"
-                                      onError={(ev) => { ev.currentTarget.style.opacity = '0.3'; }}
-                                    />
-                                  )}
-                                  <div className="absolute inset-0 rounded-lg bg-black/10 sm:bg-black/0 sm:group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                    <ExternalLink size={16} className="text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                  <div className="h-6 w-6 rounded flex items-center justify-center flex-shrink-0"
+                                    style={{ background: pdf ? '#EF444412' : 'color-mix(in srgb, var(--cricket) 10%, transparent)' }}>
+                                    {pdf
+                                      ? <FileText size={13} style={{ color: '#EF4444' }} />
+                                      : <Receipt size={13} style={{ color: 'var(--cricket)' }} />
+                                    }
                                   </div>
+                                  <Text size="2xs" weight="medium" className="flex-1 text-left">{label}</Text>
+                                  <ExternalLink size={11} className="flex-shrink-0 text-[var(--muted)]" />
                                 </button>
-                              ))}
-                            </div>
+                              );
+                            })}
                           </div>
                         )}
                   </div>
