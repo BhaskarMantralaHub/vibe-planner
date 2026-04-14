@@ -185,9 +185,11 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
               {existingUrls.map((url, i) => (
                 <div key={`existing-${i}`} className="relative">
                   {isUrlPdf(url) ? (
-                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1">
-                      <FileText size={24} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] uppercase">PDF</span>
+                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
+                      <FileText size={22} className="text-red-500" />
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
+                        Invoice {i + 1}
+                      </span>
                     </div>
                   ) : (
                     <img src={url} alt={`Receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)]"
@@ -202,9 +204,9 @@ function EditExpenseDrawer({ expense, onSave, onClose }: {
               {newFiles.map((f, i) => (
                 <div key={`new-${i}`} className="relative animate-fade-in">
                   {f.isPdf ? (
-                    <div className="h-20 w-20 rounded-xl border-2 border-dashed border-[var(--cricket)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1">
-                      <FileText size={24} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] uppercase">PDF</span>
+                    <div className="h-20 w-20 rounded-xl border-2 border-dashed border-[var(--cricket)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
+                      <FileText size={22} className="text-red-500" />
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight">New PDF</span>
                     </div>
                   ) : (
                     <img src={f.preview} alt={`New receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border-2 border-dashed border-[var(--cricket)]" />
@@ -294,8 +296,7 @@ export default function ExpenseList() {
           const path = `${teamId}/${expenseId}_${fileId}.${ext}`;
           const { error } = await supabase.storage.from('expense-receipts').upload(path, blob, { upsert: true, contentType });
           if (!error) {
-            const { data: { publicUrl } } = supabase.storage.from('expense-receipts').getPublicUrl(path);
-            uploadedUrls.push(publicUrl);
+            uploadedUrls.push(`/storage/expense-receipts/${path}`);
           } else {
             console.error('[cricket] receipt upload:', error);
           }
@@ -446,24 +447,27 @@ export default function ExpenseList() {
                           </div>
                         </div>
 
-                        {/* Secondary row: category badge + date + receipt indicator */}
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold"
-                            style={{ background: `${cfg.color}12`, color: cfg.color }}>
-                            {cfg.label}
-                          </span>
-                          <Text size="2xs" color="muted">·</Text>
-                          <Text size="2xs" color="muted">{formatDate(e.expense_date)}</Text>
+                        {/* Secondary row: category + date */}
+                        <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                              style={{ background: `${cfg.color}12`, color: cfg.color }}>
+                              {cfg.label}
+                            </span>
+                            <Text size="2xs" color="muted">{formatDate(e.expense_date)}</Text>
+                          </div>
                           {hasReceipts && (
                             <button
-                              onClick={() => setExpandedExpense(isExpanded ? null : e.id)}
+                              onClick={(ev) => { ev.stopPropagation(); setExpandedExpense(isExpanded ? null : e.id); }}
                               aria-expanded={isExpanded}
-                              className="flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
+                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer active:scale-95 transition-all"
+                              style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)' }}
                             >
-                              <Text size="2xs" weight="semibold" style={{ color: 'var(--cricket)' }}>
-                                · {e.receipt_urls!.length} receipt{e.receipt_urls!.length > 1 ? 's' : ''}
+                              <Receipt size={11} style={{ color: 'var(--cricket)' }} />
+                              <Text size="2xs" weight="bold" style={{ color: 'var(--cricket)' }}>
+                                {e.receipt_urls!.length}
                               </Text>
-                              <ChevronDown size={10} style={{ color: 'var(--cricket)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+                              <ChevronDown size={9} style={{ color: 'var(--cricket)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
                             </button>
                           )}
                         </div>
@@ -480,9 +484,11 @@ export default function ExpenseList() {
                                   className="relative group cursor-pointer active:scale-95 transition-transform"
                                 >
                                   {isUrlPdf(url) ? (
-                                    <div className="h-20 w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1">
-                                      <FileText size={28} className="text-red-500" />
-                                      <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wide">PDF</span>
+                                    <div className="h-20 w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
+                                      <FileText size={22} className="text-red-500" />
+                                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
+                                        Invoice {i + 1}
+                                      </span>
                                     </div>
                                   ) : (
                                     <img

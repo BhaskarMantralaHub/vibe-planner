@@ -248,9 +248,11 @@ export default function ExpenseForm() {
               {receiptFiles.map((r, i) => (
                 <div key={r.preview || `pdf-${i}`} className="relative animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
                   {isPdf(r.file) ? (
-                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1">
-                      <FileText size={24} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wide">PDF</span>
+                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
+                      <FileText size={22} className="text-red-500" />
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
+                        {r.file.name.length > 12 ? r.file.name.slice(0, 10) + '…' : r.file.name}
+                      </span>
                     </div>
                   ) : (
                     <img
