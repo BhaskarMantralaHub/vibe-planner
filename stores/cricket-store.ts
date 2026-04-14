@@ -734,36 +734,16 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
   deleteExpense: (id, deletedBy) => {
     const now = new Date().toISOString();
-    const expense = get().expenses.find((e) => e.id === id);
+    // Soft delete only — keep receipt_urls and storage files intact for restore
     set({
-      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: now, deleted_by: deletedBy ?? null, receipt_urls: null } : e),
+      expenses: get().expenses.map((e) => e.id === id ? { ...e, deleted_at: now, deleted_by: deletedBy ?? null } : e),
     });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
-      if (!supabase) return;
-
-      // Soft-delete the expense row and clear receipt_urls
-      supabase.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null, receipt_urls: null }).eq('id', id).then(({ error }: { error: unknown }) => {
+      supabase?.from('cricket_expenses').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id).then(({ error }: { error: unknown }) => {
         if (error) { console.error('[cricket] deleteExpense failed:', error); toast.error('Couldn\'t delete expense. Check your connection and try again.'); }
         else toast.success('Expense deleted');
       });
-
-      // Delete receipt files from storage (fire-and-forget)
-      if (expense?.receipt_urls?.length) {
-        const teamId = getCurrentTeamId();
-        if (teamId) {
-          const paths = expense.receipt_urls.map((url) => {
-            // Extract path from public URL: ...expense-receipts/{team_id}/{file} → {team_id}/{file}
-            const match = url.split('/expense-receipts/')[1];
-            return match ? match.split('?')[0] : null;
-          }).filter(Boolean) as string[];
-          if (paths.length > 0) {
-            supabase.storage.from('expense-receipts').remove(paths).then(({ error }: { error: unknown }) => {
-              if (error) console.error('[cricket] receipt cleanup:', error);
-            });
-          }
-        }
-      }
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }
