@@ -115,7 +115,7 @@ const CAPSULE_TABS: CapsuleTab[] = [
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId, setShowExpenseForm, players, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
+  const { loadAll, loading, selectedSeasonId, players, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
   const isGlobalAdmin = userAccess.includes('admin');
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
@@ -391,24 +391,6 @@ function CricketDashboard() {
                 <ShareButton />
               </div>
             </>
-          )}
-
-          {/* Action buttons */}
-          {isAdmin && activeView === 'expenses' && (
-            <div className="mb-4 flex items-center gap-2">
-              <Button
-                onClick={() => setShowExpenseForm(true)}
-                disabled={activePlayers.length === 0}
-                variant="primary"
-                brand="cricket"
-                size="md"
-              >
-                + Add Expense
-              </Button>
-              {activePlayers.length === 0 && (
-                <Text as="p" size="sm" color="muted">Add players first</Text>
-              )}
-            </div>
           )}
 
           {/* Summary Stats — show only on players, fees, charts */}
