@@ -8,7 +8,9 @@
 - Keeps last 30 days, auto-deletes older backups
 - Can trigger manually: Actions → Daily Supabase Backup → Run workflow
 - **Failure alerts** — sends email via Resend if backup job fails
-- Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`, `VIBE_PLANNER_BACKUP` (GitHub PAT), `RESEND_API_KEY`, `SUPER_ADMIN_EMAIL`
+- **Storage backup** — syncs all Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`) to Cloudflare R2 (S3-compatible, zero egress fees)
+- Storage sync is incremental — only new/changed files are uploaded each run
+- Secrets required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`, `VIBE_PLANNER_BACKUP` (GitHub PAT), `RESEND_API_KEY`, `SUPER_ADMIN_EMAIL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_BUCKET` (optional, defaults to `vibers-toolkit-backups`)
 
 ## Backed Up Tables (27)
 When creating a new table, you **MUST** add it to both `.github/workflows/backup.yml` and `.github/workflows/restore.yml`.
@@ -52,13 +54,21 @@ When creating a new table, you **MUST** add it to both `.github/workflows/backup
 6. **Restore data** — paste the SQL into Supabase SQL Editor and execute
 7. **Update credentials** — update `.env.local` with new `SUPABASE_URL` and `SUPABASE_ANON_KEY`
 8. **Update GitHub secrets** — update `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_DB_PASSWORD` in repo settings
-9. **Storage images** — NOT backed up. Player photos and gallery photos would need to be re-uploaded.
+9. **Restore storage images** — download from R2 backup and re-upload to new Supabase Storage buckets:
+   ```bash
+   # Install rclone, configure with R2 credentials, then:
+   rclone copy r2:vibers-toolkit-backups/player-photos ./player-photos
+   rclone copy r2:vibers-toolkit-backups/gallery-photos ./gallery-photos
+   rclone copy r2:vibers-toolkit-backups/team-logos ./team-logos
+   # Then upload to new Supabase Storage via dashboard or supabase CLI
+   ```
 
 ## What's Backed Up vs Not
 
 | Backed up | Not backed up |
 |-----------|---------------|
-| All table data (JSON) | Storage bucket images |
-| Schema + RPCs + triggers (`schema.sql` dump) | Auth user passwords/sessions |
-| RLS policies (`schema.sql` dump) | Supabase project config |
-| Role grants (`roles.sql` dump) | Edge Functions (deploy from git) |
+| All table data (JSON → private git repo) | Auth user passwords/sessions |
+| Schema + RPCs + triggers (`schema.sql` dump) | Supabase project config |
+| RLS policies (`schema.sql` dump) | Edge Functions (deploy from git) |
+| Role grants (`roles.sql` dump) | |
+| Storage images (player-photos, gallery-photos, team-logos → Cloudflare R2) | |

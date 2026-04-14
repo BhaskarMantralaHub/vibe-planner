@@ -30,7 +30,6 @@ jobs:
 
       - name: Dump schema, policies, and roles
         id: schema_dump
-        continue-on-error: true
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -41,11 +40,13 @@ jobs:
           PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||' | sed 's|\.supabase\.co.*||')
 
           # URL-encode the password (handles special chars like @, #, %)
-          ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SUPABASE_DB_PASSWORD', safe=''))")
+          ENCODED_PW=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['SUPABASE_DB_PASSWORD'], safe=''))")
 
           # Use session-mode pooler (port 5432, IPv4) with native pg_dump
           # Avoids Docker entirely — no IPv6 issues, no image pull rate limits
           DB_URL="postgresql://postgres.${PROJECT_REF}:${ENCODED_PW}@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
+
+          DUMP_OK=true
 
           echo "Dumping schema (tables, RLS policies, functions, triggers, indexes)..."
           /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
@@ -53,19 +54,23 @@ jobs:
             --schema=public \
             --no-owner \
             --no-privileges \
+            --no-password \
             > "backups/$BACKUP_DATE/schema.sql" 2>"backups/$BACKUP_DATE/schema.err" || {
               echo "::error::Schema dump failed:"
               cat "backups/$BACKUP_DATE/schema.err"
               rm -f "backups/$BACKUP_DATE/schema.sql"
+              DUMP_OK=false
             }
 
           echo "Dumping role grants..."
           /usr/lib/postgresql/17/bin/pg_dumpall -d "$DB_URL" \
             --roles-only \
+            --no-password \
             > "backups/$BACKUP_DATE/roles.sql" 2>"backups/$BACKUP_DATE/roles.err" || {
               echo "::error::Roles dump failed:"
               cat "backups/$BACKUP_DATE/roles.err"
               rm -f "backups/$BACKUP_DATE/roles.sql"
+              DUMP_OK=false
             }
 
           # Validate dump content
@@ -75,6 +80,7 @@ jobs:
               echo "  → $(basename $f): ${SIZE} bytes"
             else
               echo "  → $(basename $f): MISSING or EMPTY (dump failed)"
+              DUMP_OK=false
             fi
           done
 
@@ -83,11 +89,17 @@ jobs:
             if ! grep -q "CREATE TABLE\|CREATE POLICY\|CREATE FUNCTION" "backups/$BACKUP_DATE/schema.sql"; then
               echo "::error::schema.sql exists but contains no DDL statements — removing"
               rm -f "backups/$BACKUP_DATE/schema.sql"
+              DUMP_OK=false
             fi
           fi
 
           # Clean up stderr files (don't push to backup repo)
           rm -f "backups/$BACKUP_DATE/schema.err" "backups/$BACKUP_DATE/roles.err"
+
+          if [ "$DUMP_OK" = false ]; then
+            echo "::error::One or more schema/role dumps failed"
+            exit 1
+          fi
 
       - name: Export all tables as JSON
         env:
@@ -129,15 +141,18 @@ jobs:
             "app_settings"
           )
 
+          TRUNCATED_TABLES=""
+
           for TABLE in "${TABLES[@]}"; do
             echo "Backing up $TABLE..."
-            curl -s \
+            HTTP_CODE=$(curl -s \
+              -o "backups/$BACKUP_DATE/$TABLE.json" \
+              -w "%{http_code}" \
               -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Accept: application/json" \
               -H "Range: 0-999999" \
-              "$SUPABASE_URL/rest/v1/$TABLE?select=*" \
-              -o "backups/$BACKUP_DATE/$TABLE.json"
+              "$SUPABASE_URL/rest/v1/$TABLE?select=*")
 
             # Validate response is a JSON array (not an error object)
             if ! jq -e 'type == "array"' "backups/$BACKUP_DATE/$TABLE.json" > /dev/null 2>&1; then
@@ -146,12 +161,136 @@ jobs:
               echo ""
             else
               COUNT=$(jq length "backups/$BACKUP_DATE/$TABLE.json")
-              echo "  → $TABLE: $COUNT rows"
+              if [ "$HTTP_CODE" = "206" ]; then
+                echo "  ⚠️ $TABLE: $COUNT rows (TRUNCATED — HTTP 206 Partial Content)"
+                TRUNCATED_TABLES="$TRUNCATED_TABLES $TABLE"
+              else
+                echo "  → $TABLE: $COUNT rows"
+              fi
             fi
           done
 
+          if [ -n "$TRUNCATED_TABLES" ]; then
+            echo "::warning::Tables with truncated data:$TRUNCATED_TABLES"
+          fi
+
           echo "$BACKUP_DATE" > backups/latest.txt
           echo "Backup complete: $BACKUP_DATE"
+
+      - name: Sync Supabase Storage to Cloudflare R2
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          # Skip if R2 credentials not configured yet
+          if [ -z "$R2_ACCESS_KEY_ID" ]; then
+            echo "R2 credentials not configured — skipping storage backup"
+            exit 0
+          fi
+
+          R2_BUCKET="${R2_BUCKET:-vibers-toolkit-backups}"
+
+          # Install pinned rclone version (avoid curl|sudo bash supply chain risk)
+          RCLONE_VERSION="v1.68.2"
+          curl -fsSL "https://github.com/rclone/rclone/releases/download/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-amd64.deb" -o /tmp/rclone.deb
+          sudo dpkg -i /tmp/rclone.deb
+          rm /tmp/rclone.deb
+
+          # Configure rclone for R2 via env vars (no secrets written to disk)
+          export RCLONE_CONFIG_R2_TYPE=s3
+          export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+          export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+          export RCLONE_CONFIG_R2_ACL=private
+          export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+
+          BUCKETS=("player-photos" "gallery-photos" "team-logos")
+          TOTAL_FILES=0
+          ERRORS=0
+
+          # Download all files from each Supabase Storage bucket
+          for BUCKET in "${BUCKETS[@]}"; do
+            echo "── Syncing bucket: $BUCKET ──"
+            mkdir -p "storage/$BUCKET"
+
+            # List all items in the bucket
+            ITEMS=$(curl -s \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              "$SUPABASE_URL/storage/v1/object/list/$BUCKET" \
+              -d '{"prefix":"","limit":10000}')
+
+            # Separate folders (id == null) from files (id != null)
+            # Process folders — use process substitution to avoid subshell variable loss
+            while read -r FOLDER; do
+              [ -z "$FOLDER" ] && continue
+              mkdir -p "storage/$BUCKET/$FOLDER"
+
+              # List files inside the folder (JSON-safe body via jq)
+              BODY=$(jq -n --arg prefix "$FOLDER/" '{prefix: $prefix, limit: 10000}')
+              CHILDREN=$(curl -s \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                "$SUPABASE_URL/storage/v1/object/list/$BUCKET" \
+                -d "$BODY")
+
+              while read -r FILE; do
+                [ -z "$FILE" ] && continue
+                if curl -sf \
+                  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                  "$SUPABASE_URL/storage/v1/object/$BUCKET/$FOLDER/$FILE" \
+                  -o "storage/$BUCKET/$FOLDER/$FILE"; then
+                  echo "  ↓ $FOLDER/$FILE"
+                else
+                  echo "::warning::Failed to download $BUCKET/$FOLDER/$FILE"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              done < <(echo "$CHILDREN" | jq -r '.[] | select(.name != ".emptyFolderPlaceholder" and .id != null) | .name')
+            done < <(echo "$ITEMS" | jq -r '.[] | select(.id == null and .name != ".emptyFolderPlaceholder") | .name')
+
+            # Process top-level files (not folders)
+            while read -r FILE; do
+              [ -z "$FILE" ] && continue
+              if curl -sf \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                "$SUPABASE_URL/storage/v1/object/$BUCKET/$FILE" \
+                -o "storage/$BUCKET/$FILE"; then
+                echo "  ↓ $FILE"
+              else
+                echo "::warning::Failed to download $BUCKET/$FILE"
+                ERRORS=$((ERRORS + 1))
+              fi
+            done < <(echo "$ITEMS" | jq -r '.[] | select(.id != null and .name != ".emptyFolderPlaceholder") | .name')
+
+            BUCKET_COUNT=$(find "storage/$BUCKET" -type f 2>/dev/null | wc -l | tr -d ' ')
+            TOTAL_FILES=$((TOTAL_FILES + BUCKET_COUNT))
+            echo "  → $BUCKET: $BUCKET_COUNT files"
+          done
+
+          echo ""
+          echo "Total files downloaded: $TOTAL_FILES ($ERRORS errors)"
+
+          if [ "$TOTAL_FILES" -gt 0 ]; then
+            echo "Syncing to Cloudflare R2 (${R2_BUCKET})..."
+            rclone copy storage/ "r2:${R2_BUCKET}/" --checksum --transfers 8
+            echo "R2 sync complete"
+          else
+            echo "No storage files found — skipping R2 sync"
+          fi
+
+          # Clean up local download
+          rm -rf storage/
 
       - name: Push to backup repo
         env:
@@ -160,7 +299,7 @@ jobs:
           git config --global user.name "Backup Bot"
           git config --global user.email "backup@noreply.github.com"
 
-          git clone "https://x-access-token:${BACKUP_TOKEN}@github.com/${{ github.repository_owner }}/vibe-planner-backups.git" backup-repo
+          git clone --depth 1 "https://x-access-token:${BACKUP_TOKEN}@github.com/${{ github.repository_owner }}/vibe-planner-backups.git" backup-repo
           cp -r backups/* backup-repo/
 
           cd backup-repo
@@ -173,7 +312,7 @@ jobs:
 
           git add -A
           git commit -m "backup: $(date +%Y-%m-%d)" || echo "No changes"
-          git push
+          git push || { sleep 5 && git push; }
 
       - name: Notify on failure
         if: failure()
