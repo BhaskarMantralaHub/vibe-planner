@@ -163,7 +163,8 @@ function addAllToCalendar(matches: Match[]) {
   toast.success(`${matches.length} matches added to calendar`);
 }
 
-async function exportSchedulePDF(matches: Match[]) {
+async function exportSchedulePDF(upcoming: Match[], completed: Match[]) {
+  try {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const W = doc.internal.pageSize.getWidth(); // 210mm
@@ -175,10 +176,10 @@ async function exportSchedulePDF(matches: Match[]) {
   type RGB = [number, number, number];
   const WHITE: RGB = [255, 255, 255];
   const BLACK: RGB = [30, 30, 30];
-  const DARK: RGB = [55, 55, 55];
   const GRAY: RGB = [120, 120, 120];
   const LGRAY: RGB = [170, 170, 170];
-  const NAVY: RGB = [27, 58, 107];
+  const GREEN: RGB = [22, 163, 74];
+  const RED: RGB = [220, 38, 38];
 
   const txt = (s: string, x: number, yy: number, opts?: { size?: number; bold?: boolean; color?: RGB; align?: 'left' | 'center' | 'right' }) => {
     doc.setFontSize(opts?.size ?? 9);
@@ -188,7 +189,9 @@ async function exportSchedulePDF(matches: Match[]) {
   };
 
   const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const fmtTime = (t: string) => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`; };
+  const fmtTime = (t: string) => { if (!t || !t.includes(':')) return ''; const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`; };
+
+  const totalMatches = upcoming.length + completed.length;
 
   // ═══ BANNER ═══
   const bannerH = 28;
@@ -207,32 +210,41 @@ async function exportSchedulePDF(matches: Match[]) {
   } catch { /* skip */ }
   txt(getTeamName(), M + 18, 13, { size: 18, bold: true, color: WHITE });
   txt('2026 MTCA Spring League  —  Division D', M + 18, 19, { size: 9, color: [255, 255, 230] });
-  txt(`${matches.length} Matches`, W - M, 13, { size: 10, bold: true, color: [255, 220, 180], align: 'right' });
+  txt(`${totalMatches} Matches`, W - M, 13, { size: 10, bold: true, color: [255, 220, 180], align: 'right' });
   txt(`Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, W - M, 19, { size: 7, color: [220, 200, 170], align: 'right' });
 
   y = bannerH + 4;
 
-  // ═══ MATCH LIST ═══
-  matches.forEach((m, i) => {
-    const cardH = m.umpire ? 22 : 18;
+  // ═══ Section header helper ═══
+  const sectionHeader = (label: string, count: number) => {
+    if (y + 12 > H - 18) { doc.addPage(); y = 10; }
+    doc.setFillColor(240, 242, 248);
+    doc.roundedRect(M, y, TW, 8, 2, 2, 'F');
+    txt(label, M + 4, y + 5.5, { size: 9, bold: true, color: [27, 58, 107] });
+    txt(`${count}`, W - M - 4, y + 5.5, { size: 8, bold: true, color: GRAY, align: 'right' });
+    y += 11;
+  };
+
+  // ═══ Match row helper ═══
+  const matchRow = (m: Match, idx: number, showResult: boolean) => {
+    const hasResult = showResult && m.result;
+    const cardH = (m.umpire ? 22 : 18) + (hasResult ? 6 : 0);
     if (y + cardH > H - 18) { doc.addPage(); y = 10; }
 
-    // Alternating background
-    if (i % 2 === 0) {
+    if (idx % 2 === 0) {
       doc.setFillColor(248, 249, 252);
       doc.roundedRect(M, y, TW, cardH, 2, 2, 'F');
     }
-    // Bottom border
     doc.setDrawColor(235, 235, 235);
     doc.setLineWidth(0.15);
     doc.line(M, y + cardH, W - M, y + cardH);
 
     const ha = m.is_home === true ? 'Home' : m.is_home === false ? 'Away' : '';
-    const haC: RGB = m.is_home === true ? [22, 163, 74] : m.is_home === false ? [37, 99, 235] : GRAY;
+    const haC: RGB = m.is_home === true ? GREEN : m.is_home === false ? [37, 99, 235] : GRAY;
     const haBg: RGB = m.is_home === true ? [220, 252, 231] : [219, 234, 254];
 
-    // Row 1: # + Opponent + H/A badge (right)
-    txt(String(i + 1), M + 3, y + 6, { size: 8, color: GRAY });
+    // Row 1: # + Opponent + H/A badge
+    txt(String(idx + 1), M + 3, y + 6, { size: 8, color: GRAY });
     txt(`vs ${m.opponent}`, M + 12, y + 6, { size: 10, bold: true, color: BLACK });
     if (ha) {
       doc.setFontSize(6);
@@ -243,15 +255,42 @@ async function exportSchedulePDF(matches: Match[]) {
     }
 
     // Row 2: Date · Time | Venue
-    txt(`${fmtDate(m.match_date)} · ${fmtTime(m.match_time)}  |  ${m.venue}`, M + 12, y + 12, { size: 8, color: GRAY });
+    const time = fmtTime(m.match_time);
+    txt(`${fmtDate(m.match_date)}${time ? ` · ${time}` : ''}  |  ${m.venue}`, M + 12, y + 12, { size: 8, color: GRAY });
 
-    // Row 3: Umpires (if present)
+    // Row 3: Umpires
     if (m.umpire) {
       txt(`Umpires: ${m.umpire}`, M + 12, y + 17.5, { size: 7, color: LGRAY });
     }
 
+    // Row 4: Result (completed only)
+    if (hasResult) {
+      const rY = m.umpire ? y + 21.5 : y + 16;
+      const resultColor: RGB = m.result === 'won' ? GREEN : m.result === 'lost' ? RED : GRAY;
+      const resultLabel = m.result === 'won' ? 'WON' : m.result === 'lost' ? 'LOST' : m.result === 'draw' ? 'DRAW' : 'NR';
+      txt(resultLabel, M + 12, rY, { size: 7, bold: true, color: resultColor });
+      if (m.result_summary) {
+        txt(m.result_summary, M + 28, rY, { size: 7, color: GRAY });
+      } else if (m.team_score != null && m.opponent_score != null) {
+        txt(`${m.team_score}${m.team_overs ? `/${m.team_overs}ov` : ''} — ${m.opponent_score}${m.opponent_overs ? `/${m.opponent_overs}ov` : ''}`, M + 28, rY, { size: 7, color: GRAY });
+      }
+    }
+
     y += cardH + 2;
-  });
+  };
+
+  // ═══ UPCOMING SECTION ═══
+  if (upcoming.length > 0) {
+    sectionHeader('Upcoming Matches', upcoming.length);
+    upcoming.forEach((m, i) => matchRow(m, i, false));
+  }
+
+  // ═══ COMPLETED SECTION ═══
+  if (completed.length > 0) {
+    if (upcoming.length > 0) y += 2; // gap between sections
+    sectionHeader('Completed Matches', completed.length);
+    completed.forEach((m, i) => matchRow(m, i, true));
+  }
 
   // ═══ FOOTER ═══
   const total = doc.getNumberOfPages();
@@ -276,6 +315,10 @@ async function exportSchedulePDF(matches: Match[]) {
   } else {
     doc.save(fileName);
     toast.success('Schedule PDF downloaded');
+  }
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
+    throw e;
   }
 }
 
@@ -1104,7 +1147,7 @@ export default function MatchSchedule() {
               Cal
             </button>
             <button
-              onClick={() => exportSchedulePDF(upcoming)}
+              onClick={() => exportSchedulePDF(upcoming, completed).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
