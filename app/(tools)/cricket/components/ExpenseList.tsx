@@ -74,6 +74,47 @@ function CategoryAvatar({ config, size = 'md' }: { config: CategoryConfig; size?
   );
 }
 
+/* ── Radial Gauge (SVG ring) ── */
+function SpendingGauge({ pct, isLow }: { pct: number; isLow: boolean }) {
+  const r = 28;
+  const circ = 2 * Math.PI * r;
+  const filled = (Math.min(pct, 100) / 100) * circ;
+  const strokeColor = pct > 90
+    ? '#EF4444'
+    : pct > 70 ? '#F59E0B' : isLow ? '#FCA5A5' : '#4DBBEB';
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: 68, height: 68 }}>
+      <svg width="68" height="68" viewBox="0 0 68 68" className="block">
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--border)" strokeWidth="5" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke={strokeColor}
+          strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ - filled}`}
+          strokeDashoffset={circ * 0.25}
+          style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 0 6px ${strokeColor}60)` }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[15px] font-bold leading-none" style={{ color: strokeColor }}>{Math.round(pct)}%</span>
+        <span className="text-[9px] font-semibold leading-none mt-0.5" style={{ color: 'var(--muted)' }}>spent</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Pool Health Badge ── */
+function PoolHealthBadge({ pct, isLow }: { pct: number; isLow: boolean }) {
+  const label = isLow ? 'Shortfall' : pct > 90 ? 'Critical' : pct > 70 ? 'Caution' : 'Healthy';
+  const color = isLow || pct > 90 ? '#EF4444' : pct > 70 ? '#F59E0B' : '#34D399';
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
+      style={{ background: `${color}18`, border: `1px solid ${color}30` }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+      <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color }}>{label}</span>
+    </span>
+  );
+}
+
 /* ── Pool Fund Hero ── */
 function PoolFundHero({
   totalFees, totalSponsorship, totalSpent, poolBalance, isLow, perPerson, hasPlayers,
@@ -83,43 +124,46 @@ function PoolFundHero({
 }) {
   const totalCollected = totalFees + totalSponsorship;
   const spentPct = totalCollected > 0 ? Math.min((totalSpent / totalCollected) * 100, 100) : 0;
+  const remaining = totalCollected - totalSpent;
 
   return (
     <div className="relative rounded-2xl overflow-hidden" style={{
-      background: isLow
-        ? 'linear-gradient(145deg, #1A0505, #2D0A0A, #1F0808)'
-        : 'linear-gradient(145deg, #062640, #0A3A5C, #0C4A6E)',
-      border: `1px solid ${isLow ? 'rgba(239,68,68,0.3)' : 'rgba(77,187,235,0.3)'}`,
-      boxShadow: `0 8px 32px ${isLow ? 'rgba(239,68,68,0.2)' : 'rgba(77,187,235,0.2)'}, inset 0 1px 0 rgba(255,255,255,0.08)`,
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
     }}>
       {/* Decorative gradient orbs */}
       <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full pointer-events-none"
-        style={{ background: isLow ? '#EF4444' : '#4DBBEB', opacity: 0.12, filter: 'blur(50px)' }} />
-      <div className="absolute -bottom-16 -left-16 h-32 w-32 rounded-full pointer-events-none"
-        style={{ background: isLow ? '#F97316' : '#3B82F6', opacity: 0.08, filter: 'blur(40px)' }} />
+        style={{ background: isLow ? '#EF4444' : 'var(--cricket)', opacity: 0.04, filter: 'blur(50px)' }} />
 
       <div className="relative p-4 sm:p-5">
-        {/* Balance row */}
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <Text as="p" size="2xs" weight="semibold" uppercase tracking="wider" color="white" className="opacity-50 mb-1">
-              {isLow ? 'Pool Shortfall' : 'Pool Balance'}
-            </Text>
+        {/* Top row: Balance + Gauge */}
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <Text as="p" size="2xs" weight="semibold" uppercase tracking="wider" color="muted">
+                {isLow ? 'Pool Shortfall' : 'Pool Balance'}
+              </Text>
+              <PoolHealthBadge pct={spentPct} isLow={isLow} />
+            </div>
             <Text as="p" size="2xl" weight="bold" tabular tracking="tight"
-              style={{ color: isLow ? '#FCA5A5' : '#E0F2FE', textShadow: `0 0 20px ${isLow ? 'rgba(239,68,68,0.4)' : 'rgba(77,187,235,0.4)'}` }}>
+              style={{ color: isLow ? 'var(--red)' : 'var(--text)' }}>
               {isLow ? '-' : ''}{formatCurrency(Math.abs(poolBalance))}
             </Text>
+            {totalCollected > 0 && !isLow && (
+              <Text as="p" size="2xs" weight="medium" color="muted" className="mt-0.5">
+                {formatCurrency(remaining)} remaining of {formatCurrency(totalCollected)}
+              </Text>
+            )}
           </div>
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-            <Wallet size={20} color="rgba(255,255,255,0.8)" />
-          </div>
+          {totalCollected > 0 && (
+            <SpendingGauge pct={spentPct} isLow={isLow} />
+          )}
         </div>
 
         {/* Progress bar */}
         {totalCollected > 0 && (
-          <div className="mb-5">
-            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+          <div className="mb-4">
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--hover-bg)' }}>
               <div className="h-full rounded-full transition-all duration-700"
                 style={{
                   width: `${spentPct}%`,
@@ -131,45 +175,37 @@ function PoolFundHero({
                   boxShadow: `0 0 12px ${spentPct > 90 ? 'rgba(239,68,68,0.5)' : 'rgba(77,187,235,0.5)'}`,
                 }} />
             </div>
-            <div className="flex justify-between mt-1.5">
-              <Text size="2xs" weight="medium" color="white" className="opacity-50">{Math.round(spentPct)}% spent</Text>
-              <Text size="2xs" weight="medium" color="white" className="opacity-50">of {formatCurrency(totalCollected)}</Text>
-            </div>
           </div>
         )}
 
-        {/* Breakdown stat tiles — each with its own accent color */}
+        {/* Breakdown stat tiles */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.15)' }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp size={12} style={{ color: '#34D399' }} />
-              <Text size="2xs" weight="semibold" style={{ color: 'rgba(52,211,153,0.8)' }}>Fees</Text>
+          {([
+            { icon: TrendingUp, label: 'Fees', value: totalFees, color: '#059669' },
+            { icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB' },
+            { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: '#EA580C' },
+          ] as const).map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="rounded-xl overflow-hidden" style={{ background: `${color}0A`, border: `1px solid ${color}20` }}>
+              {/* Accent top bar */}
+              <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${color}, ${color}60)` }} />
+              <div className="px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Icon size={12} style={{ color }} />
+                  <Text size="2xs" weight="semibold" style={{ color }}>{label}</Text>
+                </div>
+                <Text size="sm" weight="bold" tabular style={{ color }}>{formatCurrency(value)}</Text>
+              </div>
             </div>
-            <Text size="sm" weight="bold" tabular style={{ color: '#6EE7B7' }}>{formatCurrency(totalFees)}</Text>
-          </div>
-          <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.15)' }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Heart size={12} style={{ color: '#60A5FA' }} />
-              <Text size="2xs" weight="semibold" style={{ color: 'rgba(96,165,250,0.8)' }}>Sponsors</Text>
-            </div>
-            <Text size="sm" weight="bold" tabular style={{ color: '#93C5FD' }}>{formatCurrency(totalSponsorship)}</Text>
-          </div>
-          <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.15)' }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <ArrowDownRight size={12} style={{ color: '#FB923C' }} />
-              <Text size="2xs" weight="semibold" style={{ color: 'rgba(251,146,60,0.8)' }}>Spent</Text>
-            </div>
-            <Text size="sm" weight="bold" tabular style={{ color: '#FDBA74' }}>{formatCurrency(totalSpent)}</Text>
-          </div>
+          ))}
         </div>
 
         {/* Shortfall alert */}
         {isLow && hasPlayers && (
           <div className="mt-3 rounded-xl px-3 py-2.5 flex items-center gap-2.5"
             style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div className="h-2 w-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#FCA5A5' }} />
-            <Text size="2xs" weight="medium" color="white" className="opacity-80">
-              Collect <Text weight="bold" style={{ color: '#FCA5A5' }}>{formatCurrency(perPerson)}</Text>/player to cover shortfall
+            <div className="h-2 w-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'var(--red)' }} />
+            <Text size="2xs" weight="medium">
+              Collect <Text weight="bold" style={{ color: 'var(--red)' }}>{formatCurrency(perPerson)}</Text>/player to cover shortfall
             </Text>
           </div>
         )}
