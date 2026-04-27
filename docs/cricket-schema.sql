@@ -1788,12 +1788,16 @@ CREATE TABLE IF NOT EXISTS cricket_splits (
   description  TEXT,
   amount       NUMERIC(10,2) NOT NULL CHECK (amount > 0),
   split_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  receipt_urls TEXT[] DEFAULT NULL,  -- Supabase Storage public URLs (split-receipts bucket)
   created_by   TEXT DEFAULT NULL,
   deleted_at   TIMESTAMPTZ DEFAULT NULL,
   deleted_by   TEXT DEFAULT NULL,
   created_at   TIMESTAMPTZ DEFAULT now(),
   updated_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- Backfill column for existing deployments
+ALTER TABLE cricket_splits ADD COLUMN IF NOT EXISTS receipt_urls TEXT[] DEFAULT NULL;
 
 ALTER TABLE cricket_splits ENABLE ROW LEVEL SECURITY;
 
@@ -1888,3 +1892,43 @@ CREATE POLICY "Team admin can delete split settlements"
 CREATE INDEX IF NOT EXISTS idx_split_settlements_team ON cricket_split_settlements(team_id, season_id);
 CREATE INDEX IF NOT EXISTS idx_split_settlements_from ON cricket_split_settlements(from_player);
 CREATE INDEX IF NOT EXISTS idx_split_settlements_to   ON cricket_split_settlements(to_player);
+
+-- ── Storage: split-receipts bucket ───────────────────────────
+-- Public bucket, 5MB limit, image/jpeg + image/png + image/webp + application/pdf
+-- Path pattern: {team_id}/{split_id}_{rand}.{jpg|pdf}
+-- Mirrors expense-receipts BUT writes are open to any team member —
+-- splits themselves are also creatable by any team member (not admin-only).
+
+CREATE POLICY "Cricket users can view split receipts"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'split-receipts' AND has_cricket_access());
+
+CREATE POLICY "Team members can upload split receipts"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'split-receipts'
+  AND has_cricket_access()
+  AND ((storage.foldername(name))[1]::uuid IN (SELECT * FROM user_team_ids()) OR is_global_admin())
+);
+
+CREATE POLICY "Team members can update split receipts"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'split-receipts'
+  AND has_cricket_access()
+  AND ((storage.foldername(name))[1]::uuid IN (SELECT * FROM user_team_ids()) OR is_global_admin())
+)
+WITH CHECK (
+  -- Block in-place rename to a different team's folder
+  bucket_id = 'split-receipts'
+  AND has_cricket_access()
+  AND ((storage.foldername(name))[1]::uuid IN (SELECT * FROM user_team_ids()) OR is_global_admin())
+);
+
+CREATE POLICY "Team admins can delete split receipts"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'split-receipts'
+  AND has_cricket_access()
+  AND (is_team_admin((storage.foldername(name))[1]::uuid) OR is_global_admin())
+);

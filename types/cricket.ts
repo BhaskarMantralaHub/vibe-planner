@@ -180,6 +180,7 @@ export type CricketSplit = {
   description: string;
   amount: number;
   split_date: string;
+  receipt_urls: string[] | null;
   created_by: string | null;
   deleted_at: string | null;
   deleted_by: string | null;

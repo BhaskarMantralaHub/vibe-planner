@@ -2,16 +2,21 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
-import { Button, Text, Badge } from '@/components/ui';
+import { Button, Text, Badge, Spinner } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Input } from '@/components/ui/input';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
+import { compressReceiptImage } from '../lib/image';
 import { nameToGradient } from '@/lib/avatar';
-import { Check, CheckCircle2, Cookie, CupSoda, Utensils, Package, Users, Search, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { Camera, Check, CheckCircle2, Cookie, CupSoda, Utensils, Package, Users, Search, X, FileText, Trash2 } from 'lucide-react';
 import type { SplitCategory } from '@/types/cricket';
+
+const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
+const MAX_RECEIPTS = 10;
 
 type CategoryDef = { key: SplitCategory; label: string; renderIcon: (color: string) => React.ReactNode; color: string };
 
@@ -53,6 +58,20 @@ export default function SplitForm() {
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
   const [paidBySearch, setPaidBySearch] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
+
+  // Receipt state — existing URLs (edit mode) + newly picked files
+  const [existingUrls, setExistingUrls] = useState<string[]>([]);
+  const [newFiles, setNewFiles] = useState<{ preview: string; compressed: Blob | null; isPdf: boolean; fileName: string }[]>([]);
+  const [compressingCount, setCompressingCount] = useState(0);
+  const [pendingRemove, setPendingRemove] = useState<{ type: 'existing' | 'new'; index: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const compressing = compressingCount > 0;
+
+  // Revoke object URLs on unmount
+  useEffect(() => {
+    return () => { newFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); }); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // No auto-focus — iOS Safari keyboard pushes the drawer and covers the input.
   // Let the user tap the amount field when ready.
 
@@ -64,6 +83,8 @@ export default function SplitForm() {
       setCategory(editingSplit.category);
       setPaidById(editingSplit.paid_by);
       setSelectedPlayerIds(new Set(editingShares.map((s) => s.player_id)));
+      setExistingUrls(editingSplit.receipt_urls ?? []);
+      setNewFiles([]);
       // Detect if all shares are equal
       const amounts = editingShares.map((s) => Number(s.share_amount));
       const allEqual = amounts.length > 0 && amounts.every((a) => Math.abs(a - amounts[0]) < 0.01);
@@ -131,6 +152,59 @@ export default function SplitForm() {
     setPaidById(null); setSelectedPlayerIds(new Set());
     setSplitType('equal'); setCustomAmounts({}); setShowPaidByPicker(false);
     setPaidBySearch(''); setPlayerSearch('');
+    newFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
+    setExistingUrls([]); setNewFiles([]); setPendingRemove(null);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+
+    const used = existingUrls.length + newFiles.length;
+    const remaining = MAX_RECEIPTS - used;
+    const selected = Array.from(files).slice(0, remaining);
+    if (files.length > remaining) {
+      toast.error(`Max ${MAX_RECEIPTS} receipts. Only adding ${remaining} more.`);
+    }
+
+    for (const file of selected) {
+      const isImg = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf';
+      if (!isImg && !isPdf) { toast.error(`${file.name}: only images and PDFs are supported.`); continue; }
+
+      const preview = isPdf ? '' : URL.createObjectURL(file);
+      if (isPdf) {
+        setNewFiles((prev) => [...prev, { preview, compressed: file, isPdf: true, fileName: file.name }]);
+      } else {
+        setNewFiles((prev) => [...prev, { preview, compressed: null, isPdf: false, fileName: file.name }]);
+        setCompressingCount((c) => c + 1);
+        try {
+          const compressed = await compressReceiptImage(file);
+          setNewFiles((prev) => prev.map((f) => f.preview === preview ? { ...f, compressed } : f));
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : `Failed to compress ${file.name}`);
+          setNewFiles((prev) => {
+            if (preview) URL.revokeObjectURL(preview);
+            return prev.filter((f) => f.preview !== preview);
+          });
+        } finally {
+          setCompressingCount((c) => c - 1);
+        }
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const confirmRemove = () => {
+    if (!pendingRemove) return;
+    if (pendingRemove.type === 'existing') {
+      setExistingUrls((prev) => prev.filter((_, i) => i !== pendingRemove.index));
+    } else {
+      const target = newFiles[pendingRemove.index];
+      if (target?.preview) URL.revokeObjectURL(target.preview);
+      setNewFiles((prev) => prev.filter((_, i) => i !== pendingRemove.index));
+    }
+    setPendingRemove(null);
   };
 
   const handleSubmit = () => {
@@ -149,11 +223,21 @@ export default function SplitForm() {
       split_date: editingSplit?.split_date ?? new Date().toISOString().split('T')[0],
     };
 
+    const newBlobs = newFiles.map((f) => f.compressed).filter(Boolean) as Blob[];
+
     if (editingSplitId) {
-      updateSplit(editingSplitId, splitData, newShares);
+      updateSplit(
+        editingSplitId,
+        { ...splitData, receipt_urls: existingUrls.length > 0 ? existingUrls : null },
+        newShares,
+        newBlobs.length > 0 ? newBlobs : undefined,
+      );
     } else {
-      addSplit(user.id, selectedSeasonId, splitData, newShares,
-        myPlayer?.name ?? user.user_metadata?.full_name as string ?? 'Unknown');
+      addSplit(
+        user.id, selectedSeasonId, splitData, newShares,
+        myPlayer?.name ?? user.user_metadata?.full_name as string ?? 'Unknown',
+        newBlobs.length > 0 ? newBlobs : undefined,
+      );
     }
 
     resetForm();
@@ -432,6 +516,110 @@ export default function SplitForm() {
           </div>
         )}
 
+        {/* Receipt upload */}
+        <div>
+          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Receipts (optional)</Text>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            multiple
+            className="hidden"
+            aria-label="Select receipt images or PDFs"
+            onChange={handleFileSelect}
+          />
+
+          {(existingUrls.length > 0 || newFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {existingUrls.map((url, i) => (
+                <div key={`existing-${i}`} className="relative">
+                  {isUrlPdf(url) ? (
+                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
+                      <FileText size={22} className="text-red-500" />
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight">Receipt {i + 1}.pdf</span>
+                    </div>
+                  ) : (
+                    <img src={url} alt={`Receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)]"
+                      onError={(ev) => { ev.currentTarget.style.opacity = '0.3'; }} />
+                  )}
+                  <button onClick={() => setPendingRemove({ type: 'existing', index: i })}
+                    aria-label={`Remove receipt ${i + 1}`}
+                    className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform">
+                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
+                      <X size={12} className="text-white" />
+                    </span>
+                  </button>
+                </div>
+              ))}
+              {newFiles.map((f, i) => (
+                <div key={`new-${i}`} className="relative animate-fade-in">
+                  {f.isPdf ? (
+                    <div className="h-20 w-20 rounded-xl border-2 border-dashed bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1"
+                      style={{ borderColor: 'var(--cricket)' }}>
+                      <FileText size={22} className="text-red-500" />
+                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
+                        {f.fileName.length > 14 ? f.fileName.slice(0, 12) + '…' : f.fileName}
+                      </span>
+                    </div>
+                  ) : (
+                    <img src={f.preview} alt={`New receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border-2 border-dashed"
+                      style={{ borderColor: 'var(--cricket)' }} />
+                  )}
+                  <button onClick={() => setPendingRemove({ type: 'new', index: i })}
+                    aria-label={`Remove new receipt ${i + 1}`}
+                    className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform">
+                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
+                      <X size={12} className="text-white" />
+                    </span>
+                  </button>
+                  {!f.compressed && (
+                    <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center"><Spinner size="sm" /></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inline remove confirmation */}
+          {pendingRemove && (
+            <div className="rounded-xl p-3 mb-2 space-y-2.5"
+              style={{ background: '#EF44440A', border: '1px solid #EF444425' }}>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EF444415' }}>
+                  <Trash2 size={14} style={{ color: '#EF4444' }} />
+                </div>
+                <Text size="sm" weight="medium">Remove <Text weight="bold">Receipt {pendingRemove.index + 1}</Text>?</Text>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingRemove(null)}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
+                  Cancel
+                </button>
+                <button onClick={confirmRemove}
+                  className="flex-1 rounded-lg py-2 text-[12px] font-bold text-white cursor-pointer active:scale-95"
+                  style={{ background: '#EF4444' }}>
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button onClick={() => fileInputRef.current?.click()} disabled={compressing}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] border-2 border-dashed cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
+            style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 4%, transparent)' }}>
+            {compressing ? (
+              <><Spinner size="sm" /><span className="text-[13px] font-medium text-[var(--muted)]">Compressing...</span></>
+            ) : (
+              <>
+                <Camera size={18} style={{ color: 'var(--cricket)' }} />
+                <span className="text-[13px] font-semibold" style={{ color: 'var(--cricket)' }}>
+                  {existingUrls.length + newFiles.length > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+
         <div>
           {/* Validation hint — explains why button is disabled */}
           {!canSubmit && (numAmount > 0 || selectedCount > 0) && (
@@ -440,8 +628,8 @@ export default function SplitForm() {
             </Text>
           )}
 
-          <Button onClick={handleSubmit} disabled={!canSubmit} variant="primary" brand="cricket" size="xl" fullWidth>
-            {editingSplitId ? 'Update' : 'Split'} ${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}
+          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="xl" fullWidth>
+            {compressing ? 'Compressing...' : `${editingSplitId ? 'Update' : 'Split'} $${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}`}
           </Button>
         </div>
       </DrawerBody>

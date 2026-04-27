@@ -11,7 +11,9 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink } from 'lucide-react';
+
+const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 import SplitForm from './SplitForm';
 import SplitSettleDrawer from './SplitSettleDrawer';
 import { createPortal } from 'react-dom';
@@ -239,17 +241,17 @@ export default function SplitsDashboard() {
 
   // Activity feed
   const activityFeed = useMemo(() => {
-    const items: { id: string; type: 'split' | 'settlement'; date: string; description: string; amount: number; paidByName: string; paidByPhoto: string | null; paidById: string; splitCount: number }[] = [];
+    const items: { id: string; type: 'split' | 'settlement'; date: string; description: string; amount: number; paidByName: string; paidByPhoto: string | null; paidById: string; splitCount: number; receiptUrls: string[] | null }[] = [];
     for (const s of activeSplits) {
       const payer = activePlayers.find((p) => p.id === s.paid_by);
-      items.push({ id: s.id, type: 'split', date: s.split_date, description: s.description || s.category, amount: Number(s.amount), paidByName: payer?.name ?? 'Unknown', paidByPhoto: payer?.photo_url ?? null, paidById: s.paid_by, splitCount: (sharesMap.get(s.id) ?? []).length });
+      items.push({ id: s.id, type: 'split', date: s.split_date, description: s.description || s.category, amount: Number(s.amount), paidByName: payer?.name ?? 'Unknown', paidByPhoto: payer?.photo_url ?? null, paidById: s.paid_by, splitCount: (sharesMap.get(s.id) ?? []).length, receiptUrls: s.receipt_urls ?? null });
     }
     return items.sort((a, b) => b.date.localeCompare(a.date));
   }, [activeSplits, activePlayers, sharesMap]);
 
   // UI state
   type SplitSubTab = 'balances' | 'activity' | 'settlements';
-  const [subTab, setSubTab] = useState<SplitSubTab>('balances');
+  const [subTab, setSubTab] = useState<SplitSubTab>('activity');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSettlementId, setExpandedSettlementId] = useState<string | null>(null);
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
@@ -361,8 +363,8 @@ export default function SplitsDashboard() {
       {/* Sub-tabs */}
       <SegmentedControl
         options={[
-          { key: 'balances', label: `Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
           { key: 'activity', label: `Activity${activityFeed.length > 0 ? ` (${activityFeed.length})` : ''}` },
+          { key: 'balances', label: `Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
           { key: 'settlements', label: `Settled${seasonSettlements.length > 0 ? ` (${seasonSettlements.length})` : ''}` },
         ]}
         active={subTab}
@@ -634,6 +636,12 @@ export default function SplitsDashboard() {
                         <Text as="p" size="2xs" color="dim">
                           {a.paidByName.split(' ')[0]} paid · {formatDate(a.date)}
                           {a.splitCount > 0 && ` · ${a.splitCount} people`}
+                          {a.receiptUrls && a.receiptUrls.length > 0 && (
+                            <span className="inline-flex items-center gap-0.5 ml-1 align-middle">
+                              <Paperclip size={10} style={{ color: 'var(--muted)' }} />
+                              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{a.receiptUrls.length}</span>
+                            </span>
+                          )}
                         </Text>
                         {myRelation && (
                           <Text as="p" size="2xs" weight="bold" style={{ color: myRelation.color }}>
@@ -739,6 +747,37 @@ export default function SplitsDashboard() {
                               </div>
                             );
                           })}
+
+                          {/* Receipts */}
+                          {a.receiptUrls && a.receiptUrls.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-[var(--border)]/50">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Paperclip size={12} style={{ color: 'var(--muted)' }} />
+                                <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">
+                                  Receipts ({a.receiptUrls.length})
+                                </Text>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {a.receiptUrls.map((url, i) => {
+                                  const pdf = isUrlPdf(url);
+                                  return (
+                                    <button
+                                      key={i}
+                                      onClick={() => window.open(url, '_blank')}
+                                      className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
+                                      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                                    >
+                                      {pdf
+                                        ? <FileText size={12} style={{ color: '#EF4444' }} />
+                                        : <Receipt size={12} style={{ color: 'var(--cricket)' }} />}
+                                      <Text size="2xs" weight="medium">Receipt {i + 1}{pdf ? '.pdf' : '.jpg'}</Text>
+                                      <ExternalLink size={9} className="text-[var(--dim)]" />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Settle All */}
                           {myPlayer?.id === a.paidById && (() => {
