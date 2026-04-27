@@ -39,7 +39,7 @@ npm run test:coverage # Coverage report
 - **Role-based access** — `RoleGate` checks both role AND feature; `AuthGate` variant prop for themed login
 - **RLS enforced** — every query filters by `user_id`/`team_id`, server-side RLS as backup
 - **Soft delete** — `deleted_at` column with Recently Deleted UI + restore
-- **Splits** — peer-to-peer expense splitting (Splitwise-style), completely separate from pool fund. Tables: `cricket_splits`, `cricket_split_shares`, `cricket_split_settlements`. Store: `splits-store.ts`. Never in reports/PDFs/emails.
+- **Splits** — peer-to-peer expense splitting (Splitwise-style), completely separate from pool fund. Tables: `cricket_splits`, `cricket_split_shares`, `cricket_split_settlements`. Store: `splits-store.ts`. Never in reports/PDFs/emails. Receipts: `cricket_splits.receipt_urls TEXT[]` populated in the same INSERT (storage RLS UPDATE is admin-only); files in `split-receipts` Supabase Storage bucket at `{team_id}/{split_id}_{uuid}.{ext}`.
 - **Public pages** — `/cricket/dues/` bypasses auth via SECURITY DEFINER RPC
 - **Receipt uploads** — expenses support multiple image/PDF attachments. Stored in `expense-receipts` Supabase Storage bucket (path: `{team_id}/{expense_id}_{random}.{ext}`). Images compressed to 1200px/0.85 JPEG; PDFs uploaded as-is. Max 10 per expense. Direct Supabase public URLs (no proxy).
 - **Storage backup** — Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`, `expense-receipts`) backed up daily to Cloudflare R2 via `rclone copy --checksum` in the backup workflow.
