@@ -44,7 +44,11 @@ export default function SplitForm() {
   );
 
   const myPlayer = useMemo(
-    () => activePlayers.find((p) => p.email?.toLowerCase() === user?.email?.toLowerCase()),
+    () => {
+      const myEmail = user?.email?.toLowerCase().trim();
+      if (!myEmail) return undefined;
+      return activePlayers.find((p) => p.email?.toLowerCase().trim() === myEmail);
+    },
     [activePlayers, user?.email],
   );
 
@@ -317,9 +321,16 @@ export default function SplitForm() {
               {(() => {
                 const p = activePlayers.find((pl) => pl.id === effectivePaidBy);
                 if (!p) return (
-                  <button onClick={() => setShowPaidByPicker(true)} className="flex items-center gap-2 cursor-pointer active:opacity-70 transition-opacity">
-                    <Text size="sm" color="dim">Select who paid</Text>
-                    <Text size="xs" weight="semibold" style={{ color: 'var(--cricket)' }}>Choose</Text>
+                  <button
+                    onClick={() => setShowPaidByPicker(true)}
+                    className="w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 min-h-[48px] cursor-pointer active:scale-[0.98] transition-all"
+                    style={{
+                      border: '1.5px dashed color-mix(in srgb, var(--cricket) 50%, transparent)',
+                      background: 'color-mix(in srgb, var(--cricket) 6%, transparent)',
+                    }}
+                  >
+                    <Text size="sm" weight="semibold" style={{ color: 'var(--cricket)' }}>Tap to pick who paid</Text>
+                    <Text size="xs" weight="bold" style={{ color: 'var(--cricket)' }}>Choose →</Text>
                   </button>
                 );
                 const [gF, gT] = nameToGradient(p.name);
