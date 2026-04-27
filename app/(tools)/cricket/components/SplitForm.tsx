@@ -154,6 +154,8 @@ export default function SplitForm() {
     setPaidBySearch(''); setPlayerSearch('');
     newFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
     setExistingUrls([]); setNewFiles([]); setPendingRemove(null);
+    // Defensive: reset compression counter so a stale increment can't keep the submit button disabled
+    setCompressingCount(0);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -622,9 +624,9 @@ export default function SplitForm() {
 
         <div>
           {/* Validation hint — explains why button is disabled */}
-          {!canSubmit && (numAmount > 0 || selectedCount > 0) && (
+          {(!canSubmit || compressing) && (numAmount > 0 || selectedCount > 0 || compressing) && (
             <Text as="p" size="xs" color="dim" className="text-center mb-2">
-              {numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+              {compressing ? 'Compressing receipts...' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
             </Text>
           )}
 
