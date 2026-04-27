@@ -343,39 +343,45 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/80 px-4 py-3 backdrop-blur-md">
-        {showNav ? (
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="cursor-pointer rounded-lg p-1.5 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)]"
-            aria-label="Open menu"
-          >
-            &#9776;
-          </button>
-        ) : (
-          <div className="w-8" />
-        )}
+      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
+          {showNav ? (
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="cursor-pointer rounded-lg p-1.5 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)]"
+              aria-label="Open menu"
+            >
+              &#9776;
+            </button>
+          ) : (
+            <div className="w-8" />
+          )}
 
-        {isCricketContext ? (
-          <TeamSwitcher />
-        ) : (
-          <Link href="/" className="group flex items-center gap-2">
-            <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
-              Viber&apos;s Toolkit
-            </Text>
-          </Link>
-        )}
+          {isCricketContext ? (
+            <TeamSwitcher />
+          ) : (
+            <Link href="/" className="group flex items-center gap-2">
+              <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
+                Viber&apos;s Toolkit
+              </Text>
+            </Link>
+          )}
 
-        <div className="flex items-center gap-1">
-          {isCricketContext && <NotificationBell />}
-          <PendingApprovals />
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            {isCricketContext && <NotificationBell />}
+            <PendingApprovals />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       {showNav && <HamburgerMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <main className="overflow-x-hidden">{needsPasswordReset ? <ResetPasswordForm /> : children}</main>
+      <main className="overflow-x-hidden">
+        <div className="mx-auto w-full max-w-6xl lg:px-8">
+          {needsPasswordReset ? <ResetPasswordForm /> : children}
+        </div>
+      </main>
     </>
   );
 }

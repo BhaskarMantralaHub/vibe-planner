@@ -301,7 +301,7 @@ function CricketDashboard() {
               boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
             }}
           >
-            <div className="flex items-center justify-around px-2 pt-1.5 pb-2">
+            <div className="mx-auto flex w-full max-w-6xl items-center justify-around px-2 pt-1.5 pb-2 lg:px-8">
               {CAPSULE_TABS.map((t) => {
                 const isActive = activeTab === t.key;
                 return (
