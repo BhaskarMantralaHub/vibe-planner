@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
@@ -115,7 +115,7 @@ function PoolHealthBadge({ pct, isLow }: { pct: number; isLow: boolean }) {
   );
 }
 
-/* ── Pool Fund Hero ── */
+/* ── Pool Fund Hero — refined: one focal number + integrated bar + stat strip ── */
 function PoolFundHero({
   totalFees, totalSponsorship, totalSpent, poolBalance, isLow, perPerson, hasPlayers,
 }: {
@@ -125,88 +125,123 @@ function PoolFundHero({
   const totalCollected = totalFees + totalSponsorship;
   const spentPct = totalCollected > 0 ? Math.min((totalSpent / totalCollected) * 100, 100) : 0;
   const remaining = totalCollected - totalSpent;
+  const status = isLow
+    ? { label: 'Shortfall', color: 'var(--split-owe)', bg: 'var(--split-owe-bg)' }
+    : spentPct > 85
+      ? { label: 'Caution', color: '#EA580C', bg: 'rgba(234,88,12,0.10)' }
+      : spentPct > 60
+        ? { label: 'Healthy', color: '#0891B2', bg: 'rgba(8,145,178,0.10)' }
+        : { label: 'Strong', color: 'var(--split-credit)', bg: 'var(--split-credit-bg)' };
 
   return (
-    <div className="relative rounded-2xl overflow-hidden" style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-    }}>
-      {/* Decorative gradient orbs */}
-      <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full pointer-events-none"
-        style={{ background: isLow ? '#EF4444' : 'var(--cricket)', opacity: 0.04, filter: 'blur(50px)' }} />
+    <div className="relative rounded-3xl overflow-hidden"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      {/* Atmospheric gradient mesh */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden
+        style={{
+          background: isLow
+            ? 'radial-gradient(ellipse at 0% 0%, rgba(239,68,68,0.08), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(239,68,68,0.05), transparent 50%)'
+            : 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 10%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 50%)',
+        }} />
 
-      <div className="relative p-4 sm:p-5">
-        {/* Top row: Balance + Gauge */}
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Text as="p" size="2xs" weight="semibold" uppercase tracking="wider" color="muted">
-                {isLow ? 'Pool Shortfall' : 'Pool Balance'}
-              </Text>
-              <PoolHealthBadge pct={spentPct} isLow={isLow} />
-            </div>
-            <Text as="p" size="2xl" weight="bold" tabular tracking="tight"
-              style={{ color: isLow ? 'var(--red)' : 'var(--text)' }}>
-              {isLow ? '-' : ''}{formatCurrency(Math.abs(poolBalance))}
-            </Text>
-            {totalCollected > 0 && !isLow && (
-              <Text as="p" size="2xs" weight="medium" color="muted" className="mt-0.5">
-                {formatCurrency(remaining)} remaining of {formatCurrency(totalCollected)}
-              </Text>
-            )}
-          </div>
-          {totalCollected > 0 && (
-            <SpendingGauge pct={spentPct} isLow={isLow} />
-          )}
+      <div className="relative p-5 sm:p-7">
+        {/* Status pill — small, inline, pulses softly when alarming */}
+        <div className="flex items-center gap-2 mb-3">
+          <Text as="span" size="2xs" weight="bold" color="muted" uppercase tracking="wider">
+            {isLow ? 'Pool Shortfall' : 'Pool Balance'}
+          </Text>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
+            style={{ background: status.bg, border: `1px solid ${status.color}30` }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{
+              background: status.color,
+              boxShadow: `0 0 6px ${status.color}`,
+              animation: isLow || spentPct > 85 ? 'pulse 1.6s ease-in-out infinite' : 'none',
+            }} />
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: status.color }}>
+              {status.label}
+            </span>
+          </span>
         </div>
 
-        {/* Progress bar */}
+        {/* The focal point — one big confident number */}
+        <div className="flex items-baseline gap-2.5 mb-1">
+          <span className="font-bold leading-[0.95] tracking-tight tabular-nums"
+            style={{
+              fontSize: 'clamp(40px, 7vw, 56px)',
+              color: isLow ? 'var(--split-owe)' : 'var(--text)',
+              fontFeatureSettings: '"tnum"',
+            }}>
+            {isLow ? '−' : ''}{formatCurrency(Math.abs(poolBalance))}
+          </span>
+        </div>
         {totalCollected > 0 && (
-          <div className="mb-4">
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--hover-bg)' }}>
-              <div className="h-full rounded-full transition-all duration-700"
+          <Text as="p" size="xs" color="muted" className="mb-5">
+            <Text as="span" weight="semibold" tabular>{formatCurrency(remaining)}</Text>
+            {' '}of{' '}
+            <Text as="span" tabular>{formatCurrency(totalCollected)}</Text>
+            {' '}collected
+          </Text>
+        )}
+
+        {/* Integrated bar — replaces the standalone gauge entirely */}
+        {totalCollected > 0 && (
+          <div className="mb-5">
+            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface)' }}>
+              <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out"
                 style={{
                   width: `${spentPct}%`,
                   background: spentPct > 90
-                    ? 'linear-gradient(90deg, #F97316, #EF4444, #DC2626)'
+                    ? 'linear-gradient(90deg, #F97316, #DC2626)'
                     : spentPct > 70
-                      ? 'linear-gradient(90deg, #4DBBEB, #F59E0B)'
-                      : 'linear-gradient(90deg, #4DBBEB, #22D3EE, #34D399)',
-                  boxShadow: `0 0 12px ${spentPct > 90 ? 'rgba(239,68,68,0.5)' : 'rgba(77,187,235,0.5)'}`,
+                      ? 'linear-gradient(90deg, var(--cricket), #F59E0B)'
+                      : 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))',
+                  boxShadow: `0 0 10px ${spentPct > 90 ? 'rgba(239,68,68,0.5)' : 'color-mix(in srgb, var(--cricket) 50%, transparent)'}`,
                 }} />
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <Text size="2xs" color="dim" tabular>{Math.round(spentPct)}% spent</Text>
+              <Text size="2xs" color="dim">·</Text>
+              <Text size="2xs" color="dim" tabular>{formatCurrency(remaining)} left</Text>
             </div>
           </div>
         )}
 
-        {/* Breakdown stat tiles */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* Stat strip — internal dividers, no individual cards */}
+        <div className="grid grid-cols-3 rounded-xl overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           {([
-            { icon: TrendingUp, label: 'Fees', value: totalFees, color: '#059669' },
+            { icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)' },
             { icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB' },
-            { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: '#EA580C' },
-          ] as const).map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="rounded-xl overflow-hidden" style={{ background: `${color}0A`, border: `1px solid ${color}20` }}>
-              {/* Accent top bar */}
-              <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${color}, ${color}60)` }} />
-              <div className="px-3 py-2.5">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Icon size={12} style={{ color }} />
-                  <Text size="2xs" weight="semibold" style={{ color }}>{label}</Text>
-                </div>
-                <Text size="sm" weight="bold" tabular style={{ color }}>{formatCurrency(value)}</Text>
+            { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)' },
+          ] as const).map(({ icon: Icon, label, value, color }, i) => (
+            <div key={label}
+              className="px-3 py-3 sm:py-3.5"
+              style={{ borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Icon size={11} style={{ color }} />
+                <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color }}>{label}</Text>
               </div>
+              <Text size="md" weight="bold" tabular className="leading-none">
+                {formatCurrency(value)}
+              </Text>
             </div>
           ))}
         </div>
 
-        {/* Shortfall alert */}
+        {/* Shortfall alert — only when truly negative */}
         {isLow && hasPlayers && (
-          <div className="mt-3 rounded-xl px-3 py-2.5 flex items-center gap-2.5"
-            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div className="h-2 w-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'var(--red)' }} />
-            <Text size="2xs" weight="medium">
-              Collect <Text weight="bold" style={{ color: 'var(--red)' }}>{formatCurrency(perPerson)}</Text>/player to cover shortfall
-            </Text>
+          <div className="mt-4 rounded-xl px-3.5 py-3 flex items-center gap-3"
+            style={{ background: 'var(--split-owe-bg)', border: '1px solid var(--split-owe-border)' }}>
+            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--split-owe)', boxShadow: '0 0 12px var(--split-owe)' }}>
+              <ArrowDownRight size={15} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <Text as="p" size="xs" weight="semibold">
+                Collect <Text as="span" weight="bold" style={{ color: 'var(--split-owe)' }}>{formatCurrency(perPerson)}</Text> per player
+              </Text>
+              <Text as="p" size="2xs" color="muted">to cover the shortfall</Text>
+            </div>
           </div>
         )}
       </div>
@@ -260,7 +295,7 @@ function CategoryFilters({ active, onChange, expenses }: {
   );
 }
 
-/* ── Transaction Row (inside unified list) ── */
+/* ── Transaction Row — denser, category icon avatar, inline receipt chips ── */
 function ExpenseRow({
   expense, config, totalSpent, isAdmin, isLast,
   onEdit, onDetails, onDelete,
@@ -272,110 +307,103 @@ function ExpenseRow({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasReceipts = expense.receipt_urls && expense.receipt_urls.length > 0;
   const pctOfTotal = totalSpent > 0 ? (Number(expense.amount) / totalSpent) * 100 : 0;
-  const isHighlight = pctOfTotal >= 25;
+  const Icon = CATEGORY_ICONS[config.iconName];
 
   return (
     <div>
-      <div
-        className="relative px-3 sm:px-4 py-3 transition-colors"
-        style={{
-          background: isHighlight ? `${config.color}06` : 'transparent',
-        }}
-      >
-        <div className="flex items-center gap-3">
-          {/* Category color dot + vertical line */}
-          <div className="flex flex-col items-center self-stretch">
-            <div
-              className="h-3 w-3 rounded-full flex-shrink-0 mt-0.5"
-              style={{ background: config.color, boxShadow: `0 0 8px ${config.color}40` }}
-            />
+      <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)]">
+        {/* Category icon — colored badge instead of dot */}
+        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
+          style={{ background: `${config.color}15`, border: `1px solid ${config.color}25` }}
+          title={config.label}
+        >
+          {Icon && <Icon size={18} style={{ color: config.color }} />}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-3 mb-0.5">
+            <Text as="p" size="sm" weight="semibold" truncate className="flex-1 min-w-0 leading-snug">
+              {expense.description || config.label}
+            </Text>
+            <Text size="md" weight="bold" tabular className="flex-shrink-0 leading-snug">
+              {formatCurrency(Number(expense.amount))}
+            </Text>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline justify-between gap-2">
-              <Text as="p" size="sm" weight="semibold" truncate className="flex-1 min-w-0">
-                {expense.description || config.label}
-              </Text>
-              <Text size="md" weight="bold" tabular className="flex-shrink-0">
-                {formatCurrency(Number(expense.amount))}
-              </Text>
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Text size="2xs" weight="semibold" style={{ color: config.color }}>{config.label}</Text>
-              <Text size="2xs" color="dim">&middot;</Text>
-              <Text size="2xs" color="muted">{formatDate(expense.expense_date)}</Text>
-              {hasReceipts && (
-                <>
-                  <Text size="2xs" color="dim">&middot;</Text>
-                  <div className="flex items-center gap-0.5">
-                    <Paperclip size={10} style={{ color: 'var(--muted)' }} />
-                    <Text size="2xs" color="muted">{expense.receipt_urls!.length}</Text>
-                  </div>
-                </>
-              )}
-              {pctOfTotal >= 15 && (
-                <>
-                  <Text size="2xs" color="dim">&middot;</Text>
-                  <Text size="2xs" color="dim" tabular>{Math.round(pctOfTotal)}%</Text>
-                </>
-              )}
-            </div>
+          {/* Metadata row — category, date, percentage, receipts ALL inline */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Text size="2xs" weight="semibold" style={{ color: config.color }}>
+              {config.label}
+            </Text>
+            <Text size="2xs" color="dim">·</Text>
+            <Text size="2xs" color="muted">{formatDate(expense.expense_date)}</Text>
 
-            {/* Receipts — compact file links */}
-            {hasReceipts && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {expense.receipt_urls!.map((url, i) => {
-                  const pdf = isUrlPdf(url);
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => window.open(url, '_blank')}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-                    >
-                      {pdf
-                        ? <FileText size={12} style={{ color: '#EF4444' }} />
-                        : <Receipt size={12} style={{ color: 'var(--cricket)' }} />
-                      }
-                      <Text size="2xs" weight="medium">Receipt {i + 1}{pdf ? '.pdf' : '.jpg'}</Text>
-                      <ExternalLink size={9} className="text-[var(--dim)]" />
-                    </button>
-                  );
-                })}
-              </div>
+            {pctOfTotal >= 10 && (
+              <>
+                <Text size="2xs" color="dim">·</Text>
+                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+                  style={{
+                    background: pctOfTotal >= 25 ? `${config.color}15` : 'transparent',
+                    color: pctOfTotal >= 25 ? config.color : 'var(--dim)',
+                  }}
+                  title={`${Math.round(pctOfTotal)}% of total spend`}
+                >
+                  {Math.round(pctOfTotal)}%
+                </span>
+              </>
+            )}
+
+            {hasReceipts && expense.receipt_urls!.map((url, i) => {
+              const pdf = isUrlPdf(url);
+              return (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer'); }}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer hover:bg-[var(--surface)] transition-colors"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                  title={`Receipt ${i + 1}${pdf ? '.pdf' : '.jpg'}`}
+                >
+                  {pdf
+                    ? <FileText size={10} style={{ color: '#EF4444' }} />
+                    : <Receipt size={10} style={{ color: 'var(--cricket)' }} />}
+                  <Text size="2xs" weight="medium" className="leading-none">
+                    {expense.receipt_urls!.length > 1 ? `${i + 1}` : 'Receipt'}
+                  </Text>
+                  <ExternalLink size={8} className="text-[var(--dim)]" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Menu — h-9 w-9 hit area */}
+        {isAdmin && (
+          <div className="flex-shrink-0 self-center">
+            <button
+              ref={openMenu ? menuBtnRef : null}
+              onClick={() => setOpenMenu(!openMenu)}
+              className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+              aria-label="Expense actions"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+            {openMenu && (
+              <CardMenu
+                anchorRef={menuBtnRef}
+                onClose={() => setOpenMenu(false)}
+                items={[
+                  { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: onEdit },
+                  { label: 'Details', icon: <Info size={15} />, color: 'var(--muted)', onClick: onDetails },
+                  { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: onDelete, dividerBefore: true },
+                ]}
+              />
             )}
           </div>
-
-          {/* Menu */}
-          {isAdmin && (
-            <div className="flex-shrink-0">
-              <button
-                ref={openMenu ? menuBtnRef : null}
-                onClick={() => setOpenMenu(!openMenu)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-                aria-label="Expense actions"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
-                </svg>
-              </button>
-              {openMenu && (
-                <CardMenu
-                  anchorRef={menuBtnRef}
-                  onClose={() => setOpenMenu(false)}
-                  items={[
-                    { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: onEdit },
-                    { label: 'Details', icon: <Info size={15} />, color: 'var(--muted)', onClick: onDetails },
-                    { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: onDelete, dividerBefore: true },
-                  ]}
-                />
-              )}
-            </div>
-          )}
-        </div>
+        )}
       </div>
-      {/* Divider (except last) */}
       {!isLast && <div className="mx-3 sm:mx-4" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 50%, transparent)' }} />}
     </div>
   );
@@ -691,6 +719,22 @@ export default function ExpenseList() {
     ? seasonExpenses.filter((e) => e.category === categoryFilter)
     : seasonExpenses;
 
+  // Group filtered expenses by month — newest first within each group
+  const groupedExpenses = useMemo(() => {
+    const groups: { key: string; label: string; total: number; expenses: typeof filteredExpenses }[] = [];
+    const sorted = [...filteredExpenses].sort((a, b) => b.expense_date.localeCompare(a.expense_date));
+    for (const e of sorted) {
+      const date = new Date(e.expense_date);
+      const key = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`;
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      let group = groups.find((g) => g.key === key);
+      if (!group) { group = { key, label, total: 0, expenses: [] }; groups.push(group); }
+      group.expenses.push(e);
+      group.total += Number(e.amount);
+    }
+    return groups;
+  }, [filteredExpenses]);
+
   const handleEditSave = async (
     expenseId: string,
     updates: { category: string; description: string; amount: number; expense_date: string; receipt_urls?: string[] | null },
@@ -759,69 +803,93 @@ export default function ExpenseList() {
         )}
       </div>
 
-      {/* ── Pool Fund Hero (only when there's collected money) ── */}
-      {totalCollected > 0 && (
-        <PoolFundHero
-          totalFees={totalFees}
-          totalSponsorship={totalSponsorship}
-          totalSpent={totalSpent}
-          poolBalance={poolBalance}
-          isLow={isLow}
-          perPerson={perPerson}
-          hasPlayers={activePlayers.length > 0}
-        />
-      )}
+      {/* ── Hero + List: side-by-side at lg, stacked below ── */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-6 lg:items-start lg:space-y-0 space-y-4">
+        {/* LEFT: Hero (sticky on desktop) */}
+        {totalCollected > 0 && (
+          <div className="lg:sticky lg:top-20">
+            <PoolFundHero
+              totalFees={totalFees}
+              totalSponsorship={totalSponsorship}
+              totalSpent={totalSpent}
+              poolBalance={poolBalance}
+              isLow={isLow}
+              perPerson={perPerson}
+              hasPlayers={activePlayers.length > 0}
+            />
+          </div>
+        )}
 
-      {/* ── Category Filters (only when there are expenses) ── */}
-      {seasonExpenses.length > 1 && (
-        <CategoryFilters
-          active={categoryFilter}
-          onChange={setCategoryFilter}
-          expenses={seasonExpenses}
-        />
-      )}
+        {/* RIGHT: Filters + grouped expense list */}
+        <div className="space-y-4">
+          {seasonExpenses.length > 1 && (
+            <CategoryFilters
+              active={categoryFilter}
+              onChange={setCategoryFilter}
+              expenses={seasonExpenses}
+            />
+          )}
 
-      {/* ── Expense List ── */}
-      {seasonExpenses.length === 0 ? (
-        <EmptyState
-          icon={<ReceiptText size={36} style={{ color: 'var(--cricket)' }} />}
-          title="No expenses yet"
-          description="Track team spending by adding your first expense"
-          brand="cricket"
-          action={isAdmin ? { label: 'Add Expense', onClick: () => setShowExpenseForm(true) } : undefined}
-        />
-      ) : (
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{
-            background: 'var(--card)',
-            border: '1px solid var(--border)',
-            boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
-          }}
-        >
-          {filteredExpenses.map((e, i) => {
-            const cfg = getCategoryConfig(e.category);
-            return (
-              <ExpenseRow
-                key={e.id}
-                expense={e}
-                config={cfg}
-                totalSpent={totalSpent}
-                isAdmin={isAdmin}
-                isLast={i === filteredExpenses.length - 1}
-                onEdit={() => setEditingExpense(e)}
-                onDetails={() => {
-                  const parts: string[] = [];
-                  if (e.created_by) parts.push(`Added by ${e.created_by} on ${formatDate(e.created_at?.split('T')[0] || e.expense_date)}`);
-                  if (e.updated_by && e.updated_at !== e.created_at) parts.push(`Updated by ${e.updated_by} on ${formatDate(e.updated_at.split('T')[0])}`);
-                  toast(parts.join('\n') || 'No details', { duration: 4000 });
-                }}
-                onDelete={() => setDeletingExpense({ id: e.id, desc: e.description || cfg.label })}
-              />
-            );
-          })}
+          {seasonExpenses.length === 0 ? (
+            <EmptyState
+              icon={<ReceiptText size={36} style={{ color: 'var(--cricket)' }} />}
+              title="No expenses yet"
+              description="Track team spending by adding your first expense"
+              brand="cricket"
+              action={isAdmin ? { label: 'Add Expense', onClick: () => setShowExpenseForm(true) } : undefined}
+            />
+          ) : (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+              }}
+            >
+              {groupedExpenses.map((group, gIdx) => (
+                <div key={group.key}>
+                  {/* Month header — subtotal on the right */}
+                  <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5"
+                    style={{
+                      background: 'color-mix(in srgb, var(--surface) 60%, transparent)',
+                      borderTop: gIdx > 0 ? '1px solid var(--border)' : 'none',
+                      borderBottom: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+                    }}>
+                    <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">{group.label}</Text>
+                    <Text size="2xs" color="dim">·</Text>
+                    <Text size="2xs" color="dim">{group.expenses.length} {group.expenses.length === 1 ? 'expense' : 'expenses'}</Text>
+                    <Text size="2xs" weight="bold" tabular color="muted" className="ml-auto">
+                      {formatCurrency(group.total)}
+                    </Text>
+                  </div>
+                  {group.expenses.map((e, i) => {
+                    const cfg = getCategoryConfig(e.category);
+                    return (
+                      <ExpenseRow
+                        key={e.id}
+                        expense={e}
+                        config={cfg}
+                        totalSpent={totalSpent}
+                        isAdmin={isAdmin}
+                        isLast={i === group.expenses.length - 1}
+                        onEdit={() => setEditingExpense(e)}
+                        onDetails={() => {
+                          const parts: string[] = [];
+                          if (e.created_by) parts.push(`Added by ${e.created_by} on ${formatDate(e.created_at?.split('T')[0] || e.expense_date)}`);
+                          if (e.updated_by && e.updated_at !== e.created_at) parts.push(`Updated by ${e.updated_by} on ${formatDate(e.updated_at.split('T')[0])}`);
+                          toast(parts.join('\n') || 'No details', { duration: 4000 });
+                        }}
+                        onDelete={() => setDeletingExpense({ id: e.id, desc: e.description || cfg.label })}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ── Recently Deleted ── */}
       {isAdmin && deletedExpenses.length > 0 && (
