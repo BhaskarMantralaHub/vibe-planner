@@ -440,6 +440,27 @@ function ScoringScreen({ onBack, onRefresh, readOnly = false }: ScoringScreenPro
     useScoringStore.getState().swapStrike();
   }, []);
 
+  /* ── Hooks that need to run regardless of `match` — must stay above the
+      `if (!match) return null` guard to keep React's hook order stable.
+      Each handles `!match` internally. ── */
+  const [showResultScreen, setShowResultScreen] = useState(true);
+
+  const scorecardInn1 = useMemo(() => {
+    if (!match) return null;
+    const bs1 = readOnly ? localBattingStats_(0) : getBattingStats(0);
+    const bw1 = readOnly ? localBowlingStats_(0) : getBowlingStats(0);
+    return buildInningsSummary(0, match, innings[0], bs1, bw1, balls, playerMap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
+
+  const scorecardInn2 = useMemo(() => {
+    if (!match || !innings[1].total_overs) return null;
+    const bs2 = readOnly ? localBattingStats_(1) : getBattingStats(1);
+    const bw2 = readOnly ? localBowlingStats_(1) : getBowlingStats(1);
+    return buildInningsSummary(1, match, innings[1], bs2, bw2, balls, playerMap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
+
   /* ── Guard: no match ── */
   if (!match) return null;
 
@@ -502,23 +523,7 @@ function ScoringScreen({ onBack, onRefresh, readOnly = false }: ScoringScreenPro
   const lastOverBalls = balls.filter((b) => b.innings === idx && b.over_number === completedOverNumber - 1);
   const lastOverRuns = lastOverBalls.reduce((s, b) => s + b.runs_bat + b.runs_extras, 0);
 
-  /* ── Match Completed Screen ── */
-  const [showResultScreen, setShowResultScreen] = useState(true);
-
-  // Build scorecard for both innings (for post-match view)
-  const scorecardInn1 = useMemo(() => {
-    if (!match) return null;
-    const bs1 = readOnly ? localBattingStats_(0) : getBattingStats(0);
-    const bw1 = readOnly ? localBowlingStats_(0) : getBowlingStats(0);
-    return buildInningsSummary(0, match, innings[0], bs1, bw1, balls, playerMap);
-  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
-
-  const scorecardInn2 = useMemo(() => {
-    if (!match || !innings[1].total_overs) return null;
-    const bs2 = readOnly ? localBattingStats_(1) : getBattingStats(1);
-    const bw2 = readOnly ? localBowlingStats_(1) : getBowlingStats(1);
-    return buildInningsSummary(1, match, innings[1], bs2, bw2, balls, playerMap);
-  }, [match, innings, balls, playerMap, readOnly, localBattingStats_, localBowlingStats_]);
+  /* ── Match Completed Screen — hooks already declared above the guard ── */
 
   if (match.status === 'completed' && showResultScreen) {
     const inn1 = innings[0];

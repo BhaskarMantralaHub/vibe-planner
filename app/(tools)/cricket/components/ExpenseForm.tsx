@@ -66,6 +66,8 @@ export default function ExpenseForm() {
   }, []);
 
   const [formError, setFormError] = useState('');
+  // Must be declared above the early return — Rules of Hooks (React error #310).
+  const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
 
   if (!showExpenseForm) return null;
 
@@ -111,8 +113,6 @@ export default function ExpenseForm() {
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
-
-  const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
 
   const removeReceipt = () => {
     if (pendingRemoveIdx === null) return;
