@@ -850,19 +850,15 @@ export default function ExpenseList() {
             >
               {groupedExpenses.map((group, gIdx) => (
                 <div key={group.key}>
-                  {/* Month header — subtotal on the right */}
-                  <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5"
+                  {/* Month header — transparent, hairline divider only */}
+                  <div className="flex items-baseline gap-2 px-3 sm:px-4 pt-3 pb-2"
                     style={{
-                      background: 'color-mix(in srgb, var(--surface) 60%, transparent)',
                       borderTop: gIdx > 0 ? '1px solid var(--border)' : 'none',
-                      borderBottom: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
                     }}>
-                    <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">{group.label}</Text>
-                    <Text size="2xs" color="dim">·</Text>
-                    <Text size="2xs" color="dim">{group.expenses.length} {group.expenses.length === 1 ? 'expense' : 'expenses'}</Text>
-                    <Text size="2xs" weight="bold" tabular color="muted" className="ml-auto">
-                      {formatCurrency(group.total)}
+                    <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: 'var(--muted)' }}>
+                      {group.label}
                     </Text>
+                    <Text size="2xs" color="dim">{group.expenses.length} · {formatCurrency(group.total)}</Text>
                   </div>
                   {group.expenses.map((e, i) => {
                     const cfg = getCategoryConfig(e.category);

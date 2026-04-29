@@ -84,8 +84,17 @@ export function getMonthlySpending(expenses: CricketExpense[]): { month: string;
     .map((month) => ({ month, total: monthly[month] }));
 }
 
+// Canonical USD format — always 2 decimals + thousand separators.
+// Consistent character width ensures right-aligned columns of money line up cleanly,
+// which is the standard finance UI convention.
+const _currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 export function formatCurrency(amount: number): string {
-  return `$${Math.abs(amount).toFixed(2).replace(/\.00$/, '')}`;
+  return _currencyFormatter.format(Math.abs(amount));
 }
 
 export function formatDate(dateStr: string): string {
