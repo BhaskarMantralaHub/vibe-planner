@@ -850,15 +850,20 @@ export default function ExpenseList() {
             >
               {groupedExpenses.map((group, gIdx) => (
                 <div key={group.key}>
-                  {/* Month header — transparent, hairline divider only */}
-                  <div className="flex items-baseline gap-2 px-3 sm:px-4 pt-3 pb-2"
-                    style={{
-                      borderTop: gIdx > 0 ? '1px solid var(--border)' : 'none',
-                    }}>
-                    <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: 'var(--muted)' }}>
-                      {group.label}
+                  {/* Month header — label + count on left, subtotal pinned right */}
+                  <div className="flex items-baseline justify-between gap-3 px-3 sm:px-4 pt-3.5 pb-2.5"
+                    style={{ borderTop: gIdx > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <Text size="xs" weight="bold" uppercase tracking="wider" style={{ color: 'var(--text)' }}>
+                        {group.label}
+                      </Text>
+                      <Text size="2xs" color="dim">
+                        {group.expenses.length} {group.expenses.length === 1 ? 'expense' : 'expenses'}
+                      </Text>
+                    </div>
+                    <Text size="xs" weight="bold" tabular style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {formatCurrency(group.total)}
                     </Text>
-                    <Text size="2xs" color="dim">{group.expenses.length} · {formatCurrency(group.total)}</Text>
                   </div>
                   {group.expenses.map((e, i) => {
                     const cfg = getCategoryConfig(e.category);
