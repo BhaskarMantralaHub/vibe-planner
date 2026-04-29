@@ -1019,9 +1019,10 @@ export default function SplitsDashboard() {
       </div>}
 
       {/* ── Deleted tab ── */}
-      {subTab === 'deleted' && <div key="deleted" className="tab-enter">
+      {subTab === 'deleted' && (
+        <div key="deleted" className="tab-enter">
         {deletedSplits.length > 0 ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-visible">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)]" style={{ overflow: 'visible' }}>
             <div className="px-4 pt-4 pb-2 flex items-center gap-2">
               <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
                 <Trash2 size={13} style={{ color: 'var(--split-owe)' }} />
@@ -1071,7 +1072,8 @@ export default function SplitsDashboard() {
         ) : (
           <EmptyState icon={<Trash2 size={28} />} title="Nothing deleted" description="Deleted splits will live here so you can restore or wipe them." brand="cricket" />
         )}
-      </div>}
+        </div>
+      )}
 
       {/* FAB */}
       <button onClick={() => useSplitsStore.setState({ showSplitForm: true })}
