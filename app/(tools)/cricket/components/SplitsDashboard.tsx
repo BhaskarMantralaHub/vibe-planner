@@ -11,7 +11,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink } from 'lucide-react';
+import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw } from 'lucide-react';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 import dynamic from 'next/dynamic';
@@ -1021,57 +1021,68 @@ export default function SplitsDashboard() {
       {/* ── Deleted tab ── */}
       {subTab === 'deleted' && (
         <div key="deleted" className="tab-enter">
-        {deletedSplits.length > 0 ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)]" style={{ overflow: 'visible' }}>
-            <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-              <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
-                <Trash2 size={13} style={{ color: 'var(--split-owe)' }} />
+          {deletedSplits.length > 0 ? (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)]" style={{ overflow: 'visible' }}>
+              {/* Header — same hierarchy as Activity card */}
+              <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
+                  <Trash2 size={13} style={{ color: 'var(--split-owe)' }} />
+                </div>
+                <Text size="sm" weight="bold">Recently Deleted</Text>
+                <Text size="2xs" color="dim" className="ml-auto">{deletedSplits.length} {deletedSplits.length === 1 ? 'split' : 'splits'}</Text>
               </div>
-              <Text size="sm" weight="bold">Recently Deleted</Text>
-              <Text size="xs" color="dim" className="ml-auto">{deletedSplits.length}</Text>
-            </div>
-            <div className="px-3 pb-3 space-y-2">
-              {deletedSplits.map((s) => {
-                const payer = activePlayers.find((p) => p.id === s.paid_by);
-                return (
-                  <div key={s.id} className="rounded-xl p-3" style={{ background: 'var(--surface)', borderLeft: '3px solid var(--split-owe)' }}>
-                    <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/40 flex-1 min-w-0">
-                        {s.description || s.category}
-                      </Text>
-                      <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/40 flex-shrink-0">
+
+              {/* Activity-style row list */}
+              <div className="px-3 pb-3 space-y-2">
+                {deletedSplits.map((s) => {
+                  const payer = activePlayers.find((p) => p.id === s.paid_by);
+                  return (
+                    <div
+                      key={s.id}
+                      className="rounded-xl border border-[var(--border)] flex items-center gap-3 p-3 transition-colors duration-200"
+                      style={{ background: 'var(--surface)' }}
+                    >
+                      <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" opacity={0.55} />
+                      <div className="flex-1 min-w-0" style={{ opacity: 0.7 }}>
+                        <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/50 block">
+                          {s.description || s.category}
+                        </Text>
+                        <Text as="p" size="2xs" color="dim">
+                          {payer?.name?.split(' ')[0] ?? 'Unknown'} paid · {formatDate(s.split_date)}
+                          {s.deleted_by && <> · deleted by <Text weight="semibold">{s.deleted_by}</Text></>}
+                        </Text>
+                      </div>
+                      <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/50 flex-shrink-0" style={{ opacity: 0.6 }}>
                         {formatCurrency(Number(s.amount))}
                       </Text>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                        <button
+                          onClick={() => useSplitsStore.getState().restoreSplit(s.id)}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
+                          style={{ color: 'var(--split-credit)', background: 'var(--split-credit-bg)', border: '1px solid var(--split-credit-border)' }}
+                          aria-label="Restore split"
+                          title="Restore"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                        <button
+                          onClick={() => setPermanentDeleting({ id: s.id, desc: s.description || s.category, amount: formatCurrency(Number(s.amount)) })}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
+                          style={{ color: 'var(--split-owe)', background: 'var(--split-owe-bg)', border: '1px solid var(--split-owe-border)' }}
+                          aria-label="Delete forever"
+                          title="Delete forever"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <Text as="p" size="2xs" color="muted" className="mb-2.5">
-                      {payer?.name ?? 'Unknown'} paid · {formatDate(s.split_date)}
-                      {s.deleted_by && <> · deleted by <Text weight="semibold">{s.deleted_by}</Text></>}
-                    </Text>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => useSplitsStore.getState().restoreSplit(s.id)}
-                        className="flex-1 rounded-lg py-2 text-[12px] font-semibold cursor-pointer active:scale-[0.98] transition-all"
-                        style={{ background: 'var(--split-credit-bg)', color: 'var(--split-credit)', border: '1px solid var(--split-credit-border)' }}
-                      >
-                        Restore
-                      </button>
-                      <button
-                        onClick={() => setPermanentDeleting({ id: s.id, desc: s.description || s.category, amount: formatCurrency(Number(s.amount)) })}
-                        className="rounded-lg px-4 py-2 text-[12px] font-semibold cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center"
-                        style={{ background: 'var(--split-owe-bg)', color: 'var(--split-owe)', border: '1px solid var(--split-owe-border)' }}
-                        aria-label="Permanently delete"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ) : (
-          <EmptyState icon={<Trash2 size={28} />} title="Nothing deleted" description="Deleted splits will live here so you can restore or wipe them." brand="cricket" />
-        )}
+          ) : (
+            <EmptyState icon={<Trash2 size={28} />} title="Nothing deleted" description="Deleted splits will live here so you can restore or wipe them." brand="cricket" />
+          )}
         </div>
       )}
 
