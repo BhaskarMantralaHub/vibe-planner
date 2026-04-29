@@ -98,6 +98,20 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
 
   const handleClose = () => { reset(); onClose(); };
 
+  // iOS Safari/Chrome: vaul shifts the drawer above the keyboard, but the textarea
+  // sits inside the drawer's inner scrollable. Vaul doesn't scroll WITHIN that
+  // scrollable, so the keyboard can still cover the textarea.
+  //
+  // Fix: after the keyboard finishes animating in (~300ms), scroll the textarea
+  // to the START of the visible scroll parent. Combined with putting the textarea
+  // first in DrawerBody (FB/IG/Twitter pattern), the input ends up at the top of
+  // the visible drawer area while the keyboard covers the photo picker below.
+  const handleCaptionFocus = () => {
+    setTimeout(() => {
+      captionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 350);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
     if (selected.length === 0) return;
@@ -239,8 +253,58 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
           {/* Divider */}
           <div className="h-px" style={{ background: 'var(--border)' }} />
 
-          <DrawerBody>
-            {/* Photo picker */}
+          <DrawerBody className="scroll-pt-4">
+            {/* Caption first — matches Facebook / Instagram / Twitter pattern.
+                When iOS keyboard pops up, the textarea is at the top of the visible
+                drawer area so it isn't covered. Photo picker goes below — users edit
+                photos before tapping the caption, not while typing. */}
+            <div className="relative">
+              <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-1.5 block">
+                Caption
+              </label>
+              <textarea
+                ref={captionRef}
+                value={caption}
+                onChange={handleCaptionChange}
+                onFocus={handleCaptionFocus}
+                placeholder="Great match today! Use @ to tag players"
+                rows={3}
+                maxLength={500}
+                className="w-full rounded-xl px-3 py-2.5 text-[16px] resize-none overflow-y-auto"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '160px' }}
+              />
+
+              {/* @mention dropdown */}
+              {mentionQuery !== null && (
+                <MentionDropdown
+                  query={mentionQuery}
+                  players={activePlayers}
+                  onSelect={(p) => insertMention(p.name)}
+                  onSelectAll={() => insertMention('Everyone')}
+                  position={mentionPos}
+                />
+              )}
+            </div>
+
+            {/* Live preview of tagged players */}
+            {taggedPlayers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--dim)] self-center mr-1">Tagged:</span>
+                {taggedPlayers.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    style={{ background: 'var(--hover-bg)', color: 'var(--blue)' }}
+                  >
+                    @{p.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Photo picker — below caption per FB/IG/Twitter pattern.
+                Hidden by keyboard while typing, but that's fine: users add photos
+                BEFORE writing the caption, not while typing. */}
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
             {previews.length > 0 ? (
               <div>
@@ -278,67 +342,23 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center gap-3 py-16 rounded-2xl cursor-pointer hover:opacity-80 transition-opacity"
+                className="w-full flex flex-col items-center justify-center gap-3 py-12 rounded-2xl cursor-pointer hover:opacity-80 transition-opacity"
                 style={{
                   background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), color-mix(in srgb, var(--cricket-accent) 4%, transparent))',
                   border: '2px dashed var(--border)',
                 }}
               >
                 <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center"
+                  className="w-14 h-14 rounded-full flex items-center justify-center"
                   style={{
                     background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 15%, transparent), color-mix(in srgb, var(--cricket-accent) 10%, transparent))',
                   }}
                 >
-                  <Camera size={28} strokeWidth={1.5} style={{ color: 'var(--cricket)' }} />
+                  <Camera size={26} strokeWidth={1.5} style={{ color: 'var(--cricket)' }} />
                 </div>
-                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to select photos</span>
-                <span className="text-[12px] text-[var(--dim)]">Up to {MAX_PHOTOS} photos per post</span>
+                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to add photos</span>
+                <span className="text-[12px] text-[var(--dim)]">Up to {MAX_PHOTOS} per post</span>
               </button>
-            )}
-
-            {/* Caption with @mention autocomplete */}
-            <div className="relative">
-              <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)] mb-1.5 block">
-                Caption
-              </label>
-              <textarea
-                ref={captionRef}
-                value={caption}
-                onChange={handleCaptionChange}
-                placeholder="Great match today! Use @ to tag players"
-                rows={2}
-                maxLength={500}
-                className="w-full rounded-xl px-3 py-2.5 text-[16px] resize-none overflow-y-auto"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', maxHeight: '120px' }}
-              />
-
-              {/* @mention dropdown */}
-              {mentionQuery !== null && (
-                <MentionDropdown
-                  query={mentionQuery}
-                  players={activePlayers}
-                  onSelect={(p) => insertMention(p.name)}
-                  onSelectAll={() => insertMention('Everyone')}
-                  position={mentionPos}
-                />
-              )}
-            </div>
-
-            {/* Live preview of tagged players */}
-            {taggedPlayers.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--dim)] self-center mr-1">Tagged:</span>
-                {taggedPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
-                    style={{ background: 'var(--hover-bg)', color: 'var(--blue)' }}
-                  >
-                    @{p.name}
-                  </span>
-                ))}
-              </div>
             )}
           </DrawerBody>
     </Drawer>
