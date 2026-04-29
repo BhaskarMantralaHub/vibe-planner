@@ -10,6 +10,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
 import TeamSwitcher from '@/components/TeamSwitcher';
 import { ResetPasswordForm } from '@/components/ResetPasswordForm';
+import { TopProgressBar } from '@/components/TopProgressBar';
 import { Button, Text } from '@/components/ui';
 import { toast } from 'sonner';
 
@@ -343,6 +344,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <TopProgressBar />
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
           {showNav ? (

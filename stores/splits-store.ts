@@ -6,6 +6,7 @@ import type {
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
+import { useUIStore } from '@/stores/ui-store';
 import { toast } from 'sonner';
 
 function getCurrentTeamId(): string | null {
@@ -85,34 +86,41 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
     const teamId = getCurrentTeamId();
     if (!teamId) return;
 
-    // Only show skeleton on first-ever load for this season. Subsequent revisits refetch silently.
+    // Only show skeleton on first-ever load for this season. Subsequent revisits refetch silently
+    // (but the global TopProgressBar still shows so users know data is in flight).
     const alreadyLoaded = get().loadedSeasonIds.has(seasonId);
     if (!alreadyLoaded) set({ loading: true });
 
-    // Load splits first, then filter shares by split IDs (no unscoped query)
-    const [splitsRes, settlementsRes] = await Promise.all([
-      supabase.from('cricket_splits').select('*').eq('team_id', teamId).eq('season_id', seasonId),
-      supabase.from('cricket_split_settlements').select('*').eq('team_id', teamId).eq('season_id', seasonId),
-    ]);
+    const ui = useUIStore.getState();
+    ui.beginLoad();
+    try {
+      // Load splits first, then filter shares by split IDs (no unscoped query)
+      const [splitsRes, settlementsRes] = await Promise.all([
+        supabase.from('cricket_splits').select('*').eq('team_id', teamId).eq('season_id', seasonId),
+        supabase.from('cricket_split_settlements').select('*').eq('team_id', teamId).eq('season_id', seasonId),
+      ]);
 
-    const loadedSplits = (splitsRes.data ?? []) as CricketSplit[];
-    const splitIds = loadedSplits.map((s) => s.id);
+      const loadedSplits = (splitsRes.data ?? []) as CricketSplit[];
+      const splitIds = loadedSplits.map((s) => s.id);
 
-    // Only fetch shares for splits we loaded — never fetch unscoped
-    const sharesRes = splitIds.length > 0
-      ? await supabase.from('cricket_split_shares').select('*').in('split_id', splitIds)
-      : { data: [] };
+      // Only fetch shares for splits we loaded — never fetch unscoped
+      const sharesRes = splitIds.length > 0
+        ? await supabase.from('cricket_split_shares').select('*').in('split_id', splitIds)
+        : { data: [] };
 
-    const nextLoadedSeasonIds = new Set(get().loadedSeasonIds);
-    nextLoadedSeasonIds.add(seasonId);
+      const nextLoadedSeasonIds = new Set(get().loadedSeasonIds);
+      nextLoadedSeasonIds.add(seasonId);
 
-    set({
-      splits: loadedSplits,
-      shares: (sharesRes.data ?? []) as CricketSplitShare[],
-      settlements: (settlementsRes.data ?? []) as CricketSplitSettlement[],
-      loading: false,
-      loadedSeasonIds: nextLoadedSeasonIds,
-    });
+      set({
+        splits: loadedSplits,
+        shares: (sharesRes.data ?? []) as CricketSplitShare[],
+        settlements: (settlementsRes.data ?? []) as CricketSplitSettlement[],
+        loading: false,
+        loadedSeasonIds: nextLoadedSeasonIds,
+      });
+    } finally {
+      ui.endLoad();
+    }
   },
 
   addSplit: (userId, seasonId, data, playerShares, createdBy, receiptFiles) => {

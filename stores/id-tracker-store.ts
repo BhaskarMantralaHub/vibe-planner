@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { IDDocument } from '@/types/id-tracker';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
+import { useUIStore } from '@/stores/ui-store';
 import { toast } from 'sonner';
 
 const LOCAL_KEY = 'id_tracker_data';
@@ -57,28 +58,33 @@ export const useIDTrackerStore = create<IDTrackerState>((set, get) => ({
 
   loadDocuments: async (userId: string) => {
     set({ loading: true });
+    const ui = useUIStore.getState();
+    ui.beginLoad();
+    try {
+      if (isCloudMode()) {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          set({ loading: false });
+          return;
+        }
 
-    if (isCloudMode()) {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        set({ loading: false });
-        return;
+        const { data, error } = await supabase
+          .from('id_documents')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true });
+
+        if (!error && data) {
+          set({ documents: data as IDDocument[] });
+        }
+      } else {
+        set({ documents: localLoad() });
       }
 
-      const { data, error } = await supabase
-        .from('id_documents')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
-
-      if (!error && data) {
-        set({ documents: data as IDDocument[] });
-      }
-    } else {
-      set({ documents: localLoad() });
+      set({ loading: false });
+    } finally {
+      ui.endLoad();
     }
-
-    set({ loading: false });
   },
 
   addDocument: (userId: string, doc: Omit<IDDocument, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {

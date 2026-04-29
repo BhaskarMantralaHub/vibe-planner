@@ -17,6 +17,7 @@ import type {
 } from '@/types/cricket';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
+import { useUIStore } from '@/stores/ui-store';
 import { toast } from 'sonner';
 
 /// Get current team ID from auth store (for multi-team query filtering)
@@ -241,6 +242,9 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     }
 
     set({ loading: true });
+    const ui = useUIStore.getState();
+    ui.beginLoad();
+    try {
 
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
@@ -342,10 +346,16 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const selectedSeasonId = pickCurrentSeason(data.seasons);
       set({ ...data, fees: [], selectedSeasonId, hasMoreGallery: false, galleryOffset: 0, loading: false });
     }
+    } finally {
+      ui.endLoad();
+    }
   },
 
   loadMoments: async (userId: string) => {
     set({ loading: true });
+    const ui = useUIStore.getState();
+    ui.beginLoad();
+    try {
 
     if (!isCloudMode()) {
       const data = localLoad();
@@ -403,6 +413,9 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const commentReactions = (reactionsRes.data ?? []) as CommentReaction[];
 
     set({ players, seasons, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false });
+    } finally {
+      ui.endLoad();
+    }
   },
 
   loadSeasons: async () => {
