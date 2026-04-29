@@ -196,7 +196,11 @@ export default function SplitsDashboard() {
     () => seasonSplits.filter((s) => !s.deleted_at).sort((a, b) => b.created_at.localeCompare(a.created_at)),
     [seasonSplits],
   );
-  const hasSplits = activeSplits.length > 0 || seasonSettlements.length > 0;
+  const deletedSplits = useMemo(
+    () => seasonSplits.filter((s) => s.deleted_at).sort((a, b) => (b.deleted_at ?? '').localeCompare(a.deleted_at ?? '')),
+    [seasonSplits],
+  );
+  const hasSplits = activeSplits.length > 0 || seasonSettlements.length > 0 || deletedSplits.length > 0;
 
   // Pre-build shares lookup map
   const sharesMap = useMemo(() => {
@@ -268,7 +272,7 @@ export default function SplitsDashboard() {
   }, [activeSplits, activePlayers, sharesMap]);
 
   // UI state
-  type SplitSubTab = 'balances' | 'activity' | 'settlements';
+  type SplitSubTab = 'balances' | 'activity' | 'settlements' | 'deleted';
   const [subTab, setSubTab] = useState<SplitSubTab>('activity');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSettlementId, setExpandedSettlementId] = useState<string | null>(null);
@@ -282,6 +286,7 @@ export default function SplitsDashboard() {
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [deletingItem, setDeletingItem] = useState<{ id: string; type: 'split' | 'settlement'; desc: string; paidBy?: string; date?: string; amount?: string } | null>(null);
   const [editBlockedSplit, setEditBlockedSplit] = useState<{ id: string; paidById: string; desc: string } | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState<{ id: string; desc: string; amount: string } | null>(null);
 
   const openSettleDrawer = (fromId: string, toId: string, amount: number) => {
     useSplitsStore.setState({ showSettleForm: true, settleTarget: { fromId, toId, amount } });
@@ -384,6 +389,7 @@ export default function SplitsDashboard() {
           { key: 'activity', label: `Activity${activityFeed.length > 0 ? ` (${activityFeed.length})` : ''}` },
           { key: 'balances', label: `Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
           { key: 'settlements', label: `Settled${seasonSettlements.length > 0 ? ` (${seasonSettlements.length})` : ''}` },
+          ...(deletedSplits.length > 0 && isAdmin ? [{ key: 'deleted', label: `Deleted (${deletedSplits.length})` }] : []),
         ]}
         active={subTab}
         onChange={(key) => { setSubTab(key as SplitSubTab); setActivityPage(0); setSettlementPage(0); }}
@@ -611,7 +617,7 @@ export default function SplitsDashboard() {
         }
 
         return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-visible">
           <div className="p-4 pb-3">
             <FilterDropdown
               options={[
@@ -862,7 +868,7 @@ export default function SplitsDashboard() {
         }
 
         return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-visible">
           <div className="p-4 pb-3">
             <FilterDropdown
               options={[
@@ -1012,6 +1018,61 @@ export default function SplitsDashboard() {
 
       </div>}
 
+      {/* ── Deleted tab ── */}
+      {subTab === 'deleted' && <div key="deleted" className="tab-enter">
+        {deletedSplits.length > 0 ? (
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-visible">
+            <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
+                <Trash2 size={13} style={{ color: 'var(--split-owe)' }} />
+              </div>
+              <Text size="sm" weight="bold">Recently Deleted</Text>
+              <Text size="xs" color="dim" className="ml-auto">{deletedSplits.length}</Text>
+            </div>
+            <div className="px-3 pb-3 space-y-2">
+              {deletedSplits.map((s) => {
+                const payer = activePlayers.find((p) => p.id === s.paid_by);
+                return (
+                  <div key={s.id} className="rounded-xl p-3" style={{ background: 'var(--surface)', borderLeft: '3px solid var(--split-owe)' }}>
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/40 flex-1 min-w-0">
+                        {s.description || s.category}
+                      </Text>
+                      <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/40 flex-shrink-0">
+                        {formatCurrency(Number(s.amount))}
+                      </Text>
+                    </div>
+                    <Text as="p" size="2xs" color="muted" className="mb-2.5">
+                      {payer?.name ?? 'Unknown'} paid · {formatDate(s.split_date)}
+                      {s.deleted_by && <> · deleted by <Text weight="semibold">{s.deleted_by}</Text></>}
+                    </Text>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => useSplitsStore.getState().restoreSplit(s.id)}
+                        className="flex-1 rounded-lg py-2 text-[12px] font-semibold cursor-pointer active:scale-[0.98] transition-all"
+                        style={{ background: 'var(--split-credit-bg)', color: 'var(--split-credit)', border: '1px solid var(--split-credit-border)' }}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => setPermanentDeleting({ id: s.id, desc: s.description || s.category, amount: formatCurrency(Number(s.amount)) })}
+                        className="rounded-lg px-4 py-2 text-[12px] font-semibold cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center"
+                        style={{ background: 'var(--split-owe-bg)', color: 'var(--split-owe)', border: '1px solid var(--split-owe-border)' }}
+                        aria-label="Permanently delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <EmptyState icon={<Trash2 size={28} />} title="Nothing deleted" description="Deleted splits will live here so you can restore or wipe them." brand="cricket" />
+        )}
+      </div>}
+
       {/* FAB */}
       <button onClick={() => useSplitsStore.setState({ showSplitForm: true })}
         aria-label="Add new split"
@@ -1034,6 +1095,45 @@ export default function SplitsDashboard() {
             setDeletingItem(null);
           }}
         />
+      )}
+
+      {/* Permanent delete confirm */}
+      {permanentDeleting && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in"
+          role="alertdialog" aria-modal="true" aria-label="Permanently delete split"
+          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }} onClick={() => setPermanentDeleting(null)}>
+          <div className="w-full max-w-[360px] rounded-2xl p-5"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--split-owe-bg)' }}>
+                <Trash2 size={20} style={{ color: 'var(--split-owe)' }} />
+              </div>
+              <div>
+                <Text size="sm" weight="semibold">Permanently delete?</Text>
+                <Text as="p" size="xs" color="muted"><b>{permanentDeleting.desc}</b> · {permanentDeleting.amount}</Text>
+              </div>
+            </div>
+            <Text as="p" size="xs" color="dim" className="mb-4">
+              This wipes the split, all shares, and any attached receipts from storage. <b>Can&apos;t be undone.</b>
+            </Text>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setPermanentDeleting(null)}
+                className="px-4 py-2.5 min-h-[44px] rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => {
+                useSplitsStore.getState().permanentDeleteSplit(permanentDeleting.id);
+                setPermanentDeleting(null);
+              }}
+                className="px-4 py-2.5 min-h-[44px] rounded-xl text-[13px] font-medium text-white cursor-pointer hover:opacity-90 transition-opacity"
+                style={{ background: 'var(--split-owe)' }}>
+                Delete forever
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {/* Edit blocked — split has settlements */}

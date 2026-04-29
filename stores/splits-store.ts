@@ -56,6 +56,8 @@ interface SplitsState {
     newReceiptFiles?: Blob[],
   ) => void;
   deleteSplit: (id: string, deletedBy?: string) => void;
+  restoreSplit: (id: string) => void;
+  permanentDeleteSplit: (id: string) => void;
   addSplitSettlement: (
     userId: string,
     seasonId: string,
@@ -280,22 +282,66 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
     }
   },
 
+  // Soft delete — sets deleted_at/deleted_by. Shares are preserved so restore works.
   deleteSplit: (id, deletedBy) => {
     const now = new Date().toISOString();
     set({
       splits: get().splits.map((s) => s.id === id ? { ...s, deleted_at: now, deleted_by: deletedBy ?? null } : s),
-      shares: get().shares.filter((sh) => sh.split_id !== id),
     });
     if (isCloudMode()) {
       const supabase = getSupabaseClient();
       supabase?.from('cricket_splits').update({ deleted_at: now, deleted_by: deletedBy ?? null }).eq('id', id)
         .then(({ error }: { error: unknown }) => {
           if (error) { console.error('[splits] delete failed:', error); toast.error('Couldn\'t delete split.'); }
-          else {
-            supabase.from('cricket_split_shares').delete().eq('split_id', id).then(() => {});
-            toast.success('Split deleted');
-          }
+          else toast.success('Split deleted');
         });
+    }
+  },
+
+  restoreSplit: (id) => {
+    set({
+      splits: get().splits.map((s) => s.id === id ? { ...s, deleted_at: null, deleted_by: null } : s),
+    });
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      supabase?.from('cricket_splits').update({ deleted_at: null, deleted_by: null }).eq('id', id)
+        .then(({ error }: { error: unknown }) => {
+          if (error) { console.error('[splits] restore failed:', error); toast.error('Couldn\'t restore split.'); }
+          else toast.success('Split restored');
+        });
+    }
+  },
+
+  // Hard delete — wipes the split row (shares cascade via FK ON DELETE CASCADE) AND cleans receipt blobs from storage.
+  permanentDeleteSplit: (id) => {
+    const split = get().splits.find((s) => s.id === id);
+    set({
+      splits: get().splits.filter((s) => s.id !== id),
+      shares: get().shares.filter((sh) => sh.split_id !== id),
+    });
+
+    if (isCloudMode()) {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      // Clean up receipt blobs first — once the row is gone we lose the receipt_urls reference
+      if (split?.receipt_urls?.length) {
+        const paths = split.receipt_urls.map((url) => {
+          const match = url.split('/split-receipts/')[1];
+          return match ? match.split('?')[0] : null;
+        }).filter(Boolean) as string[];
+        if (paths.length > 0) {
+          supabase.storage.from('split-receipts').remove(paths).then(({ error }: { error: unknown }) => {
+            if (error) console.error('[splits] receipt cleanup:', error);
+          });
+        }
+      }
+
+      // Hard delete the split row — cricket_split_shares.split_id has ON DELETE CASCADE so shares go too
+      supabase.from('cricket_splits').delete().eq('id', id).then(({ error }: { error: unknown }) => {
+        if (error) { console.error('[splits] permanentDelete failed:', error); toast.error('Couldn\'t permanently delete split.'); }
+        else toast.success('Split permanently deleted');
+      });
     }
   },
 
