@@ -99,6 +99,7 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
   - Flexbox centering for modals (not CSS transform)
   - 44px minimum touch targets
   - Handle iOS keyboard viewport push
+  - **Composer drawers: text input at TOP, media/actions BELOW** — matches Facebook / Instagram / Twitter mobile pattern. Keyboard covers the bottom half of the screen, so the input must be in the top half to remain visible while typing. Vaul's `repositionInputs` shifts the drawer above the keyboard but does NOT scroll within an inner scrollable; pair the layout reorder with `onFocus` → `setTimeout(() => ref.scrollIntoView({block: 'start'}), 350)` so the input pins to the top of the visible drawer body. Reference: `app/(tools)/cricket/components/GalleryUpload.tsx`.
   - Prefer bottom sheets (vaul) over dropdowns on mobile
   - No hover-only interactions
   - `px-4` padding on fixed overlays for safe area
