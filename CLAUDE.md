@@ -99,7 +99,7 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
   - Flexbox centering for modals (not CSS transform)
   - 44px minimum touch targets
   - Handle iOS keyboard viewport push
-  - **Composer drawers: text input at TOP, media/actions BELOW** — matches Facebook / Instagram / Twitter mobile pattern. Keyboard covers the bottom half of the screen, so the input must be in the top half to remain visible while typing. Vaul's `repositionInputs` shifts the drawer above the keyboard but does NOT scroll within an inner scrollable; pair the layout reorder with `onFocus` → `setTimeout(() => ref.scrollIntoView({block: 'start'}), 350)` so the input pins to the top of the visible drawer body. Reference: `app/(tools)/cricket/components/GalleryUpload.tsx`.
+  - **Composer drawers (textarea + iOS keyboard): do NOT use vaul** — vaul's `repositionInputs` is broken for textareas (issues #294/#298/#312/#514) and produces "textarea pinned to screen bottom with whitespace above". Instead use a full-screen modal on mobile + centered modal on desktop, sized with `100svh` (NOT `100dvh` — `dvh` is buggy on iOS Safari with keyboards until 17.4+). Layout: `flex-col` panel with `<header>` (flex-none) + `<main>` (flex-1 min-h-0 overflow-y-auto, textarea as first child) + `<footer>` (flex-none, translated by keyboard overlap from `window.visualViewport`). The visualViewport listener computes `Math.max(0, window.innerHeight - vv.height - vv.offsetTop)` and translates the footer up by that amount so it sticks just above the keyboard. Reference: `app/(tools)/cricket/components/GalleryUpload.tsx`.
   - Prefer bottom sheets (vaul) over dropdowns on mobile
   - No hover-only interactions
   - `px-4` padding on fixed overlays for safe area
