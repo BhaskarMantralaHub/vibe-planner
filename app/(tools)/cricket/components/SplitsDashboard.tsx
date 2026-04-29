@@ -1036,6 +1036,14 @@ export default function SplitsDashboard() {
               <div className="px-3 pb-3 space-y-2">
                 {deletedSplits.map((s) => {
                   const payer = activePlayers.find((p) => p.id === s.paid_by);
+                  // Participants — exclude the payer so the stack reads as "shared with"
+                  const splitShares = sharesMap.get(s.id) ?? [];
+                  const participants = splitShares
+                    .map((sh) => activePlayers.find((p) => p.id === sh.player_id))
+                    .filter((p): p is NonNullable<typeof p> => Boolean(p) && p?.id !== s.paid_by);
+                  const visibleParticipants = participants.slice(0, 4);
+                  const overflowCount = participants.length - visibleParticipants.length;
+
                   return (
                     <div
                       key={s.id}
@@ -1043,14 +1051,72 @@ export default function SplitsDashboard() {
                       style={{ background: 'var(--surface)' }}
                     >
                       <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" opacity={0.55} />
-                      <div className="flex-1 min-w-0" style={{ opacity: 0.7 }}>
+                      <div className="flex-1 min-w-0" style={{ opacity: 0.75 }}>
                         <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/50 block">
                           {s.description || s.category}
                         </Text>
-                        <Text as="p" size="2xs" color="dim">
-                          {payer?.name?.split(' ')[0] ?? 'Unknown'} paid · {formatDate(s.split_date)}
-                          {s.deleted_by && <> · deleted by <Text weight="semibold">{s.deleted_by}</Text></>}
-                        </Text>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Text as="span" size="2xs" color="dim">
+                            {payer?.name?.split(' ')[0] ?? 'Unknown'} paid · {formatDate(s.split_date)}
+                          </Text>
+                          {participants.length > 0 && (
+                            <>
+                              <Text as="span" size="2xs" color="dim">·</Text>
+                              <span className="inline-flex items-center gap-1">
+                                <Text as="span" size="2xs" color="dim">with</Text>
+                                <span className="inline-flex items-center -space-x-1.5">
+                                  {visibleParticipants.map((p) => {
+                                    const [gF, gT] = nameToGradient(p.name);
+                                    const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                                    return p.photo_url ? (
+                                      <img
+                                        key={p.id}
+                                        src={p.photo_url}
+                                        alt={p.name}
+                                        title={p.name}
+                                        className="h-5 w-5 rounded-full object-cover"
+                                        style={{ border: '1.5px solid var(--surface)', opacity: 0.85 }}
+                                      />
+                                    ) : (
+                                      <span
+                                        key={p.id}
+                                        title={p.name}
+                                        className="h-5 w-5 rounded-full text-[8px] font-bold text-white flex items-center justify-center"
+                                        style={{
+                                          background: `linear-gradient(135deg, ${gF}, ${gT})`,
+                                          border: '1.5px solid var(--surface)',
+                                          opacity: 0.85,
+                                        }}
+                                      >
+                                        {initials}
+                                      </span>
+                                    );
+                                  })}
+                                  {overflowCount > 0 && (
+                                    <span
+                                      className="h-5 min-w-5 px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
+                                      style={{
+                                        background: 'var(--card)',
+                                        border: '1.5px solid var(--surface)',
+                                        color: 'var(--muted)',
+                                      }}
+                                    >
+                                      +{overflowCount}
+                                    </span>
+                                  )}
+                                </span>
+                              </span>
+                            </>
+                          )}
+                          {s.deleted_by && (
+                            <>
+                              <Text as="span" size="2xs" color="dim">·</Text>
+                              <Text as="span" size="2xs" color="dim">
+                                deleted by <Text as="span" weight="semibold">{s.deleted_by}</Text>
+                              </Text>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/50 flex-shrink-0" style={{ opacity: 0.6 }}>
                         {formatCurrency(Number(s.amount))}
