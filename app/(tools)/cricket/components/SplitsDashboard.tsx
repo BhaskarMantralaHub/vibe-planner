@@ -1032,114 +1032,170 @@ export default function SplitsDashboard() {
                 <Text size="2xs" color="dim" className="ml-auto">{deletedSplits.length} {deletedSplits.length === 1 ? 'split' : 'splits'}</Text>
               </div>
 
-              {/* Activity-style row list */}
+              {/* Activity-style row list — click to expand for per-person breakdown */}
               <div className="px-3 pb-3 space-y-2">
                 {deletedSplits.map((s) => {
                   const payer = activePlayers.find((p) => p.id === s.paid_by);
-                  // Participants — exclude the payer so the stack reads as "shared with"
                   const splitShares = sharesMap.get(s.id) ?? [];
                   const participants = splitShares
                     .map((sh) => activePlayers.find((p) => p.id === sh.player_id))
                     .filter((p): p is NonNullable<typeof p> => Boolean(p) && p?.id !== s.paid_by);
-                  const visibleParticipants = participants.slice(0, 4);
-                  const overflowCount = participants.length - visibleParticipants.length;
+                  const expanded = expandedId === s.id;
 
                   return (
                     <div
                       key={s.id}
-                      className="rounded-xl border border-[var(--border)] flex items-center gap-3 p-3 transition-colors duration-200"
-                      style={{ background: 'var(--surface)' }}
+                      className="rounded-xl overflow-hidden border transition-colors duration-200"
+                      style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'var(--border)' }}
                     >
-                      <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" opacity={0.55} />
-                      <div className="flex-1 min-w-0" style={{ opacity: 0.75 }}>
-                        <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/50 block">
-                          {s.description || s.category}
-                        </Text>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Text as="span" size="2xs" color="dim">
-                            {payer?.name?.split(' ')[0] ?? 'Unknown'} paid · {formatDate(s.split_date)}
-                          </Text>
-                          {participants.length > 0 && (
-                            <>
-                              <Text as="span" size="2xs" color="dim">·</Text>
-                              <span className="inline-flex items-center gap-1">
-                                <Text as="span" size="2xs" color="dim">with</Text>
-                                <span className="inline-flex items-center -space-x-1.5">
-                                  {visibleParticipants.map((p) => {
-                                    const [gF, gT] = nameToGradient(p.name);
-                                    const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                                    return p.photo_url ? (
-                                      <img
-                                        key={p.id}
-                                        src={p.photo_url}
-                                        alt={p.name}
-                                        title={p.name}
-                                        className="h-5 w-5 rounded-full object-cover"
-                                        style={{ border: '1.5px solid var(--surface)', opacity: 0.85 }}
-                                      />
-                                    ) : (
-                                      <span
-                                        key={p.id}
-                                        title={p.name}
-                                        className="h-5 w-5 rounded-full text-[8px] font-bold text-white flex items-center justify-center"
-                                        style={{
-                                          background: `linear-gradient(135deg, ${gF}, ${gT})`,
-                                          border: '1.5px solid var(--surface)',
-                                          opacity: 0.85,
-                                        }}
-                                      >
-                                        {initials}
-                                      </span>
-                                    );
-                                  })}
-                                  {overflowCount > 0 && (
-                                    <span
-                                      className="h-5 min-w-5 px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
-                                      style={{
-                                        background: 'var(--card)',
-                                        border: '1.5px solid var(--surface)',
-                                        color: 'var(--muted)',
-                                      }}
-                                    >
-                                      +{overflowCount}
-                                    </span>
-                                  )}
-                                </span>
-                              </span>
-                            </>
-                          )}
-                          {s.deleted_by && (
-                            <>
-                              <Text as="span" size="2xs" color="dim">·</Text>
+                      <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'var(--surface)' }}>
+                        <button
+                          onClick={() => setExpandedId(expanded ? null : s.id)}
+                          className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
+                        >
+                          <PlayerAvatar name={payer?.name ?? '?'} photoUrl={payer?.photo_url} size="sm" opacity={0.55} />
+                          <div className="flex-1 min-w-0 text-left" style={{ opacity: 0.78 }}>
+                            <Text size="sm" weight="semibold" truncate className="line-through decoration-[var(--muted)]/50 block">
+                              {s.description || s.category}
+                            </Text>
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <Text as="span" size="2xs" color="dim">
-                                deleted by <Text as="span" weight="semibold">{s.deleted_by}</Text>
+                                {payer?.name?.split(' ')[0] ?? 'Unknown'} paid · {formatDate(s.split_date)}
                               </Text>
-                            </>
-                          )}
+                              {participants.length > 0 && (() => {
+                                const NAMES_VISIBLE = 3;
+                                const visibleNames = participants.slice(0, NAMES_VISIBLE).map((p) => p.name.split(' ')[0]);
+                                const remaining = participants.length - visibleNames.length;
+                                const fullList = participants.map((p) => p.name).join(', ');
+                                return (
+                                  <>
+                                    <Text as="span" size="2xs" color="dim">·</Text>
+                                    <Text as="span" size="2xs" color="dim" title={fullList}>
+                                      with{' '}
+                                      <Text as="span" size="2xs" weight="semibold" style={{ color: 'var(--text)' }}>
+                                        {visibleNames.join(', ')}
+                                      </Text>
+                                      {remaining > 0 && <Text as="span" size="2xs" color="dim">{` +${remaining}`}</Text>}
+                                    </Text>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                          <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/50 flex-shrink-0" style={{ opacity: 0.6 }}>
+                            {formatCurrency(Number(s.amount))}
+                          </Text>
+                          <ChevronDown size={16} className="flex-shrink-0 text-[var(--dim)] transition-transform duration-200" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
+                        </button>
+
+                        {/* Action buttons — siblings of the expand-button so taps don't toggle the row */}
+                        <div className="pr-2 flex items-center gap-1 flex-shrink-0 border-l border-[var(--border)]/30 pl-2 ml-1">
+                          <button
+                            onClick={() => useSplitsStore.getState().restoreSplit(s.id)}
+                            className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
+                            style={{ color: 'var(--split-credit)', background: 'var(--split-credit-bg)', border: '1px solid var(--split-credit-border)' }}
+                            aria-label="Restore split"
+                            title="Restore"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                          <button
+                            onClick={() => setPermanentDeleting({ id: s.id, desc: s.description || s.category, amount: formatCurrency(Number(s.amount)) })}
+                            className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
+                            style={{ color: 'var(--split-owe)', background: 'var(--split-owe-bg)', border: '1px solid var(--split-owe-border)' }}
+                            aria-label="Delete forever"
+                            title="Delete forever"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <Text size="sm" weight="bold" tabular className="line-through decoration-[var(--muted)]/50 flex-shrink-0" style={{ opacity: 0.6 }}>
-                        {formatCurrency(Number(s.amount))}
-                      </Text>
-                      <div className="flex items-center gap-1 flex-shrink-0 ml-1">
-                        <button
-                          onClick={() => useSplitsStore.getState().restoreSplit(s.id)}
-                          className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
-                          style={{ color: 'var(--split-credit)', background: 'var(--split-credit-bg)', border: '1px solid var(--split-credit-border)' }}
-                          aria-label="Restore split"
-                          title="Restore"
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                        <button
-                          onClick={() => setPermanentDeleting({ id: s.id, desc: s.description || s.category, amount: formatCurrency(Number(s.amount)) })}
-                          className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer active:scale-90 transition-all hover:brightness-110"
-                          style={{ color: 'var(--split-owe)', background: 'var(--split-owe-bg)', border: '1px solid var(--split-owe-border)' }}
-                          aria-label="Delete forever"
-                          title="Delete forever"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+
+                      {/* Expanded per-person breakdown */}
+                      <div className={`expand-collapse ${expanded ? 'expanded' : ''}`}>
+                        <div>
+                          <div className="px-3 pb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
+                            <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
+                              {/* Per-person breakdown — payer at top, others sorted by share */}
+                              {[...splitShares]
+                                .sort((a, b) => {
+                                  if (a.player_id === s.paid_by) return -1;
+                                  if (b.player_id === s.paid_by) return 1;
+                                  return Number(b.share_amount) - Number(a.share_amount);
+                                })
+                                .map((sh) => {
+                                  const p = activePlayers.find((pl) => pl.id === sh.player_id);
+                                  if (!p) return null;
+                                  const isPayer = sh.player_id === s.paid_by;
+                                  return (
+                                    <div
+                                      key={sh.id}
+                                      className="flex items-center gap-3 rounded-lg p-2.5"
+                                      style={{
+                                        background: isPayer ? 'color-mix(in srgb, var(--cricket) 6%, var(--surface))' : 'var(--surface)',
+                                        borderLeft: `3px solid ${isPayer ? 'var(--cricket)' : 'var(--split-owe)'}`,
+                                      }}
+                                    >
+                                      <PlayerAvatar name={p.name} photoUrl={p.photo_url} size="sm" />
+                                      <div className="flex-1 min-w-0">
+                                        <Text size="sm" weight="semibold" truncate>{p.name}</Text>
+                                        {isPayer ? (
+                                          <Text as="p" size="2xs" style={{ color: 'var(--cricket)' }}>Paid {formatCurrency(Number(s.amount))}</Text>
+                                        ) : (
+                                          <Text as="p" size="2xs" color="dim">Owed {payer?.name?.split(' ')[0] ?? 'Unknown'}</Text>
+                                        )}
+                                      </div>
+                                      <Text size="sm" weight="bold" tabular className="flex-shrink-0"
+                                        style={{ color: isPayer ? 'var(--cricket)' : 'var(--split-owe)' }}>
+                                        {formatCurrency(Number(sh.share_amount))}
+                                      </Text>
+                                    </div>
+                                  );
+                                })}
+
+                              {/* Receipts if attached */}
+                              {s.receipt_urls && s.receipt_urls.length > 0 && (
+                                <div className="pt-2">
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <Paperclip size={12} style={{ color: 'var(--muted)' }} />
+                                    <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">
+                                      Receipts ({s.receipt_urls.length})
+                                    </Text>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {s.receipt_urls.map((url, i) => {
+                                      const pdf = isUrlPdf(url);
+                                      return (
+                                        <button
+                                          key={i}
+                                          onClick={() => window.open(url, '_blank')}
+                                          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
+                                          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                                        >
+                                          {pdf
+                                            ? <FileText size={12} style={{ color: '#EF4444' }} />
+                                            : <Receipt size={12} style={{ color: 'var(--cricket)' }} />}
+                                          <Text size="2xs" weight="medium">Receipt {i + 1}{pdf ? '.pdf' : '.jpg'}</Text>
+                                          <ExternalLink size={9} className="text-[var(--dim)]" />
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Deletion attribution */}
+                              {s.deleted_by && (
+                                <div className="pt-2 border-t border-[var(--border)]/40">
+                                  <Text as="p" size="2xs" color="dim">
+                                    Deleted by <Text as="span" weight="semibold">{s.deleted_by}</Text>
+                                    {s.deleted_at && <> on {formatDate(s.deleted_at.split('T')[0])}</>}
+                                  </Text>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
