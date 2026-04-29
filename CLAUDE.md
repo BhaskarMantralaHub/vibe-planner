@@ -44,6 +44,7 @@ npm run test:coverage # Coverage report
 - **Receipt uploads** — expenses support multiple image/PDF attachments. Stored in `expense-receipts` Supabase Storage bucket (path: `{team_id}/{expense_id}_{random}.{ext}`). Images compressed to 1200px/0.85 JPEG; PDFs uploaded as-is. Max 10 per expense. Direct Supabase public URLs (no proxy).
 - **Storage backup** — Supabase Storage buckets (`player-photos`, `gallery-photos`, `team-logos`, `expense-receipts`) backed up daily to Cloudflare R2 via `rclone copy --checksum` in the backup workflow.
 - **Desktop layout cap** — `Shell.tsx` wraps the header inner row + `<main>` content in `max-w-6xl mx-auto lg:px-8`. Mobile/tablet (<1024px) stay edge-to-edge; desktop (≥1024px) caps at 1152px. Bottom tab bars use the same inner cap (their full-width blurred background stays viewport-wide). When adding a new full-bleed bar/FAB, mirror this pattern.
+- **Global load indicator** — `TopProgressBar` (mounted once in `Shell.tsx`) reads `useUIStore.inflightCount` and shows a shimmering top progress bar whenever any async work is pending. Every new store load action MUST wrap its body in `useUIStore.getState().beginLoad()` / `endLoad()` (in a try/finally so it decrements on error). Wired today in `cricket-store.loadAll`/`loadMoments`, `splits-store.loadSplits`, `id-tracker-store.loadDocuments`. This is what tells users "data is being fetched" during silent cache-revalidation loads (where store-level `loading` flags stay false).
 
 ## Git Workflow
 
