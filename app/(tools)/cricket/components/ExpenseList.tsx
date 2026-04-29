@@ -322,11 +322,12 @@ function ExpenseRow({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-3 mb-0.5">
+          <div className="flex items-baseline gap-3 mb-0.5">
             <Text as="p" size="sm" weight="semibold" truncate className="flex-1 min-w-0 leading-snug">
               {expense.description || config.label}
             </Text>
-            <Text size="md" weight="bold" tabular className="flex-shrink-0 leading-snug">
+            {/* Fixed-width right-aligned column so $40 and $1,234.56 line up vertically across rows */}
+            <Text size="md" weight="bold" tabular className="flex-shrink-0 leading-snug text-right" style={{ minWidth: '88px', fontVariantNumeric: 'tabular-nums' }}>
               {formatCurrency(Number(expense.amount))}
             </Text>
           </div>
