@@ -302,64 +302,46 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
               </div>
             )}
 
-            {/* Photo picker — below caption per FB/IG/Twitter pattern.
-                Hidden by keyboard while typing, but that's fine: users add photos
-                BEFORE writing the caption, not while typing. */}
+            {/* Photo previews — compact thumbnail strip, only when photos selected */}
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
-            {previews.length > 0 ? (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[12px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    Photos ({previews.length}/{MAX_PHOTOS})
-                  </span>
-                  {previews.length < MAX_PHOTOS && (
+            {previews.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                {previews.map((url, i) => (
+                  <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
                     <button
-                      onClick={() => fileRef.current?.click()}
-                      className="flex items-center gap-1 text-[12px] font-semibold cursor-pointer"
-                      style={{ color: 'var(--blue)' }}
+                      onClick={() => removeFile(i)}
+                      aria-label={`Remove photo ${i + 1}`}
+                      className="absolute top-0.5 right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-black/65 text-white cursor-pointer active:scale-90 transition-transform"
                     >
-                      <Plus size={14} /> Add more
+                      <X size={10} />
                     </button>
-                  )}
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-                  {previews.map((url, i) => (
-                    <div key={i} className="relative flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden">
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => removeFile(i)}
-                        className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white cursor-pointer hover:bg-black/80 transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                      <span className="absolute bottom-1 left-1 text-[10px] font-bold text-white bg-black/50 rounded px-1">
-                        {i + 1}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                    <span className="absolute bottom-0.5 left-0.5 text-[9px] font-bold text-white bg-black/55 rounded px-1 leading-snug">
+                      {i + 1}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ) : (
+            )}
+
+            {/* Compact action strip — Twitter pattern: small icon for camera + char counter */}
+            <div className="flex items-center gap-2 pt-2" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center gap-3 py-12 rounded-2xl cursor-pointer hover:opacity-80 transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 6%, transparent), color-mix(in srgb, var(--cricket-accent) 4%, transparent))',
-                  border: '2px dashed var(--border)',
-                }}
+                disabled={previews.length >= MAX_PHOTOS}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 cursor-pointer transition-all hover:bg-[var(--hover-bg)] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 8%, transparent)' }}
+                aria-label="Add photos"
               >
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center"
-                  style={{
-                    background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 15%, transparent), color-mix(in srgb, var(--cricket-accent) 10%, transparent))',
-                  }}
-                >
-                  <Camera size={26} strokeWidth={1.5} style={{ color: 'var(--cricket)' }} />
-                </div>
-                <span className="text-[14px] font-medium text-[var(--muted)]">Tap to add photos</span>
-                <span className="text-[12px] text-[var(--dim)]">Up to {MAX_PHOTOS} per post</span>
+                <Camera size={16} />
+                <span className="text-[12px] font-bold">
+                  {previews.length === 0 ? 'Photos' : `${previews.length}/${MAX_PHOTOS}`}
+                </span>
               </button>
-            )}
+              <span className="text-[11px] text-[var(--dim)] ml-auto tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {caption.length}/500
+              </span>
+            </div>
           </DrawerBody>
     </Drawer>
   );
