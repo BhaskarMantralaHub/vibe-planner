@@ -99,7 +99,7 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
   - Flexbox centering for modals (not CSS transform)
   - 44px minimum touch targets
   - Handle iOS keyboard viewport push
-  - **Composer drawers (textarea + iOS keyboard): do NOT use vaul** — vaul's `repositionInputs` is broken for textareas (issues #294/#298/#312/#514) and produces "textarea pinned to screen bottom with whitespace above". Instead use a full-screen modal on mobile + centered modal on desktop, sized with `100svh` (NOT `100dvh` — `dvh` is buggy on iOS Safari with keyboards until 17.4+). Layout: `flex-col` panel with `<header>` (flex-none) + `<main>` (flex-1 min-h-0 overflow-y-auto, textarea as first child) + `<footer>` (flex-none, translated by keyboard overlap from `window.visualViewport`). The visualViewport listener computes `Math.max(0, window.innerHeight - vv.height - vv.offsetTop)` and translates the footer up by that amount so it sticks just above the keyboard. Reference: `app/(tools)/cricket/components/GalleryUpload.tsx`.
+  - **Composer drawers (text input + iOS keyboard): use the shared `ComposerModal`** from `components/ui/composer-modal.tsx`. It implements the full-screen-mobile + centered-desktop pattern with `100svh` sizing and a `window.visualViewport` listener that translates the footer above the keyboard. Place text inputs FIRST in the body so they sit in the visible upper half when the keyboard rises; tap-to-select widgets (categories, photo pickers, action chips) BELOW. Used by `GalleryUpload`, `ExpenseForm`, `SplitForm`, `SponsorshipSection`. **Do NOT use vaul `Drawer` for forms with text inputs** — vaul's `repositionInputs` is broken (issues #294/#298/#312/#514). Vaul `Drawer` stays for tap-only flows (confirmations, action sheets).
   - Prefer bottom sheets (vaul) over dropdowns on mobile
   - No hover-only interactions
   - `px-4` padding on fixed overlays for safe area
@@ -108,7 +108,7 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
 
 Before writing ANY UI code, check `components/ui/`. NEVER duplicate what exists.
 
-**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `CapsuleTabs`, `SegmentedControl`, `toast` (sonner).
+**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `ComposerModal`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `CapsuleTabs`, `SegmentedControl`, `toast` (sonner).
 
 **Rules:** Always use shared components. Use `cn()` for conditional classes. Use CVA for new variants. Use `<Text>` for ALL text (never raw `text-[Xpx]`). Use shared `Drawer` for bottom sheets (never raw `vaul`). Use `toast()` for all user feedback. See `docs/DESIGN_SYSTEM.md` for props/usage.
 
