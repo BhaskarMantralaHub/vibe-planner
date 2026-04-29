@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui';
 import {
   Handshake, Pencil, Trash2, Plus,
-  Calendar, StickyNote, ChevronDown, RotateCcw,
+  Calendar, StickyNote, ChevronDown, RotateCcw, TrendingUp, Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -42,157 +42,164 @@ function SponsorAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
   );
 }
 
-// ── Hero stat card ──
-function HeroStats({ total, count }: { total: number; count: number }) {
+// ── Sponsor Hero — refined, matches Pool Fund design language ──
+function SponsorHero({
+  total, count, average, largest,
+}: {
+  total: number; count: number; average: number;
+  largest: { name: string; amount: number } | null;
+}) {
   return (
-    <div
-      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
-      style={{
-        background: 'linear-gradient(135deg, var(--cricket-deep), color-mix(in srgb, var(--cricket) 25%, var(--card)))',
-        border: '1px solid color-mix(in srgb, var(--cricket) 30%, transparent)',
-        boxShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.06), 0 4px 24px var(--cricket-glow)',
-      }}
-    >
-      {/* Decorative glow orb */}
-      <div
-        className="absolute -top-12 -right-12 h-32 w-32 rounded-full pointer-events-none"
-        style={{ background: 'var(--cricket)', opacity: 0.08, filter: 'blur(40px)' }}
-      />
-      <div className="relative flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <Text as="p" size="2xs" weight="medium" uppercase tracking="wider" className="mb-1 opacity-60" color="white">
-            Total Sponsorships
+    <div className="relative rounded-3xl overflow-hidden"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+      {/* Atmospheric gradient mesh */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden
+        style={{
+          background: 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 10%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 50%)',
+        }} />
+
+      <div className="relative p-5 sm:p-7">
+        {/* Status pill */}
+        <div className="flex items-center gap-2 mb-3">
+          <Text as="span" size="2xs" weight="bold" color="muted" uppercase tracking="wider">
+            Sponsorship Total
           </Text>
-          <Text as="p" size="2xl" weight="bold" color="white" tabular tracking="tight">
+          {count > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
+              style={{ background: 'var(--split-credit-bg)', border: '1px solid var(--split-credit-border)' }}>
+              <Handshake size={9} style={{ color: 'var(--split-credit)' }} />
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--split-credit)' }}>
+                {count} sponsor{count !== 1 ? 's' : ''}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Focal number */}
+        <div className="flex items-baseline gap-2.5 mb-1">
+          <span className="font-bold leading-[0.95] tracking-tight tabular-nums"
+            style={{
+              fontSize: 'clamp(40px, 7vw, 56px)',
+              color: 'var(--text)',
+              fontFeatureSettings: '"tnum"',
+            }}>
             {formatCurrency(total)}
-          </Text>
+          </span>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div
-            className="h-10 w-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}
-          >
-            <Handshake size={20} color="white" />
+        {largest && (
+          <Text as="p" size="xs" color="muted" className="mb-5">
+            Largest from {' '}
+            <Text as="span" weight="semibold" style={{ color: 'var(--text)' }}>{largest.name}</Text>
+            {' · '}
+            <Text as="span" weight="semibold" tabular style={{ color: 'var(--split-credit)' }}>
+              {formatCurrency(largest.amount)}
+            </Text>
+          </Text>
+        )}
+
+        {/* Stat strip */}
+        {count > 0 && (
+          <div className="grid grid-cols-3 rounded-xl overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            {([
+              { icon: Handshake, label: 'Sponsors', value: String(count), color: 'var(--cricket)' },
+              { icon: TrendingUp, label: 'Average', value: formatCurrency(average), color: '#0891B2' },
+              { icon: Crown, label: 'Largest', value: largest ? formatCurrency(largest.amount) : '—', color: 'var(--split-credit)' },
+            ] as const).map(({ icon: Icon, label, value, color }, i) => (
+              <div key={label}
+                className="px-3 py-3 sm:py-3.5"
+                style={{ borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon size={11} style={{ color }} />
+                  <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color }}>{label}</Text>
+                </div>
+                <Text size="md" weight="bold" tabular className="leading-none truncate">
+                  {value}
+                </Text>
+              </div>
+            ))}
           </div>
-          <Text size="2xs" weight="medium" color="white" className="opacity-60">
-            {count} sponsor{count !== 1 ? 's' : ''}
-          </Text>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Individual sponsor card ──
-function SponsorCard({
-  sponsor,
-  isAdmin,
-  onEdit,
-  onDelete,
+// ── Sponsor Row — denser, matches ExpenseRow layout pattern ──
+function SponsorRow({
+  sponsor, isAdmin, isLast, onEdit, onDelete,
 }: {
-  sponsor: CricketSponsorship;
-  isAdmin: boolean;
-  onEdit: (s: CricketSponsorship) => void;
-  onDelete: (s: CricketSponsorship) => void;
+  sponsor: CricketSponsorship; isAdmin: boolean; isLast: boolean;
+  onEdit: (s: CricketSponsorship) => void; onDelete: (s: CricketSponsorship) => void;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div
-      className="group relative rounded-xl overflow-hidden transition-all duration-200"
-      style={{
-        background: 'var(--elevated)',
-        border: '1px solid var(--border)',
-        boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
-      }}
-    >
-      {/* Top accent bar */}
-      <div
-        className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))' }}
-      />
+    <div>
+      <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)]">
+        <SponsorAvatar name={sponsor.sponsor_name} size="sm" />
 
-      <div className="p-3 sm:p-4">
-        {/* Main row: avatar + info + amount */}
-        <div className="flex items-start gap-3">
-          <SponsorAvatar name={sponsor.sponsor_name} />
-
-          <div className="flex-1 min-w-0">
-            <Text as="p" size="md" weight="semibold" truncate>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-3 mb-0.5">
+            <Text as="p" size="sm" weight="semibold" truncate className="flex-1 min-w-0 leading-snug">
               {sponsor.sponsor_name}
             </Text>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <div className="flex items-center gap-1">
-                <Calendar size={11} style={{ color: 'var(--muted)' }} />
-                <Text size="2xs" color="muted">{formatDate(sponsor.sponsored_date)}</Text>
-              </div>
-              {sponsor.notes && (
-                <>
-                  <Text size="2xs" color="dim">&middot;</Text>
-                  <div className="flex items-center gap-1 min-w-0">
-                    <StickyNote size={11} style={{ color: 'var(--muted)' }} />
-                    <Text size="2xs" color="muted" truncate>{sponsor.notes}</Text>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Fixed-width right-aligned amount column with credit-green sign */}
+            <Text size="md" weight="bold" tabular className="flex-shrink-0 leading-snug text-right"
+              style={{ minWidth: '92px', color: 'var(--split-credit)', fontVariantNumeric: 'tabular-nums' }}>
+              +{formatCurrency(Number(sponsor.amount))}
+            </Text>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Badge variant="green" size="md" className="font-bold tabular-nums">
-              +{formatCurrency(Number(sponsor.amount))}
-            </Badge>
-
-            {isAdmin && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Text size="2xs" color="muted">{formatDate(sponsor.sponsored_date)}</Text>
+            {sponsor.notes && (
               <>
-                <button
-                  ref={openMenu ? menuBtnRef : null}
-                  onClick={() => setOpenMenu(!openMenu)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
-                  aria-label="Sponsor actions"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
-                  </svg>
-                </button>
-                {openMenu && (
-                  <CardMenu
-                    anchorRef={menuBtnRef}
-                    onClose={() => setOpenMenu(false)}
-                    items={[
-                      { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => onEdit(sponsor) },
-                      { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => onDelete(sponsor), dividerBefore: true },
-                    ]}
-                  />
-                )}
+                <Text size="2xs" color="dim">·</Text>
+                <span className="inline-flex items-center gap-1 min-w-0 max-w-[280px]">
+                  <StickyNote size={10} style={{ color: 'var(--dim)' }} className="flex-shrink-0" />
+                  <Text size="2xs" color="muted" truncate>{sponsor.notes}</Text>
+                </span>
+              </>
+            )}
+            {sponsor.created_by && (
+              <>
+                <Text size="2xs" color="dim">·</Text>
+                <Text size="2xs" color="dim">
+                  by <Text as="span" weight="semibold" color="muted">{sponsor.created_by}</Text>
+                </Text>
               </>
             )}
           </div>
         </div>
 
-        {/* Audit footer */}
-        <div className="mt-3 pt-2.5 flex items-center gap-3 flex-wrap" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 50%, transparent)' }}>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="muted" size="sm">Added</Badge>
-            <Text size="2xs" weight="medium">{formatDate(sponsor.created_at?.split('T')[0] || sponsor.sponsored_date)}</Text>
-            {sponsor.created_by && (
-              <Text size="2xs" color="muted">
-                by <Text weight="semibold">{sponsor.created_by}</Text>
-              </Text>
+        {isAdmin && (
+          <div className="flex-shrink-0 self-center">
+            <button
+              ref={openMenu ? menuBtnRef : null}
+              onClick={() => setOpenMenu(!openMenu)}
+              className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+              aria-label="Sponsor actions"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+            {openMenu && (
+              <CardMenu
+                anchorRef={menuBtnRef}
+                onClose={() => setOpenMenu(false)}
+                items={[
+                  { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => onEdit(sponsor) },
+                  { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => onDelete(sponsor), dividerBefore: true },
+                ]}
+              />
             )}
           </div>
-          {sponsor.updated_by && (
-            <div className="flex items-center gap-1.5">
-              <Badge variant="blue" size="sm">Updated</Badge>
-              <Text size="2xs" weight="medium">{sponsor.updated_at ? formatDate(sponsor.updated_at.split('T')[0]) : ''}</Text>
-              <Text size="2xs" color="muted">
-                by <Text weight="semibold">{sponsor.updated_by}</Text>
-              </Text>
-            </div>
-          )}
-        </div>
+        )}
       </div>
+      {!isLast && <div className="mx-3 sm:mx-4" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 50%, transparent)' }} />}
     </div>
   );
 }
@@ -228,6 +235,26 @@ export default function SponsorshipSection() {
   const activeSponsors = allSeasonSponsors.filter((s) => !s.deleted_at);
   const deletedSponsors = allSeasonSponsors.filter((s) => s.deleted_at);
   const totalSponsorship = activeSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
+  const averageSponsor = activeSponsors.length > 0 ? totalSponsorship / activeSponsors.length : 0;
+  const largestSponsor = activeSponsors.length > 0
+    ? activeSponsors.reduce((max, s) => Number(s.amount) > Number(max.amount) ? s : max)
+    : null;
+
+  // Group active sponsors by month — newest first
+  const groupedSponsors = useMemo(() => {
+    const groups: { key: string; label: string; total: number; sponsors: typeof activeSponsors }[] = [];
+    const sorted = [...activeSponsors].sort((a, b) => b.sponsored_date.localeCompare(a.sponsored_date));
+    for (const s of sorted) {
+      const date = new Date(s.sponsored_date);
+      const key = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`;
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      let group = groups.find((g) => g.key === key);
+      if (!group) { group = { key, label, total: 0, sponsors: [] }; groups.push(group); }
+      group.sponsors.push(s);
+      group.total += Number(s.amount);
+    }
+    return groups;
+  }, [activeSponsors]);
 
   // ── Drawer form state ──
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -314,33 +341,70 @@ export default function SponsorshipSection() {
         )}
       </div>
 
-      {/* ── Hero stats (only when there are sponsors) ── */}
-      {activeSponsors.length > 0 && (
-        <HeroStats total={totalSponsorship} count={activeSponsors.length} />
-      )}
-
-      {/* ── Sponsor list ── */}
-      {activeSponsors.length === 0 ? (
-        <EmptyState
-          icon={<Handshake size={36} style={{ color: 'var(--cricket)' }} />}
-          title="No sponsors yet"
-          description="Add team sponsors to track contributions and show your supporters"
-          brand="cricket"
-          action={isAdmin ? { label: 'Add First Sponsor', onClick: openAddDrawer } : undefined}
-        />
-      ) : (
-        <div className="space-y-3">
-          {activeSponsors.map((s) => (
-            <SponsorCard
-              key={s.id}
-              sponsor={s}
-              isAdmin={isAdmin}
-              onEdit={handleEdit}
-              onDelete={(sp) => setDeletingSponsor({ id: sp.id, name: sp.sponsor_name })}
+      {/* ── Hero + List: side-by-side at lg, stacked below ── */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-6 lg:items-start lg:space-y-0 space-y-4">
+        {activeSponsors.length > 0 && (
+          <div className="lg:sticky lg:top-20">
+            <SponsorHero
+              total={totalSponsorship}
+              count={activeSponsors.length}
+              average={averageSponsor}
+              largest={largestSponsor ? { name: largestSponsor.sponsor_name, amount: Number(largestSponsor.amount) } : null}
             />
-          ))}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {activeSponsors.length === 0 ? (
+            <EmptyState
+              icon={<Handshake size={36} style={{ color: 'var(--cricket)' }} />}
+              title="No sponsors yet"
+              description="Add team sponsors to track contributions and show your supporters"
+              brand="cricket"
+              action={isAdmin ? { label: 'Add First Sponsor', onClick: openAddDrawer } : undefined}
+            />
+          ) : (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+              }}
+            >
+              {groupedSponsors.map((group, gIdx) => (
+                <div key={group.key}>
+                  {/* Month header — label + count on left, subtotal pinned right */}
+                  <div className="flex items-baseline justify-between gap-3 px-3 sm:px-4 pt-3.5 pb-2.5"
+                    style={{ borderTop: gIdx > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <Text size="xs" weight="bold" uppercase tracking="wider" style={{ color: 'var(--text)' }}>
+                        {group.label}
+                      </Text>
+                      <Text size="2xs" color="dim">
+                        {group.sponsors.length} {group.sponsors.length === 1 ? 'sponsor' : 'sponsors'}
+                      </Text>
+                    </div>
+                    <Text size="xs" weight="bold" tabular style={{ color: 'var(--split-credit)', fontVariantNumeric: 'tabular-nums' }}>
+                      +{formatCurrency(group.total)}
+                    </Text>
+                  </div>
+                  {group.sponsors.map((s, i) => (
+                    <SponsorRow
+                      key={s.id}
+                      sponsor={s}
+                      isAdmin={isAdmin}
+                      isLast={i === group.sponsors.length - 1}
+                      onEdit={handleEdit}
+                      onDelete={(sp) => setDeletingSponsor({ id: sp.id, name: sp.sponsor_name })}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ── Deleted section ── */}
       {isAdmin && deletedSponsors.length > 0 && (
