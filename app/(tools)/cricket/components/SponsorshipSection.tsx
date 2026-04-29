@@ -7,7 +7,7 @@ import { formatCurrency, formatDate } from '../lib/utils';
 import {
   EmptyState, Text, CardMenu, Badge, Input,
   Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose,
-  Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody,
+  ComposerModal,
 } from '@/components/ui';
 import {
   Handshake, Pencil, Trash2, Plus,
@@ -369,66 +369,52 @@ export default function SponsorshipSection() {
         </div>
       )}
 
-      {/* ── Add/Edit Drawer ── */}
+      {/* ── Add/Edit Composer ── */}
       {isAdmin && (
-        <Drawer open={drawerOpen} onOpenChange={(open) => { if (!open) { resetForm(); } setDrawerOpen(open); }}>
-          <DrawerHandle />
-          <DrawerTitle>{editingId ? 'Edit Sponsorship' : 'Add Sponsorship'}</DrawerTitle>
-          <DrawerHeader>
-            <div className="flex items-center gap-3">
-              <div
-                className="h-9 w-9 rounded-xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}
-              >
-                <Handshake size={18} color="white" />
-              </div>
-              <div>
-                <Text as="p" size="lg" weight="bold">{editingId ? 'Edit Sponsorship' : 'New Sponsorship'}</Text>
-                <Text as="p" size="2xs" color="muted">Track contributions from supporters</Text>
-              </div>
-            </div>
-          </DrawerHeader>
-          <DrawerBody>
+        <ComposerModal
+          open={drawerOpen}
+          onClose={() => { resetForm(); setDrawerOpen(false); }}
+          title={editingId ? 'Edit Sponsorship' : 'New Sponsorship'}
+          footer={
+            <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth>
+              {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
+            </Button>
+          }
+        >
+          <Input
+            label="Sponsor Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Company or person name"
+            brand="cricket"
+          />
+          <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Sponsor Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Company or person name"
+              label="Amount ($)"
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
               brand="cricket"
             />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Amount ($)"
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                brand="cricket"
-              />
-              <Input
-                label="Date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                brand="cricket"
-              />
-            </div>
             <Input
-              label="Notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional — e.g. jersey sponsor"
+              label="Date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               brand="cricket"
             />
-            {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
-            <div className="pt-2 pb-2">
-              <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth>
-                {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
-              </Button>
-            </div>
-          </DrawerBody>
-        </Drawer>
+          </div>
+          <Input
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Optional — e.g. jersey sponsor"
+            brand="cricket"
+          />
+          {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
+        </ComposerModal>
       )}
 
       {/* ── Delete confirmation ── */}

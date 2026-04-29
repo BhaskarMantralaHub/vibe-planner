@@ -41,6 +41,7 @@ export { PasswordInput, RequirementsChecklist, MatchStatus, passwordRequirements
 export type { PasswordInputProps } from './password-input';
 
 export { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose } from './drawer';
+export { ComposerModal } from './composer-modal';
 
 export { FilterDropdown } from './filter-dropdown';
 

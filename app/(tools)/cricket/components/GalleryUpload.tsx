@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { X, Camera, Send } from 'lucide-react';
+import { ComposerModal } from '@/components/ui';
 import type { CricketPlayer } from '@/types/cricket';
 import { toast } from 'sonner';
 import { compressGalleryImage } from '../lib/image';
@@ -97,38 +97,6 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   };
 
   const handleClose = () => { reset(); onClose(); };
-
-  // ── iOS Safari keyboard handling — Instagram/Threads/WhatsApp Web pattern ──
-  //
-  // Problem: vaul's `repositionInputs` is broken for textareas (vaul issues
-  // #294, #298, #312, #514) — it shifts the drawer in a way that leaves the
-  // textarea pinned to the screen bottom with whitespace above. Big platforms
-  // (IG, Threads, FB Messenger) avoid this by NOT using a bottom-sheet drawer
-  // at all on mobile — they go full-screen with `100svh` + flex column layout.
-  //
-  // We mirror that here: full-screen modal on mobile, centered modal on desktop.
-  // The action footer is translated up by the keyboard overlap (measured via
-  // window.visualViewport) so it sticks just above the keyboard line.
-  const [kbOffset, setKbOffset] = useState(0);
-
-  useEffect(() => {
-    if (!open) return;
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    if (!vv) return;
-    const update = () => {
-      // How many pixels of the layout viewport the keyboard is hiding from the
-      // bottom. Negative because we translate the footer UP by this amount.
-      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKbOffset(-overlap);
-    };
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    update();
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-    };
-  }, [open]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
@@ -242,53 +210,39 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
   const previewTags = open ? extractTaggedIds(caption, players) : [];
   const taggedPlayers = previewTags.map((id) => activePlayers.find((p) => p.id === id)).filter(Boolean) as CricketPlayer[];
 
-  if (!open || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <>
-      {/* Backdrop — visible on desktop, covered by full-screen panel on mobile */}
-      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-md" onClick={handleClose} aria-hidden="true" />
-
-      {/* Composer panel: full-screen on mobile (100svh — keyboard-stable),
-          centered modal on desktop. svh NOT dvh — dvh is buggy on iOS Safari
-          when the keyboard is up until iOS 17.4+. */}
-      <div
-        role="dialog" aria-modal="true" aria-label="New Post"
-        className={
-          'fixed z-50 flex flex-col bg-[var(--card)] outline-none ' +
-          // Mobile: fill viewport edge-to-edge, height clamped to small viewport
-          'inset-0 h-[100svh] ' +
-          // Desktop: centered, fixed width, height shrinks to content with max
-          'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 ' +
-          'sm:w-[480px] sm:max-w-[calc(100vw-2rem)] sm:h-auto sm:max-h-[85svh] ' +
-          'sm:rounded-2xl sm:border sm:border-[var(--border)] sm:shadow-2xl'
-        }
-      >
-
-        {/* Header — fixed top, never moves */}
-        <header className="flex-none flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
+  return (
+    <ComposerModal
+      open={open}
+      onClose={handleClose}
+      title="New Post"
+      rightAction={{
+        label: uploading ? 'Posting...' : 'Share',
+        onClick: handlePost,
+        disabled: files.length === 0 || uploading,
+        color: 'var(--blue)',
+        icon: <Send size={14} />,
+      }}
+      footer={
+        /* Compact action strip — Twitter pattern: small icon for camera + char counter */
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleClose}
-            className="text-[14px] font-medium cursor-pointer min-w-[60px] text-left"
-            style={{ color: 'var(--muted)' }}
+            onClick={() => fileRef.current?.click()}
+            disabled={previews.length >= MAX_PHOTOS}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 cursor-pointer transition-all hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 10%, transparent)' }}
+            aria-label="Add photos"
           >
-            Cancel
+            <Camera size={16} />
+            <span className="text-[12px] font-bold">
+              {previews.length === 0 ? 'Photos' : `${previews.length}/${MAX_PHOTOS}`}
+            </span>
           </button>
-          <span className="text-[16px] font-bold text-[var(--text)]">New Post</span>
-          <button
-            onClick={handlePost}
-            disabled={files.length === 0 || uploading}
-            className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] justify-end"
-            style={{ color: 'var(--blue)' }}
-          >
-            <Send size={14} />
-            {uploading ? 'Posting...' : 'Share'}
-          </button>
-        </header>
-
-          {/* Scrollable body — flex-1 fills space between header and footer.
-              min-h-0 is critical: without it, flex children overflow their parent. */}
-          <main className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+          <span className="text-[11px] text-[var(--dim)] ml-auto tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {caption.length}/500
+          </span>
+        </div>
+      }
+    >
             {/* Caption — first child, naturally lands at the top of the visible area
                 when keyboard rises. Matches IG/Threads/Twitter mobile composer pattern. */}
             <div className="relative">
@@ -356,33 +310,6 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
               </div>
             )}
 
-          </main>
-
-          {/* Action footer — translated up by keyboard overlap so it sticks just
-              above the keyboard line. visualViewport listener (see useEffect above)
-              keeps `kbOffset` in sync as the keyboard animates in/out. */}
-          <footer
-            className="flex-none flex items-center gap-2 px-5 py-3 border-t border-[var(--border)] bg-[var(--card)] transition-transform duration-150 ease-out"
-            style={{ transform: `translateY(${kbOffset}px)` }}
-          >
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={previews.length >= MAX_PHOTOS}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 cursor-pointer transition-all hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 10%, transparent)' }}
-              aria-label="Add photos"
-            >
-              <Camera size={16} />
-              <span className="text-[12px] font-bold">
-                {previews.length === 0 ? 'Photos' : `${previews.length}/${MAX_PHOTOS}`}
-              </span>
-            </button>
-            <span className="text-[11px] text-[var(--dim)] ml-auto tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {caption.length}/500
-            </span>
-          </footer>
-      </div>
-    </>,
-    document.body,
+    </ComposerModal>
   );
 }

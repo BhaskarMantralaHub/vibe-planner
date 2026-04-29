@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
+import { ComposerModal } from '@/components/ui';
 import { Button, Text, Badge, Spinner } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Input } from '@/components/ui/input';
@@ -270,13 +270,24 @@ export default function SplitForm() {
   };
 
   return (
-    <Drawer open={showSplitForm} onOpenChange={(v) => { if (!v) resetForm(); setShowSplitForm(v); }}>
-      <DrawerHandle />
-      <DrawerTitle>{editingSplitId ? 'Edit Split' : 'New Split'}</DrawerTitle>
-      <DrawerHeader>
-        <Text as="h3" size="lg" weight="bold" tracking="tight">{editingSplitId ? 'Edit Split' : 'New Split'}</Text>
-      </DrawerHeader>
-      <DrawerBody>
+    <ComposerModal
+      open={showSplitForm}
+      onClose={() => { resetForm(); setShowSplitForm(false); }}
+      title={editingSplitId ? 'Edit Split' : 'New Split'}
+      footer={
+        <div>
+          {/* Validation hint — explains why button is disabled */}
+          {(!canSubmit || compressing) && (numAmount > 0 || selectedCount > 0 || compressing) && (
+            <Text as="p" size="xs" color="dim" className="text-center mb-2">
+              {compressing ? 'Compressing receipts...' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+            </Text>
+          )}
+          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="xl" fullWidth>
+            {compressing ? 'Compressing...' : `${editingSplitId ? 'Update' : 'Split'} $${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}`}
+          </Button>
+        </div>
+      }
+    >
         {/* Amount input */}
         <div className="text-center py-2">
           <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Total Amount</Text>
@@ -633,19 +644,6 @@ export default function SplitForm() {
           </button>
         </div>
 
-        <div>
-          {/* Validation hint — explains why button is disabled */}
-          {(!canSubmit || compressing) && (numAmount > 0 || selectedCount > 0 || compressing) && (
-            <Text as="p" size="xs" color="dim" className="text-center mb-2">
-              {compressing ? 'Compressing receipts...' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
-            </Text>
-          )}
-
-          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="xl" fullWidth>
-            {compressing ? 'Compressing...' : `${editingSplitId ? 'Update' : 'Split'} $${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}`}
-          </Button>
-        </div>
-      </DrawerBody>
-    </Drawer>
+    </ComposerModal>
   );
 }

@@ -3,14 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { EXPENSE_CATEGORIES, getCategoryConfig } from '../lib/constants';
+import { EXPENSE_CATEGORIES } from '../lib/constants';
 import { Shirt, Trophy, Utensils, Package, Camera, X, FileText } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert } from '@/components/ui/alert';
-import { Spinner, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui';
-import { Text } from '@/components/ui';
+import { Spinner, ComposerModal, Text } from '@/components/ui';
 import { toast } from 'sonner';
 import { compressReceiptImage } from '../lib/image';
 
@@ -68,8 +67,6 @@ export default function ExpenseForm() {
   const [formError, setFormError] = useState('');
   // Must be declared above the early return — Rules of Hooks (React error #310).
   const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
-
-  if (!showExpenseForm) return null;
 
   const isPdf = (file: File) => file.type === 'application/pdf';
   const isValidType = (file: File) => file.type === 'application/pdf' || file.type.startsWith('image/');
@@ -164,14 +161,57 @@ export default function ExpenseForm() {
   };
 
   return (
-    <Drawer open={showExpenseForm} onOpenChange={(open) => { if (!open) resetAndClose(); }}>
-      <DrawerHandle />
-      <DrawerTitle>Add Expense</DrawerTitle>
-      <DrawerHeader>
-        <Text as="h3" size="lg" weight="bold">Add Expense</Text>
-      </DrawerHeader>
-      <DrawerBody>
-        {/* Category */}
+    <ComposerModal
+      open={showExpenseForm}
+      onClose={resetAndClose}
+      title="Add Expense"
+      footer={
+        <Button
+          onClick={handleSubmit}
+          variant="primary"
+          brand="cricket"
+          size="lg"
+          fullWidth
+          disabled={submitting || compressing}
+        >
+          {submitting ? 'Adding...' : 'Add Expense'}
+        </Button>
+      }
+    >
+        {/* Description (text input — at top so keyboard doesn't cover it) */}
+        <div>
+          <Label uppercase className="mb-1.5 block">Description</Label>
+          <input
+            value={description} onChange={(e) => setDescription(e.target.value)}
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+            placeholder="Ground booking, balls, etc."
+          />
+        </div>
+
+        {/* Amount + Date */}
+        <div className="grid grid-cols-[1fr_140px] gap-3">
+          <div>
+            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
+            <input
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <Label uppercase className="mb-1.5 block">Date</Label>
+            <input
+              type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Category — moved BELOW the text inputs since it's tap-to-select (no keyboard) */}
         <div>
           <Label uppercase className="mb-2 block">Category</Label>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" role="radiogroup" aria-label="Expense category">
@@ -198,39 +238,6 @@ export default function ExpenseForm() {
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* Description */}
-        <div>
-          <Label uppercase className="mb-1.5 block">Description</Label>
-          <input
-            value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-            placeholder="Ground booking, balls, etc."
-          />
-        </div>
-
-        {/* Amount + Date */}
-        <div className="grid grid-cols-[1fr_140px] gap-3">
-          <div>
-            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*\.?[0-9]*"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <Label uppercase className="mb-1.5 block">Date</Label>
-            <input
-              type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-            />
           </div>
         </div>
 
@@ -333,19 +340,6 @@ export default function ExpenseForm() {
 
         {/* Validation error */}
         {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
-
-        {/* Submit */}
-        <Button
-          onClick={handleSubmit}
-          variant="primary"
-          brand="cricket"
-          size="lg"
-          fullWidth
-          disabled={submitting || compressing}
-        >
-          {submitting ? 'Adding...' : 'Add Expense'}
-        </Button>
-      </DrawerBody>
-    </Drawer>
+    </ComposerModal>
   );
 }
