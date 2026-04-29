@@ -14,9 +14,13 @@ import { toast } from 'sonner';
 import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink } from 'lucide-react';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
-import SplitForm from './SplitForm';
-import SplitSettleDrawer from './SplitSettleDrawer';
+import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
+
+// Lazy-load heavy form drawers — they only need to mount when the user actually opens them.
+// Cuts initial Splits page mount cost (saves ~700 lines of SplitForm + image-compression imports).
+const SplitForm = dynamic(() => import('./SplitForm'), { ssr: false });
+const SplitSettleDrawer = dynamic(() => import('./SplitSettleDrawer'), { ssr: false });
 
 /* ── Reusable sub-components ── */
 
@@ -160,6 +164,20 @@ export default function SplitsDashboard() {
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
 
+  // Track whether the form/settle drawers have ever been opened — if not, we don't mount them
+  // (lazy-loaded via next/dynamic above). Once opened, they stay mounted so subsequent opens are instant.
+  const showSplitForm = useSplitsStore((s) => s.showSplitForm);
+  const showSettleForm = useSplitsStore((s) => s.showSettleForm);
+  const editingSplitId = useSplitsStore((s) => s.editingSplitId);
+  const [splitFormMounted, setSplitFormMounted] = useState(false);
+  const [settleDrawerMounted, setSettleDrawerMounted] = useState(false);
+  useEffect(() => {
+    if (showSplitForm || editingSplitId) setSplitFormMounted(true);
+  }, [showSplitForm, editingSplitId]);
+  useEffect(() => {
+    if (showSettleForm) setSettleDrawerMounted(true);
+  }, [showSettleForm]);
+
   useEffect(() => {
     if (selectedSeasonId) loadSplits(selectedSeasonId);
   }, [selectedSeasonId, loadSplits]);
@@ -286,8 +304,8 @@ export default function SplitsDashboard() {
           description="Track who paid for what and split it fairly. Separate from the team pool fund — splits are just between people involved."
           brand="cricket"
           action={{ label: '+ Split an Expense', onClick: () => useSplitsStore.setState({ showSplitForm: true }) }} />
-        <SplitForm />
-        <SplitSettleDrawer />
+        {splitFormMounted && <SplitForm />}
+        {settleDrawerMounted && <SplitSettleDrawer />}
       </>
     );
   }
@@ -1002,8 +1020,8 @@ export default function SplitsDashboard() {
         <Plus size={24} className="text-white" />
       </button>
 
-      <SplitForm />
-      <SplitSettleDrawer />
+      {splitFormMounted && <SplitForm />}
+      {settleDrawerMounted && <SplitSettleDrawer />}
 
       {deletingItem && (
         <DeleteConfirm

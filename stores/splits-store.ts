@@ -31,6 +31,7 @@ interface SplitsState {
   shares: CricketSplitShare[];
   settlements: CricketSplitSettlement[];
   loading: boolean;
+  loadedSeasonIds: Set<string>;
 
   // UI state
   showSplitForm: boolean;
@@ -68,6 +69,7 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
   shares: [],
   settlements: [],
   loading: false,
+  loadedSeasonIds: new Set<string>(),
 
   showSplitForm: false,
   showSettleForm: false,
@@ -81,7 +83,9 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
     const teamId = getCurrentTeamId();
     if (!teamId) return;
 
-    set({ loading: true });
+    // Only show skeleton on first-ever load for this season. Subsequent revisits refetch silently.
+    const alreadyLoaded = get().loadedSeasonIds.has(seasonId);
+    if (!alreadyLoaded) set({ loading: true });
 
     // Load splits first, then filter shares by split IDs (no unscoped query)
     const [splitsRes, settlementsRes] = await Promise.all([
@@ -97,11 +101,15 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
       ? await supabase.from('cricket_split_shares').select('*').in('split_id', splitIds)
       : { data: [] };
 
+    const nextLoadedSeasonIds = new Set(get().loadedSeasonIds);
+    nextLoadedSeasonIds.add(seasonId);
+
     set({
       splits: loadedSplits,
       shares: (sharesRes.data ?? []) as CricketSplitShare[],
       settlements: (settlementsRes.data ?? []) as CricketSplitSettlement[],
       loading: false,
+      loadedSeasonIds: nextLoadedSeasonIds,
     });
   },
 
