@@ -84,27 +84,25 @@ MATCHES=$(curl -s "${SB_HEADERS[@]}" \
   --data-urlencode "order=match_date.asc")
 echo "Matches this month: $(echo "$MATCHES" | jq length)"
 
-# Fetch splits + their shares for this month — used to render the per-player
-# "Your splits" section. PostgREST's nested select pulls cricket_split_shares
-# alongside each split row, so per-player pivoting happens in jq below.
+# Fetch ALL splits in the active season (not just current month) so older
+# unsettled splits surface alongside this month's. The "Your splits" section
+# is suppressed only when the recipient's net balance across all of these is
+# zero — see build_splits_section below.
 SPLITS=$(curl -s "${SB_HEADERS[@]}" \
   -G "$SUPABASE_URL/rest/v1/cricket_splits" \
   --data-urlencode "select=id,paid_by,description,category,amount,split_date,cricket_split_shares(player_id,share_amount)" \
   --data-urlencode "season_id=eq.$SEASON_ID" \
   --data-urlencode "deleted_at=is.null" \
-  --data-urlencode "split_date=gte.$MONTH_START" \
-  --data-urlencode "split_date=lte.$MONTH_END" \
   --data-urlencode "order=split_date.desc")
-echo "Splits this month: $(echo "$SPLITS" | jq length)"
+echo "Splits in season: $(echo "$SPLITS" | jq length)"
 
-# Fetch settlements from the start of the month forward — used to know whether
-# a player's monthly split balance is already settled (so we can suppress the
-# "Your splits" section for players who owe nothing and are owed nothing).
+# Fetch ALL settlements (no date filter) so we know about every payment that
+# could clear a balance against a season split — including settlements for
+# splits that pre-date the active season.
 SETTLEMENTS=$(curl -s "${SB_HEADERS[@]}" \
   -G "$SUPABASE_URL/rest/v1/cricket_split_settlements" \
-  --data-urlencode "select=from_player,to_player,amount,settled_date" \
-  --data-urlencode "settled_date=gte.$MONTH_START")
-echo "Settlements (month-onward): $(echo "$SETTLEMENTS" | jq length)"
+  --data-urlencode "select=from_player,to_player,amount,settled_date")
+echo "Settlements (all): $(echo "$SETTLEMENTS" | jq length)"
 
 # Build a map of player_id -> name for splits payer lookups (includes guests/inactive
 # so we don't show "Unknown" for past contributors).
@@ -289,6 +287,9 @@ $(if [ "$MATCH_COUNT" -gt 0 ]; then echo "
   </table>
 </div>
 
+<!-- Per-player splits (substituted in send_email — sits below Expenses) -->
+<!--SPLITS_FOR_PLAYER-->
+
 <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
 
 <!-- Sponsorships -->
@@ -311,9 +312,6 @@ $(if [ "$SPONSOR_COUNT" -gt 0 ]; then echo "
     $FEE_ROWS
   </table>
 </div>
-
-<!-- Per-player splits (substituted in send_email) -->
-<!--SPLITS_FOR_PLAYER-->
 
 </div>
 
@@ -400,8 +398,8 @@ build_splits_section() {
 
       "<div style=\"padding:0 28px\"><div style=\"height:1px;background:#e5e7eb\"></div></div>" +
       "<div style=\"padding:20px 28px\">" +
-      "<div style=\"font-size:15px;font-weight:700;color:#1e1e2f\">Your splits</div>" +
-      "<div style=\"margin-top:2px;font-size:11px;color:#9ca3af\">Personal — only shown to you</div>" +
+      "<div style=\"font-size:15px;font-weight:700;color:#1e1e2f\">Your open splits</div>" +
+      "<div style=\"margin-top:2px;font-size:11px;color:#9ca3af\">Personal — only shown to you. Hidden when fully settled.</div>" +
       "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"4\" border=\"0\" style=\"margin-top:10px\"><tr>" +
       "<td width=\"50%\" align=\"center\" style=\"padding:14px 6px;background:#f0fdf4;border-radius:10px\">" +
       "<div style=\"font-size:22px;font-weight:800;color:#16a34a\">$\($paidTotal | fmt2)</div>" +
