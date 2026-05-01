@@ -100,6 +100,35 @@ jobs:
             --data-urlencode "order=match_date.asc")
           echo "Matches this month: $(echo "$MATCHES" | jq length)"
 
+          # Fetch splits + their shares for this month — used to render the per-player
+          # "Your splits" section. PostgREST's nested select pulls cricket_split_shares
+          # alongside each split row, so per-player pivoting happens in jq below.
+          SPLITS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_splits" \
+            --data-urlencode "select=id,paid_by,description,category,amount,split_date,cricket_split_shares(player_id,share_amount)" \
+            --data-urlencode "season_id=eq.$SEASON_ID" \
+            --data-urlencode "deleted_at=is.null" \
+            --data-urlencode "split_date=gte.$MONTH_START" \
+            --data-urlencode "split_date=lte.$MONTH_END" \
+            --data-urlencode "order=split_date.desc")
+          echo "Splits this month: $(echo "$SPLITS" | jq length)"
+
+          # Fetch settlements from the start of the month forward — used to know whether
+          # a player's monthly split balance is already settled (so we can suppress the
+          # "Your splits" section for players who owe nothing and are owed nothing).
+          SETTLEMENTS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_split_settlements" \
+            --data-urlencode "select=from_player,to_player,amount,settled_date" \
+            --data-urlencode "settled_date=gte.$MONTH_START")
+          echo "Settlements (month-onward): $(echo "$SETTLEMENTS" | jq length)"
+
+          # Build a map of player_id -> name for splits payer lookups (includes guests/inactive
+          # so we don't show "Unknown" for past contributors).
+          ALL_PLAYERS=$(curl -s "${SB_HEADERS[@]}" \
+            -G "$SUPABASE_URL/rest/v1/cricket_players" \
+            --data-urlencode "select=id,name")
+          PLAYER_NAME_MAP=$(echo "$ALL_PLAYERS" | jq -c 'map({(.id): .name}) | add // {}')
+
           # Build report
           REPORT=$(jq -n \
             --argjson players "$PLAYERS" \
@@ -156,18 +185,18 @@ jobs:
           echo "Report summary:"
           echo "$REPORT" | jq '{total_collected, total_spent, pool_balance, player_count, paid_count, expense_count}'
 
-          # Extract values for HTML
-          TC=$(echo "$REPORT" | jq -r '.total_collected | round')
-          TS=$(echo "$REPORT" | jq -r '.total_spent | round')
-          PB=$(echo "$REPORT" | jq -r '.pool_balance | round')
+          # Extract values for HTML — format dollar amounts to 2 decimals (e.g. $2.71, $40.00)
+          TC=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.total_collected')")
+          TS=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.total_spent')")
+          PB=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.pool_balance')")
           PC=$(echo "$REPORT" | jq -r '.player_count')
           PAID=$(echo "$REPORT" | jq -r '.paid_count')
           EC=$(echo "$REPORT" | jq -r '.expense_count')
-          FA=$(echo "$REPORT" | jq -r '.fee_amount | round')
+          FA=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.fee_amount')")
           BAL_COLOR=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#16a34a" else "#dc2626" end')
           BAL_BG=$(echo "$REPORT" | jq -r 'if .pool_balance >= 0 then "#f0fdf4" else "#fef2f2" end')
           BAL_SIGN=$(echo "$REPORT" | jq -r 'if .pool_balance < 0 then "-" else "" end')
-          BAL_ABS=$(echo "$REPORT" | jq -r '.pool_balance | fabs | round')
+          BAL_ABS=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.pool_balance | fabs')")
 
           MONTH_NAME=$(date +"%B %Y")
           MONTH_SHORT=$(date +"%B")
@@ -180,23 +209,36 @@ jobs:
           fi
 
           # All expense rows — date, description + category, amount
+          # fmt2 — format a number as a 2-decimal string (2.71, 40.00, 0.05) without
+          # trailing-zero loss. jq has no native printf; this builds the string manually
+          # by multiplying by 100, rounding to int, then re-inserting the decimal point.
           CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
           EXPENSE_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '
+            def fmt2: . * 100 | round | tostring |
+              if length == 1 then "0.0" + .
+              elif length == 2 then "0." + .
+              else .[:-2] + "." + .[-2:]
+              end;
             .recent_all[] |
             ($L[.category] // .category) as $cat |
             (.expense_date | split("T")[0]) as $d |
             (.description // "") as $desc |
             (if $desc != "" and $desc != $cat then "\($desc) <span style=\"color:#aaa\">· \($cat)</span>" else $cat end) as $label |
-            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | round)</td></tr>"
+            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | fmt2)</td></tr>"
           ' 2>/dev/null || echo "")
 
           # Sponsor rows
           SPONSOR_COUNT=$(echo "$REPORT" | jq '.sponsors | length')
-          TOTAL_SPONSORS=$(echo "$REPORT" | jq -r '.total_sponsors | round')
+          TOTAL_SPONSORS=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.total_sponsors')")
           SPONSOR_ROWS=$(echo "$REPORT" | jq -r '
+            def fmt2: . * 100 | round | tostring |
+              if length == 1 then "0.0" + .
+              elif length == 2 then "0." + .
+              else .[:-2] + "." + .[-2:]
+              end;
             .sponsors[] |
             (if .notes != "" then "\(.name) <span style=\"color:#aaa\">· \(.notes)</span>" else .name end) as $label |
-            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\(.date)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#16a34a\">$\(.amount | round)</td></tr>"
+            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\(.date)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#16a34a\">$\(.amount | fmt2)</td></tr>"
           ' 2>/dev/null || echo "")
 
           # Fee table rows — sorted A-Z, paid first then unpaid
@@ -254,6 +296,17 @@ jobs:
 
           <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
 
+          <!-- Expenses -->
+          <div style='padding:20px 28px'>
+            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Expenses &mdash; \$$TS total ($EC transactions)</div>
+            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
+              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Date</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Description</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
+              $EXPENSE_ROWS
+            </table>
+          </div>
+
+          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
+
           <!-- Sponsorships -->
           $(if [ "$SPONSOR_COUNT" -gt 0 ]; then echo "
           <div style='padding:20px 28px'>
@@ -275,16 +328,8 @@ jobs:
             </table>
           </div>
 
-          <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
-
-          <!-- Expenses -->
-          <div style='padding:20px 28px'>
-            <div style='font-size:15px;font-weight:700;color:#1e1e2f'>Expenses &mdash; \$$TS total ($EC transactions)</div>
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
-              <tr style='background:#f8f9fb'><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Date</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase'>Description</td><td style='padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right'>Amount</td></tr>
-              $EXPENSE_ROWS
-            </table>
-          </div>
+          <!-- Per-player splits (substituted in send_email) -->
+          <!--SPLITS_FOR_PLAYER-->
 
           </div>
 
@@ -304,13 +349,108 @@ jobs:
           # HTML-safe name escaping
           escape_html() { echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 
+          # Build the "Your splits" section HTML for a given player_id.
+          # Returns empty string when:
+          #   (a) player has no splits this month (no participation), OR
+          #   (b) player's net monthly balance is settled (|balance| < 1¢ after settlements)
+          # Splits stay private-per-recipient: each email shows only that player's data.
+          #
+          # Net balance math:
+          #   For each split where pid paid:        balance += (total - their_share)   [others owe pid]
+          #   For each split where pid is sharer:   balance -= their_share             [pid owes payer]
+          #   Settlement to pid (to_player == pid): balance -= amount                  [debt to pid paid down]
+          #   Settlement from pid (from_player==pid): balance += amount                [pid paid down their debt]
+          # |balance| ≈ 0 means settled.
+          build_splits_section() {
+            local PID="$1"
+            echo "$SPLITS" | jq -r \
+              --arg pid "$PID" \
+              --argjson nameMap "$PLAYER_NAME_MAP" \
+              --argjson settlements "$SETTLEMENTS" '
+              def fmt2: . * 100 | round | tostring |
+                if length == 1 then "0.0" + .
+                elif length == 2 then "0." + .
+                else .[:-2] + "." + .[-2:]
+                end;
+
+              [.[] | select(.paid_by == $pid)] as $paid |
+              [.[] | select(any(.cricket_split_shares[]?; .player_id == $pid))] as $shared |
+              ($paid | length) as $paidCount |
+              ($paid | map(.amount | tostring | tonumber) | add // 0) as $paidTotal |
+              ($shared | length) as $sharedCount |
+              ($shared | map(.cricket_split_shares[] | select(.player_id == $pid) | .share_amount | tostring | tonumber) | add // 0) as $sharedTotal |
+
+              # Net balance from splits alone
+              ($paid | map(
+                .amount as $total |
+                ([.cricket_split_shares[]? | select(.player_id == $pid) | .share_amount | tostring | tonumber] | add // 0) as $myShareIfAny |
+                ($total | tostring | tonumber) - $myShareIfAny
+              ) | add // 0) as $owedToMe |
+
+              ($shared | map(
+                if .paid_by == $pid then 0
+                else ([.cricket_split_shares[]? | select(.player_id == $pid) | .share_amount | tostring | tonumber] | add // 0)
+                end
+              ) | add // 0) as $iOwe |
+
+              # Apply settlements (this-month-onward) involving pid
+              ($settlements | map(
+                if .to_player == $pid then -((.amount | tostring | tonumber))
+                elif .from_player == $pid then ((.amount | tostring | tonumber))
+                else 0 end
+              ) | add // 0) as $settlementDelta |
+
+              ($owedToMe - $iOwe + $settlementDelta) as $netBalance |
+
+              # Hide if (a) no participation OR (b) settled (|balance| < 1¢)
+              if ($paidCount + $sharedCount) == 0 or (($netBalance | fabs) < 0.01) then "" else
+                ([.[] | select(.paid_by == $pid or any(.cricket_split_shares[]?; .player_id == $pid))]
+                  | unique_by(.id) | sort_by(.split_date) | reverse | .[:5]
+                  | map(
+                      ($nameMap[.paid_by] // "Someone") as $payerName |
+                      (if .paid_by == $pid then "You paid" else "\($payerName) paid" end) as $paidByLabel |
+                      ([.cricket_split_shares[]? | select(.player_id == $pid) | .share_amount | tostring | tonumber] | add // 0) as $myShare |
+                      "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\(.description // .category)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\($paidByLabel) · $\(.amount | tostring | tonumber | fmt2)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\($myShare | fmt2)</td></tr>"
+                    ) | join("")
+                ) as $rows |
+
+                "<div style=\"padding:0 28px\"><div style=\"height:1px;background:#e5e7eb\"></div></div>" +
+                "<div style=\"padding:20px 28px\">" +
+                "<div style=\"font-size:15px;font-weight:700;color:#1e1e2f\">Your splits</div>" +
+                "<div style=\"margin-top:2px;font-size:11px;color:#9ca3af\">Personal — only shown to you</div>" +
+                "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"4\" border=\"0\" style=\"margin-top:10px\"><tr>" +
+                "<td width=\"50%\" align=\"center\" style=\"padding:14px 6px;background:#f0fdf4;border-radius:10px\">" +
+                "<div style=\"font-size:22px;font-weight:800;color:#16a34a\">$\($paidTotal | fmt2)</div>" +
+                "<div style=\"font-size:10px;color:#6b7280;margin-top:3px\">YOU PAID · \($paidCount) split" + (if $paidCount == 1 then "" else "s" end) + "</div>" +
+                "</td>" +
+                "<td width=\"50%\" align=\"center\" style=\"padding:14px 6px;background:#fef3c7;border-radius:10px\">" +
+                "<div style=\"font-size:22px;font-weight:800;color:#d97706\">$\($sharedTotal | fmt2)</div>" +
+                "<div style=\"font-size:10px;color:#6b7280;margin-top:3px\">YOUR SHARE · \($sharedCount) split" + (if $sharedCount == 1 then "" else "s" end) + "</div>" +
+                "</td>" +
+                "</tr></table>" +
+                "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size:13px;margin-top:14px\">" +
+                "<tr style=\"background:#f8f9fb\"><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase\">Description</td><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase\">Paid by · Total</td><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right\">Your share</td></tr>" +
+                $rows +
+                "</table>" +
+                "<div style=\"margin-top:8px\"><a href=\"https://viberstoolkit.com/cricket/splits\" style=\"color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600\">View all splits &rarr;</a></div>" +
+                "</div>"
+              end
+            '
+          }
+
           send_email() {
             local EMAIL="$1"
             local NAME="$2"
+            local PID="$3"
             local FIRST=$(echo "$NAME" | awk '{print $1}')
             local SAFE_FIRST=$(escape_html "$FIRST")
+            local SPLITS_SECTION=""
+            if [ -n "$PID" ]; then
+              SPLITS_SECTION=$(build_splits_section "$PID")
+            fi
             # Bash parameter substitution (safe — no sed special char issues)
             local PERSONALIZED_HTML="${HTML//Hey team!/Hey $SAFE_FIRST!}"
+            PERSONALIZED_HTML="${PERSONALIZED_HTML//<!--SPLITS_FOR_PLAYER-->/$SPLITS_SECTION}"
 
             local PAYLOAD=$(jq -n \
               --arg to "$EMAIL" \
@@ -354,18 +494,19 @@ jobs:
             RECIPIENT_INPUT="*"
           fi
 
-          # Build recipient list (avoid subshell so counters persist)
+          # Build recipient list (avoid subshell so counters persist).
+          # Format: email|name|player_id  — player_id powers the per-player splits section.
           RECIPIENT_LIST=""
           if [ "$RECIPIENT_INPUT" = "*" ]; then
             echo "Sending to ALL active players..."
-            RECIPIENT_LIST=$(echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)"')
+            RECIPIENT_LIST=$(echo "$PLAYERS" | jq -r '.[] | select(.email != null and .email != "") | "\(.email)|\(.name)|\(.id)"')
           else
             echo "Sending to: $RECIPIENT_INPUT"
             IFS=',' read -ra INPUT_EMAILS <<< "$RECIPIENT_INPUT"
             for IEMAIL in "${INPUT_EMAILS[@]}"; do
               IEMAIL=$(echo "$IEMAIL" | xargs)
-              INAME=$(echo "$PLAYERS" | jq -r --arg e "$IEMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0].name // "there"')
-              printf -v RECIPIENT_LIST '%s%s|%s\n' "$RECIPIENT_LIST" "$IEMAIL" "$INAME"
+              IINFO=$(echo "$PLAYERS" | jq -r --arg e "$IEMAIL" '[.[] | select(.email != null and (.email | ascii_downcase) == ($e | ascii_downcase))] | .[0] // {} | "\(.name // "there")|\(.id // "")"')
+              printf -v RECIPIENT_LIST '%s%s|%s\n' "$RECIPIENT_LIST" "$IEMAIL" "$IINFO"
             done
             RECIPIENT_LIST=$(echo -e "$RECIPIENT_LIST")
           fi
@@ -374,9 +515,9 @@ jobs:
             echo "⚠️ No recipients with email addresses found. Skipping send."
           else
             # Send emails (no subshell — counters work correctly)
-            while IFS='|' read -r PEMAIL PNAME; do
+            while IFS='|' read -r PEMAIL PNAME PPID; do
               [ -z "$PEMAIL" ] && continue
-              send_email "$PEMAIL" "$PNAME"
+              send_email "$PEMAIL" "$PNAME" "$PPID"
               sleep 0.3  # Rate limit: Resend allows 5 req/sec
             done <<< "$RECIPIENT_LIST"
           fi
