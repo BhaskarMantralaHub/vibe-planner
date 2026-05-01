@@ -67,7 +67,7 @@ npm run test:coverage # Coverage report
 | Supabase setup | `docs/SUPABASE_SETUP.md` |
 | Adding a new tool | `docs/NEW_TOOL_GUIDE.md` |
 | Env variables | `.env.example` |
-| GitHub Actions | `.github/workflows/` (backup, restore, weekly-activity-report, monthly-expense-report) |
+| GitHub Actions | `.github/workflows/` (backup, restore, weekly-activity-report, monthly-expense-report). Heavy bash for monthly-expense-report lives in `.github/scripts/send-monthly-report.sh` (workflow run-block has a 21k-char GHA limit). |
 
 ## Email
 
