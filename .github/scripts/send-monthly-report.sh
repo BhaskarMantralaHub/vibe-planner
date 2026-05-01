@@ -253,7 +253,7 @@ $(if [ "$MATCH_COUNT" -gt 0 ]; then echo "
   <table width='100%' cellpadding='0' cellspacing='0' border='0' style='font-size:13px;margin-top:10px'>
     $MATCH_ROWS
   </table>
-  <div style='margin-top:8px'><a href='https://viberstoolkit.com/cricket/schedule/' style='color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600'>View Full Schedule &rarr;</a></div>
+  <div style='margin-top:8px'><a href='https://viberstoolkit.com/cricket/schedule/' style='color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600'>View Full Schedule →</a></div>
 </div>
 <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>"; fi)
 
@@ -414,7 +414,7 @@ build_splits_section() {
       "<tr style=\"background:#f8f9fb\"><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase\">Description</td><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase\">Paid by · Total</td><td style=\"padding:8px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right\">Your share</td></tr>" +
       $rows +
       "</table>" +
-      "<div style=\"margin-top:8px\"><a href=\"https://viberstoolkit.com/cricket/splits\" style=\"color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600\">View all splits &rarr;</a></div>" +
+      "<div style=\"margin-top:8px\"><a href=\"https://viberstoolkit.com/cricket/#splits\" style=\"color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600\">View all splits →</a></div>" +
       "</div>"
     end
   '
