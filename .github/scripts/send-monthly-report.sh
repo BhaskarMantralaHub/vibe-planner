@@ -498,10 +498,11 @@ fi
 if [ -z "$RECIPIENT_LIST" ]; then
   echo "⚠️ No recipients with email addresses found. Skipping send."
 else
-  # Send emails (no subshell — counters work correctly)
-  while IFS='|' read -r PEMAIL PNAME PPID; do
+  # Send emails (no subshell — counters work correctly).
+  # NOTE: do NOT use PPID — it's a readonly bash builtin (parent process ID).
+  while IFS='|' read -r PEMAIL PNAME PLAYER_ID; do
     [ -z "$PEMAIL" ] && continue
-    send_email "$PEMAIL" "$PNAME" "$PPID"
+    send_email "$PEMAIL" "$PNAME" "$PLAYER_ID"
     sleep 0.3  # Rate limit: Resend allows 5 req/sec
   done <<< "$RECIPIENT_LIST"
 fi
