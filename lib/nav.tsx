@@ -1,5 +1,6 @@
-import { Brain, IdCard, ShieldCheck, CalendarRange, Images, ChartColumnBig, HandCoins } from 'lucide-react';
-import { MdScoreboard } from 'react-icons/md';
+import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins } from 'lucide-react';
+// MdScoreboard + ChartColumnBig retained only for the commented-out Live Scoring
+// and Practice Stats entries below; restore the imports when re-enabling.
 import CricketIcon from '@/components/icons/CricketIcon';
 
 export type Tool = {
@@ -36,22 +37,25 @@ export const tools: Tool[] = [
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
-  {
-    name: 'Live Scoring',
-    href: '/cricket/scoring',
-    icon: <MdScoreboard size={22} />,
-    description: 'Score matches ball-by-ball.',
-    roles: ['cricket', 'admin'],
-    feature: 'cricket',
-  },
-  {
-    name: 'Practice Stats',
-    href: '/cricket/scoring/leaderboard',
-    icon: <ChartColumnBig size={22} />,
-    description: 'Batting, bowling & fielding leaderboards.',
-    roles: ['cricket', 'admin'],
-    feature: 'cricket',
-  },
+  // Hidden 2026-05-04 — kept the routes intact so direct URLs still work,
+  // but removed from the hamburger menu pending real usage. Re-enable by
+  // uncommenting both blocks below.
+  // {
+  //   name: 'Live Scoring',
+  //   href: '/cricket/scoring',
+  //   icon: <MdScoreboard size={22} />,
+  //   description: 'Score matches ball-by-ball.',
+  //   roles: ['cricket', 'admin'],
+  //   feature: 'cricket',
+  // },
+  // {
+  //   name: 'Practice Stats',
+  //   href: '/cricket/scoring/leaderboard',
+  //   icon: <ChartColumnBig size={22} />,
+  //   description: 'Batting, bowling & fielding leaderboards.',
+  //   roles: ['cricket', 'admin'],
+  //   feature: 'cricket',
+  // },
   {
     name: 'Moments',
     href: '/cricket/moments',
