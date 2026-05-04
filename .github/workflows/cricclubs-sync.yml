@@ -39,22 +39,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: scripts/cricclubs-sync/package-lock.json
+          # No npm cache — a poisoned cache can trigger npm's "Exit handler
+          # never called!" bug. Cost is ~10 s extra per run; reliability wins.
 
-      - name: Pin npm to a known-good version
-        # npm 10.5–10.8 has the "Exit handler never called!" bug that returns 0
-        # but leaves node_modules empty. Pinning to 10.9+ avoids it.
-        run: npm install -g npm@10.9
-        working-directory: ./
+      - name: Diagnostic versions
+        run: |
+          node --version
+          npm --version
 
       - name: Install dependencies
-        # Skip Playwright's postinstall browser download — we install Chromium
-        # explicitly in a later (cacheable) step. Letting npm + Playwright race
-        # during `npm ci` triggers npm's "Exit handler never called!" bug.
+        # `npm install` (not `npm ci`) because we've seen `npm ci` reliably
+        # trigger the "Exit handler never called!" bug on this runner.
+        # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: Chromium is installed in a later
+        # cacheable step; skipping the postinstall download saves bandwidth.
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-        run: npm ci --no-fund --no-audit
+        run: npm install --no-fund --no-audit --prefer-offline
 
       - name: Get Playwright version
         id: pw_version
