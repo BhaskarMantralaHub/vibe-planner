@@ -48,13 +48,22 @@ jobs:
           npm --version
 
       - name: Install dependencies
-        # `npm install` (not `npm ci`) because we've seen `npm ci` reliably
-        # trigger the "Exit handler never called!" bug on this runner.
-        # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: Chromium is installed in a later
-        # cacheable step; skipping the postinstall download saves bandwidth.
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-        run: npm install --no-fund --no-audit --prefer-offline
+        run: |
+          # Delete the macOS-generated lockfile to force fresh resolution on
+          # Linux. npm's lockfile-swap path for platform-specific optional
+          # deps (esbuild, rollup) is what triggers "Exit handler never called!"
+          rm -f package-lock.json
+          npm install --no-fund --no-audit
+
+      - name: Dump npm debug log on failure
+        if: failure()
+        run: |
+          echo "── /home/runner/.npm/_logs/ ──"
+          ls -la /home/runner/.npm/_logs/ || true
+          echo "── most recent debug log ──"
+          tail -200 "$(ls -t /home/runner/.npm/_logs/*.log | head -1)" || true
 
       - name: Get Playwright version
         id: pw_version
