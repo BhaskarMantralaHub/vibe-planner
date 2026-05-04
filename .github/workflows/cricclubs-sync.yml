@@ -49,6 +49,11 @@ jobs:
         working-directory: ./
 
       - name: Install dependencies
+        # Skip Playwright's postinstall browser download — we install Chromium
+        # explicitly in a later (cacheable) step. Letting npm + Playwright race
+        # during `npm ci` triggers npm's "Exit handler never called!" bug.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: npm ci --no-fund --no-audit
 
       - name: Get Playwright version
