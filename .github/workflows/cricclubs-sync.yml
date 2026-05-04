@@ -38,12 +38,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: scripts/cricclubs-sync/package-lock.json
 
+      - name: Pin npm to a known-good version
+        # npm 10.5–10.8 has the "Exit handler never called!" bug that returns 0
+        # but leaves node_modules empty. Pinning to 10.9+ avoids it.
+        run: npm install -g npm@10.9
+        working-directory: ./
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-fund --no-audit
 
       - name: Get Playwright version
         id: pw_version
