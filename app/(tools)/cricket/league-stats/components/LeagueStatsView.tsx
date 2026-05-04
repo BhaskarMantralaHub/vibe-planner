@@ -466,25 +466,25 @@ function StatTable<Row extends { player_name: string; player_id: string | null }
                     (c.sortable === false ? '' : 'cursor-pointer select-none')
                   }
                   style={{
-                    // Numeric cols: shrink to content. Player col: capped width
-                    // so long names truncate instead of pushing numbers off-screen.
                     ...(c.numeric
                       ? { width: '1%' }
-                      : { width: '40%', maxWidth: 180 }),
+                      : { width: 160, minWidth: 160, maxWidth: 160 }),
                     ...(isFirst ? { background: 'var(--card)' } : {}),
                   }}
                 >
-                  <Text
-                    as="span"
-                    size="2xs"
-                    weight={active ? 'bold' : 'semibold'}
-                    color={active && c.primary ? 'cricket' : active ? 'default' : 'muted'}
-                    uppercase
-                    tracking="wider"
-                  >
-                    {c.label}
-                    {arrow}
-                  </Text>
+                  <div style={isFirst ? { width: 152 } : undefined}>
+                    <Text
+                      as="span"
+                      size="2xs"
+                      weight={active ? 'bold' : 'semibold'}
+                      color={active && c.primary ? 'cricket' : active ? 'default' : 'muted'}
+                      uppercase
+                      tracking="wider"
+                    >
+                      {c.label}
+                      {arrow}
+                    </Text>
+                  </div>
                 </th>
               );
             })}
@@ -512,13 +512,19 @@ function StatTable<Row extends { player_name: string; player_id: string | null }
                         <td
                           key={c.key}
                           className="pl-3 pr-2 py-2.5 sticky left-0 z-10"
-                          style={{ width: '40%', maxWidth: 180, background: rowBg }}
+                          style={{ width: 160, minWidth: 160, maxWidth: 160, background: rowBg }}
                         >
-                          <PlayerCell
-                            name={row.player_name}
-                            rank={rank}
-                            chevron={expandable ? (isExpanded ? 'down' : 'right') : null}
-                          />
+                          {/* Locked-width inner wrapper guarantees identical
+                              visible width across tabs. Browser table-auto
+                              honors `width:160` on td loosely; an inner div
+                              of fixed width forces consistent truncation. */}
+                          <div style={{ width: 152 }}>
+                            <PlayerCell
+                              name={row.player_name}
+                              rank={rank}
+                              chevron={expandable ? (isExpanded ? 'down' : 'right') : null}
+                            />
+                          </div>
                         </td>
                       );
                     }
