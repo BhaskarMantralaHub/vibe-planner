@@ -56,6 +56,17 @@ export const tools: Tool[] = [
   //   roles: ['cricket', 'admin'],
   //   feature: 'cricket',
   // },
+  // League Schedule + League Stats sit adjacently — the council's
+  // compromise: keep separate routes (avoids MatchSchedule's bottom-tab-bar
+  // collision) but group them visually so users see them as one league hub.
+  {
+    name: 'League Schedule',
+    href: '/cricket/schedule',
+    icon: <CalendarRange size={22} />,
+    description: 'Upcoming matches & fixtures.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
   {
     name: 'League Stats',
     href: '/cricket/league-stats',
@@ -69,14 +80,6 @@ export const tools: Tool[] = [
     href: '/cricket/moments',
     icon: <Images size={22} />,
     description: 'Team photos & highlights.',
-    roles: ['cricket', 'admin'],
-    feature: 'cricket',
-  },
-  {
-    name: 'League Schedule',
-    href: '/cricket/schedule',
-    icon: <CalendarRange size={22} />,
-    description: 'Upcoming matches & fixtures.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },

@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2 } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -648,12 +648,13 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
 }
 
 /* ── Completed Match Card ── */
-function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
+function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl }: {
   match: Match;
   isAdmin: boolean;
   onMenuOpen: (id: string | null) => void;
   openMenuId: string | null;
   menuBtnRef: React.RefObject<HTMLButtonElement | null>;
+  scorecardUrl?: string;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
   const resultColor = match.result === 'won' ? 'var(--green)' : match.result === 'lost' ? 'var(--red)' : 'var(--muted)';
@@ -748,6 +749,23 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
           })}
         </div>
       )}
+
+      {/* Cricclubs scorecard link — shown when this match has been matched
+          (by date + opponent) to a cricclubs_matches row. */}
+      {scorecardUrl && (
+        <a
+          href={scorecardUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1.5 mx-3 mb-3 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <ExternalLink size={12} className="flex-shrink-0 text-[var(--muted)]" />
+          <Text size="xs" weight="semibold" color="cricket">
+            View Scorecard
+          </Text>
+        </a>
+      )}
     </div>
   );
 }
@@ -824,13 +842,32 @@ function localSaveMatches(matches: Match[]) {
 
 /* ── Main Component ── */
 export default function MatchSchedule() {
-  const { userAccess, currentTeamId } = useAuthStore();
+  const { userAccess, currentTeamId, userTeams } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const { selectedSeasonId } = useCricketStore();
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ScheduleTab>('upcoming');
+  // Cricclubs scorecard URLs keyed by `${match_date}|${normalized_opponent}`.
+  // Populated from cricclubs_matches so completed schedule cards can link to
+  // the canonical scorecard. Empty Map until the lookup query resolves.
+  const [cricclubsLookup, setCricclubsLookup] = useState<Map<string, string>>(new Map());
+  // Tab state is hash-driven so external links (e.g. League Stats summary
+  // tiles → `/cricket/schedule#completed`) can deep-link a specific tab.
+  // Mirrors the pattern used in app/(tools)/cricket/page.tsx.
+  const [activeTab, _setActiveTab] = useState<ScheduleTab>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '') as ScheduleTab;
+      if (['upcoming', 'completed', 'deleted'].includes(hash)) return hash;
+    }
+    return 'upcoming';
+  });
+  const setActiveTab = (tab: ScheduleTab) => {
+    _setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${tab}`);
+    }
+  };
   const [showForm, setShowForm] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -869,6 +906,50 @@ export default function MatchSchedule() {
   useEffect(() => {
     loadMatches();
   }, [loadMatches]);
+
+  // Fetch cricclubs scorecard URLs for this team and build a (date, opponent)
+  // → URL lookup. Names normalize by lowercasing + stripping the "MTCA " prefix
+  // since schedule entries may say "Hawks" while cricclubs records "MTCA Hawks".
+  useEffect(() => {
+    if (!currentTeamId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const myTeam = userTeams.find((t) => t.team_id === currentTeamId);
+    const cricclubsMyName = myTeam ? `MTCA ${myTeam.team_name}` : 'MTCA Sunrisers Manteca';
+    const normalize = (s: string) => s.toLowerCase().replace(/^mtca\s+/i, '').trim();
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('cricclubs_matches')
+        .select('match_date, team_a, team_b, scorecard_url')
+        .eq('team_id', currentTeamId);
+      if (cancelled) return;
+      if (error || !data) {
+        // Cricclubs sync may not have run yet, or RLS blocks; silently skip.
+        setCricclubsLookup(new Map());
+        return;
+      }
+      const map = new Map<string, string>();
+      for (const m of data as { match_date: string | null; team_a: string; team_b: string; scorecard_url: string | null }[]) {
+        if (!m.match_date || !m.scorecard_url) continue;
+        const opponent = m.team_a === cricclubsMyName ? m.team_b : m.team_a;
+        map.set(`${m.match_date}|${normalize(opponent)}`, m.scorecard_url);
+      }
+      setCricclubsLookup(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTeamId, userTeams]);
+
+  const getScorecardUrl = useCallback(
+    (match: Match): string | undefined => {
+      if (!match.match_date || !match.opponent) return undefined;
+      const key = `${match.match_date}|${match.opponent.toLowerCase().replace(/^mtca\s+/i, '').trim()}`;
+      return cricclubsLookup.get(key);
+    },
+    [cricclubsLookup],
+  );
 
   const active = matches.filter((m) => !m.deleted_at);
   const trashed = matches.filter((m) => m.deleted_at)
@@ -1283,6 +1364,7 @@ export default function MatchSchedule() {
                     onMenuOpen={setOpenMenu}
                     openMenuId={openMenu}
                     menuBtnRef={menuBtnRef}
+                    scorecardUrl={getScorecardUrl(m)}
                   />
                 ))}
               </div>
