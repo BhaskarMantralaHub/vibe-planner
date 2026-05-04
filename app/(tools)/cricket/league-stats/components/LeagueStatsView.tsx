@@ -85,6 +85,8 @@ type MatchRow = {
   team_b: string;
   match_date: string | null;
   winner_team: string | null;
+  league_name: string | null;
+  division: string | null;
 };
 
 type RosterRow = {
@@ -632,7 +634,7 @@ export default function LeagueStatsView() {
           .eq('team_id', currentTeamId),
         supabase
           .from('cricclubs_matches')
-          .select('id, team_id, team_a, team_b, match_date, winner_team')
+          .select('id, team_id, team_a, team_b, match_date, winner_team, league_name, division')
           .eq('team_id', currentTeamId)
           .order('match_date', { ascending: true }),
         supabase
@@ -734,6 +736,19 @@ export default function LeagueStatsView() {
     return { total, won, lost, undecided: total - won - lost };
   }, [matches, cricclubsTeamName]);
 
+  // Derived: season label from cricclubs_matches.league_name + division.
+  // All rows in this dataset share the same league for a given team_id, so
+  // taking the most recent non-null pair is safe.
+  const seasonLabel = useMemo(() => {
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const m = matches[i];
+      if (m && m.league_name) {
+        return m.division ? `${m.league_name} · ${m.division}` : m.league_name;
+      }
+    }
+    return null;
+  }, [matches]);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -757,6 +772,17 @@ export default function LeagueStatsView() {
 
   return (
     <div className="space-y-3">
+      {/* Season banner — shows the cricclubs league + division. Sourced from
+          cricclubs_matches.league_name / division (already populated by the
+          weekly scraper). Hidden until at least one match is ingested. */}
+      {seasonLabel && (
+        <div className="px-1">
+          <Text size="xs" weight="semibold" color="muted">
+            {seasonLabel}
+          </Text>
+        </div>
+      )}
+
       {/* Season summary strip */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <SummaryTile

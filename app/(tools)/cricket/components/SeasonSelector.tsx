@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
 import { Alert } from '@/components/ui/alert';
 import { Text } from '@/components/ui';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 function useIsAdmin() {
@@ -110,8 +111,9 @@ export default function SeasonSelector() {
           onClick={() => setShowCreate(true)}
           className="flex items-center justify-center h-9 w-9 rounded-full border border-dashed border-[var(--cricket)]/40 text-[var(--cricket)] cursor-pointer hover:bg-[var(--cricket)]/10 hover:border-[var(--cricket)] transition-all active:scale-95"
           title="New Season"
+          aria-label="New Season"
         >
-          <span className="text-[18px] font-light leading-none">+</span>
+          <Plus size={16} strokeWidth={2.25} />
         </button>
       ) : isAdmin && showCreate ? (
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
