@@ -139,6 +139,10 @@ jobs:
             "user_activity"
             "team_audit_log"
             "app_settings"
+            "cricclubs_matches"
+            "cricclubs_match_html"
+            "cricclubs_batting"
+            "cricclubs_bowling"
           )
 
           TRUNCATED_TABLES=""

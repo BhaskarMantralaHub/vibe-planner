@@ -16,6 +16,19 @@ Transform the cricket module from single-team (Sunrisers Manteca) to multi-tenan
 
 ---
 
+## Soft-Delete Policy
+
+Most tables use a `deleted_at TIMESTAMPTZ` column for soft delete (with restore UI under "Recently Deleted"). User-authored content — expenses, splits, gallery posts, vibes, ID documents — must be recoverable from accidental admin clicks.
+
+The **`cricclubs_*` family** (`cricclubs_matches`, `cricclubs_match_html`, `cricclubs_batting`, `cricclubs_bowling`) deliberately uses **hard delete via `ON DELETE CASCADE`** instead of soft delete. Rationale:
+
+- The data is **derived, not authored** — every row originates from a public cricclubs.com scorecard fetched by the weekly scraper.
+- The full source HTML lives in `cricclubs_match_html.raw_html`, so the parser can reconstruct any derived row offline without re-fetching.
+- A re-scrape (manually triggering `scripts/cricclubs-sync/sync.ts` or the GitHub Action) is idempotent and recovers anything an admin deleted.
+- Soft-delete on a derived dataset would muddy the model: the tables would carry both "what cricclubs currently says" and "what cricclubs used to say but we deleted" with no clear winner.
+
+Practically: any future "delete match" admin path should still go through a confirm dialog, but the underlying SQL is permitted to hard-delete because the `raw_html` + scraper combination makes it safe.
+
 ## New Tables
 
 ### `cricket_teams`
