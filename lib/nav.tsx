@@ -1,4 +1,4 @@
-import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins } from 'lucide-react';
+import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins, Trophy } from 'lucide-react';
 // MdScoreboard + ChartColumnBig retained only for the commented-out Live Scoring
 // and Practice Stats entries below; restore the imports when re-enabling.
 import CricketIcon from '@/components/icons/CricketIcon';
@@ -56,6 +56,14 @@ export const tools: Tool[] = [
   //   roles: ['cricket', 'admin'],
   //   feature: 'cricket',
   // },
+  {
+    name: 'League Stats',
+    href: '/cricket/league-stats',
+    icon: <Trophy size={22} />,
+    description: 'Batting, bowling, all-rounders & catches.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
   {
     name: 'Moments',
     href: '/cricket/moments',
