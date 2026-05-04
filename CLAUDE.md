@@ -20,6 +20,7 @@ Viber's Toolkit — personal productivity suite on Cloudflare Pages. Two users (
 **Auth flows:** See `docs/SIGNUP_FLOWS.md`. **CRITICAL:** `AuthGate` only renders `RequestAccess` after `userAccess.length > 0`.
 **Player user_id linking:** Case-insensitive email match in 3 places (DB trigger, AuthGate, auth-store). Never set `user_id` to admin's auth ID.
 **Multi-team:** `cricket_teams`, `team_members`, `team_invites` tables with RLS. See `docs/MULTI_TEAM_DESIGN.md`.
+**League stats:** `/cricket/league-stats` reads from `cricclubs_batting_season` + `cricclubs_bowling_season` views (populated weekly by `scripts/cricclubs-sync` via the GitHub Action). Catches and all-rounder rankings are computed client-side from raw `cricclubs_batting.dismissal` text.
 
 ## Commands
 
