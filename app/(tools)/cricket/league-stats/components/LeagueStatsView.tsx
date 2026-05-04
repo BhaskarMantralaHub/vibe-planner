@@ -6,12 +6,15 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Text,
-  SegmentedControl,
+  CapsuleTabs,
   Skeleton,
   EmptyState,
   RefreshButton,
 } from '@/components/ui';
-import { ChartColumnBig } from 'lucide-react';
+import type { CapsuleTab } from '@/components/ui';
+import { ChartColumnBig, Trophy, Hand } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
+import { GiTennisBall } from 'react-icons/gi';
 
 // ── Types matching the Supabase views & raw tables ────────────────────────
 
@@ -282,6 +285,13 @@ function StatTable<Row extends { player_name: string; player_id: string | null }
 
 // ── Main component ────────────────────────────────────────────────────────
 
+const LEAGUE_STATS_TABS: CapsuleTab[] = [
+  { key: 'batting', label: 'Batting', icon: <MdSportsCricket size={16} /> },
+  { key: 'bowling', label: 'Bowling', icon: <GiTennisBall size={14} /> },
+  { key: 'allround', label: 'All-Round', icon: <Trophy size={14} /> },
+  { key: 'catches', label: 'Catches', icon: <Hand size={14} /> },
+];
+
 export default function LeagueStatsView() {
   const { currentTeamId, userTeams } = useAuthStore();
   const cricclubsTeamName = useMemo(() => {
@@ -412,14 +422,9 @@ export default function LeagueStatsView() {
         <RefreshButton onRefresh={load} />
       </div>
 
-      {/* Tab segmented control */}
-      <SegmentedControl
-        options={[
-          { key: 'batting', label: 'Batting' },
-          { key: 'bowling', label: 'Bowling' },
-          { key: 'allround', label: 'All-Round' },
-          { key: 'catches', label: 'Catches' },
-        ]}
+      {/* Tab capsule bar — active expands with label, inactive shows icon only */}
+      <CapsuleTabs
+        tabs={LEAGUE_STATS_TABS}
         active={tab}
         onChange={(v) => setTab(v as Tab)}
       />
