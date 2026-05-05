@@ -103,13 +103,134 @@ const main = async (): Promise<void> => {
       await sleep(1500); // polite jitter between scorecards
     }
 
+    // Auto-complete schedule matches whose date has passed and that have a
+    // matching cricclubs_matches row. Never overwrites a result an admin
+    // already entered (only updates rows where result IS NULL).
+    const autoCompleted = await autoCompleteScheduleMatches(supabase);
+
     console.log(
       `[cricclubs-sync] Done in ${Date.now() - t0} ms — ` +
-        `${matchesUpserted} matches, ${battingUpserted} batting, ${bowlingUpserted} bowling`,
+        `${matchesUpserted} matches, ${battingUpserted} batting, ${bowlingUpserted} bowling, ` +
+        `${autoCompleted} auto-completed schedule rows`,
     );
   } finally {
     await browser?.close();
   }
+};
+
+// ── Auto-complete schedule matches ──────────────────────────────────────
+
+const normalizeOpponent = (s: string): string =>
+  s.toLowerCase().replace(/^mtca\s+/i, '').trim();
+
+// "75/8 (20.0/20)" → { score: "75/8", overs: "20.0" }
+// "75/8 (20.0/20.0)" → same.  Handles edge cases by returning empty strings.
+const parseTeamScore = (s: string | null): { score: string; overs: string } => {
+  if (!s) return { score: '', overs: '' };
+  const m = s.match(/^([\d/]+)\s*\(([\d.]+)/);
+  if (!m) return { score: s.trim(), overs: '' };
+  return { score: m[1] ?? '', overs: m[2] ?? '' };
+};
+
+const autoCompleteScheduleMatches = async (
+  supabase: ReturnType<typeof makeServiceRoleClient>,
+): Promise<number> => {
+  // Load team's name as cricclubs spells it (used to decide who is "us").
+  const { data: teamRow, error: teamErr } = await supabase
+    .from('cricket_teams')
+    .select('name')
+    .eq('id', INTERNAL_TEAM_ID)
+    .maybeSingle();
+  if (teamErr || !teamRow) {
+    console.warn('[cricclubs-sync] auto-complete: could not resolve team name; skipping');
+    return 0;
+  }
+  const myCricclubsName = `MTCA ${teamRow.name}`;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Schedule rows still 'upcoming' but whose date has passed AND result is null.
+  const { data: upcomingPast, error: upcomingErr } = await supabase
+    .from('cricket_schedule_matches')
+    .select('id, opponent, match_date, status, result')
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .eq('status', 'upcoming')
+    .lt('match_date', today)
+    .is('result', null);
+  if (upcomingErr || !upcomingPast?.length) return 0;
+
+  // All cricclubs matches for the team — small set; in-memory join is fine.
+  const { data: cms, error: cmsErr } = await supabase
+    .from('cricclubs_matches')
+    .select('match_date, team_a, team_b, team_a_score, team_b_score, winner_team, result_text')
+    .eq('team_id', INTERNAL_TEAM_ID);
+  if (cmsErr || !cms) return 0;
+
+  type CMRow = {
+    match_date: string | null;
+    team_a: string;
+    team_b: string;
+    team_a_score: string | null;
+    team_b_score: string | null;
+    winner_team: string | null;
+    result_text: string | null;
+  };
+  const cmList = cms as CMRow[];
+
+  // Index cricclubs matches by `${date}|${normalized_opponent}` for O(1) lookup.
+  const cmIndex = new Map<string, CMRow>();
+  for (const cm of cmList) {
+    if (!cm.match_date) continue;
+    const opponent = cm.team_a === myCricclubsName ? cm.team_b : cm.team_a;
+    cmIndex.set(`${cm.match_date}|${normalizeOpponent(opponent)}`, cm);
+  }
+
+  let updated = 0;
+  for (const sched of upcomingPast as { id: string; opponent: string; match_date: string }[]) {
+    const cm = cmIndex.get(`${sched.match_date}|${normalizeOpponent(sched.opponent)}`);
+    if (!cm) continue;
+
+    // Determine which side is us so we know which score column maps where.
+    const usAreA = cm.team_a === myCricclubsName;
+    const ourScoreRaw = usAreA ? cm.team_a_score : cm.team_b_score;
+    const oppScoreRaw = usAreA ? cm.team_b_score : cm.team_a_score;
+    const ours = parseTeamScore(ourScoreRaw);
+    const opp = parseTeamScore(oppScoreRaw);
+
+    // Result derivation: cricclubs winner_team starts with the team's full
+    // name. Prefix-match against ours; fallback to 'draw' if no winner.
+    let result: 'won' | 'lost' | 'draw' = 'draw';
+    if (cm.winner_team) {
+      result = cm.winner_team.toLowerCase().startsWith(myCricclubsName.toLowerCase())
+        ? 'won'
+        : 'lost';
+    }
+
+    const { error: updErr } = await supabase
+      .from('cricket_schedule_matches')
+      .update({
+        status: 'completed',
+        result,
+        team_score: ours.score || null,
+        team_overs: ours.overs || null,
+        opponent_score: opp.score || null,
+        opponent_overs: opp.overs || null,
+        result_summary: cm.result_text ?? null,
+      })
+      .eq('id', sched.id)
+      .is('result', null); // belt-and-suspenders: re-check we're not overwriting
+
+    if (updErr) {
+      console.warn(`[cricclubs-sync] auto-complete failed for ${sched.id}: ${updErr.message}`);
+      continue;
+    }
+    console.log(
+      `[cricclubs-sync]   auto-completed: vs ${sched.opponent} ` +
+        `(${sched.match_date}) → ${result} ${ours.score || '?'} - ${opp.score || '?'}`,
+    );
+    updated += 1;
+  }
+  return updated;
 };
 
 // ── Upserts ─────────────────────────────────────────────────────────────
