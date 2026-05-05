@@ -68,7 +68,7 @@ npm run test:coverage # Coverage report
 | Supabase setup | `docs/SUPABASE_SETUP.md` |
 | Adding a new tool | `docs/NEW_TOOL_GUIDE.md` |
 | Env variables | `.env.example` |
-| GitHub Actions | `.github/workflows/` (backup, restore, weekly-activity-report, monthly-expense-report, cricclubs-sync). Heavy bash for monthly-expense-report lives in `.github/scripts/send-monthly-report.sh` (workflow run-block has a 21k-char GHA limit). The `cricclubs-sync` job runs weekly Mon 06:00 UTC; logic lives in `scripts/cricclubs-sync/` (TypeScript + Playwright). |
+| GitHub Actions | `.github/workflows/` (backup, restore, weekly-activity-report, monthly-expense-report, cricclubs-sync). Heavy bash for monthly-expense-report lives in `.github/scripts/send-monthly-report.sh` (workflow run-block has a 21k-char GHA limit). The `cricclubs-sync` job runs 6× per weekend (Sat & Sun 11 AM / 2:30 PM / 6 PM PT); logic lives in `scripts/cricclubs-sync/` (TypeScript + Playwright). After upserting cricclubs data it also auto-completes any past `cricket_schedule_matches` rows whose result is null — never overwriting admin-entered results. |
 
 ## Email
 
