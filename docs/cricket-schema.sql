@@ -2233,3 +2233,32 @@ GRANT SELECT ON cricclubs_bowling_season TO authenticated;
 --   1. backup.yml + restore.yml updated with the four new tables.
 --   2. docs/MULTI_TEAM_DESIGN.md documents the hard-delete-by-design choice.
 -- ============================================================================
+
+
+-- ============================================================================
+-- ── Season ↔ cricclubs linkage (migration 006, applied 2026-05-06) ──────────
+-- See docs/migrations/006_seasons_cricclubs_link.sql for the full migration.
+-- Lets the weekly scraper auto-create + activate cricket_seasons rows that
+-- mirror cricclubs leagues, removing the manual "+ Add Season" step.
+-- ============================================================================
+
+-- New columns on cricket_seasons:
+--   cricclubs_league_id    INTEGER  — cricclubs's stable league ID (e.g., 87)
+--   cricclubs_league_name  TEXT     — '2026 MTCA Spring League'
+--   division               TEXT     — 'Division D'
+--   source                 TEXT     — 'manual' | 'cricclubs' (CHECK enforced)
+ALTER TABLE cricket_seasons
+  ADD COLUMN IF NOT EXISTS cricclubs_league_id    INTEGER,
+  ADD COLUMN IF NOT EXISTS cricclubs_league_name  TEXT,
+  ADD COLUMN IF NOT EXISTS division               TEXT,
+  ADD COLUMN IF NOT EXISTS source                 TEXT NOT NULL DEFAULT 'manual';
+
+-- Partial unique index — only enforced for cricclubs-sourced rows.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cricket_seasons_cricclubs
+  ON cricket_seasons(team_id, cricclubs_league_id, division) NULLS NOT DISTINCT
+  WHERE cricclubs_league_id IS NOT NULL;
+
+-- New column on cricclubs_matches:
+--   cricclubs_league_id    INTEGER  — natural key for sync's ensureSeason()
+ALTER TABLE cricclubs_matches
+  ADD COLUMN IF NOT EXISTS cricclubs_league_id INTEGER;
