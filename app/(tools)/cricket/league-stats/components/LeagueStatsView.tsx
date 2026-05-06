@@ -11,7 +11,9 @@ import {
   Skeleton,
   EmptyState,
 } from '@/components/ui';
-import { ChartColumnBig, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChartColumnBig, ChevronDown, ChevronRight, Info, Trophy, XCircle } from 'lucide-react';
+import { MdSportsCricket } from 'react-icons/md';
+import SeasonSelector from '../../components/SeasonSelector';
 
 // ── Types matching the Supabase views & raw tables ────────────────────────
 
@@ -720,34 +722,42 @@ export default function LeagueStatsView() {
     return m;
   }, [catchEvents]);
 
-  // Derived: W-L summary
-  const summary = useMemo(() => {
-    const total = matches.length;
-    let won = 0;
-    let lost = 0;
-    for (const m of matches) {
-      if (!m.winner_team) continue;
-      if (m.winner_team.toLowerCase().includes((cricclubsTeamName.match(/sunrisers.*/i)?.[0] ?? cricclubsTeamName).toLowerCase())) {
-        won += 1;
-      } else {
-        lost += 1;
-      }
-    }
-    return { total, won, lost, undecided: total - won - lost };
-  }, [matches, cricclubsTeamName]);
+  // Derived: W-L summary + recent form + current streak.
+  const seasonOutcomes = useMemo(() => {
+    const myKeyword = (cricclubsTeamName.match(/sunrisers.*/i)?.[0] ?? cricclubsTeamName).toLowerCase();
+    type Outcome = 'won' | 'lost' | 'draw';
+    const outcomes: { date: string; outcome: Outcome | 'pending' }[] = matches.map((m) => {
+      if (!m.winner_team) return { date: m.match_date ?? '', outcome: 'pending' };
+      const won = m.winner_team.toLowerCase().includes(myKeyword);
+      return { date: m.match_date ?? '', outcome: won ? 'won' : 'lost' };
+    });
 
-  // Derived: season label from cricclubs_matches.league_name + division.
-  // All rows in this dataset share the same league for a given team_id, so
-  // taking the most recent non-null pair is safe.
-  const seasonLabel = useMemo(() => {
-    for (let i = matches.length - 1; i >= 0; i--) {
-      const m = matches[i];
-      if (m && m.league_name) {
-        return m.division ? `${m.league_name} · ${m.division}` : m.league_name;
+    const total = matches.length;
+    const won = outcomes.filter((o) => o.outcome === 'won').length;
+    const lost = outcomes.filter((o) => o.outcome === 'lost').length;
+    const undecided = total - won - lost;
+
+    // Form is most-recent-first, decided matches only.
+    const formDescending = outcomes
+      .filter((o) => o.outcome !== 'pending')
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((o) => o.outcome as Outcome);
+
+    // Streak: how many in a row of the most-recent outcome.
+    let streak: { type: Outcome; count: number } | null = null;
+    if (formDescending.length > 0) {
+      const first = formDescending[0]!;
+      let count = 1;
+      for (let i = 1; i < formDescending.length; i++) {
+        if (formDescending[i] === first) count += 1;
+        else break;
       }
+      if (count >= 2) streak = { type: first, count };
     }
-    return null;
-  }, [matches]);
+
+    return { total, won, lost, undecided, formDescending, streak };
+  }, [matches, cricclubsTeamName]);
+  const summary = seasonOutcomes;
 
   if (loading) {
     return (
@@ -772,38 +782,24 @@ export default function LeagueStatsView() {
 
   return (
     <div className="space-y-3">
-      {/* Season banner — shows the cricclubs league + division. Sourced from
-          cricclubs_matches.league_name / division (already populated by the
-          weekly scraper). Hidden until at least one match is ingested. */}
-      {seasonLabel && (
-        <div className="px-1">
-          <Text size="xs" weight="semibold" color="muted">
-            {seasonLabel}
-          </Text>
-        </div>
-      )}
-
-      {/* Season summary strip */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <SummaryTile
-          label="Matches"
-          value={String(summary.total)}
-          accent="var(--cricket)"
-          href="/cricket/schedule#completed"
-        />
-        <SummaryTile
-          label="Won"
-          value={String(summary.won)}
-          accent="var(--green)"
-          href="/cricket/schedule#completed"
-        />
-        <SummaryTile
-          label="Lost"
-          value={String(summary.lost)}
-          accent="var(--red)"
-          href="/cricket/schedule#completed"
-        />
+      {/* Season selector — same component used on Cricket main + Schedule.
+          Lets users switch seasons (e.g. Spring → Fall once cricclubs has a
+          new league) and shows the full cricclubs name in the dropdown. */}
+      <div className="flex justify-end">
+        <SeasonSelector />
       </div>
+
+      {/* Single rich scorecard — replaces the prior 3-tile strip. Tap to
+          drill into the schedule's Completed tab. */}
+      <SeasonScorecard
+        won={summary.won}
+        lost={summary.lost}
+        undecided={summary.undecided}
+        total={summary.total}
+        formDescending={summary.formDescending}
+        streak={summary.streak}
+        href="/cricket/schedule#completed"
+      />
 
       {/* Tab segmented control */}
       <SegmentedControl
@@ -950,9 +946,33 @@ export default function LeagueStatsView() {
 
       {tab === 'allround' && (
         <>
-          <Text size="2xs" color="muted" className="px-1">
-            Score = runs/25 + wickets + catches/2. Players need contributions in ≥2 disciplines.
-          </Text>
+          {/* All-round formula explainer — small info card with the formula
+              broken into colored discipline tiles so users can see the
+              weighting at a glance. */}
+          <div
+            className="flex items-start gap-2.5 rounded-xl border px-3 py-2.5"
+            style={{
+              background: 'color-mix(in srgb, var(--cricket) 4%, var(--card))',
+              borderColor: 'color-mix(in srgb, var(--cricket) 25%, var(--border))',
+            }}
+          >
+            <Info size={14} className="flex-shrink-0 mt-0.5 text-[var(--cricket)]" />
+            <div className="min-w-0 flex-1">
+              <Text as="p" size="2xs" weight="semibold" color="cricket" uppercase tracking="wider" className="mb-1">
+                All-rounder score
+              </Text>
+              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                <FormulaPill label="Runs" divisor="25" />
+                <Text as="span" size="xs" color="muted">+</Text>
+                <FormulaPill label="Wickets" />
+                <Text as="span" size="xs" color="muted">+</Text>
+                <FormulaPill label="Catches" divisor="2" />
+              </div>
+              <Text as="p" size="2xs" color="muted">
+                Requires contributions in 2+ disciplines.
+              </Text>
+            </div>
+          </div>
           <StatTable
             rows={allRound}
             defaultSortKey="score"
@@ -1028,34 +1048,287 @@ export default function LeagueStatsView() {
   );
 }
 
+// ── Season Scorecard — rich performance card replacing the 3-tile strip.
+// SVG ring shows wins/losses split visually; recent form pills tell the
+// story of "what's been happening lately"; streak callout adds emotional
+// stakes ("on a 3-match win streak"). One card, one tap → schedule.
+function SeasonScorecard({
+  won,
+  lost,
+  undecided,
+  total,
+  formDescending,
+  streak,
+  href,
+}: {
+  won: number;
+  lost: number;
+  undecided: number;
+  total: number;
+  formDescending: ('won' | 'lost' | 'draw')[];
+  streak: { type: 'won' | 'lost' | 'draw'; count: number } | null;
+  href: string;
+}) {
+  const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
+
+  // SVG ring: 88×88 viewBox, stroke 7. Two arcs (won + lost) + bg track.
+  const r = 36;
+  const c = 2 * Math.PI * r;
+  const winLen = total > 0 ? (won / total) * c : 0;
+  const lossLen = total > 0 ? (lost / total) * c : 0;
+  const drawLen = total > 0 ? (undecided / total) * c : 0;
+
+  const formToShow = formDescending.slice(0, 5).reverse(); // newest on right
+
+  return (
+    <Link
+      href={href}
+      aria-label="View season schedule"
+      className="block group relative overflow-hidden rounded-2xl border transition-all active:scale-[0.99] cursor-pointer"
+      style={{
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 22%, var(--card)) 0%, color-mix(in srgb, var(--cricket-accent) 12%, var(--card-end)) 100%)',
+        borderColor: 'color-mix(in srgb, var(--cricket) 30%, var(--border))',
+        boxShadow:
+          '0 8px 28px color-mix(in srgb, var(--cricket) 18%, transparent), inset 0 1px 0 0 var(--inner-glow)',
+      }}
+    >
+      {/* Decorative oversized trophy — same vibe as the page hero */}
+      <Trophy
+        size={140}
+        className="absolute -right-6 -top-6 opacity-[0.05] pointer-events-none rotate-12"
+        style={{ color: 'var(--cricket)' }}
+      />
+
+      <div className="relative p-4 sm:p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <Text as="p" size="2xs" color="cricket" weight="bold" uppercase tracking="wider">
+            Season Performance
+          </Text>
+          <ChevronRight
+            size={16}
+            className="flex-shrink-0 text-[var(--cricket)] opacity-60 group-hover:translate-x-0.5 transition-transform"
+          />
+        </div>
+
+        {/* Top row: ring + counts */}
+        <div className="flex items-center gap-4 sm:gap-5">
+          {/* Win-rate ring */}
+          <svg width="88" height="88" viewBox="0 0 88 88" className="flex-shrink-0">
+            <circle
+              cx="44" cy="44" r={r}
+              fill="none" stroke="color-mix(in srgb, var(--cricket) 12%, transparent)" strokeWidth="7"
+            />
+            {won > 0 && (
+              <circle
+                cx="44" cy="44" r={r}
+                fill="none" stroke="var(--green)" strokeWidth="7" strokeLinecap="butt"
+                strokeDasharray={`${winLen} ${c}`}
+                transform="rotate(-90 44 44)"
+              />
+            )}
+            {lost > 0 && (
+              <circle
+                cx="44" cy="44" r={r}
+                fill="none" stroke="var(--red)" strokeWidth="7" strokeLinecap="butt"
+                strokeDasharray={`${lossLen} ${c}`}
+                strokeDashoffset={-winLen}
+                transform="rotate(-90 44 44)"
+              />
+            )}
+            {undecided > 0 && (
+              <circle
+                cx="44" cy="44" r={r}
+                fill="none" stroke="var(--muted)" strokeWidth="7" strokeLinecap="butt"
+                strokeDasharray={`${drawLen} ${c}`}
+                strokeDashoffset={-(winLen + lossLen)}
+                transform="rotate(-90 44 44)"
+                opacity="0.4"
+              />
+            )}
+            <text
+              x="44" y="46"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="font-bold"
+              fill="var(--text)"
+              fontSize="22"
+            >
+              {winRate}%
+            </text>
+          </svg>
+
+          {/* Counts */}
+          <div className="min-w-0 flex-1 flex flex-col gap-1">
+            <Text as="p" size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
+              Win rate
+            </Text>
+            <div className="flex items-baseline gap-1.5 flex-wrap">
+              <Text as="span" size="lg" weight="bold" tabular style={{ color: 'var(--green)' }}>
+                {won}W
+              </Text>
+              <Text as="span" size="2xs" color="muted">·</Text>
+              <Text as="span" size="lg" weight="bold" tabular style={{ color: 'var(--red)' }}>
+                {lost}L
+              </Text>
+              {undecided > 0 && (
+                <>
+                  <Text as="span" size="2xs" color="muted">·</Text>
+                  <Text as="span" size="md" weight="semibold" tabular color="muted">
+                    {undecided} pending
+                  </Text>
+                </>
+              )}
+            </div>
+            <Text as="p" size="2xs" color="muted">
+              {total} match{total === 1 ? '' : 'es'} played
+            </Text>
+          </div>
+        </div>
+
+        {/* Recent form */}
+        {formToShow.length > 0 && (
+          <div className="mt-4 flex items-center gap-2.5">
+            <Text as="span" size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
+              Form
+            </Text>
+            <div className="flex items-center gap-1">
+              {formToShow.map((o, i) => {
+                const c =
+                  o === 'won' ? 'var(--green)' : o === 'lost' ? 'var(--red)' : 'var(--muted)';
+                const letter = o === 'won' ? 'W' : o === 'lost' ? 'L' : 'D';
+                return (
+                  <span
+                    key={i}
+                    className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white"
+                    style={{ background: c }}
+                    aria-label={letter}
+                    title={letter}
+                  >
+                    {letter}
+                  </span>
+                );
+              })}
+            </div>
+            <Text as="span" size="2xs" color="muted" className="ml-auto">
+              newest →
+            </Text>
+          </div>
+        )}
+
+        {/* Streak callout — only when there's an active 2+ streak */}
+        {streak && streak.count >= 2 && (
+          <div
+            className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2"
+            style={{
+              background: streak.type === 'won'
+                ? 'color-mix(in srgb, var(--green) 14%, transparent)'
+                : 'color-mix(in srgb, var(--red) 14%, transparent)',
+              border: streak.type === 'won'
+                ? '1px solid color-mix(in srgb, var(--green) 35%, transparent)'
+                : '1px solid color-mix(in srgb, var(--red) 35%, transparent)',
+            }}
+          >
+            <span className="text-[14px]" aria-hidden>
+              {streak.type === 'won' ? '🔥' : streak.type === 'lost' ? '💧' : '➖'}
+            </span>
+            <Text
+              as="span"
+              size="xs"
+              weight="bold"
+              style={{
+                color: streak.type === 'won' ? 'var(--green)' : streak.type === 'lost' ? 'var(--red)' : 'var(--muted)',
+              }}
+            >
+              {streak.count}-match {streak.type === 'won' ? 'win' : streak.type === 'lost' ? 'losing' : 'draw'} streak
+            </Text>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// Small pill rendering one term of the all-rounder formula, e.g.
+// "Runs ÷ 25" or just "Wickets". Visual: cricket-tinted bg, semibold label.
+function FormulaPill({ label, divisor }: { label: string; divisor?: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
+      style={{
+        background: 'color-mix(in srgb, var(--cricket) 12%, var(--card))',
+        border: '1px solid color-mix(in srgb, var(--cricket) 30%, var(--border))',
+      }}
+    >
+      <Text as="span" size="2xs" weight="bold" color="cricket">
+        {label}
+      </Text>
+      {divisor && (
+        <>
+          <Text as="span" size="2xs" color="muted">÷</Text>
+          <Text as="span" size="2xs" weight="bold" color="cricket" tabular>
+            {divisor}
+          </Text>
+        </>
+      )}
+    </span>
+  );
+}
+
 function SummaryTile({
   label,
   value,
   accent,
   href,
+  icon,
 }: {
   label: string;
   value: string;
   accent: string;
   href?: string;
+  icon: React.ReactNode;
 }) {
   const inner = (
     <>
-      <div className="flex items-center justify-between mb-1.5">
-        <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">
+      {/* Top row: rounded icon chip in accent color + label + chevron. */}
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{
+            background: `color-mix(in srgb, ${accent} 14%, transparent)`,
+            color: accent,
+          }}
+        >
+          {icon}
+        </span>
+        <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider" className="flex-1 truncate">
           {label}
         </Text>
-        {href && <ChevronRight size={12} className="flex-shrink-0 text-[var(--dim)]" />}
+        {href && <ChevronRight size={13} className="flex-shrink-0 text-[var(--dim)]" />}
       </div>
-      <Text as="p" size="2xl" weight="bold" tabular className="leading-none" style={{ color: accent }}>
+      <Text
+        as="p"
+        size="2xl"
+        weight="bold"
+        tabular
+        className="leading-none sm:text-[28px]"
+        style={{ color: accent }}
+      >
         {value}
       </Text>
     </>
   );
 
+  // Tile bg subtly tinted with the accent color (4% mix) — keeps cards in
+  // the same visual family but each tile reads as its own thing.
   const baseClass =
-    'rounded-xl border border-[var(--border)]/60 bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] p-3 sm:p-4 min-w-0 text-left w-full';
-  const baseStyle = { boxShadow: 'inset 0 1px 0 0 var(--inner-glow)' as const };
+    'rounded-2xl border p-3 sm:p-4 min-w-0 text-left w-full transition-all';
+  const baseStyle = {
+    background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 5%, var(--card)), var(--card-end))`,
+    borderColor: `color-mix(in srgb, ${accent} 20%, var(--border))`,
+    boxShadow: `inset 0 1px 0 0 var(--inner-glow), 0 1px 2px 0 color-mix(in srgb, ${accent} 8%, transparent)`,
+  } as const;
 
   if (!href) {
     return (
@@ -1064,12 +1337,10 @@ function SummaryTile({
       </div>
     );
   }
-  // Use a Next Link for client-side navigation (no full page reload). Hash
-  // is appended so MatchSchedule lands on its `completed` tab on arrival.
   return (
     <Link
       href={href}
-      className={baseClass + ' cursor-pointer hover:bg-[var(--hover-bg)] active:scale-[0.98] transition-all block'}
+      className={baseClass + ' cursor-pointer hover:brightness-105 active:scale-[0.98] block'}
       style={baseStyle}
       aria-label={`View ${label.toLowerCase()} matches in schedule`}
     >

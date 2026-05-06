@@ -32,6 +32,15 @@ export default function SeasonSelector() {
   });
   const selectedSeason = sortedSeasons.find((s) => s.id === selectedSeasonId);
 
+  // Short label for the trigger pill — e.g. "Spring 2026" — fits on mobile.
+  // Full name (e.g. "2026 MTCA Spring League · Division D") shows in the
+  // dropdown rows where there's room.
+  const shortLabel = (s: typeof seasons[number] | undefined) => {
+    if (!s) return 'No seasons';
+    const typeLabel = SEASON_TYPES.find((t) => t.key === s.season_type)?.label ?? s.season_type;
+    return `${typeLabel} ${s.year}`;
+  };
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -45,6 +54,25 @@ export default function SeasonSelector() {
   }, [showDropdown]);
 
   const [createError, setCreateError] = useState('');
+
+  // Dropdown left/right alignment — picked dynamically based on trigger
+  // position so the dropdown extends into the side with more viewport room.
+  // On Cricket main page the trigger sits left; on League Schedule it sits
+  // right. A single static anchor breaks one of them.
+  const [dropdownAlign, setDropdownAlign] = useState<'left' | 'right'>('left');
+  useEffect(() => {
+    if (!showDropdown || !dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const estDropdownWidth = 300; // generous; full cricclubs name fits
+    const viewportWidth = window.innerWidth;
+    // Flip to right-anchored if a left-anchored dropdown would overflow
+    // the right edge of the viewport (with 16px margin to spare).
+    if (rect.left + estDropdownWidth > viewportWidth - 16) {
+      setDropdownAlign('right');
+    } else {
+      setDropdownAlign('left');
+    }
+  }, [showDropdown]);
 
   const handleCreate = () => {
     if (!user) return;
@@ -77,11 +105,15 @@ export default function SeasonSelector() {
           className="group flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-full text-[14px] font-semibold cursor-pointer transition-all bg-[var(--card)] border border-[var(--border)] hover:border-[var(--cricket)]/40 hover:shadow-sm text-[var(--text)]"
         >
           <span className="text-[16px]">{activeIcon}</span>
-          <Text weight="bold">{selectedSeason?.name ?? 'No seasons'}</Text>
+          <Text weight="bold">{shortLabel(selectedSeason)}</Text>
           <span className={`flex items-center justify-center h-5 w-5 rounded-full bg-[var(--hover-bg)] group-hover:bg-[var(--cricket)]/10 text-[var(--muted)] text-[9px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
         </button>
         {showDropdown && sortedSeasons.length > 0 && (
-          <div className="absolute left-0 top-full mt-1.5 z-[60] w-max min-w-[180px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1.5 animate-slide-in">
+          // Auto-flips: anchor to trigger's left edge by default, but flips
+          // to right edge when there's not enough viewport space rightward.
+          <div className={`absolute top-full mt-1.5 z-[60] w-max min-w-[180px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1.5 animate-slide-in ${
+            dropdownAlign === 'right' ? 'right-0' : 'left-0'
+          }`}>
             {sortedSeasons.map((s) => {
               const isActive = s.id === selectedSeasonId;
               const icon = seasonIcon[s.season_type] ?? '📅';
@@ -105,8 +137,12 @@ export default function SeasonSelector() {
         )}
       </div>
 
-      {/* New season */}
-      {isAdmin && !showCreate ? (
+      {/* New-season UI removed 2026-05-05. The cricclubs-sync GitHub Action
+          now auto-creates and activates seasons whenever cricclubs publishes
+          a new league. See scripts/cricclubs-sync/sync.ts. The manual code
+          path is preserved below in case admin-created seasons return as a
+          feature; right now it never renders. */}
+      {false && isAdmin && !showCreate ? (
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center justify-center h-9 w-9 rounded-full border border-dashed border-[var(--cricket)]/40 text-[var(--cricket)] cursor-pointer hover:bg-[var(--cricket)]/10 hover:border-[var(--cricket)] transition-all active:scale-95"
@@ -115,7 +151,7 @@ export default function SeasonSelector() {
         >
           <Plus size={16} strokeWidth={2.25} />
         </button>
-      ) : isAdmin && showCreate ? (
+      ) : false && isAdmin && showCreate ? (
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="flex gap-1.5">
             {SEASON_TYPES.map((t) => {

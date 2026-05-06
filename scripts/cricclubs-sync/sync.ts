@@ -83,6 +83,15 @@ const main = async (): Promise<void> => {
     const listEntries = parseMatchList(listHtml);
     console.log(`[cricclubs-sync] Match list: ${listEntries.length} matches`);
 
+    // Ensure a cricket_seasons row exists for this league/division and is
+    // marked active. Uses metadata from the first match in the list.
+    const firstWithLeague = listEntries.find((e) => e.league_division);
+    if (firstWithLeague) {
+      const leagueName = extractLeagueName(firstWithLeague.league_division);
+      const division = extractDivision(firstWithLeague.league_division);
+      await ensureSeason(supabase, leagueName, division);
+    }
+
     let matchesUpserted = 0;
     let battingUpserted = 0;
     let bowlingUpserted = 0;
@@ -116,6 +125,112 @@ const main = async (): Promise<void> => {
   } finally {
     await browser?.close();
   }
+};
+
+// ── Ensure season row + activation ──────────────────────────────────────
+
+// Derive season_type ('spring' | 'summer' | 'fall') from a league name.
+// Falls back to 'spring' for unrecognized input — admin can edit later.
+const inferSeasonType = (leagueName: string | null): 'spring' | 'summer' | 'fall' => {
+  if (!leagueName) return 'spring';
+  const lc = leagueName.toLowerCase();
+  if (lc.includes('summer')) return 'summer';
+  if (lc.includes('fall') || lc.includes('autumn')) return 'fall';
+  return 'spring';
+};
+
+const inferSeasonYear = (leagueName: string | null): number => {
+  const m = leagueName?.match(/\b(20\d{2})\b/);
+  return m ? Number(m[1]) : new Date().getFullYear();
+};
+
+// Upserts a cricket_seasons row keyed by (team_id, cricclubs_league_id,
+// division). On insert: marks active and deactivates other seasons for the
+// team. On update: refreshes name/league_name (in case cricclubs renamed).
+const ensureSeason = async (
+  supabase: ReturnType<typeof makeServiceRoleClient>,
+  leagueName: string | null,
+  division: string | null,
+): Promise<void> => {
+  const displayName = division ? `${leagueName} · ${division}` : (leagueName ?? 'Untitled Season');
+  const season_type = inferSeasonType(leagueName);
+  const year = inferSeasonYear(leagueName);
+
+  // Lookup by natural key (team_id, cricclubs_league_id, division). NULL
+  // division needs `.is(null)` instead of `.eq(null)` because Postgres
+  // treats `column = NULL` as NULL (never true).
+  const baseQuery = supabase
+    .from('cricket_seasons')
+    .select('id, is_active, name')
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .eq('cricclubs_league_id', LEAGUE_ID);
+  const { data: existing, error: selErr } = await (
+    division ? baseQuery.eq('division', division) : baseQuery.is('division', null)
+  );
+  if (selErr) {
+    console.warn(`[cricclubs-sync] ensureSeason select failed: ${selErr.message}`);
+    return;
+  }
+  const matchedRow = (existing ?? [])[0] ?? null;
+
+  if (matchedRow?.id) {
+    // Refresh the display name (cricclubs may have renamed the league).
+    const { error: updErr } = await supabase
+      .from('cricket_seasons')
+      .update({
+        name: displayName,
+        cricclubs_league_name: leagueName,
+      })
+      .eq('id', matchedRow.id);
+    if (updErr) {
+      console.warn(`[cricclubs-sync] ensureSeason update failed: ${updErr.message}`);
+    }
+    if (!matchedRow.is_active) {
+      await activateOnly(supabase, matchedRow.id);
+    }
+    return;
+  }
+
+  // INSERT new season + activate it (deactivate others).
+  const { data: inserted, error: insErr } = await supabase
+    .from('cricket_seasons')
+    .insert({
+      team_id: INTERNAL_TEAM_ID,
+      name: displayName,
+      year,
+      season_type,
+      cricclubs_league_id: LEAGUE_ID,
+      cricclubs_league_name: leagueName,
+      division,
+      source: 'cricclubs',
+      is_active: false, // set true via activateOnly so others are deactivated atomically
+    })
+    .select('id')
+    .single();
+  if (insErr || !inserted) {
+    console.warn(`[cricclubs-sync] ensureSeason insert failed: ${insErr?.message ?? 'no row'}`);
+    return;
+  }
+  await activateOnly(supabase, inserted.id);
+  console.log(`[cricclubs-sync] auto-created season "${displayName}" (id=${inserted.id})`);
+};
+
+// Set is_active=true on the given season; deactivate all other seasons for
+// the team. Two writes; not transactional but the worst case is a brief
+// double-active state visible to a single render.
+const activateOnly = async (
+  supabase: ReturnType<typeof makeServiceRoleClient>,
+  seasonId: string,
+): Promise<void> => {
+  await supabase
+    .from('cricket_seasons')
+    .update({ is_active: false })
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .neq('id', seasonId);
+  await supabase
+    .from('cricket_seasons')
+    .update({ is_active: true })
+    .eq('id', seasonId);
 };
 
 // ── Auto-complete schedule matches ──────────────────────────────────────
@@ -252,6 +367,7 @@ const upsertMatch = async (
       {
         team_id: INTERNAL_TEAM_ID,
         cricclubs_match_id: listEntry.cricclubs_match_id,
+        cricclubs_league_id: LEAGUE_ID,
         match_date: listEntry.match_date,
         match_format: listEntry.match_format,
         league_name: extractLeagueName(listEntry.league_division),
