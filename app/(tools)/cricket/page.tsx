@@ -107,6 +107,10 @@ function tabToView(tab: Tab): View {
 /* ── Tab config using shared CapsuleTabs ── */
 import { CapsuleTabs, SegmentedControl } from '@/components/ui';
 import type { CapsuleTab } from '@/components/ui';
+import {
+  InteractiveMenu,
+  type InteractiveMenuItem,
+} from '@/components/ui/modern-mobile-menu';
 
 const CAPSULE_TABS: CapsuleTab[] = [
   { key: 'players', label: 'Players', icon: <CricketPlayerIcon size={16} /> },
@@ -223,7 +227,7 @@ function CricketDashboard() {
   }
 
   return (
-    <div className="relative min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8 overflow-hidden">
+    <div className="relative min-h-screen w-full px-3 pt-5 pb-32 sm:px-4 lg:px-8 overflow-hidden">
       {/* Ambient background blobs — cricket warm tones */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className="absolute -top-[20%] -right-[10%] h-[500px] w-[500px] rounded-full opacity-[0.07] blur-[100px]"
@@ -288,80 +292,35 @@ function CricketDashboard() {
         </div>
       ) : (
         <>
-          {/* Bottom tab bar — premium iOS-style with pill active state */}
-          <div
-            className="fixed left-0 right-0 z-40"
-            style={{
-              bottom: 0,
-              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-              background: 'color-mix(in srgb, var(--card) 85%, transparent)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
-              boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
-            }}
-          >
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-around px-2 pt-1.5 pb-2 lg:px-8">
-              {CAPSULE_TABS.map((t) => {
-                const isActive = activeTab === t.key;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => handleViewChange(tabToView(t.key as Tab))}
-                    className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    {/* Pill background on active */}
-                    {isActive && (
-                      <span
-                        className="absolute inset-0 rounded-2xl"
-                        style={{
-                          background: 'color-mix(in srgb, var(--cricket) 15%, transparent)',
-                          border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-                        }}
-                      />
-                    )}
-                    {/* Icon with glow on active */}
-                    <span
-                      className="relative z-10 transition-all duration-200"
-                      style={{
-                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                        filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cricket) 60%, transparent))' : 'none',
-                        transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
-                        display: 'flex',
-                      }}
-                    >
-                      {t.icon}
-                    </span>
-                    {/* Label */}
-                    <span
-                      className="relative z-10 text-[10px] transition-all duration-200"
-                      style={{
-                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                        fontWeight: isActive ? 700 : 500,
-                        letterSpacing: isActive ? '0.03em' : '0.02em',
-                      }}
-                    >
-                      {t.label}
-                    </span>
-                  </button>
-                );
-              })}
-              {/* Share tab — never active */}
-              <button
-                onClick={() => setShowShare(true)}
-                className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
+          {/* Bottom tab bar — full-width with InteractiveMenu (icon + label + animated underline) */}
+          {(() => {
+            const menuItems: InteractiveMenuItem[] = [
+              { label: 'Players', icon: CricketPlayerIcon },
+              { label: 'Finances', icon: Receipt },
+              { label: 'Share', icon: Share2 },
+            ];
+            const activeIdx = showShare ? 2 : activeTab === 'players' ? 0 : 1;
+            const handleMenuClick = (i: number) => {
+              if (i === 0) handleViewChange(tabToView('players'));
+              else if (i === 1) handleViewChange(tabToView('finances'));
+              else setShowShare(true);
+            };
+            return (
+              <div
+                className="fixed left-1/2 -translate-x-1/2 z-50"
+                style={{
+                  bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+                }}
               >
-                <span className="transition-all duration-200" style={{ color: 'var(--muted)', display: 'flex' }}>
-                  <Share2 size={16} />
-                </span>
-                <span className="text-[10px] font-medium" style={{ color: 'var(--muted)', letterSpacing: '0.02em' }}>
-                  Share
-                </span>
-              </button>
-            </div>
-          </div>
+                <InteractiveMenu
+                  items={menuItems}
+                  accentColor="var(--cricket)"
+                  activeIndex={activeIdx}
+                  onItemClick={handleMenuClick}
+                />
+              </div>
+            );
+          })()}
 
           {/* Segmented controls for tabs with sub-views */}
           {activeTab === 'players' && (

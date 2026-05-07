@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
 import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
+import ScheduleStatsNav from './ScheduleStatsNav';
 
 /* ── Types ── */
 interface Performer {
@@ -858,7 +859,7 @@ export default function MatchSchedule() {
   const [activeTab, _setActiveTab] = useState<ScheduleTab>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as ScheduleTab;
-      if (['upcoming', 'completed', 'deleted'].includes(hash)) return hash;
+      if (['upcoming', 'completed'].includes(hash)) return hash;
     }
     return 'upcoming';
   });
@@ -969,13 +970,6 @@ export default function MatchSchedule() {
   const nextMatch = upcoming[0];
   const restUpcoming = upcoming.slice(1);
   const monthGroups = groupByMonth(restUpcoming);
-
-  /* ── Bottom tab config ── */
-  const tabs: { key: ScheduleTab; label: string; icon: React.ReactNode; count: number }[] = [
-    { key: 'upcoming', label: 'Upcoming', icon: <CalendarDays size={18} />, count: upcoming.length },
-    { key: 'completed', label: 'Completed', icon: <CircleCheckBig size={18} />, count: completed.length },
-    { key: 'deleted', label: 'Deleted', icon: <Trash2 size={18} />, count: trashed.length },
-  ];
 
   /* ── Handlers (Supabase + localStorage fallback) ── */
   const handleAdd = async (data: Omit<Match, 'id' | 'status'>, keepOpen?: boolean) => {
@@ -1159,7 +1153,6 @@ export default function MatchSchedule() {
       { label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
       { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) },
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
-      { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
     ];
   };
 
@@ -1243,80 +1236,22 @@ export default function MatchSchedule() {
         </div>
       )}
 
-      {/* Bottom tab bar — portaled to body to avoid iOS Safari fixed positioning bugs */}
-      {typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed left-0 right-0 z-40"
-          style={{
-            bottom: 0,
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            background: 'color-mix(in srgb, var(--card) 85%, transparent)',
-            backdropFilter: 'blur(20px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-            borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
-            boxShadow: '0 -1px 0 0 color-mix(in srgb, var(--border) 40%, transparent), 0 -8px 32px rgba(0,0,0,0.12)',
-          }}
-        >
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-around px-2 pt-1.5 pb-2 lg:px-8">
-            {tabs.map((t) => {
-              const isActive = activeTab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => { setActiveTab(t.key); setOpenMenu(null); }}
-                  className="relative flex flex-col items-center gap-1 cursor-pointer transition-all duration-200 active:scale-90 min-w-[80px] py-1.5 px-3"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  {isActive && (
-                    <span
-                      className="absolute inset-0 rounded-2xl"
-                      style={{
-                        background: 'color-mix(in srgb, var(--cricket) 15%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-                      }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1">
-                    <span
-                      className="transition-all duration-200"
-                      style={{
-                        color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                        filter: isActive ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cricket) 60%, transparent))' : 'none',
-                        transform: isActive ? 'scale(1.15) translateY(-1px)' : 'scale(1)',
-                        display: 'flex',
-                      }}
-                    >
-                      {t.icon}
-                    </span>
-                    {t.count > 0 && (
-                      <span
-                        className="min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold px-1"
-                        style={{
-                          background: isActive ? 'var(--cricket)' : 'var(--dim)',
-                          color: 'white',
-                        }}
-                      >
-                        {t.count}
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className="relative z-10 text-[10px] transition-all duration-200"
-                    style={{
-                      color: isActive ? 'var(--cricket)' : 'var(--muted)',
-                      fontWeight: isActive ? 700 : 500,
-                      letterSpacing: isActive ? '0.03em' : '0.02em',
-                    }}
-                  >
-                    {t.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>,
-        document.body,
-      )}
+      {/* Bottom tab bar — floating pill, portaled to body
+          (workaround for iOS Safari fixed-positioning bugs inside
+          transformed/filtered ancestors). */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <ScheduleStatsNav
+            activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
+            upcomingCount={upcoming.length}
+            completedCount={completed.length}
+            onScheduleTab={(tab) => {
+              setActiveTab(tab);
+              setOpenMenu(null);
+            }}
+          />,
+          document.body,
+        )}
 
       {/* Tab content */}
       <div className="min-h-[200px]">
@@ -1378,46 +1313,6 @@ export default function MatchSchedule() {
           </>
         )}
 
-        {activeTab === 'deleted' && (
-          <>
-            {!isAdmin ? (
-              <EmptyState
-                icon={<Trash2 size={36} style={{ color: 'var(--dim)' }} />}
-                title="Admin only"
-                description="Only admins can view and manage deleted matches"
-              />
-            ) : trashed.length > 0 ? (
-              <div className="space-y-2">
-                {trashed.map((m) => (
-                  <DeletedMatchCard
-                    key={m.id}
-                    match={m}
-                    isAdmin={isAdmin}
-                    onMenuOpen={setOpenMenu}
-                    openMenuId={openMenu}
-                    menuBtnRef={menuBtnRef}
-                  />
-                ))}
-                {trashed.length > 1 && (
-                  <Button
-                    variant="danger-outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={handleEmptyTrash}
-                  >
-                    Empty Trash
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<ArchiveRestore size={36} style={{ color: 'var(--dim)' }} />}
-                title="Trash is empty"
-                description="Deleted matches will appear here"
-              />
-            )}
-          </>
-        )}
       </div>
 
       {/* CardMenu (context menu for any card) */}

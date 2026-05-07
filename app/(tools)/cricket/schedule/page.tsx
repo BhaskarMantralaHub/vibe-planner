@@ -25,7 +25,7 @@ function ScheduleContent() {
   }, [user, loadSeasons]);
 
   return (
-    <div className="relative min-h-screen w-full px-3 py-5 sm:px-4 lg:px-8 overflow-hidden">
+    <div className="relative min-h-screen w-full px-3 pt-5 pb-32 sm:px-4 lg:px-8 overflow-hidden">
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">

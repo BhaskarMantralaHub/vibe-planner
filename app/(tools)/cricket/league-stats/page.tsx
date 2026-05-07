@@ -5,12 +5,13 @@ import { RoleGate } from '@/components/RoleGate';
 import { Text } from '@/components/ui';
 import { Trophy } from 'lucide-react';
 import LeagueStatsView from './components/LeagueStatsView';
+import ScheduleStatsNav from '../components/ScheduleStatsNav';
 
 export default function LeagueStatsPage() {
   return (
     <AuthGate variant="cricket">
       <RoleGate allowed={['cricket', 'admin']} feature="cricket">
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-4 pt-4 pb-32 space-y-4">
           {/* Branded hero header — matches the existing cricket leaderboard style */}
           <div
             className="relative overflow-hidden rounded-2xl px-5 py-5"
@@ -38,6 +39,8 @@ export default function LeagueStatsPage() {
           </div>
 
           <LeagueStatsView />
+
+          <ScheduleStatsNav activeKey="stats" />
         </div>
       </RoleGate>
     </AuthGate>
