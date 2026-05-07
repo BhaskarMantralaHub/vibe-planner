@@ -1,3 +1,4 @@
+// build-cache-bust 2026-05-07a
 import type { Metadata, Viewport } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
