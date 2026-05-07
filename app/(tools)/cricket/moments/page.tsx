@@ -8,7 +8,15 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { PageFooter } from '@/components/PageFooter';
 import Gallery from '../components/Gallery';
-import { Camera } from 'lucide-react';
+import { Camera, CalendarDays, BarChart3, LayoutGrid } from 'lucide-react';
+import CricketSectionNav, { type CricketSectionNavItem } from '../components/CricketSectionNav';
+
+const NAV_ITEMS: CricketSectionNavItem[] = [
+  { kind: 'route', key: 'schedule', label: 'Schedule', icon: CalendarDays, href: '/cricket/schedule' },
+  { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
+  { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
+  { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
+];
 
 function MomentsPage() {
   const { user } = useAuthStore();
@@ -34,7 +42,7 @@ function MomentsPage() {
   }, []);
 
   return (
-    <div className="pb-4">
+    <div className="pb-32">
       {/* Header with accent strip */}
       <div className="px-4 pt-5 pb-4 mb-1" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2.5">
@@ -67,6 +75,8 @@ function MomentsPage() {
       )}
 
       <PageFooter className="mt-16 mb-8 px-4" />
+
+      <CricketSectionNav items={NAV_ITEMS} activeKey="moments" />
     </div>
   );
 }

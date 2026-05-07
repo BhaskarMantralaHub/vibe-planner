@@ -3,9 +3,17 @@
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { Text } from '@/components/ui';
-import { Trophy } from 'lucide-react';
+import { Trophy, CalendarDays, CircleCheckBig, BarChart3, LayoutGrid, Camera } from 'lucide-react';
 import LeagueStatsView from './components/LeagueStatsView';
-import ScheduleStatsNav from '../components/ScheduleStatsNav';
+import CricketSectionNav, { type CricketSectionNavItem } from '../components/CricketSectionNav';
+
+const NAV_ITEMS: CricketSectionNavItem[] = [
+  { kind: 'route', key: 'upcoming', label: 'Upcoming', icon: CalendarDays, href: '/cricket/schedule#upcoming' },
+  { kind: 'route', key: 'completed', label: 'Completed', icon: CircleCheckBig, href: '/cricket/schedule#completed' },
+  { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
+  { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
+  { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
+];
 
 export default function LeagueStatsPage() {
   return (
@@ -40,7 +48,7 @@ export default function LeagueStatsPage() {
 
           <LeagueStatsView />
 
-          <ScheduleStatsNav activeKey="stats" />
+          <CricketSectionNav items={NAV_ITEMS} activeKey="stats" />
         </div>
       </RoleGate>
     </AuthGate>

@@ -6,7 +6,8 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { Users, Receipt, Share2, Banknote, PiggyBank } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
-import ShareButton from './components/ShareButton';
+import ShareFab from './components/ShareFab';
 import CategoryDonut from './components/CategoryDonut';
 import MonthlyBar from './components/MonthlyBar';
 import FeeTracker from './components/FeeTracker';
@@ -107,10 +108,9 @@ function tabToView(tab: Tab): View {
 /* ── Tab config using shared CapsuleTabs ── */
 import { CapsuleTabs, SegmentedControl } from '@/components/ui';
 import type { CapsuleTab } from '@/components/ui';
-import {
-  InteractiveMenu,
-  type InteractiveMenuItem,
-} from '@/components/ui/modern-mobile-menu';
+import CricketSectionNav, {
+  type CricketSectionNavItem,
+} from './components/CricketSectionNav';
 
 const CAPSULE_TABS: CapsuleTab[] = [
   { key: 'players', label: 'Players', icon: <CricketPlayerIcon size={16} /> },
@@ -124,20 +124,45 @@ function CricketDashboard() {
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
+  const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'charts', 'sponsors', 'splits'];
+  const SS_KEY = 'cricket:activeView';
   const [activeView, setActiveView] = useState<View>(() => {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash.replace('#', '') as View;
-      if (['players', 'expenses', 'fees', 'charts', 'sponsors', 'splits'].includes(hash)) return hash;
-    }
+    if (typeof window === 'undefined') return 'players';
+    const hash = window.location.hash.replace('#', '') as View;
+    if (VALID_VIEWS.includes(hash)) return hash;
+    // Round-trip memory: if user came back via Matches → Home or Moments → Home,
+    // restore the view they were on before leaving. Survives one session.
+    const stored = sessionStorage.getItem(SS_KEY) as View | null;
+    if (stored && VALID_VIEWS.includes(stored)) return stored;
     return 'players';
   });
-  const [showShare, setShowShare] = useState(false);
+  const router = useRouter();
   const activeTab = viewToTab(activeView);
 
   const handleViewChange = (view: View) => {
     setActiveView(view);
-    window.history.replaceState(null, '', `#${view}`);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${view}`);
+      sessionStorage.setItem(SS_KEY, view);
+    }
   };
+
+  // Cross-route hash sync — if the URL hash changes outside our handler
+  // (e.g. browser back/forward, deep-link from another page), reflect it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sync = () => {
+      const hash = window.location.hash.replace('#', '') as View;
+      if (VALID_VIEWS.includes(hash)) setActiveView(hash);
+    };
+    window.addEventListener('hashchange', sync);
+    window.addEventListener('popstate', sync);
+    return () => {
+      window.removeEventListener('hashchange', sync);
+      window.removeEventListener('popstate', sync);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard shortcuts: 1-5 to switch views
   useEffect(() => {
@@ -292,35 +317,28 @@ function CricketDashboard() {
         </div>
       ) : (
         <>
-          {/* Bottom tab bar — full-width with InteractiveMenu (icon + label + animated underline) */}
+          {/* Bottom tab bar — Players (view) · Finances (view) · Matches (route) · Moments (route) */}
           {(() => {
-            const menuItems: InteractiveMenuItem[] = [
-              { label: 'Players', icon: CricketPlayerIcon },
-              { label: 'Finances', icon: Receipt },
-              { label: 'Share', icon: Share2 },
+            const navItems: CricketSectionNavItem[] = [
+              { kind: 'view', key: 'players', label: 'Players', icon: CricketPlayerIcon },
+              { kind: 'view', key: 'finances', label: 'Finances', icon: Receipt },
+              { kind: 'route', key: 'matches', label: 'Matches', icon: CalendarDays, href: '/cricket/schedule' },
+              { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
             ];
-            const activeIdx = showShare ? 2 : activeTab === 'players' ? 0 : 1;
-            const handleMenuClick = (i: number) => {
-              if (i === 0) handleViewChange(tabToView('players'));
-              else if (i === 1) handleViewChange(tabToView('finances'));
-              else setShowShare(true);
-            };
             return (
-              <div
-                className="fixed left-1/2 -translate-x-1/2 z-50"
-                style={{
-                  bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+              <CricketSectionNav
+                items={navItems}
+                activeKey={activeTab}
+                onViewChange={(key) => {
+                  if (key === 'players') handleViewChange(tabToView('players'));
+                  else if (key === 'finances') handleViewChange(tabToView('finances'));
                 }}
-              >
-                <InteractiveMenu
-                  items={menuItems}
-                  accentColor="var(--cricket)"
-                  activeIndex={activeIdx}
-                  onItemClick={handleMenuClick}
-                />
-              </div>
+              />
             );
           })()}
+
+          {/* Share — extracted from the pill into a standalone FAB */}
+          <ShareFab />
 
           {/* Segmented controls for tabs with sub-views */}
           {activeTab === 'players' && (
@@ -339,19 +357,6 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {/* Share bottom sheet */}
-          {showShare && (
-            <>
-              <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowShare(false)} />
-              <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl p-5 pb-8 animate-[slideUp_0.2s]" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                <div className="flex justify-center mb-4">
-                  <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-                </div>
-                <ShareButton />
-              </div>
-            </>
-          )}
-
           {/* Summary Stats — show only on players, fees, charts */}
           {(activeView === 'players' || activeView === 'fees' || activeView === 'charts' || activeView === 'sponsors') && (
             <SummaryStats

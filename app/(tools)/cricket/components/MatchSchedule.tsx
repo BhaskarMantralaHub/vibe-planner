@@ -6,14 +6,14 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
 import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
-import ScheduleStatsNav from './ScheduleStatsNav';
+import CricketSectionNav, { type CricketSectionNavItem } from './CricketSectionNav';
 
 /* ── Types ── */
 interface Performer {
@@ -869,6 +869,24 @@ export default function MatchSchedule() {
       window.history.replaceState(null, '', `#${tab}`);
     }
   };
+
+  // Listen for cross-route hash changes (e.g. user is on this page and taps
+  // an "Upcoming" link in CricketSectionNav from /cricket/league-stats which
+  // routes to /cricket/schedule#upcoming). Without this, Next.js' soft-nav
+  // updates the URL but the local tab state goes stale.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sync = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'upcoming' || hash === 'completed') _setActiveTab(hash);
+    };
+    window.addEventListener('hashchange', sync);
+    window.addEventListener('popstate', sync);
+    return () => {
+      window.removeEventListener('hashchange', sync);
+      window.removeEventListener('popstate', sync);
+    };
+  }, []);
   const [showForm, setShowForm] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -1241,15 +1259,26 @@ export default function MatchSchedule() {
           transformed/filtered ancestors). */}
       {typeof document !== 'undefined' &&
         createPortal(
-          <ScheduleStatsNav
-            activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
-            upcomingCount={upcoming.length}
-            completedCount={completed.length}
-            onScheduleTab={(tab) => {
-              setActiveTab(tab);
-              setOpenMenu(null);
-            }}
-          />,
+          (() => {
+            const navItems: CricketSectionNavItem[] = [
+              { kind: 'view', key: 'upcoming', label: 'Upcoming', icon: CalendarDays, count: upcoming.length },
+              { kind: 'view', key: 'completed', label: 'Completed', icon: CircleCheckBig, count: completed.length },
+              { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
+              { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
+              { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
+            ];
+            return (
+              <CricketSectionNav
+                items={navItems}
+                activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
+                onViewChange={(key) => {
+                  setActiveTab(key as 'upcoming' | 'completed');
+                  setOpenMenu(null);
+                }}
+                onActiveTap={() => setOpenMenu(null)}
+              />
+            );
+          })(),
           document.body,
         )}
 
