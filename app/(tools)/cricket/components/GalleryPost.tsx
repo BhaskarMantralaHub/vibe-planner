@@ -5,7 +5,6 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import type { GalleryPost as GalleryPostType, GalleryTag, GalleryComment, GalleryLike, CommentReaction, CricketPlayer } from '@/types/cricket';
 import { Heart, MessageCircle, Ellipsis, Send, X, Pencil, Trash2 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { extractTaggedIds } from '../lib/mentions';
@@ -423,13 +422,12 @@ function CommentLike({ commentId, reactions, userId, players }: {
   return (
     <>
       <span className="inline-flex items-center gap-1.5">
-        <motion.button
-          whileTap={{ scale: 0.75 }}
+        <button
           onClick={() => userId && toggleCommentReaction(commentId, userId, '👍')}
-          className="inline-flex items-center cursor-pointer"
+          className="inline-flex items-center cursor-pointer transition-transform active:scale-75"
         >
           <Heart size={12} fill={hasOwn ? 'var(--red)' : 'none'} style={{ color: hasOwn ? 'var(--red)' : 'var(--dim)' }} />
-        </motion.button>
+        </button>
         {count > 0 && (
           <button onClick={() => setShowWho(true)} className="inline-flex items-center gap-1 cursor-pointer">
             <span className="flex -space-x-1.5">
@@ -659,13 +657,11 @@ export default function GalleryPostCard({
 
   return (
     <>
-      <motion.div
+      <div
         id={`gallery-post-${post.id}`}
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: index * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="overflow-hidden gallery-post-card"
+        className="overflow-hidden gallery-post-card animate-post-in"
         style={{
+          animationDelay: `${index * 100}ms`,
           background: 'var(--card)',
           borderRadius: 20,
           boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.04), 0 16px 32px rgba(0,0,0,0.06)',
@@ -763,19 +759,11 @@ export default function GalleryPostCard({
               style={{ background: 'linear-gradient(transparent 60%, rgba(0,0,0,0.08) 100%)' }}
             />
             {/* Double-tap heart overlay */}
-            <AnimatePresence>
-              {showDoubleTapHeart && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1.3, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                >
-                  <Heart size={80} fill="white" className="text-white drop-shadow-lg" />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {showDoubleTapHeart && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-heart-pop">
+                <Heart size={80} fill="white" className="text-white drop-shadow-lg" />
+              </div>
+            )}
           </div>
         )}
 
@@ -819,19 +807,11 @@ export default function GalleryPostCard({
               )}
             </div>
             {/* Double-tap heart overlay for text posts */}
-            <AnimatePresence>
-              {showDoubleTapHeart && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1.3, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-                >
-                  <Heart size={48} fill="var(--red)" style={{ color: 'var(--red)' }} className="drop-shadow-lg" />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {showDoubleTapHeart && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 animate-heart-pop">
+                <Heart size={48} fill="var(--red)" style={{ color: 'var(--red)' }} className="drop-shadow-lg" />
+              </div>
+            )}
           </div>
         )}
 
@@ -856,23 +836,18 @@ export default function GalleryPostCard({
 
         {/* Action bar — Instagram style */}
         <div className="flex items-center gap-5 px-4 py-3">
-          <motion.button
-            whileTap={{ scale: 0.75 }}
+          <button
             onClick={handleLike}
-            className="cursor-pointer"
+            className="cursor-pointer transition-transform active:scale-75"
           >
             {isLiked ? (
-              <motion.div
-                key="liked"
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ duration: 0.3 }}
-              >
+              <div key="liked" className="animate-heart-pulse">
                 <Heart size={26} strokeWidth={1.5} fill="var(--red)" style={{ color: 'var(--red)' }} />
-              </motion.div>
+              </div>
             ) : (
               <Heart size={26} strokeWidth={1.5} className="text-[var(--text)]" />
             )}
-          </motion.button>
+          </button>
           <button onClick={() => setShowAllComments(!showAllComments)} className="cursor-pointer">
             <MessageCircle size={24} strokeWidth={1.5} className="text-[var(--text)]" />
           </button>
@@ -969,25 +944,19 @@ export default function GalleryPostCard({
               <input type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
                 onKeyDown={handleKeyDown} placeholder="Add a comment..." maxLength={300}
                 className="flex-1 text-[14px] bg-transparent outline-none min-w-0" style={{ color: 'var(--text)' }} />
-              <AnimatePresence>
-                {commentText.trim() && (
-                  <motion.button
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    whileTap={{ scale: 0.85 }}
-                    onClick={handleComment}
-                    className="p-1 rounded-full cursor-pointer shrink-0"
-                    style={{ background: 'var(--blue)' }}
-                  >
-                    <Send size={14} className="text-white" />
-                  </motion.button>
-                )}
-              </AnimatePresence>
+              {commentText.trim() && (
+                <button
+                  onClick={handleComment}
+                  className="p-1 rounded-full cursor-pointer shrink-0 transition-transform active:scale-85 animate-fade-in"
+                  style={{ background: 'var(--blue)' }}
+                >
+                  <Send size={14} className="text-white" />
+                </button>
+              )}
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {fullscreen && photos.length > 0 && <FullscreenViewer photos={photos} initialIndex={activePhoto} caption={post.caption} players={players} onClose={() => setFullscreen(false)} />}
 

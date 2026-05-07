@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore, type UserTeam } from '@/stores/auth-store';
 import { Text, Spinner } from '@/components/ui';
 import { ChevronDown, Check } from 'lucide-react';
@@ -90,41 +89,31 @@ export default function TeamSwitcher() {
   // Multi-team
   return (
     <div className="relative" ref={dropdownRef}>
-      <motion.button
-        whileTap={{ scale: 0.96 }}
+      <button
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
-        className="flex items-center gap-2 cursor-pointer transition-all active:opacity-80"
+        className="flex items-center gap-2 cursor-pointer transition-all active:opacity-80 active:scale-[0.96]"
       >
         {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
         <Text size="sm" weight="semibold" className="max-w-[140px] sm:max-w-[200px] truncate bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-transparent">
           {teamName}
         </Text>
-        <motion.div
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          className="flex items-center"
+        <span
+          className="flex items-center transition-transform duration-200 ease-out"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
         >
           <ChevronDown size={16} className="text-[var(--muted)]" />
-        </motion.div>
-      </motion.button>
+        </span>
+      </button>
 
-      <AnimatePresence>
-        {open && (
-          <>
-          {/* Mobile backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 sm:hidden"
+      {open && (
+        <>
+          {/* Mobile backdrop — fades in only (close is instant). */}
+          <div
+            className="fixed inset-0 z-40 sm:hidden animate-fade-in"
             onClick={() => setOpen(false)}
           />
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed sm:absolute left-4 right-4 sm:left-0 sm:right-auto top-16 sm:top-full z-50 sm:mt-2.5 w-auto sm:w-[300px] rounded-2xl overflow-hidden"
+          <div
+            className="fixed sm:absolute left-4 right-4 sm:left-0 sm:right-auto top-16 sm:top-full z-50 sm:mt-2.5 w-auto sm:w-[300px] rounded-2xl overflow-hidden animate-dropdown-in"
             style={{
               background: 'var(--card)',
               border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
@@ -139,11 +128,10 @@ export default function TeamSwitcher() {
                 const color = getTeamColor(team);
 
                 return (
-                  <motion.button
+                  <button
                     key={team.team_id}
                     onClick={() => handleSwitch(team)}
-                    whileTap={{ scale: 0.98 }}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150 ${
+                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150 active:scale-[0.98] ${
                       isActive ? '' : 'hover:bg-[var(--surface)]'
                     }`}
                     style={isActive ? {
@@ -179,14 +167,13 @@ export default function TeamSwitcher() {
                     ) : (
                       <div className="w-6 h-6 rounded-full border-[1.5px] border-[var(--border)] shrink-0" />
                     )}
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
-          </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
     </div>
   );
 }

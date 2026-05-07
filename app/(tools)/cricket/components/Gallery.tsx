@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'motion/react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
@@ -44,13 +43,7 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
           {/* Feed */}
           <div ref={feedParent}>
             {posts.map((post, index) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true, margin: '-20px' }}
-                transition={{ duration: 0.3 }}
-              >
+              <div key={post.id}>
                 {index > 0 && (
                   <div className="mx-4 h-px" style={{ background: 'var(--border)' }} />
                 )}
@@ -65,7 +58,7 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
                     index={index}
                   />
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
 

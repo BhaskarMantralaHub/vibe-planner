@@ -1,9 +1,17 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useInView, useMotionValue, useSpring } from 'motion/react';
-
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+
+const formatter = (decimals: number) =>
+  new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+
+// Ease-out cubic — perceptually identical to motion's overdamped spring (60/100)
+// for the values this component animates (single/double-digit counters).
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 export function NumberTicker({
   value,
@@ -11,41 +19,71 @@ export function NumberTicker({
   delay = 0,
   className,
   decimalPlaces = 0,
+  duration = 1000,
 }: {
   value: number;
   direction?: 'up' | 'down';
   className?: string;
   delay?: number;
   decimalPlaces?: number;
+  /** Animation duration in ms. Default 1000. */
+  duration?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const motionValue = useMotionValue(direction === 'down' ? value : 0);
-  const springValue = useSpring(motionValue, {
-    damping: 60,
-    stiffness: 100,
-  });
-  const isInView = useInView(ref, { once: true, margin: '0px' });
+  const [inView, setInView] = useState(false);
 
+  // Trigger once when the element scrolls into view.
   useEffect(() => {
-    if (!isInView) return;
-    const timer = setTimeout(() => {
-      motionValue.set(direction === 'down' ? 0 : value);
-    }, delay * 1000);
-    return () => clearTimeout(timer);
-  }, [motionValue, isInView, delay, value, direction]);
-
-  useEffect(
-    () =>
-      springValue.on('change', (latest) => {
-        if (ref.current) {
-          ref.current.textContent = Intl.NumberFormat('en-US', {
-            minimumFractionDigits: decimalPlaces,
-            maximumFractionDigits: decimalPlaces,
-          }).format(Number(latest.toFixed(decimalPlaces)));
+    if (!ref.current || inView) return;
+    const el = ref.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setInView(true);
+            observer.unobserve(entry.target);
+            break;
+          }
         }
-      }),
-    [springValue, decimalPlaces]
-  );
+      },
+      { rootMargin: '0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [inView]);
+
+  // Drive the count-up via requestAnimationFrame.
+  useEffect(() => {
+    if (!inView || !ref.current) return;
+
+    const from = direction === 'down' ? value : 0;
+    const to = direction === 'down' ? 0 : value;
+    const fmt = formatter(decimalPlaces);
+
+    let startTime: number | null = null;
+    let raf = 0;
+
+    const tick = (now: number) => {
+      if (startTime === null) startTime = now;
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const eased = easeOutCubic(t);
+      const current = from + (to - from) * eased;
+      if (ref.current) {
+        ref.current.textContent = fmt.format(Number(current.toFixed(decimalPlaces)));
+      }
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    const delayTimer = setTimeout(() => {
+      raf = requestAnimationFrame(tick);
+    }, delay * 1000);
+
+    return () => {
+      clearTimeout(delayTimer);
+      cancelAnimationFrame(raf);
+    };
+  }, [inView, value, direction, delay, decimalPlaces, duration]);
 
   return (
     <span

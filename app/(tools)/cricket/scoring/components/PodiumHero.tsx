@@ -4,7 +4,6 @@ import { Text } from '@/components/ui';
 import { nameToGradient } from '@/lib/avatar';
 import { Hand, Trophy, type LucideIcon } from 'lucide-react';
 import { GiTennisBall, GiCricketBat } from 'react-icons/gi';
-import { motion } from 'motion/react';
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   batting: GiCricketBat as unknown as LucideIcon,
@@ -88,21 +87,8 @@ function CategoryIcon({ category }: { category: string }) {
   return <Icon size={24} strokeWidth={2.5} style={{ color: 'var(--cricket)' }} />;
 }
 
-/* ── Scroll-triggered pop-up + tap press feedback ── */
-const popUpVariants = {
-  offscreen: { opacity: 0, y: 30, scale: 0.9 },
-  onscreen: (delay: number) => ({
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 260,
-      damping: 20,
-      delay: delay / 1000,
-    },
-  }),
-};
+/* Scroll-triggered pop-up replaced by .animate-podium-rise CSS keyframe;
+   stagger via inline animationDelay; tap press feedback via active: scale. */
 
 function PodiumCard({ entry, rank, category, delay }: { entry: LeaderboardEntry; rank: number; category: string; delay: number }) {
   const style = MEDAL_STYLES[rank];
@@ -113,14 +99,9 @@ function PodiumCard({ entry, rank, category, delay }: { entry: LeaderboardEntry;
 
   if (isFirst) {
     return (
-      <motion.div
-        className="flex flex-col items-center flex-[1.25]"
-        variants={popUpVariants}
-        custom={delay}
-        initial="offscreen"
-        whileInView="onscreen"
-        viewport={{ once: true, amount: 0.3 }}
-        whileTap={{ scale: 0.96, y: 2 }}
+      <div
+        className="flex flex-col items-center flex-[1.25] animate-podium-rise transition-transform active:scale-[0.96]"
+        style={{ animationDelay: `${delay}ms` }}
       >
         {/* Category icon floating above 1st place */}
         <div
@@ -163,21 +144,16 @@ function PodiumCard({ entry, rank, category, delay }: { entry: LeaderboardEntry;
             {secondary}
           </Text>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   /* 2nd and 3rd — pop up on scroll, press feedback on tap */
   return (
-    <motion.div
-      className="flex flex-col items-center flex-1 rounded-2xl px-2.5 py-3"
-      variants={popUpVariants}
-      custom={delay}
-      initial="offscreen"
-      whileInView="onscreen"
-      viewport={{ once: true, amount: 0.3 }}
-      whileTap={{ scale: 0.95, y: 3 }}
+    <div
+      className="flex flex-col items-center flex-1 rounded-2xl px-2.5 py-3 animate-podium-rise transition-transform active:scale-[0.95]"
       style={{
+        animationDelay: `${delay}ms`,
         background: style.bg,
         border: `1.5px solid ${style.border}`,
         boxShadow: style.glow,
@@ -207,7 +183,7 @@ function PodiumCard({ entry, rank, category, delay }: { entry: LeaderboardEntry;
       <Text as="p" size="2xs" color="muted" className="mt-1">
         {secondary}
       </Text>
-    </motion.div>
+    </div>
   );
 }
 

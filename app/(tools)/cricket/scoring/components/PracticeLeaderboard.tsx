@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { AnimatePresence, motion } from 'motion/react';
 import { Text, SegmentedControl, Skeleton, Card, RefreshButton, EmptyState, Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import type { LeaderboardEntry } from '@/types/scoring';
 import { Target, Hand, Trophy } from 'lucide-react';
@@ -231,16 +230,15 @@ function StatsTable({ category, entries, loading, myPlayerId, onPlayerTap, start
                 const rank = startRank + i;
                 const isMe = myPlayerId === e.player_id;
                 return (
-                  <motion.tr
+                  <tr
                     key={e.player_id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: i * 0.04, ease: 'easeOut' }}
                     className={cn(
-                      'transition-colors cursor-pointer active:opacity-80',
+                      'transition-colors cursor-pointer active:opacity-80 animate-slide-in',
                       isMe ? 'border-l-3 border-l-[var(--cricket)]' : '',
                     )}
                     style={{
+                      animationDelay: `${i * 40}ms`,
+                      animationFillMode: 'both',
                       background: isMe
                         ? 'var(--highlight-bg)'
                         : i % 2 === 0
@@ -279,7 +277,7 @@ function StatsTable({ category, entries, loading, myPlayerId, onPlayerTap, start
                       <td className={`py-2.5 ${SC}`}><Stat value={e.total_catches ?? 0} /></td>
                       <td className={`py-2.5 pr-3 ${SC}`}><Stat value={e.score ?? 0} bold rank={rank} /></td>
                     </>}
-                  </motion.tr>
+                  </tr>
                 );
               })}
           </tbody>
@@ -548,17 +546,11 @@ export default function PracticeLeaderboard() {
         <RefreshButton onRefresh={async () => { await fetchLeaderboard(category); toast.success('Stats refreshed'); }} variant="bordered" title="Refresh stats" />
       </div>
 
-      {/* Podium hero — top 3 players */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`podium-${category}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.2 } }}
-          exit={{ opacity: 0, transition: { duration: 0.1 } }}
-        >
-          {hasPodium && <PodiumHero entries={entries} category={category} />}
-        </motion.div>
-      </AnimatePresence>
+      {/* Podium hero — top 3 players. Re-keyed on category so the entrance
+          animation re-fires when user switches batting/bowling/etc. */}
+      <div key={`podium-${category}`} className="animate-fade-in">
+        {hasPodium && <PodiumHero entries={entries} category={category} />}
+      </div>
 
       {/* Full standings label */}
       {hasPodium && tableEntries.length > 0 && (
@@ -571,14 +563,8 @@ export default function PracticeLeaderboard() {
 
       {/* Table (swipeable) */}
       <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`table-${category}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.15 } }}
-            exit={{ opacity: 0, transition: { duration: 0.1 } }}
-          >
-            {isLoading ? (
+        <div key={`table-${category}`} className="animate-fade-in">
+          {isLoading ? (
               <Card padding="none" surface="gradient" className="overflow-hidden">
                 <TableSkeleton />
               </Card>
@@ -601,9 +587,8 @@ export default function PracticeLeaderboard() {
                   startRank={tableStartRank}
                 />
               </Card>
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
+          ) : null}
+        </div>
       </div>
 
       {/* "Your position" card when user is ranked but outside top 10 + podium */}
@@ -614,12 +599,13 @@ export default function PracticeLeaderboard() {
         const myEntry = entries[myIdx];
         const [g1, g2] = nameToGradient(myEntry.name);
         return (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut', delay: 0.15 }}
-            className="mt-3 rounded-xl overflow-hidden flex"
-            style={{ border: '1px solid color-mix(in srgb, var(--cricket) 30%, var(--border))' }}
+          <div
+            className="mt-3 rounded-xl overflow-hidden flex animate-slide-in"
+            style={{
+              animationDelay: '150ms',
+              animationFillMode: 'both',
+              border: '1px solid color-mix(in srgb, var(--cricket) 30%, var(--border))',
+            }}
           >
             {/* Accent bar */}
             <div className="w-1 flex-shrink-0" style={{ background: 'var(--cricket)' }} />
@@ -637,7 +623,7 @@ export default function PracticeLeaderboard() {
               )}
               <Text size="xs" weight="semibold" truncate className="flex-1 min-w-0">{myEntry.name}</Text>
             </div>
-          </motion.div>
+          </div>
         );
       })()}
 
