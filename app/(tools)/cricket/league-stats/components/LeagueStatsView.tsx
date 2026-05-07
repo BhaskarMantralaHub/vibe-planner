@@ -11,6 +11,7 @@ import {
   Skeleton,
   EmptyState,
 } from '@/components/ui';
+import { NumberTicker } from '@/components/ui/number-ticker';
 import { ChartColumnBig, ChevronDown, ChevronRight, Info, Trophy, XCircle } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import SeasonSelector from '../../components/SeasonSelector';
@@ -1166,23 +1167,23 @@ function SeasonScorecard({
             </Text>
             <div className="flex items-baseline gap-1.5 flex-wrap">
               <Text as="span" size="lg" weight="bold" tabular style={{ color: 'var(--green)' }}>
-                {won}W
+                <NumberTicker value={won} />W
               </Text>
               <Text as="span" size="2xs" color="muted">·</Text>
               <Text as="span" size="lg" weight="bold" tabular style={{ color: 'var(--red)' }}>
-                {lost}L
+                <NumberTicker value={lost} delay={0.1} />L
               </Text>
               {undecided > 0 && (
                 <>
                   <Text as="span" size="2xs" color="muted">·</Text>
                   <Text as="span" size="md" weight="semibold" tabular color="muted">
-                    {undecided} pending
+                    <NumberTicker value={undecided} delay={0.2} /> pending
                   </Text>
                 </>
               )}
             </div>
             <Text as="p" size="2xs" color="muted">
-              {total} match{total === 1 ? '' : 'es'} played
+              <NumberTicker value={total} delay={0.3} /> match{total === 1 ? '' : 'es'} played
             </Text>
           </div>
         </div>
