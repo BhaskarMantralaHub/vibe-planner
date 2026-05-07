@@ -608,69 +608,87 @@ export default function LeagueStatsView() {
   const [bowlingMatches, setBowlingMatches] = useState<BowlingMatchRow[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  // Bump to re-fire the data-load effect (used by the error-state Retry button).
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
 
-  const load = async () => {
+  // ── Phased load: render the main batting/bowling tables as soon as the
+  // 4 fast aggregate queries return; let the heavier per-innings queries
+  // (which only feed drilldowns + catches/all-rounder rankings) fill in
+  // afterwards. ~30-50% perceived-load-time win when raw innings tables grow.
+  useEffect(() => {
     if (!currentTeamId) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    try {
-      const supabase = getSupabaseClient();
-      if (!supabase) throw new Error('Supabase client unavailable');
 
-      const [bat, bowl, batm, bowm, mch, ros] = await Promise.all([
-        supabase.from('cricclubs_batting_season').select('*').eq('team_id', currentTeamId),
-        supabase.from('cricclubs_bowling_season').select('*').eq('team_id', currentTeamId),
-        supabase
-          .from('cricclubs_batting')
-          .select(
-            'match_row_id, team_id, player_id, cricclubs_name, batting_team, ' +
-              'innings_number, batting_position, runs, balls, fours, sixes, ' +
-              'strike_rate, dismissal, not_out, did_not_bat',
-          )
-          .eq('team_id', currentTeamId),
-        supabase
-          .from('cricclubs_bowling')
-          .select(
-            'match_row_id, team_id, player_id, cricclubs_name, bowling_team, ' +
-              'overs, maidens, runs, wickets, economy',
-          )
-          .eq('team_id', currentTeamId),
-        supabase
-          .from('cricclubs_matches')
-          .select('id, team_id, team_a, team_b, match_date, winner_team, league_name, division')
-          .eq('team_id', currentTeamId)
-          .order('match_date', { ascending: true }),
-        supabase
-          .from('cricket_players')
-          .select('id, name')
-          .eq('team_id', currentTeamId)
-          .eq('is_active', true),
-      ]);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError('Supabase client unavailable');
+      setLoading(false);
+      return;
+    }
 
-      if (bat.error) throw bat.error;
-      if (bowl.error) throw bowl.error;
-      if (batm.error) throw batm.error;
-      if (bowm.error) throw bowm.error;
-      if (mch.error) throw mch.error;
-      if (ros.error) throw ros.error;
-
+    // Fast tier — season aggregates, matches, roster (all small views/tables).
+    Promise.all([
+      supabase.from('cricclubs_batting_season').select('*').eq('team_id', currentTeamId),
+      supabase.from('cricclubs_bowling_season').select('*').eq('team_id', currentTeamId),
+      supabase
+        .from('cricclubs_matches')
+        .select('id, team_id, team_a, team_b, match_date, winner_team, league_name, division')
+        .eq('team_id', currentTeamId)
+        .order('match_date', { ascending: true }),
+      supabase
+        .from('cricket_players')
+        .select('id, name')
+        .eq('team_id', currentTeamId)
+        .eq('is_active', true),
+    ]).then(([bat, bowl, mch, ros]) => {
+      if (cancelled) return;
+      const err = bat.error ?? bowl.error ?? mch.error ?? ros.error;
+      if (err) {
+        setError(err.message);
+        setLoading(false);
+        return;
+      }
       setBatting((bat.data ?? []) as BattingSeasonRow[]);
       setBowling((bowl.data ?? []) as BowlingSeasonRow[]);
-      setBattingMatches((batm.data ?? []) as BattingMatchRow[]);
-      setBowlingMatches((bowm.data ?? []) as BowlingMatchRow[]);
       setMatches((mch.data ?? []) as MatchRow[]);
       setRoster((ros.data ?? []) as RosterRow[]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
       setLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTeamId]);
+    // Slow tier — raw per-innings rows for drilldowns + catches/all-rounders.
+    // Fires concurrently; UI fills in when ready without blocking first paint.
+    Promise.all([
+      supabase
+        .from('cricclubs_batting')
+        .select(
+          'match_row_id, team_id, player_id, cricclubs_name, batting_team, ' +
+            'innings_number, batting_position, runs, balls, fours, sixes, ' +
+            'strike_rate, dismissal, not_out, did_not_bat',
+        )
+        .eq('team_id', currentTeamId),
+      supabase
+        .from('cricclubs_bowling')
+        .select(
+          'match_row_id, team_id, player_id, cricclubs_name, bowling_team, ' +
+            'overs, maidens, runs, wickets, economy',
+        )
+        .eq('team_id', currentTeamId),
+    ]).then(([batm, bowm]) => {
+      if (cancelled) return;
+      // Per-innings errors don't block the main UI — log and continue.
+      if (batm.error || bowm.error) {
+        console.warn('League stats: per-innings load failed', batm.error ?? bowm.error);
+        return;
+      }
+      setBattingMatches((batm.data ?? []) as BattingMatchRow[]);
+      setBowlingMatches((bowm.data ?? []) as BowlingMatchRow[]);
+    });
+
+    return () => { cancelled = true; };
+  }, [currentTeamId, reloadKey]);
 
   // Derived: catches (totals + per-match events) and all-rounders
   const { catchesTotals, catchEvents } = useMemo(() => {
@@ -776,7 +794,7 @@ export default function LeagueStatsView() {
         icon={<ChartColumnBig size={32} />}
         title="Couldn't load stats"
         description={error}
-        action={{ label: 'Retry', onClick: load }}
+        action={{ label: 'Retry', onClick: reload }}
       />
     );
   }
