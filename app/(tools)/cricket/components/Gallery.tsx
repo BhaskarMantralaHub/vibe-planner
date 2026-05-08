@@ -94,8 +94,12 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
       {posts.length > 0 && (
         <button
           onClick={() => setShowUpload(true)}
-          className="fixed bottom-20 right-4 z-40 flex items-center justify-center w-12 h-12 rounded-full cursor-pointer active:scale-90 transition-transform shadow-lg"
-          style={{ background: 'var(--text)', color: 'var(--bg)' }}
+          className="fixed right-4 z-40 flex items-center justify-center w-12 h-12 rounded-full cursor-pointer active:scale-90 transition-transform shadow-lg"
+          style={{
+            bottom: 'calc(max(1.5rem, env(safe-area-inset-bottom)) + 5rem)',
+            background: 'var(--text)',
+            color: 'var(--bg)',
+          }}
         >
           <Plus size={22} strokeWidth={2.5} />
         </button>

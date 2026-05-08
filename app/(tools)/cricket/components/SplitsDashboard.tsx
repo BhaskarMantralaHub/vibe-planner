@@ -6,7 +6,7 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { nameToGradient } from '@/lib/avatar';
-import { Text, CardMenu, FilterDropdown, RefreshButton } from '@/components/ui';
+import { Text, CardMenu, FilterDropdown, RefreshButton, Button } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -382,6 +382,25 @@ export default function SplitsDashboard() {
           )}
         </div>
       </div>
+
+      {/* Add Split — inline, mirrors Expenses/Sponsors pattern */}
+      {isAdmin && (
+        <div className="flex items-center justify-between">
+          <Text size="sm" weight="bold" color="muted" uppercase tracking="wider" className="text-[11px]">
+            Splits
+          </Text>
+          <Button
+            onClick={() => useSplitsStore.setState({ showSplitForm: true })}
+            variant="primary"
+            brand="cricket"
+            size="sm"
+            className="gap-1.5"
+          >
+            <Plus size={15} />
+            Add Split
+          </Button>
+        </div>
+      )}
 
       {/* Sub-tabs */}
       <SegmentedControl
@@ -1207,14 +1226,6 @@ export default function SplitsDashboard() {
           )}
         </div>
       )}
-
-      {/* FAB */}
-      <button onClick={() => useSplitsStore.setState({ showSplitForm: true })}
-        aria-label="Add new split"
-        className="fixed z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg cursor-pointer transition-all active:scale-95 hover:shadow-xl hover:-translate-y-0.5"
-        style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: '16px', background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', boxShadow: '0 4px 20px var(--cricket-glow), 0 0 0 3px color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
-        <Plus size={24} className="text-white" />
-      </button>
 
       {splitFormMounted && <SplitForm />}
       {settleDrawerMounted && <SplitSettleDrawer />}
