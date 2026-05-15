@@ -1,6 +1,17 @@
 // Thin Supabase client wrapper for the scraper.
 // Uses service_role to bypass RLS — only safe inside the GitHub Action
 // (or with a key explicitly placed in .env.local for local testing).
+//
+// Node 20 has no global WebSocket and supabase-js eagerly constructs a
+// RealtimeClient during createClient() — which throws without one. The
+// scraper never uses Realtime, but the constructor still probes for it.
+// Polyfill `globalThis.WebSocket` with `ws` when missing; Node 22+ already
+// has the global, so this is a no-op on the GitHub Action runner.
+import WebSocketImpl from 'ws';
+if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === 'undefined') {
+  (globalThis as { WebSocket: unknown }).WebSocket = WebSocketImpl;
+}
+
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export const makeServiceRoleClient = (): SupabaseClient => {

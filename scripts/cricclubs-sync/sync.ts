@@ -12,8 +12,10 @@ import { chromium, type Browser, type Page } from 'playwright';
 import {
   parseMatchList,
   parseScorecard,
+  parseFixtures,
   type ParsedListEntry,
   type ParsedScorecard,
+  type ParsedFixture,
 } from './parser.js';
 import {
   makeServiceRoleClient,
@@ -45,6 +47,9 @@ const matchesUrl = (from: string, to: string): string =>
 const scorecardUrl = (matchId: number): string =>
   `${BASE}/viewScorecard.do?matchId=${matchId}&clubId=${CLUB_ID}`;
 
+const fixturesUrl = (): string =>
+  `${BASE}/fixtures.do?league=${LEAGUE_ID}&teamId=${CRICCLUBS_TEAM_ID}&clubId=${CLUB_ID}`;
+
 // ── Fetch ───────────────────────────────────────────────────────────────
 
 const fetchHtml = async (page: Page, url: string): Promise<string> => {
@@ -53,7 +58,7 @@ const fetchHtml = async (page: Page, url: string): Promise<string> => {
   // Cloudflare interstitial). For matches list it contains "Match Results".
   // For scorecards it contains " vs ". Either tells us we're past the wall.
   await page.waitForFunction(
-    () => /Match Results| vs /.test(document.title),
+    () => /Match Results| vs |Schedule/.test(document.title),
     { timeout: 30_000 },
   );
   return page.content();
@@ -112,6 +117,19 @@ const main = async (): Promise<void> => {
       await sleep(1500); // polite jitter between scorecards
     }
 
+    // Refresh upcoming schedule rows from cricclubs' fixtures page so that
+    // reschedules (date/time/venue/umpire moves) flow through. Runs BEFORE
+    // auto-complete on purpose: if cricclubs moved a match's date into the
+    // past AND the match was actually played, the updated row needs the
+    // new past date for auto-complete's "match_date < today" filter to
+    // even consider it. Auto-complete itself is still safe — it only
+    // resolves rows that have a matching cricclubs_matches entry, so a
+    // past-dated-but-unplayed row falls through without being touched.
+    const fixturesHtml = await fetchHtml(page, fixturesUrl());
+    const fixtures = parseFixtures(fixturesHtml);
+    console.log(`[cricclubs-sync] Fixtures: ${fixtures.length} upcoming on cricclubs`);
+    const fixtureStats = await refreshFixtures(supabase, fixtures);
+
     // Auto-complete schedule matches whose date has passed and that have a
     // matching cricclubs_matches row. Never overwrites a result an admin
     // already entered (only updates rows where result IS NULL).
@@ -120,6 +138,8 @@ const main = async (): Promise<void> => {
     console.log(
       `[cricclubs-sync] Done in ${Date.now() - t0} ms — ` +
         `${matchesUpserted} matches, ${battingUpserted} batting, ${bowlingUpserted} bowling, ` +
+        `${fixtureStats.matched} fixtures matched (${fixtureStats.updated} updated, ` +
+        `${fixtureStats.backfilledIds} ids backfilled), ` +
         `${autoCompleted} auto-completed schedule rows`,
     );
   } finally {
@@ -346,6 +366,239 @@ const autoCompleteScheduleMatches = async (
     updated += 1;
   }
   return updated;
+};
+
+// ── Refresh schedule from cricclubs fixtures ────────────────────────────
+//
+// Updates upcoming `cricket_schedule_matches` rows when cricclubs has newer
+// info (date/time/venue/umpire/match_type/is_home). Matching strategy:
+//
+//   1. Prefer existing cricclubs_fixture_id link (survives any reschedule).
+//   2. Fall back to (normalized opponent, match_date within ±14 days),
+//      picking the closest unmatched candidate. Backfills the id on hit.
+//
+// Only touches rows where status='upcoming' AND result IS NULL — admins'
+// hand-completed results stay sacred.
+
+type FixtureUpdate = {
+  match_date?: string;
+  match_time?: string;
+  venue?: string;
+  match_type?: 'league' | 'practice';
+  is_home?: boolean;
+  umpire?: string | null;
+  opponent?: string;
+  cricclubs_fixture_id?: number;
+};
+
+// Strip the leading "MTCA " club prefix so we store the short form admins
+// expect in the UI ("Golden Eagles", not "MTCA Golden Eagles").
+const stripClubPrefix = (s: string): string =>
+  s.replace(/^MTCA\s+/i, '').trim();
+
+const normalizeMatchType = (raw: string | null): 'league' | 'practice' | null => {
+  if (!raw) return null;
+  const lc = raw.toLowerCase();
+  if (lc.includes('league')) return 'league';
+  if (lc.includes('practice')) return 'practice';
+  return null;
+};
+
+// Combined umpire field — schedule stores a single TEXT column. Cricclubs
+// publishes both umpires; we join them when both are present and not the
+// same team.
+const combineUmpires = (u1: string | null, u2: string | null): string | null => {
+  const a = u1?.trim() || null;
+  const b = u2?.trim() || null;
+  if (!a && !b) return null;
+  if (!a) return b;
+  if (!b) return a;
+  return a === b ? a : `${a}, ${b}`;
+};
+
+const buildUpdate = (
+  current: ScheduleRow,
+  fixture: ParsedFixture,
+  myCricclubsName: string,
+): FixtureUpdate => {
+  const upd: FixtureUpdate = {};
+
+  if (fixture.match_date && fixture.match_date !== current.match_date) {
+    upd.match_date = fixture.match_date;
+  }
+  if (fixture.match_time_24h && fixture.match_time_24h !== current.match_time) {
+    upd.match_time = fixture.match_time_24h;
+  }
+  if (fixture.venue && fixture.venue !== current.venue) {
+    upd.venue = fixture.venue;
+  }
+
+  const mt = normalizeMatchType(fixture.match_type);
+  if (mt && mt !== current.match_type) {
+    upd.match_type = mt;
+  }
+
+  const isHome = fixture.team_home === myCricclubsName;
+  if (current.is_home !== isHome) {
+    upd.is_home = isHome;
+  }
+
+  const umpire = combineUmpires(fixture.umpire1, fixture.umpire2);
+  if (umpire !== (current.umpire ?? null)) {
+    upd.umpire = umpire;
+  }
+
+  // Opponent name: cricclubs is source of truth once we've linked. Compare
+  // against the stripped form so we don't churn existing rows whose admin
+  // already stored the short form. Heals admin typos / team renames.
+  const cricclubsOpponent = fixture.team_home === myCricclubsName
+    ? fixture.team_away
+    : fixture.team_home;
+  const opponentStripped = stripClubPrefix(cricclubsOpponent);
+  if (opponentStripped && opponentStripped !== current.opponent) {
+    upd.opponent = opponentStripped;
+  }
+
+  if (current.cricclubs_fixture_id !== fixture.cricclubs_fixture_id) {
+    upd.cricclubs_fixture_id = fixture.cricclubs_fixture_id;
+  }
+
+  return upd;
+};
+
+const daysBetween = (a: string, b: string): number => {
+  const da = new Date(`${a}T00:00:00Z`).getTime();
+  const db = new Date(`${b}T00:00:00Z`).getTime();
+  return Math.abs(da - db) / (1000 * 60 * 60 * 24);
+};
+
+type ScheduleRow = {
+  id: string;
+  opponent: string;
+  match_date: string;
+  match_time: string | null;
+  venue: string | null;
+  match_type: 'league' | 'practice';
+  is_home: boolean | null;
+  umpire: string | null;
+  cricclubs_fixture_id: number | null;
+  status: string;
+};
+
+const refreshFixtures = async (
+  supabase: ReturnType<typeof makeServiceRoleClient>,
+  fixtures: ParsedFixture[],
+): Promise<{ matched: number; updated: number; backfilledIds: number }> => {
+  if (fixtures.length === 0) return { matched: 0, updated: 0, backfilledIds: 0 };
+
+  const { data: teamRow, error: teamErr } = await supabase
+    .from('cricket_teams')
+    .select('name')
+    .eq('id', INTERNAL_TEAM_ID)
+    .maybeSingle();
+  if (teamErr || !teamRow) {
+    console.warn('[cricclubs-sync] refreshFixtures: could not resolve team name; skipping');
+    return { matched: 0, updated: 0, backfilledIds: 0 };
+  }
+  const myCricclubsName = `MTCA ${teamRow.name}`;
+
+  // Pull every upcoming, not-yet-resulted schedule row for our team. Small
+  // set in practice (≲ 20 rows), so we work in-memory.
+  const { data: rows, error: rowsErr } = await supabase
+    .from('cricket_schedule_matches')
+    .select('id, opponent, match_date, match_time, venue, match_type, is_home, umpire, cricclubs_fixture_id, status')
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .eq('status', 'upcoming')
+    .is('result', null)
+    .is('deleted_at', null);
+  if (rowsErr) {
+    console.warn(`[cricclubs-sync] refreshFixtures select failed: ${rowsErr.message}`);
+    return { matched: 0, updated: 0, backfilledIds: 0 };
+  }
+  const scheduleRows = (rows ?? []) as ScheduleRow[];
+
+  const byFixtureId = new Map<number, ScheduleRow>();
+  for (const r of scheduleRows) {
+    if (r.cricclubs_fixture_id != null) byFixtureId.set(r.cricclubs_fixture_id, r);
+  }
+  const claimed = new Set<string>(); // schedule row IDs already matched this run
+
+  let matched = 0;
+  let updatedCount = 0;
+  let backfilledIds = 0;
+
+  for (const fx of fixtures) {
+    if (!fx.match_date) continue;
+
+    // Determine opponent (the side that isn't us)
+    const opponent = fx.team_home === myCricclubsName ? fx.team_away : fx.team_home;
+    if (!opponent) continue;
+
+    // Step 1: try id-based match
+    let target = byFixtureId.get(fx.cricclubs_fixture_id) ?? null;
+
+    // Step 2: fuzzy fallback by opponent + nearest date (within ±14 days)
+    let isBackfill = false;
+    if (!target) {
+      const candidates = scheduleRows
+        .filter((r) => !claimed.has(r.id))
+        .filter((r) => r.cricclubs_fixture_id == null) // don't steal from already-linked rows
+        .filter((r) => normalizeOpponent(r.opponent) === normalizeOpponent(opponent))
+        .map((r) => ({ row: r, distance: daysBetween(r.match_date, fx.match_date!) }))
+        .filter((c) => c.distance <= 14)
+        .sort((a, b) => a.distance - b.distance);
+      if (candidates.length > 0) {
+        target = candidates[0]!.row;
+        isBackfill = true;
+      }
+    }
+
+    // Step 3: tertiary fallback by exact date + venue, league rows only.
+    // Heals the case where the local opponent name is wrong (admin typo or
+    // team rename). Date+venue is a safe discriminator — a single team
+    // never plays two matches at the same ground on the same day.
+    if (!target && fx.venue) {
+      const target3 = scheduleRows
+        .filter((r) => !claimed.has(r.id))
+        .filter((r) => r.cricclubs_fixture_id == null)
+        .filter((r) => r.match_type === 'league')
+        .find((r) => r.match_date === fx.match_date && r.venue === fx.venue);
+      if (target3) {
+        target = target3;
+        isBackfill = true;
+      }
+    }
+
+    if (!target) continue;
+    claimed.add(target.id);
+    matched += 1;
+
+    const upd = buildUpdate(target, fx, myCricclubsName);
+    if (Object.keys(upd).length === 0) continue;
+
+    const { error: updErr } = await supabase
+      .from('cricket_schedule_matches')
+      .update(upd)
+      .eq('id', target.id)
+      .eq('status', 'upcoming')   // re-check at write time — defensive
+      .is('result', null);
+    if (updErr) {
+      console.warn(`[cricclubs-sync]   fixture ${fx.cricclubs_fixture_id} update failed: ${updErr.message}`);
+      continue;
+    }
+
+    updatedCount += 1;
+    if (isBackfill && upd.cricclubs_fixture_id != null) backfilledIds += 1;
+
+    const changes = Object.keys(upd).filter((k) => k !== 'cricclubs_fixture_id');
+    console.log(
+      `[cricclubs-sync]   fixture ${fx.cricclubs_fixture_id}: vs ${opponent} (${fx.match_date}) ` +
+        `→ ${changes.length ? `changed [${changes.join(', ')}]` : 'linked id only'}` +
+        `${isBackfill ? ' (id backfilled)' : ''}`,
+    );
+  }
+
+  return { matched, updated: updatedCount, backfilledIds };
 };
 
 // ── Upserts ─────────────────────────────────────────────────────────────

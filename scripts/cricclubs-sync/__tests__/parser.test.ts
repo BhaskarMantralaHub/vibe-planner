@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parseMatchList, parseScorecard } from '../parser.js';
+import { parseMatchList, parseScorecard, parseFixtures } from '../parser.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): string =>
@@ -135,5 +135,51 @@ describe('parseScorecard', () => {
         expect(n).not.toMatch(/[†*]/);
       }
     }
+  });
+});
+
+describe('parseFixtures', () => {
+  const html = fixture('fixtures-team.html');
+  const fixtures = parseFixtures(html);
+
+  it('parses only the upcoming-table rows (past table is ignored)', () => {
+    // Snapshot has 9 upcoming rows in #schedule-table1
+    expect(fixtures).toHaveLength(9);
+  });
+
+  it('first upcoming fixture: RICM v Sunrisers, May 17 2026 @ 2:45 PM', () => {
+    const f = fixtures.find((x) => x.cricclubs_fixture_id === 6127);
+    expect(f).toBeDefined();
+    expect(f?.match_date).toBe('2026-05-17');
+    expect(f?.match_time_24h).toBe('14:45');
+    expect(f?.match_type).toBe('League');
+    expect(f?.team_home).toBe('MTCA RICM');
+    expect(f?.team_away).toBe('MTCA Sunrisers Manteca');
+    expect(f?.venue).toBe('Cordes Park');
+    expect(f?.umpire1).toBe('MTCA Power Stars');
+  });
+
+  it('handles AM times: 10:45 AM → "10:45"', () => {
+    const f = fixtures.find((x) => x.cricclubs_fixture_id === 6140);
+    expect(f?.match_time_24h).toBe('10:45');
+  });
+
+  it('handles early-morning times: 7:15 AM → "07:15"', () => {
+    const f = fixtures.find((x) => x.cricclubs_fixture_id === 6147);
+    expect(f?.match_time_24h).toBe('07:15');
+  });
+
+  it('keeps Team 1 (Home) as cricclubs spells it — venue is plain text', () => {
+    // Bethany Park ground — fixture 6144, Sunrisers home
+    const f = fixtures.find((x) => x.cricclubs_fixture_id === 6144);
+    expect(f?.team_home).toBe('MTCA Sunrisers Manteca');
+    expect(f?.team_away).toBe('MTCA California Eagles');
+    expect(f?.venue).toBe('Bethany Park - BaseBall');
+  });
+
+  it('skips rows from the past-matches table', () => {
+    // Past fixture 6115 should NOT appear (it's in #schedule-table not #schedule-table1)
+    const past = fixtures.find((x) => x.cricclubs_fixture_id === 6115);
+    expect(past).toBeUndefined();
   });
 });

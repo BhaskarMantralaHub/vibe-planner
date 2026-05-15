@@ -15,6 +15,15 @@ locally for one-off backfills.
    - the raw HTML into the sibling `cricclubs_match_html` table,
    - one `cricclubs_batting` row per (innings × batter), including `did_not_bat = true` for the rest of the XI,
    - one `cricclubs_bowling` row per (innings × bowler).
+5. Hits `fixtures.do` for our team and refreshes UPCOMING `cricket_schedule_matches`
+   rows with any reschedule from cricclubs (date, time, venue, umpire,
+   match_type, home/away). Matches by `cricclubs_fixture_id` first, falls
+   back to (opponent + nearest date within ±14 days) for legacy rows that
+   pre-date the id column. Never updates rows whose `result` is already set.
+6. Auto-completes schedule rows whose date has passed and that have a
+   matching `cricclubs_matches` row (forfeits flow through this path —
+   cricclubs records the winner in `listMatches.do` so the result is
+   filled in as `won` or `lost` like any other completed match).
 
 Names are matched to your roster via case-insensitive `cricket_players.name`
 equality (the names were aligned in the prior `align-names.sql` step).
@@ -77,6 +86,11 @@ covered by a UNIQUE constraint in the migration:
 | `cricclubs_match_html` | `(match_row_id)` |
 | `cricclubs_batting` | `(match_row_id, innings_number, batting_team, cricclubs_name)` |
 | `cricclubs_bowling` | `(match_row_id, innings_number, bowling_team, cricclubs_name)` |
+
+Schedule-row updates are diff-driven: only fields that differ from the
+current row are written, so re-runs against an unchanged fixtures page
+issue zero `UPDATE`s. The (`team_id`, `cricclubs_fixture_id`) partial
+unique index prevents two schedule rows from claiming the same fixture.
 
 A re-run for a closed match is a no-op (upsert sees identical values). A
 re-run during a live match overwrites with whatever cricclubs currently

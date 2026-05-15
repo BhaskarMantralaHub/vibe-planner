@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cricket_schedule_matches (
   result_summary  TEXT,
   is_home         BOOLEAN,                    -- true = home, false = away, null = unknown
   umpire          TEXT,                       -- umpire team/name
+  cricclubs_fixture_id BIGINT,                -- cricclubs deleteRow{N} id; populated by cricclubs-sync to track reschedules
   created_by      TEXT,                       -- admin name who created
   deleted_at      TIMESTAMPTZ DEFAULT NULL,   -- soft delete
   deleted_by      TEXT DEFAULT NULL,
@@ -45,6 +46,11 @@ ALTER TABLE cricket_schedule_matches
 
 -- ── Indexes ───────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_cricket_schedule_matches_team ON cricket_schedule_matches(team_id);
+
+-- Partial unique index for cricclubs sync (one cricclubs fixture → one schedule row per team)
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_cricket_schedule_cricclubs_fixture
+  ON cricket_schedule_matches (team_id, cricclubs_fixture_id)
+  WHERE cricclubs_fixture_id IS NOT NULL;
 
 -- ── Row Level Security ────────────────────────────────────
 ALTER TABLE cricket_schedule_matches ENABLE ROW LEVEL SECURITY;
