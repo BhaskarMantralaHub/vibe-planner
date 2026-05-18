@@ -1167,9 +1167,15 @@ export default function MatchSchedule() {
       ];
     }
 
+    // Record Result is only offered for practice matches. League match
+    // results sync from cricclubs (via the iOS Shortcut + Edge Function),
+    // and a manual override would create divergence — see the RICM
+    // incident (2026-05-18) where date+result drift made the schedule
+    // disagree with cricclubs truth.
+    const isPractice = m.match_type === 'practice';
     return [
       { label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
-      { label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) },
+      ...(isPractice ? [{ label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) }] : []),
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
     ];
   };
