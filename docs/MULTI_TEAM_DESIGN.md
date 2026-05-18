@@ -24,7 +24,7 @@ The **`cricclubs_*` family** (`cricclubs_matches`, `cricclubs_match_html`, `cric
 
 - The data is **derived, not authored** — every row originates from a public cricclubs.com scorecard fetched by the weekly scraper.
 - The full source HTML lives in `cricclubs_match_html.raw_html`, so the parser can reconstruct any derived row offline without re-fetching.
-- A re-scrape (manually triggering `scripts/cricclubs-sync/sync.ts` or the GitHub Action) is idempotent and recovers anything an admin deleted.
+- A re-scrape (the Scriptable iPhone sync `scripts/scriptable/cricclubs-sync.js` with `force_resync: true`, or the dormant `scripts/cricclubs-sync/sync.ts` / GitHub Action fallback) is idempotent and recovers anything an admin deleted.
 - Soft-delete on a derived dataset would muddy the model: the tables would carry both "what cricclubs currently says" and "what cricclubs used to say but we deleted" with no clear winner.
 
 Practically: any future "delete match" admin path should still go through a confirm dialog, but the underlying SQL is permitted to hard-delete because the `raw_html` + scraper combination makes it safe.
