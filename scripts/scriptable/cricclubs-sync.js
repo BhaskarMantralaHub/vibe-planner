@@ -11,17 +11,22 @@
 // ============================================================================
 
 // ── 1. CONFIG ────────────────────────────────────────────────────────────────
-// Edit these for your project / team.
+// Edit these for your project / team. (Mirror the constants at the top of
+// scripts/cricclubs-sync/sync.ts — cricclubs URLs need all three of league,
+// teamId, clubId, not just one.)
 const CONFIG = {
-  supabase_url:     'https://YOUR-PROJECT.supabase.co',
-  team_id:          'YOUR-TEAM-UUID',           // cricket_teams.id (UUID)
-  league_id:        14653,                        // cricclubs clubId
-  team_name:        'MTCA Sunrisers Manteca',     // exact cricclubs name
-  cricclubs_base:   'https://www.cricclubs.com/MountainHouseTracyCricketAssociationMTCA',
-  season_from:      '04/01/2026',                 // MM/DD/YYYY
-  season_to:        '08/31/2026',
-  force_resync:     false,                        // true: re-ingest matches already in DB
+  supabase_url:      'https://mcklzjmaivtwdhjauwtv.supabase.co',                  // your Supabase project URL
+  team_id:           '8284208d-fb02-44bf-bb8c-3c5411d35386',                      // cricket_teams.id for Sunrisers Manteca
+  team_name:         'Sunrisers Manteca',                                         // exact name (no "MTCA " prefix — that's auto-added when matching)
+  cricclubs_base:    'https://cricclubs.com/MountainHouseTracyCricketAssociationMTCA',
+  cricclubs_team_id: 1014,                                                        // cricclubs teamId query param
+  club_id:           14653,                                                       // cricclubs clubId query param
+  league_id:         87,                                                          // cricclubs league query param
+  season_from:       '04/01/2026',                                                // MM/DD/YYYY (cricclubs format)
+  season_to:         '08/31/2026',
+  force_resync:      false,                                                       // true: re-ingest matches already in DB
   scorecard_timeout_sec: 30,
+  user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 };
 
 // ── 2. SERVICE-ROLE KEY (iOS Keychain) ──────────────────────────────────────
@@ -45,11 +50,35 @@ const SR_KEY = Keychain.get('cricclubs_sync_sr_key');
 async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
   const req = new Request(url);
   req.timeoutInterval = timeoutSec;
+  // Use desktop Chrome UA — cricclubs occasionally tightens around non-browser
+  // user agents (and Cloudflare scoring may factor it in). Matches the UA used
+  // by scripts/cricclubs-sync/sync.ts.
   req.headers = {
-    'User-Agent': 'CricClubs-Sync/1.0 (iPhone)',
-    'Accept': 'text/html,application/xhtml+xml',
+    'User-Agent': CONFIG.user_agent,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   };
   return await req.loadString();
+}
+
+// Build cricclubs URLs with all three required query params.
+function fixturesUrl() {
+  return `${CONFIG.cricclubs_base}/fixtures.do`
+    + `?league=${CONFIG.league_id}`
+    + `&teamId=${CONFIG.cricclubs_team_id}`
+    + `&clubId=${CONFIG.club_id}`;
+}
+function matchListUrl() {
+  return `${CONFIG.cricclubs_base}/listMatches.do`
+    + `?league=${CONFIG.league_id}`
+    + `&teamId=${CONFIG.cricclubs_team_id}`
+    + `&clubId=${CONFIG.club_id}`
+    + `&fromDate=${encodeURIComponent(CONFIG.season_from)}`
+    + `&toDate=${encodeURIComponent(CONFIG.season_to)}`;
+}
+function scorecardUrl(matchId) {
+  return `${CONFIG.cricclubs_base}/viewScorecard.do`
+    + `?matchId=${matchId}`
+    + `&clubId=${CONFIG.club_id}`;
 }
 
 // Bounded retry with linear backoff. Used per-scorecard so one cellular hiccup
@@ -578,7 +607,6 @@ async function refreshFixtures(fixtures) {
     if (!opponent) continue;
 
     let target = byFixtureId.get(fx.cricclubs_fixture_id) ?? null;
-    let isBackfill = false;
 
     if (!target) {
       // Opponent + nearest date within 14 days (legacy rows without fixture_id)
@@ -589,7 +617,7 @@ async function refreshFixtures(fixtures) {
         .map((r) => ({ row: r, distance: daysBetween(r.match_date, fx.match_date) }))
         .filter((c) => c.distance <= 14)
         .sort((a, b) => a.distance - b.distance);
-      if (candidates.length) { target = candidates[0].row; isBackfill = true; }
+      if (candidates.length) target = candidates[0].row;
     }
     if (!target && fx.venue) {
       // Date+venue fallback (heals admin name typos)
@@ -598,7 +626,6 @@ async function refreshFixtures(fixtures) {
         .filter((r) => r.cricclubs_fixture_id == null)
         .filter((r) => r.match_type === 'league')
         .find((r) => r.match_date === fx.match_date && r.venue === fx.venue) ?? null;
-      if (target) isBackfill = true;
     }
     if (!target) continue;
     claimed.add(target.id);
@@ -631,8 +658,7 @@ const startMs = Date.now();
 try {
   // 6.1a — refresh fixtures (upcoming matches: date/time/venue/umpire/opponent)
   log.push('📅 Fetching fixtures…');
-  const fixturesUrl = `${CONFIG.cricclubs_base}/fixtures.do?clubId=${CONFIG.league_id}`;
-  const fixturesHtml = await withRetry(() => fetchHtml(fixturesUrl, 20));
+  const fixturesHtml = await withRetry(() => fetchHtml(fixturesUrl(), 20));
   const fixtures = JSON.parse(await parseInWebView(fixturesHtml, FIXTURES_PARSER));
   const fixSummary = await refreshFixtures(fixtures);
   log.push(`📆 ${fixSummary.matched}/${fixSummary.fixturesOnCricclubs} matched · ${fixSummary.updated} updated`);
@@ -642,8 +668,7 @@ try {
 
   // 6.1b — fetch match list, parse completed scorecards
   log.push('🔄 Fetching match list…');
-  const listUrl = `${CONFIG.cricclubs_base}/listMatches.do?clubId=${CONFIG.league_id}&fromDate=${encodeURIComponent(CONFIG.season_from)}&toDate=${encodeURIComponent(CONFIG.season_to)}`;
-  const listHtml = await withRetry(() => fetchHtml(listUrl));
+  const listHtml = await withRetry(() => fetchHtml(matchListUrl()));
   const matches = JSON.parse(await parseInWebView(listHtml, MATCH_LIST_PARSER));
   log.push(`📋 ${matches.length} matches found`);
 
@@ -670,8 +695,7 @@ try {
         skipped += 1;
         continue;
       }
-      const scorecardUrl = `${CONFIG.cricclubs_base}/viewScorecard.do?matchId=${m.cricclubs_match_id}`;
-      const html = await withRetry(() => fetchHtml(scorecardUrl), 2, 2500);
+      const html = await withRetry(() => fetchHtml(scorecardUrl(m.cricclubs_match_id)), 2, 2500);
       const parsed = JSON.parse(await parseInWebView(html, SCORECARD_PARSER));
       const counts = await upsertScorecard(m, parsed, html, roster);
       const matchRow = await supabase('cricclubs_matches', {
