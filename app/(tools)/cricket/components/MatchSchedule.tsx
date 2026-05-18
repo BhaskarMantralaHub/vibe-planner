@@ -704,19 +704,17 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
       {match.team_score && match.opponent_score && (
         <div className="mx-3 mb-3 rounded-lg p-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Text size="xs" weight="bold" color="cricket" uppercase tracking="wide">{getTeamCode()}</Text>
-              <div className="flex items-baseline gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Text size="xs" weight="bold" color="cricket" className="truncate">{getTeamName()}</Text>
+              <div className="flex items-baseline gap-1.5 flex-shrink-0">
                 <Text size="lg" weight="bold" tabular>{match.team_score}</Text>
                 <Text size="2xs" color="muted">({match.team_overs} ov)</Text>
               </div>
             </div>
             <div className="h-px" style={{ background: 'var(--border)' }} />
-            <div className="flex items-center justify-between">
-              <Text size="xs" weight="bold" color="muted" uppercase tracking="wide">
-                {match.opponent.split(' ').map(w => w[0]).join('').slice(0, 3)}
-              </Text>
-              <div className="flex items-baseline gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Text size="xs" weight="bold" color="muted" className="truncate">{match.opponent}</Text>
+              <div className="flex items-baseline gap-1.5 flex-shrink-0">
                 <Text size="lg" weight="bold" tabular>{match.opponent_score}</Text>
                 <Text size="2xs" color="muted">({match.opponent_overs} ov)</Text>
               </div>
