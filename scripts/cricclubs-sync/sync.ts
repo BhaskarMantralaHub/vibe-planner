@@ -631,6 +631,8 @@ const upsertMatch = async (
         team_b_score: listEntry.team_b_score || null,
         result_text: listEntry.result_text || null,
         winner_team: listEntry.winner_team,
+        toss_winner: scorecard.toss_winner,
+        toss_decision: scorecard.toss_decision,
         scorecard_url: scorecardUrlValue,
         parsed_at: new Date().toISOString(),
       },

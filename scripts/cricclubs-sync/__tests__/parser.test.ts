@@ -56,6 +56,11 @@ describe('parseScorecard', () => {
     expect(card.innings[1]?.innings_number).toBe(2);
   });
 
+  it('extracts toss winner and decision from cricclubs auto-comment', () => {
+    expect(card.toss_winner).toBe('MTCA Sunrisers Manteca');
+    expect(card.toss_decision).toBe('bowl');
+  });
+
   it('first innings: Sapphires bat, Sunrisers bowl', () => {
     const inn = card.innings[0]!;
     expect(inn.batting_team).toBe('MTCA Sapphires');

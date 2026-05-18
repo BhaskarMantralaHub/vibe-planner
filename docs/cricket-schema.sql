@@ -1958,6 +1958,8 @@ CREATE TABLE IF NOT EXISTS cricclubs_matches (
   team_b_score          TEXT,                            -- '76/5 (10.4/20.0)'
   result_text           TEXT,
   winner_team           TEXT,
+  toss_winner           TEXT,                            -- raw cricclubs team name (e.g. 'MTCA Sunrisers Manteca')
+  toss_decision         TEXT CHECK (toss_decision IS NULL OR toss_decision IN ('bat', 'bowl')),
   scorecard_url         TEXT,
   fetched_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   parsed_at             TIMESTAMPTZ NOT NULL DEFAULT now(),

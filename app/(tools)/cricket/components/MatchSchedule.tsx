@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera, Trophy, ArrowDown, Shield } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -51,6 +51,16 @@ export interface Match {
 
 type ScheduleTab = 'upcoming' | 'completed' | 'deleted';
 
+// Per-match metadata pulled from cricclubs_matches and keyed by (match_date,
+// normalized opponent name). Carries the scorecard URL and the toss outcome,
+// both nullable since the sync may not have populated them yet (or the toss
+// line is missing from older cricclubs scorecards).
+type CricclubsMeta = {
+  scorecard_url: string;
+  toss_winner: string | null;
+  toss_decision: 'bat' | 'bowl' | null;
+};
+
 /* ── Match Type Badge Config ── */
 const MATCH_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   league: { label: 'League', color: '#3B82F6' },
@@ -92,6 +102,21 @@ function getCountdown(dateStr: string, timeStr: string) {
 
 function getCountdownSimple(dateStr: string, timeStr: string) {
   return getCountdown(dateStr, timeStr).text;
+}
+
+// Derive which side batted first from the result text. In limited-overs cricket
+// "won by N wickets" means the winning team chased (batted 2nd); "won by N runs"
+// means the winning team defended a total (batted 1st). Returns null when the
+// result text is missing or ambiguous (e.g. tied / no result / D-L).
+function getBattedFirst(match: Match): 'team' | 'opponent' | null {
+  if (!match.result || !match.result_summary) return null;
+  const summary = match.result_summary.toLowerCase();
+  const byWickets = /\bwicket/.test(summary);
+  const byRuns = /\brun/.test(summary);
+  if (!byWickets && !byRuns) return null;
+  if (match.result === 'won') return byWickets ? 'opponent' : 'team';
+  if (match.result === 'lost') return byWickets ? 'team' : 'opponent';
+  return null;
 }
 
 /* ── Add to Calendar (.ics) — uses device local timezone ── */
@@ -648,85 +673,240 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
   );
 }
 
+/* ── Team avatar (small circular monogram or logo) ──
+   Used in the completed-match scoreboard to give each opponent a stable
+   visual identity at a glance, similar to how Cricbuzz / Cricinfo show team
+   crests. Our team uses the real team logo via getTeamLogoUrl(); opponents
+   render a hash-tinted monogram circle so every opponent gets a unique but
+   stable color without us having to maintain a manual logo table. */
+function hashHue(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h) % 360;
+}
+function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
+  const logoUrl = isOurTeam ? getTeamLogoUrl() : null;
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      />
+    );
+  }
+  const initials = name
+    .replace(/^MTCA\s+/i, '')
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || '?';
+  const hue = hashHue(name);
+  return (
+    <div
+      className="flex h-9 w-9 items-center justify-center rounded-full flex-shrink-0 text-[11px] font-black text-white tracking-tight"
+      style={{ background: `hsl(${hue}, 55%, 42%)` }}
+      aria-hidden
+    >
+      {initials}
+    </div>
+  );
+}
+
 /* ── Completed Match Card ── */
-function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl }: {
+function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl, tossWinner, tossDecision }: {
   match: Match;
   isAdmin: boolean;
   onMenuOpen: (id: string | null) => void;
   openMenuId: string | null;
   menuBtnRef: React.RefObject<HTMLButtonElement | null>;
   scorecardUrl?: string;
+  tossWinner?: string | null;
+  tossDecision?: 'bat' | 'bowl' | null;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
-  const resultColor = match.result === 'won' ? 'var(--green)' : match.result === 'lost' ? 'var(--red)' : 'var(--muted)';
-  const resultBg = match.result === 'won' ? 'rgba(74,222,128,0.1)' : match.result === 'lost' ? 'rgba(248,113,113,0.1)' : 'rgba(156,163,175,0.1)';
-  const resultLabel = match.result === 'won' ? 'Won' : match.result === 'lost' ? 'Lost' : (match.result === 'draw' || match.result === 'tied') ? 'Draw' : 'No Result';
+
+  // ── Result data ──
+  const isWin = match.result === 'won';
+  const isLoss = match.result === 'lost';
+  const isDraw = match.result === 'draw';
+  const resultPillLabel = isWin ? 'WON' : isLoss ? 'LOST' : isDraw ? 'DRAW' : 'NO RESULT';
+
+  // Extract margin from result_summary ("MTCA Sunrisers Manteca won by 8 Wickets" → "8 wickets")
+  let margin = '';
+  if (match.result_summary) {
+    const m = match.result_summary.match(/(?:won|lost) by\s+(.+?)\s*$/i);
+    if (m && m[1]) {
+      margin = m[1].trim().replace(/\b(wickets?|runs?)\b/gi, (s) => s.toLowerCase());
+    }
+  }
+  if (!margin) {
+    margin = isWin ? 'Win' : isLoss ? 'Loss' : isDraw ? 'Tie' : '—';
+  }
+
+  // ── Color discipline ──
+  // STATUS colors (green/red/gray) = semantic win/loss signal. Used on the
+  // left accent bar, the WON/LOST pill, the trophy, and the chased/defended
+  // pill. Carries the "did we win?" question.
+  // BRAND color (cricket-blue/navy) = typography identity. Used for the
+  // margin headline, our team's name, scores, and action buttons. Carries
+  // the "this is our team's data" identity.
+  const statusColor = isWin ? 'var(--green)' : isLoss ? 'var(--red)' : 'var(--muted)';
+  const statusTint = isWin
+    ? 'color-mix(in srgb, var(--green) 16%, transparent)'
+    : isLoss
+      ? 'color-mix(in srgb, var(--red) 16%, transparent)'
+      : 'color-mix(in srgb, var(--muted) 16%, transparent)';
 
   return (
     <div
-      className="rounded-xl border overflow-hidden relative"
+      className="relative rounded-2xl border overflow-hidden"
       style={{
         background: 'var(--card)',
         borderColor: 'var(--border)',
-        borderLeftWidth: '3px',
-        borderLeftColor: resultColor,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}
     >
+      {/* ── Left accent bar (status color) ── */}
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: statusColor }} aria-hidden />
+
+      {/* ── Admin menu ── */}
       {isAdmin && (
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
+          className="absolute top-2.5 right-2.5 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-20"
+          aria-label="Match actions"
         >
-          <EllipsisVertical size={11} />
+          <EllipsisVertical size={12} />
         </button>
       )}
 
-      <div className="p-3 pr-10">
-        {/* Top row: opponent + result */}
-        <div className="flex items-center gap-2 mb-1">
-          <Text as="p" size="md" weight="bold" className="sm:text-[15px] flex-1">
-            vs {match.opponent}
-          </Text>
-          <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-            style={{ background: resultBg, color: resultColor }}>
-            {resultLabel}
+      {/* ── Header zone (status pill + margin + opponent) ── */}
+      <div className="pl-5 pr-12 pt-4 pb-3.5">
+        <div className="flex items-center gap-1.5 mb-2">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider"
+            style={{ background: statusTint, color: statusColor }}
+          >
+            {resultPillLabel}
           </span>
+          {isWin && <Trophy size={14} style={{ color: statusColor }} aria-hidden />}
         </div>
-
-        {/* Date + venue */}
-        <Text as="p" size="xs" color="muted">
-          {formatMatchDate(match.match_date)} · {match.venue}
-        </Text>
+        <div className="text-[30px] sm:text-[32px] font-black leading-[1.05] tracking-tight tabular-nums" style={{ color: 'var(--cricket)' }}>
+          {margin}
+        </div>
+        <div className="text-[14px] font-semibold mt-1" style={{ color: 'var(--muted)' }}>
+          vs {match.opponent}
+        </div>
       </div>
 
-      {/* Scoreboard (if scores exist) */}
-      {match.team_score && match.opponent_score && (
-        <div className="mx-3 mb-3 rounded-lg p-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-2">
-              <Text size="xs" weight="bold" color="cricket" className="truncate">{getTeamName()}</Text>
-              <div className="flex items-baseline gap-1.5 flex-shrink-0">
-                <Text size="lg" weight="bold" tabular>{match.team_score}</Text>
-                <Text size="2xs" color="muted">({match.team_overs} ov)</Text>
+      {/* ── Meta (date + venue, then toss line) ── divider above ── */}
+      <div className="mx-5 mr-4 pt-2.5 pb-3 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-1.5">
+          <Calendar size={12} style={{ color: 'var(--dim)' }} />
+          <Text size="2xs" color="muted" weight="medium">
+            {formatMatchDate(match.match_date)} · {match.venue}
+          </Text>
+        </div>
+        {tossWinner && tossDecision && (() => {
+          // Render the toss line as a sibling caption to date/venue. Strip the
+          // "MTCA " prefix to match how schedule entries display opponent names.
+          const displayWinner = tossWinner.replace(/^MTCA\s+/i, '');
+          return (
+            <div className="flex items-center gap-1.5">
+              {/* Inline coin glyph — circle with diagonal "T" — kept as text-only
+                  so it inherits color and avoids importing another icon. */}
+              <span
+                className="inline-flex h-3 w-3 items-center justify-center rounded-full text-[8px] font-black flex-shrink-0"
+                style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }}
+                aria-hidden
+              >
+                T
+              </span>
+              <Text size="2xs" color="muted" weight="medium">
+                {displayWinner} won toss · chose to {tossDecision}
+              </Text>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Scoreboard (with team avatars + innings labels + chased/defended pill) ── */}
+      {match.team_score && match.opponent_score && (() => {
+        const battedFirst = getBattedFirst(match);
+        type ScoreRow = { name: string; score: string; overs: string; isOurTeam: boolean };
+        const ourRow: ScoreRow = { name: getTeamName(), score: match.team_score!, overs: match.team_overs ?? '', isOurTeam: true };
+        const oppRow: ScoreRow = { name: match.opponent, score: match.opponent_score!, overs: match.opponent_overs ?? '', isOurTeam: false };
+        const [topRow, bottomRow]: [ScoreRow, ScoreRow] =
+          battedFirst === 'opponent' ? [oppRow, ourRow] : [ourRow, oppRow];
+        const showOrdinals = battedFirst !== null;
+
+        // "chased" = 2nd-innings team won; "defended" = 1st-innings team won.
+        let chaseDescriptor: 'chased' | 'defended' | null = null;
+        if (battedFirst && (isWin || isLoss)) {
+          const teamBattedFirst = battedFirst === 'team';
+          const innings1Won = (teamBattedFirst && isWin) || (!teamBattedFirst && isLoss);
+          chaseDescriptor = innings1Won ? 'defended' : 'chased';
+        }
+
+        const renderRow = (row: ScoreRow, ordinal: '1st' | '2nd' | null) => (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TeamAvatar name={row.name} isOurTeam={row.isOurTeam} />
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <Text
+                    size="sm"
+                    weight="bold"
+                    className="truncate"
+                    style={{ color: row.isOurTeam ? 'var(--cricket)' : 'var(--text)' }}
+                  >
+                    {row.name}
+                  </Text>
+                  {ordinal && (
+                    <span className="text-[9px] font-bold uppercase tracking-[0.1em] flex-shrink-0" style={{ color: 'var(--dim)' }}>
+                      {ordinal === '1st' ? '1ST INNINGS' : '2ND INNINGS'}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="h-px" style={{ background: 'var(--border)' }} />
-            <div className="flex items-center justify-between gap-2">
-              <Text size="xs" weight="bold" color="muted" className="truncate">{match.opponent}</Text>
-              <div className="flex items-baseline gap-1.5 flex-shrink-0">
-                <Text size="lg" weight="bold" tabular>{match.opponent_score}</Text>
-                <Text size="2xs" color="muted">({match.opponent_overs} ov)</Text>
-              </div>
+            <div className="flex items-baseline gap-1.5 flex-shrink-0">
+              <span className="text-[20px] font-black tabular-nums leading-none" style={{ color: 'var(--text)' }}>{row.score}</span>
+              <Text size="2xs" color="muted" tabular>({row.overs} ov)</Text>
             </div>
           </div>
-          {match.result_summary && (
-            <p className="text-[12px] font-semibold mt-2 pt-2 border-t border-[var(--border)]" style={{ color: resultColor }}>
-              {match.result_summary}
-            </p>
-          )}
-        </div>
-      )}
+        );
+
+        return (
+          <div className="mx-3 mb-3 rounded-xl p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            {renderRow(topRow, showOrdinals ? '1st' : null)}
+
+            {/* Innings connector — divider with chased/defended pill */}
+            <div className="my-2 flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+              {chaseDescriptor && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex-shrink-0"
+                  style={{ background: statusTint, color: statusColor }}
+                >
+                  {chaseDescriptor === 'chased'
+                    ? <ArrowDown size={10} strokeWidth={3} />
+                    : <Shield size={10} strokeWidth={2.5} />}
+                  {chaseDescriptor}
+                </span>
+              )}
+              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            </div>
+
+            {renderRow(bottomRow, showOrdinals ? '2nd' : null)}
+          </div>
+        );
+      })()}
 
       {/* Performers */}
       {match.performers && match.performers.length > 0 && (
@@ -752,16 +932,16 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
       {/* Cricclubs scorecard link — shown when this match has been matched
           (by date + opponent) to a cricclubs_matches row. */}
       {scorecardUrl && (
-        <div className="flex gap-2 mx-3 mb-3">
+        <div className="grid grid-cols-2 gap-2 mx-3 mb-3">
           <a
             href={scorecardUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
-            <ExternalLink size={12} className="flex-shrink-0 text-[var(--muted)]" />
-            <Text size="xs" weight="semibold" color="cricket">
+            <ExternalLink size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
+            <Text size="sm" weight="semibold" color="cricket">
               View Scorecard
             </Text>
           </a>
@@ -785,12 +965,12 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
                 if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
               }
             }}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
             aria-label="Share scorecard link"
           >
-            <Share2 size={12} className="flex-shrink-0 text-[var(--muted)]" />
-            <Text size="xs" weight="semibold" color="cricket">
+            <Share2 size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
+            <Text size="sm" weight="semibold" color="cricket">
               Share
             </Text>
           </button>
@@ -881,7 +1061,7 @@ export default function MatchSchedule() {
   // Cricclubs scorecard URLs keyed by `${match_date}|${normalized_opponent}`.
   // Populated from cricclubs_matches so completed schedule cards can link to
   // the canonical scorecard. Empty Map until the lookup query resolves.
-  const [cricclubsLookup, setCricclubsLookup] = useState<Map<string, string>>(new Map());
+  const [cricclubsLookup, setCricclubsLookup] = useState<Map<string, CricclubsMeta>>(new Map());
   // Tab state is hash-driven so external links (e.g. League Stats summary
   // tiles → `/cricket/schedule#completed`) can deep-link a specific tab.
   // Mirrors the pattern used in app/(tools)/cricket/page.tsx.
@@ -955,9 +1135,10 @@ export default function MatchSchedule() {
     loadMatches();
   }, [loadMatches]);
 
-  // Fetch cricclubs scorecard URLs for this team and build a (date, opponent)
-  // → URL lookup. Names normalize by lowercasing + stripping the "MTCA " prefix
-  // since schedule entries may say "Hawks" while cricclubs records "MTCA Hawks".
+  // Fetch cricclubs metadata for this team and build a (date, opponent)
+  // → CricclubsMeta lookup (scorecard URL + toss). Names normalize by
+  // lowercasing + stripping the "MTCA " prefix since schedule entries may say
+  // "Hawks" while cricclubs records "MTCA Hawks".
   useEffect(() => {
     if (!currentTeamId) return;
     const supabase = getSupabaseClient();
@@ -969,7 +1150,7 @@ export default function MatchSchedule() {
     (async () => {
       const { data, error } = await supabase
         .from('cricclubs_matches')
-        .select('match_date, team_a, team_b, scorecard_url')
+        .select('match_date, team_a, team_b, scorecard_url, toss_winner, toss_decision')
         .eq('team_id', currentTeamId);
       if (cancelled) return;
       if (error || !data) {
@@ -977,11 +1158,22 @@ export default function MatchSchedule() {
         setCricclubsLookup(new Map());
         return;
       }
-      const map = new Map<string, string>();
-      for (const m of data as { match_date: string | null; team_a: string; team_b: string; scorecard_url: string | null }[]) {
+      const map = new Map<string, CricclubsMeta>();
+      for (const m of data as {
+        match_date: string | null;
+        team_a: string;
+        team_b: string;
+        scorecard_url: string | null;
+        toss_winner: string | null;
+        toss_decision: 'bat' | 'bowl' | null;
+      }[]) {
         if (!m.match_date || !m.scorecard_url) continue;
         const opponent = m.team_a === cricclubsMyName ? m.team_b : m.team_a;
-        map.set(`${m.match_date}|${normalize(opponent)}`, m.scorecard_url);
+        map.set(`${m.match_date}|${normalize(opponent)}`, {
+          scorecard_url: m.scorecard_url,
+          toss_winner: m.toss_winner,
+          toss_decision: m.toss_decision,
+        });
       }
       setCricclubsLookup(map);
     })();
@@ -990,8 +1182,8 @@ export default function MatchSchedule() {
     };
   }, [currentTeamId, userTeams]);
 
-  const getScorecardUrl = useCallback(
-    (match: Match): string | undefined => {
+  const getCricclubsMeta = useCallback(
+    (match: Match): CricclubsMeta | undefined => {
       if (!match.match_date || !match.opponent) return undefined;
       const key = `${match.match_date}|${match.opponent.toLowerCase().replace(/^mtca\s+/i, '').trim()}`;
       return cricclubsLookup.get(key);
@@ -1202,8 +1394,11 @@ export default function MatchSchedule() {
     // incident (2026-05-18) where date+result drift made the schedule
     // disagree with cricclubs truth.
     const isPractice = m.match_type === 'practice';
+    // Add to Calendar only makes sense for matches that haven't happened yet —
+    // a past match has nothing to remind the user about.
+    const isUpcoming = m.status === 'upcoming';
     return [
-      { label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) },
+      ...(isUpcoming ? [{ label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) }] : []),
       ...(isPractice ? [{ label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) }] : []),
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
     ];
@@ -1355,17 +1550,22 @@ export default function MatchSchedule() {
           <>
             {completed.length > 0 ? (
               <div className="space-y-2">
-                {completed.map((m) => (
-                  <CompletedMatchCard
-                    key={m.id}
-                    match={m}
-                    isAdmin={isAdmin}
-                    onMenuOpen={setOpenMenu}
-                    openMenuId={openMenu}
-                    menuBtnRef={menuBtnRef}
-                    scorecardUrl={getScorecardUrl(m)}
-                  />
-                ))}
+                {completed.map((m) => {
+                  const meta = getCricclubsMeta(m);
+                  return (
+                    <CompletedMatchCard
+                      key={m.id}
+                      match={m}
+                      isAdmin={isAdmin}
+                      onMenuOpen={setOpenMenu}
+                      openMenuId={openMenu}
+                      menuBtnRef={menuBtnRef}
+                      scorecardUrl={meta?.scorecard_url}
+                      tossWinner={meta?.toss_winner ?? null}
+                      tossDecision={meta?.toss_decision ?? null}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <EmptyState

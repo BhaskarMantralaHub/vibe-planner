@@ -55,6 +55,8 @@ export type ParsedScorecard = {
   cricclubs_match_id: number;
   team_a: string | null;
   team_b: string | null;
+  toss_winner: string | null;          // raw team name as cricclubs reports it
+  toss_decision: 'bat' | 'bowl' | null;
   innings: ParsedInnings[];
 };
 
@@ -189,6 +191,21 @@ const parseTotal = (row: string[]): ParsedTotal => {
   };
 };
 
+// ── Toss extraction ──────────────────────────────────────────────────────
+// Cricclubs embeds the toss outcome as a "comment" string inside a JSON-encoded
+// `templistOfVideo` JavaScript variable on the scorecard page, wrapped in
+// <strong> tags. Example payload:
+//   "<strong>MTCA Sunrisers Manteca won the toss  and elected to bowl</strong>"
+// (note the double space — cricclubs is sloppy with whitespace).
+// We regex over the raw HTML because the comment lives inside JSON string
+// literals that aren't part of the cheerio DOM. Returns nulls when missing
+// (older / abandoned matches sometimes omit the toss line).
+const parseToss = (html: string): { winner: string | null; decision: 'bat' | 'bowl' | null } => {
+  const m = html.match(/<strong>\s*([^<]+?)\s+won the toss\s+and\s+elected to\s+(bat|bowl)\s*<\/strong>/i);
+  if (!m || !m[1] || !m[2]) return { winner: null, decision: null };
+  return { winner: clean(m[1]), decision: m[2].toLowerCase() as 'bat' | 'bowl' };
+};
+
 // ── Scorecard parser ─────────────────────────────────────────────────────
 
 export const parseScorecard = (
@@ -200,6 +217,7 @@ export const parseScorecard = (
   const titleMatch = title.match(/^(?:League:\s*)?(.+?)\s+vs\s+(.+?)(?:\s+-\s+|$)/i);
   const teamA = titleMatch?.[1]?.trim() ?? null;
   const teamB = titleMatch?.[2]?.trim() ?? null;
+  const toss = parseToss(html);
 
   const tables = $('table.table').toArray();
   const innings: ParsedInnings[] = [];
@@ -294,6 +312,8 @@ export const parseScorecard = (
     cricclubs_match_id: cricclubsMatchId,
     team_a: teamA,
     team_b: teamB,
+    toss_winner: toss.winner,
+    toss_decision: toss.decision,
     innings,
   };
 };
