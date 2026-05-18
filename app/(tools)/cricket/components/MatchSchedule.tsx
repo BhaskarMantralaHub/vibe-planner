@@ -754,18 +754,49 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
       {/* Cricclubs scorecard link — shown when this match has been matched
           (by date + opponent) to a cricclubs_matches row. */}
       {scorecardUrl && (
-        <a
-          href={scorecardUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 mx-3 mb-3 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <ExternalLink size={12} className="flex-shrink-0 text-[var(--muted)]" />
-          <Text size="xs" weight="semibold" color="cricket">
-            View Scorecard
-          </Text>
-        </a>
+        <div className="flex gap-2 mx-3 mb-3">
+          <a
+            href={scorecardUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <ExternalLink size={12} className="flex-shrink-0 text-[var(--muted)]" />
+            <Text size="xs" weight="semibold" color="cricket">
+              View Scorecard
+            </Text>
+          </a>
+          <button
+            type="button"
+            onClick={async () => {
+              const title = `${getTeamName()} vs ${match.opponent}`;
+              const scoreLine = match.team_score && match.opponent_score
+                ? `${getTeamName()} ${match.team_score} · ${match.opponent} ${match.opponent_score}`
+                : '';
+              const text = [match.result_summary, scoreLine].filter(Boolean).join('\n');
+              try {
+                if (navigator.share) {
+                  await navigator.share({ url: scorecardUrl, title, text });
+                } else {
+                  await navigator.clipboard.writeText(scorecardUrl);
+                  toast.success('Scorecard link copied');
+                }
+              } catch (err) {
+                // User cancelling the share sheet throws AbortError — not an error condition.
+                if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
+              }
+            }}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            aria-label="Share scorecard link"
+          >
+            <Share2 size={12} className="flex-shrink-0 text-[var(--muted)]" />
+            <Text size="xs" weight="semibold" color="cricket">
+              Share
+            </Text>
+          </button>
+        </div>
       )}
     </div>
   );
