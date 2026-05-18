@@ -5,6 +5,14 @@ into Supabase via service-role upserts. Designed to run from a scheduled
 GitHub Action (Mondays after the weekend's matches), but also runnable
 locally for one-off backfills.
 
+> ⚠️ **Status (2026-05-18): fallback only.** Cloudflare on cricclubs.com
+> escalates bot challenges against datacenter IPs, causing intermittent
+> `page.waitForFunction` timeouts on GitHub Actions runners. The primary
+> sync path is now the iOS Shortcut → Edge Function flow at
+> `supabase/functions/cricclubs-ingest/` (V1 = fixtures-only). Local runs
+> on a residential network still work fine — keep this script for local
+> backfills, full scorecard ingest, and as a redundancy layer.
+
 ## What it does
 
 1. Launches headless Chromium (Playwright).
