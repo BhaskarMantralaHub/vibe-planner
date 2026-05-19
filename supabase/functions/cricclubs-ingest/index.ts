@@ -280,23 +280,48 @@ Deno.serve(async (req) => {
   }
 
   // ── Scorecard route ───────────────────────────────────────────────────────
-  // Caller POSTs JSON `{listEntry, html}`: the listEntry comes from the
-  // earlier ?type=list call (carries match_date / result_text / winner_team
-  // metadata the scorecard HTML alone doesn't expose), html is the scorecard
-  // page itself. Parses, upserts the match + html + batting + bowling, then
-  // runs autoCompleteScheduleMatches on the matching schedule row.
-  // Idempotent on (team_id, cricclubs_match_id).
+  // Caller POSTs JSON. Two accepted body shapes (both pulled from the
+  // ?type=list response — pick whichever your client can build):
+  //
+  //   Shape A (programmatic — full-sync, Scriptable, web etc):
+  //     {"listEntry": {<full match dict>}, "html": "..."}
+  //
+  //   Shape B (iOS Shortcuts friendly — Dictionary action can't nest a
+  //   dictionary-typed variable, so we accept the listEntry as a JSON
+  //   string. iOS Shortcuts auto-serializes a Dictionary variable to JSON
+  //   when used in a Text field — drops cleanly into Shape B):
+  //     {"listEntryJson": "{\"cricclubs_match_id\":3018,...}", "html": "..."}
+  //
+  // Both parse to the same internal listEntry; subsequent upsert + auto-
+  // complete is identical.
   if (type === 'scorecard') {
-    let body: { listEntry?: ParsedListEntry; html?: string };
+    let body: { listEntry?: ParsedListEntry; listEntryJson?: string; html?: string };
     try {
       body = await req.json();
     } catch {
-      return json({ error: 'request body must be valid JSON: {listEntry, html}' }, 400, cors);
+      return json(
+        { error: 'request body must be valid JSON: {listEntry, html} OR {listEntryJson, html}' },
+        400,
+        cors,
+      );
     }
-    const listEntry = body.listEntry;
+    let listEntry: ParsedListEntry | undefined;
+    if (body.listEntry && typeof body.listEntry === 'object') {
+      listEntry = body.listEntry;
+    } else if (typeof body.listEntryJson === 'string' && body.listEntryJson.length > 0) {
+      try {
+        listEntry = JSON.parse(body.listEntryJson) as ParsedListEntry;
+      } catch {
+        return json({ error: 'listEntryJson is not valid JSON' }, 400, cors);
+      }
+    }
     const html = body.html ?? '';
     if (!listEntry || typeof listEntry.cricclubs_match_id !== 'number') {
-      return json({ error: 'listEntry.cricclubs_match_id (number) required' }, 400, cors);
+      return json(
+        { error: 'listEntry or listEntryJson with cricclubs_match_id (number) required' },
+        400,
+        cors,
+      );
     }
     if (!html || html.length < 100) {
       return json({ error: 'html body empty or too small' }, 400, cors);
