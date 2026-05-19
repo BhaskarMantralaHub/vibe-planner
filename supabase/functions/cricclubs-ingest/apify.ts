@@ -1,40 +1,62 @@
 // Apify residential-proxy fetch wrapper for the Edge Function.
 //
 // Why: cricclubs.com is behind Cloudflare Bot Management which challenges
-// datacenter IPs (Supabase Edge runs on Deno Deploy / AWS — same problem GH
-// Actions had). We outsource the actual cricclubs fetch to Apify's
-// apify/cheerio-scraper actor with RESIDENTIAL proxy group, which bypasses
-// Cloudflare by exiting from real residential ISPs.
+// datacenter IPs AND issues a JS challenge to plain HTTP clients. Supabase
+// Edge runs on Deno Deploy / AWS, so it can't fetch cricclubs directly.
 //
-// Pricing: ~$0.01 per scorecard fetch (compute + proxy bandwidth). Apify
-// free tier gives $5/month auto-refilling — comfortably covers ~50 fetches
-// per month at full-sync cadence.
+// First attempt used apify/cheerio-scraper (HTTP-only, residential proxy)
+// but cricclubs returned 403 on every retry — Cloudflare's JS challenge
+// requires a real browser to solve. Switched to apify/web-scraper which
+// runs headless Chromium and can pass the challenge.
+//
+// Pricing: ~$0.02 per scorecard fetch (compute + proxy bandwidth). At
+// ~17 fetches per full-sync, ~4 syncs/month = ~$1.40/month. Inside the
+// $5/month free Apify credit. Skip-already-synced (TODO follow-up) would
+// drop steady-state cost ~10x once initial backfill is done.
 
 const APIFY_TOKEN = Deno.env.get('APIFY_TOKEN') ?? '';
-const APIFY_ACTOR = Deno.env.get('APIFY_ACTOR') ?? 'apify~cheerio-scraper';
+const APIFY_ACTOR = Deno.env.get('APIFY_ACTOR') ?? 'apify~web-scraper';
 
 export const fetchHtmlViaApify = async (url: string): Promise<string> => {
   if (!APIFY_TOKEN) {
     throw new Error('APIFY_TOKEN env var is not set on the Edge Function');
   }
   // run-sync-get-dataset-items: runs the actor and waits for completion,
-  // returning the dataset items as JSON. Timeout caps the wait at 120s —
-  // far above the ~3s warm-actor latency.
+  // returning the dataset items as JSON. Timeout 180s accommodates web-
+  // scraper's cold-start (~30s) + JS-challenge wait + page render.
   const endpoint =
     `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items` +
-    `?token=${APIFY_TOKEN}&timeout=120`;
+    `?token=${APIFY_TOKEN}&timeout=180`;
   const input = {
+    runMode: 'PRODUCTION',
     startUrls: [{ url }],
+    // page.content() returns fully-rendered HTML (after the Cloudflare JS
+    // challenge resolves). We also briefly waitForFunction to detect when
+    // the challenge interstitial ("Just a moment…" / "Checking your
+    // browser") has cleared; if there's no challenge the wait resolves
+    // immediately. Empty-body / challenge-still-present falls through and
+    // returns whatever's on the page.
     pageFunction:
       "async function pageFunction(context) { " +
-      "return { url: context.request.url, html: context.body }; " +
+      "  const { page, request } = context; " +
+      "  try { " +
+      "    await page.waitForFunction(" +
+      "      () => !document.title.includes('Just a moment') && !document.title.includes('Checking your browser'), " +
+      "      { timeout: 20000 }" +
+      "    ); " +
+      "  } catch (_) {} " +
+      "  const html = await page.content(); " +
+      "  return { url: request.url, html, title: await page.title() }; " +
       "}",
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
     },
     maxRequestsPerCrawl: 1,
-    additionalMimeTypes: ['text/html'],
+    useChrome: true,            // real Chrome (better fingerprint than headless Chromium)
+    headless: true,
+    injectJQuery: false,         // don't need it; we'll parse server-side
+    customData: {},
   };
   const res = await fetch(endpoint, {
     method: 'POST',
