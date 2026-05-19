@@ -212,11 +212,14 @@ function scrubError(s: string | undefined): string {
 
 // ── Roster ──────────────────────────────────────────────────────────────────
 async function loadRoster(supabase: SupabaseClient): Promise<Map<string, string>> {
+  // cricket_players uses `is_active` (boolean) for soft-delete, not the
+  // `deleted_at` pattern other cricket_* tables use. Match the Node sync's
+  // filter exactly (scripts/cricclubs-sync/supabase.ts loadRoster).
   const { data, error } = await supabase
     .from('cricket_players')
     .select('id, name')
     .eq('team_id', TEAM_ID_INTERNAL)
-    .is('deleted_at', null);
+    .eq('is_active', true);
   if (error) throw new Error(`loadRoster: ${error.message}`);
   const map = new Map<string, string>();
   for (const r of (data ?? []) as Array<{ id: string; name: string }>) {
