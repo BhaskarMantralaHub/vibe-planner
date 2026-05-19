@@ -2045,6 +2045,60 @@ CREATE INDEX IF NOT EXISTS idx_cricclubs_bowling_team_player
   ON cricclubs_bowling(team_id, player_id) WHERE player_id IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
+-- 4b. cricclubs_sync_state — singleton lock for the Edge Function sync
+-- ----------------------------------------------------------------------------
+-- One-row table consulted by every sync trigger (button click, pg_cron, iOS
+-- Shortcut, GH Action). Conditional UPDATE acquires the lock; stale locks
+-- (started_at older than 5 minutes) auto-clear. RLS lets the UI display
+-- "Syncing…" state for any authenticated user.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cricclubs_sync_state (
+  id            INT          PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  is_running    BOOLEAN      NOT NULL    DEFAULT false,
+  started_at    TIMESTAMPTZ,
+  triggered_by  TEXT,
+  lock_token    UUID,                                  -- opaque acquire token; required for release (prevents stale-zombie clobber)
+  last_run_at   TIMESTAMPTZ,
+  last_summary  TEXT,
+  CONSTRAINT cricclubs_sync_state_singleton CHECK (id = 1)
+);
+INSERT INTO cricclubs_sync_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Lock acquire/release RPCs — SECURITY DEFINER, service_role-only. See
+-- docs/migrations/009_cricclubs_sync_lock_rpc.sql for rationale.
+CREATE OR REPLACE FUNCTION acquire_cricclubs_sync_lock(p_triggered_by TEXT)
+RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_token UUID := gen_random_uuid(); v_updated INT;
+BEGIN
+  UPDATE cricclubs_sync_state
+  SET is_running = true, started_at = now(),
+      triggered_by = p_triggered_by, lock_token = v_token
+  WHERE id = 1
+    AND (is_running = false OR started_at < now() - interval '5 minutes');
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN CASE WHEN v_updated = 1 THEN v_token ELSE NULL END;
+END;
+$$;
+CREATE OR REPLACE FUNCTION release_cricclubs_sync_lock(p_token UUID, p_summary TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_updated INT;
+BEGIN
+  UPDATE cricclubs_sync_state
+  SET is_running = false, started_at = NULL, triggered_by = NULL, lock_token = NULL,
+      last_run_at = now(), last_summary = LEFT(COALESCE(p_summary, ''), 1000)
+  WHERE id = 1 AND lock_token = p_token;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated = 1;
+END;
+$$;
+REVOKE ALL ON FUNCTION acquire_cricclubs_sync_lock(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION release_cricclubs_sync_lock(UUID, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION acquire_cricclubs_sync_lock(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION release_cricclubs_sync_lock(UUID, TEXT) TO service_role;
+
+-- ----------------------------------------------------------------------------
 -- 5. updated_at triggers (matches existing pattern: cricket-schema.sql:619)
 -- ----------------------------------------------------------------------------
 CREATE TRIGGER set_cricclubs_matches_updated_at
@@ -2144,6 +2198,13 @@ CREATE POLICY "Team admin update bowling" ON cricclubs_bowling
 CREATE POLICY "Team admin delete bowling" ON cricclubs_bowling
   FOR DELETE TO authenticated
   USING (is_team_admin(team_id) OR is_global_admin());
+
+-- cricclubs_sync_state — singleton lock. SELECT for any authenticated user
+-- (UI needs to render "Syncing…" state); writes via service-role only.
+ALTER TABLE cricclubs_sync_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated can read sync state" ON cricclubs_sync_state
+  FOR SELECT TO authenticated
+  USING (true);
 
 -- ----------------------------------------------------------------------------
 -- 7. Stats views — explicit security_invoker so RLS is honored
