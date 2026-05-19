@@ -295,12 +295,17 @@ Deno.serve(async (req) => {
   // Both parse to the same internal listEntry; subsequent upsert + auto-
   // complete is identical.
   if (type === 'scorecard') {
-    let body: { listEntry?: ParsedListEntry; listEntryJson?: string; html?: string };
+    let body: {
+      listEntry?: ParsedListEntry;
+      listEntryJson?: string;
+      html?: string;
+      htmlBase64?: string;
+    };
     try {
       body = await req.json();
     } catch {
       return json(
-        { error: 'request body must be valid JSON: {listEntry, html} OR {listEntryJson, html}' },
+        { error: 'request body must be valid JSON: {listEntry, html} OR {listEntryJson, htmlBase64}' },
         400,
         cors,
       );
@@ -315,7 +320,22 @@ Deno.serve(async (req) => {
         return json({ error: 'listEntryJson is not valid JSON' }, 400, cors);
       }
     }
-    const html = body.html ?? '';
+    // iOS Shortcuts strips HTML tags when a "Contents of URL" magic variable
+    // is referenced from a JSON Text field — turns <strong>…</strong> and
+    // <table>… into bullet-list plain text. Base64 forces iOS to preserve
+    // bytes. The Shortcut wraps the scorecard fetch with a Base64 Encode
+    // action; we decode here. Fall through to the plain `html` field if base64
+    // is missing (server-side callers — Scriptable etc — use html directly).
+    let html = body.html ?? '';
+    if (typeof body.htmlBase64 === 'string' && body.htmlBase64.length > 0) {
+      try {
+        const binary = atob(body.htmlBase64);
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+        html = new TextDecoder('utf-8').decode(bytes);
+      } catch {
+        return json({ error: 'htmlBase64 is not valid base64' }, 400, cors);
+      }
+    }
     if (!listEntry || typeof listEntry.cricclubs_match_id !== 'number') {
       return json(
         { error: 'listEntry or listEntryJson with cricclubs_match_id (number) required' },
