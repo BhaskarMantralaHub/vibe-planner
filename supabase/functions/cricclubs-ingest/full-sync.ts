@@ -101,9 +101,19 @@ export async function releaseLock(
   return Boolean(data);
 }
 
+// Options for runFullSync.
+// `forceMatchIds`: schedule-row UUIDs whose result/scores should be
+// OVERWRITTEN with cricclubs data, even if they already have a result set.
+// Used by the per-match "Re-sync from cricclubs" admin action. Empty array
+// (or undefined) = normal behavior (skip rows with result already set).
+export type FullSyncOptions = {
+  forceMatchIds?: string[];
+};
+
 // Run the full sync. Caller is responsible for acquireLock/releaseLock.
 export async function runFullSync(
   supabase: SupabaseClient,
+  opts: FullSyncOptions = {},
 ): Promise<FullSyncResult> {
   const t0 = Date.now();
   const errors: string[] = [];
@@ -151,9 +161,12 @@ export async function runFullSync(
       errors.push(`fixtures: ${scrubError((e as Error).message).slice(0, 100)}`);
     }
 
-    // 4. Auto-complete schedule
+    // 4. Auto-complete schedule (with optional force-overwrite list)
     try {
-      scheduleAutoCompleted = await autoCompleteScheduleMatches(supabase);
+      scheduleAutoCompleted = await autoCompleteScheduleMatches(
+        supabase,
+        opts.forceMatchIds ?? [],
+      );
     } catch (e) {
       errors.push(`auto-complete: ${scrubError((e as Error).message).slice(0, 100)}`);
     }
@@ -354,7 +367,10 @@ function parseTeamScore(raw: string | null | undefined): { score: string; overs:
   return m ? { score: m[1], overs: m[2] } : { score: raw, overs: '' };
 }
 
-async function autoCompleteScheduleMatches(supabase: SupabaseClient): Promise<number> {
+async function autoCompleteScheduleMatches(
+  supabase: SupabaseClient,
+  forceMatchIds: string[] = [],
+): Promise<number> {
   const { data: teamRow } = await supabase
     .from('cricket_teams')
     .select('name')
@@ -370,14 +386,33 @@ async function autoCompleteScheduleMatches(supabase: SupabaseClient): Promise<nu
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date());
 
-  const { data: upcomingPast } = await supabase
+  // Rows that match the normal auto-complete criteria (status=upcoming AND
+  // result IS NULL AND past date).
+  const { data: normalRows } = await supabase
     .from('cricket_schedule_matches')
     .select('id, opponent, match_date')
     .eq('team_id', TEAM_ID_INTERNAL)
     .eq('status', 'upcoming')
     .lt('match_date', todayPT)
     .is('result', null);
-  if (!upcomingPast?.length) return 0;
+
+  // Force-overwrite rows: ignore the result-IS-NULL guard. Admin explicitly
+  // requested cricclubs to overwrite their manual entry.
+  let forceRows: Array<{ id: string; opponent: string; match_date: string }> = [];
+  if (forceMatchIds.length > 0) {
+    const { data: rows } = await supabase
+      .from('cricket_schedule_matches')
+      .select('id, opponent, match_date')
+      .eq('team_id', TEAM_ID_INTERNAL)
+      .in('id', forceMatchIds);
+    forceRows = (rows ?? []) as Array<{ id: string; opponent: string; match_date: string }>;
+  }
+
+  const candidates = [
+    ...((normalRows ?? []) as Array<{ id: string; opponent: string; match_date: string }>),
+    ...forceRows,
+  ];
+  if (!candidates.length) return 0;
 
   const { data: cms } = await supabase
     .from('cricclubs_matches')
@@ -397,8 +432,14 @@ async function autoCompleteScheduleMatches(supabase: SupabaseClient): Promise<nu
     cmIndex.set(`${cm.match_date}|${normalizeOpponent(opponent)}`, cm);
   }
 
+  const forceSet = new Set(forceMatchIds);
   let updated = 0;
-  for (const sched of upcomingPast as { id: string; opponent: string; match_date: string }[]) {
+  // Dedup: a row could appear in both normalRows and forceRows. Use a Set to
+  // process each id only once.
+  const seen = new Set<string>();
+  for (const sched of candidates) {
+    if (seen.has(sched.id)) continue;
+    seen.add(sched.id);
     const cm = cmIndex.get(`${sched.match_date}|${normalizeOpponent(sched.opponent)}`);
     if (!cm) continue;
     const usAreA = cm.team_a === myCricclubsName;
@@ -409,7 +450,11 @@ async function autoCompleteScheduleMatches(supabase: SupabaseClient): Promise<nu
       result = cm.winner_team.toLowerCase().startsWith(myCricclubsName.toLowerCase())
         ? 'won' : 'lost';
     }
-    const { error } = await supabase
+    // Build the UPDATE. For force-overwrite rows we drop the result-IS-NULL
+    // guard so cricclubs data replaces the manual entry. For normal rows we
+    // keep the guard as belt-and-suspenders.
+    const isForce = forceSet.has(sched.id);
+    let q = supabase
       .from('cricket_schedule_matches')
       .update({
         status: 'completed',
@@ -420,8 +465,9 @@ async function autoCompleteScheduleMatches(supabase: SupabaseClient): Promise<nu
         opponent_overs: opp.overs || null,
         result_summary: cm.result_text ?? null,
       })
-      .eq('id', sched.id)
-      .is('result', null); // never overwrite admin-entered result
+      .eq('id', sched.id);
+    if (!isForce) q = q.is('result', null);
+    const { error } = await q;
     if (!error) updated += 1;
   }
   return updated;

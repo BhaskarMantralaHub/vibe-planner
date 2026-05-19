@@ -147,6 +147,25 @@ Deno.serve(async (req) => {
 
   // ── V2 full-sync route ────────────────────────────────────────────────────
   if (type === 'full-sync') {
+    // Optional body: { force_match_ids: string[] } — schedule-row UUIDs to
+    // force-overwrite even if they already have a result set. Used by the
+    // per-match "Re-sync from cricclubs" admin action. Body is optional;
+    // empty or missing = normal behavior.
+    let forceMatchIds: string[] = [];
+    try {
+      const text = await req.text();
+      if (text) {
+        const body = JSON.parse(text);
+        if (Array.isArray(body?.force_match_ids)) {
+          forceMatchIds = body.force_match_ids
+            .filter((x: unknown) => typeof x === 'string')
+            // UUID v4 sanity check to keep junk out of the IN(...) filter
+            .filter((x: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x))
+            .slice(0, 50); // upper bound per call
+        }
+      }
+    } catch { /* ignore malformed body — treat as no force */ }
+
     const token = await acquireLock(supabase, triggeredBy);
     if (!token) {
       return json(
@@ -160,7 +179,7 @@ Deno.serve(async (req) => {
       );
     }
     try {
-      const result = await runFullSync(supabase);
+      const result = await runFullSync(supabase, { forceMatchIds });
       await releaseLock(supabase, token, result.summary);
       return json({ ok: result.ok, ...result }, 200, cors);
     } catch (e) {

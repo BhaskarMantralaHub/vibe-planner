@@ -1110,6 +1110,9 @@ export default function MatchSchedule() {
   // cricclubs_sync_state and returns 409 if another sync is running.
   const [syncing, setSyncing] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  // Force-resync confirm dialog state. When set, shows a confirm dialog
+  // explaining that cricclubs data will overwrite any manual edits.
+  const [forceResyncMatch, setForceResyncMatch] = useState<Match | null>(null);
 
   /* ── Load matches from Supabase or localStorage ── */
   const loadMatches = useCallback(async () => {
@@ -1359,7 +1362,7 @@ export default function MatchSchedule() {
     toast.success('Trash emptied');
   };
 
-  const handleSyncNow = async () => {
+  const handleSyncNow = async (forceMatchIds: string[] = []) => {
     // Three-layer duplicate-click guard: (1) early return if button is
     // already in the syncing state, (2) check cooldown window, (3) Edge
     // Function returns 409 if another caller is mid-sync.
@@ -1381,6 +1384,8 @@ export default function MatchSchedule() {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
+        // Empty body when no force list — body parser tolerates missing/empty
+        body: forceMatchIds.length > 0 ? JSON.stringify({ force_match_ids: forceMatchIds }) : '',
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 409) {
@@ -1457,10 +1462,15 @@ export default function MatchSchedule() {
     // Add to Calendar only makes sense for matches that haven't happened yet —
     // a past match has nothing to remind the user about.
     const isUpcoming = m.status === 'upcoming';
+    // Re-sync from cricclubs only makes sense for completed league matches:
+    // practice matches aren't on cricclubs at all; upcoming matches don't
+    // yet have cricclubs scorecard data to pull.
+    const canForceResync = !isPractice && m.status === 'completed';
     return [
       ...(isUpcoming ? [{ label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) }] : []),
       ...(isPractice ? [{ label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) }] : []),
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
+      ...(canForceResync ? [{ label: 'Re-sync from cricclubs', icon: <RefreshCw size={15} />, color: 'var(--cricket)', onClick: () => setForceResyncMatch(m), dividerBefore: true }] : []),
     ];
   };
 
@@ -1503,7 +1513,7 @@ export default function MatchSchedule() {
           <SeasonRecord completed={completed} />
           {isAdmin && (
             <button
-              onClick={handleSyncNow}
+              onClick={() => handleSyncNow()}
               disabled={syncing}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-60 flex-shrink-0"
               style={{
@@ -1538,7 +1548,7 @@ export default function MatchSchedule() {
           <div className="flex items-center gap-1.5">
             {isAdmin && (
               <button
-                onClick={handleSyncNow}
+                onClick={() => handleSyncNow()}
                 disabled={syncing}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-60"
                 style={{
@@ -1713,6 +1723,36 @@ export default function MatchSchedule() {
           <DialogFooter>
             <Button variant="secondary" onClick={() => setPermanentDeleting(null)}>Cancel</Button>
             <Button variant="danger" onClick={() => { if (permanentDeleting) handlePermanentDelete(permanentDeleting.id); }}>Delete Forever</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Force re-sync confirmation dialog — used by the per-match
+          "Re-sync from cricclubs" menu item. Clearly warns admin that any
+          manual edits to scores or result will be overwritten with whatever
+          cricclubs currently reports. */}
+      <Dialog open={!!forceResyncMatch} onOpenChange={(open) => { if (!open) setForceResyncMatch(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Re-sync from cricclubs?</DialogTitle>
+            <DialogDescription>
+              This will overwrite the result, scores, and result summary for
+              vs {forceResyncMatch?.opponent} with the latest data from
+              cricclubs.com. Any manual edits to this match will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setForceResyncMatch(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                const m = forceResyncMatch;
+                setForceResyncMatch(null);
+                if (m) handleSyncNow([m.id]);
+              }}
+            >
+              Re-sync
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
