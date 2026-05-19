@@ -41,7 +41,7 @@ const matchesUrl = (from: string, to: string): string =>
   `${BASE}/listMatches.do?league=${LEAGUE_ID}&teamId=${CRICCLUBS_TEAM_ID}` +
   `&clubId=${CLUB_ID}&fromDate=${encodeURIComponent(from)}` +
   `&toDate=${encodeURIComponent(to)}`;
-const scorecardUrl = (matchId: number): string =>
+export const scorecardUrl = (matchId: number): string =>
   `${BASE}/viewScorecard.do?matchId=${matchId}&clubId=${CLUB_ID}`;
 const fixturesUrl = (): string =>
   `${BASE}/fixtures.do?league=${LEAGUE_ID}&teamId=${CRICCLUBS_TEAM_ID}&clubId=${CLUB_ID}`;
@@ -211,7 +211,7 @@ function scrubError(s: string | undefined): string {
 }
 
 // ── Roster ──────────────────────────────────────────────────────────────────
-async function loadRoster(supabase: SupabaseClient): Promise<Map<string, string>> {
+export async function loadRoster(supabase: SupabaseClient): Promise<Map<string, string>> {
   // cricket_players uses `is_active` (boolean) for soft-delete, not the
   // `deleted_at` pattern other cricket_* tables use. Match the Node sync's
   // filter exactly (scripts/cricclubs-sync/supabase.ts loadRoster).
@@ -243,7 +243,7 @@ const extractDivision = (combined: string | null): string | null => {
   return i >= 0 ? combined.slice(i + 3).trim() : null;
 };
 
-async function upsertMatch(
+export async function upsertMatch(
   supabase: SupabaseClient,
   listEntry: ParsedListEntry,
   scorecard: ParsedScorecard,
@@ -287,7 +287,7 @@ async function upsertMatch(
   return data.id as string;
 }
 
-async function upsertInnings(
+export async function upsertInnings(
   supabase: SupabaseClient,
   scorecard: ParsedScorecard,
   matchRowId: string,
@@ -295,8 +295,30 @@ async function upsertInnings(
 ): Promise<{ batting: number; bowling: number }> {
   let battingCount = 0;
   let bowlingCount = 0;
+  // Explicit row shape so DNB rows (with null position / strike_rate /
+  // dismissal) can be pushed into the same array without TS widening
+  // complaints.
+  type BattingUpsertRow = {
+    match_row_id: string;
+    team_id: string;
+    innings_number: 1 | 2;
+    batting_team: string;
+    cricclubs_name: string;
+    player_id: string | null;
+    batting_position: number | null;
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    strike_rate: number | null;
+    dismissal: string | null;
+    not_out: boolean;
+    is_captain: boolean;
+    is_wicketkeeper: boolean;
+    did_not_bat: boolean;
+  };
   for (const inn of scorecard.innings) {
-    const battingRows = inn.batting.map((b, idx) => ({
+    const battingRows: BattingUpsertRow[] = inn.batting.map((b, idx) => ({
       match_row_id: matchRowId,
       team_id: TEAM_ID_INTERNAL,
       innings_number: inn.innings_number,
@@ -370,7 +392,7 @@ function parseTeamScore(raw: string | null | undefined): { score: string; overs:
   return m ? { score: m[1], overs: m[2] } : { score: raw, overs: '' };
 }
 
-async function autoCompleteScheduleMatches(
+export async function autoCompleteScheduleMatches(
   supabase: SupabaseClient,
   forceMatchIds: string[] = [],
 ): Promise<number> {

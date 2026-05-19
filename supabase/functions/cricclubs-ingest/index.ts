@@ -22,9 +22,18 @@
 // auth check below replaces it.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { parseFixtures } from './parser.ts';
+import { parseFixtures, parseMatchList, parseScorecard, type ParsedListEntry } from './parser.ts';
 import { refreshFixtures } from './refresh.ts';
-import { acquireLock, releaseLock, runFullSync } from './full-sync.ts';
+import {
+  acquireLock,
+  releaseLock,
+  runFullSync,
+  loadRoster,
+  upsertMatch,
+  upsertInnings,
+  autoCompleteScheduleMatches,
+  scorecardUrl as buildScorecardUrl,
+} from './full-sync.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -181,7 +190,7 @@ Deno.serve(async (req) => {
     try {
       const result = await runFullSync(supabase, { forceMatchIds });
       await releaseLock(supabase, token, result.summary);
-      return json({ ok: result.ok, ...result }, 200, cors);
+      return json(result, 200, cors);
     } catch (e) {
       const msg = scrubSensitive((e as Error).message ?? 'unknown');
       await releaseLock(supabase, token, `❌ ${msg.slice(0, 200)}`);
@@ -244,6 +253,80 @@ Deno.serve(async (req) => {
       const msg = scrubSensitive((e as Error).message);
       await releaseLock(supabase, v1Token, `❌ V1 fixtures: ${msg.slice(0, 150)}`);
       return json({ error: `refresh failed: ${msg}` }, 500, cors);
+    }
+  }
+
+  // ── List route ────────────────────────────────────────────────────────────
+  // Caller (iOS Shortcut on residential IP) POSTs listMatches.do HTML in the
+  // body. We parse it and return the structured list + per-match scorecard
+  // URLs so the caller can loop over them in a Repeat with Each. No DB
+  // writes — pure parse-and-return.
+  if (type === 'list') {
+    const html = await req.text();
+    if (!html || html.length < 100) {
+      return json({ error: 'request body is empty or too small to be cricclubs HTML' }, 400, cors);
+    }
+    if (!/MTCA|deleteRow|team-data/i.test(html)) {
+      return json({ error: 'html does not look like a cricclubs listMatches page' }, 400, cors);
+    }
+    let matches;
+    try {
+      matches = parseMatchList(html);
+    } catch (e) {
+      return json({ error: `parse failed: ${scrubSensitive((e as Error).message)}` }, 500, cors);
+    }
+    const withUrls = matches.map((m) => ({ ...m, scorecard_url: buildScorecardUrl(m.cricclubs_match_id) }));
+    return json({ ok: true, count: withUrls.length, matches: withUrls }, 200, cors);
+  }
+
+  // ── Scorecard route ───────────────────────────────────────────────────────
+  // Caller POSTs JSON `{listEntry, html}`: the listEntry comes from the
+  // earlier ?type=list call (carries match_date / result_text / winner_team
+  // metadata the scorecard HTML alone doesn't expose), html is the scorecard
+  // page itself. Parses, upserts the match + html + batting + bowling, then
+  // runs autoCompleteScheduleMatches on the matching schedule row.
+  // Idempotent on (team_id, cricclubs_match_id).
+  if (type === 'scorecard') {
+    let body: { listEntry?: ParsedListEntry; html?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: 'request body must be valid JSON: {listEntry, html}' }, 400, cors);
+    }
+    const listEntry = body.listEntry;
+    const html = body.html ?? '';
+    if (!listEntry || typeof listEntry.cricclubs_match_id !== 'number') {
+      return json({ error: 'listEntry.cricclubs_match_id (number) required' }, 400, cors);
+    }
+    if (!html || html.length < 100) {
+      return json({ error: 'html body empty or too small' }, 400, cors);
+    }
+    if (!/innings|batting|MTCA/i.test(html)) {
+      return json({ error: 'html does not look like a cricclubs scorecard' }, 400, cors);
+    }
+    const matchId = listEntry.cricclubs_match_id;
+    try {
+      const parsed = parseScorecard(html, matchId);
+      const roster = await loadRoster(supabase);
+      const url = buildScorecardUrl(matchId);
+      const matchRowId = await upsertMatch(supabase, listEntry, parsed, html, url);
+      const counts = await upsertInnings(supabase, parsed, matchRowId, roster);
+      const autoCompleted = await autoCompleteScheduleMatches(supabase);
+      return json({
+        ok: true,
+        cricclubs_match_id: matchId,
+        battingRows: counts.batting,
+        bowlingRows: counts.bowling,
+        scheduleAutoCompleted: autoCompleted,
+        toss_winner: parsed.toss_winner,
+        toss_decision: parsed.toss_decision,
+      }, 200, cors);
+    } catch (e) {
+      return json({
+        ok: false,
+        cricclubs_match_id: matchId,
+        error: scrubSensitive((e as Error).message ?? 'unknown'),
+      }, 500, cors);
     }
   }
 
