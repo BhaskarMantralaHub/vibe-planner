@@ -10,19 +10,38 @@ echo "=== Monthly Expense Report ==="
 
 SB_HEADERS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Accept: application/json")
 
-# Fetch the active season (is_active = true, set by user in UI)
+# Resolve the team. This report is for Sunrisers Manteca specifically.
+# CRITICAL: the multi-team migration made is_active per-team, so seasons,
+# players, etc. MUST be scoped by team_id — otherwise another team's active
+# season (with no data) can win an unordered limit=1 and the report goes blank.
+TEAM_SLUG="sunrisers-manteca"
+TEAM=$(curl -s "${SB_HEADERS[@]}" \
+  -G "$SUPABASE_URL/rest/v1/cricket_teams" \
+  --data-urlencode "select=id,name" \
+  --data-urlencode "slug=eq.$TEAM_SLUG" \
+  --data-urlencode "limit=1")
+TEAM_ID=$(echo "$TEAM" | jq -r '.[0].id // empty')
+if [ -z "$TEAM_ID" ]; then
+  echo "No team found for slug $TEAM_SLUG. Skipping."
+  exit 0
+fi
+echo "Team: $(echo "$TEAM" | jq -r '.[0].name // "?"') ($TEAM_ID)"
+
+# Fetch the active season for THIS team (is_active = true, set by user in UI)
 SEASON=$(curl -s "${SB_HEADERS[@]}" \
   -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
   --data-urlencode "select=id,name,year,season_type,fee_amount" \
+  --data-urlencode "team_id=eq.$TEAM_ID" \
   --data-urlencode "is_active=eq.true" \
   --data-urlencode "limit=1")
 
-# Fallback: most recent season if none is marked active
+# Fallback: most recent season for this team if none is marked active
 if [ "$(echo "$SEASON" | jq length)" -eq 0 ]; then
   echo "No active season found, falling back to most recent..."
   SEASON=$(curl -s "${SB_HEADERS[@]}" \
     -G "$SUPABASE_URL/rest/v1/cricket_seasons" \
     --data-urlencode "select=id,name,year,season_type,fee_amount" \
+    --data-urlencode "team_id=eq.$TEAM_ID" \
     --data-urlencode "order=year.desc,created_at.desc" \
     --data-urlencode "limit=1")
 fi
@@ -39,10 +58,11 @@ if [ -z "$SEASON_ID" ]; then
 fi
 echo "Season: $SEASON_NAME ($SEASON_ID), Fee: $FEE_AMOUNT"
 
-# Fetch players
+# Fetch players (scoped to this team — multi-team)
 PLAYERS=$(curl -s "${SB_HEADERS[@]}" \
   -G "$SUPABASE_URL/rest/v1/cricket_players" \
   --data-urlencode "select=id,name,email,is_active,is_guest,jersey_number,designation" \
+  --data-urlencode "team_id=eq.$TEAM_ID" \
   --data-urlencode "is_active=eq.true" \
   --data-urlencode "is_guest=eq.false")
 echo "Players: $(echo "$PLAYERS" | jq length)"
