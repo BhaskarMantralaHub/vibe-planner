@@ -68,7 +68,7 @@ export default function PlayerAvatar({
   return (
     <div
       aria-hidden="true"
-      className={`${rootClass} flex items-center justify-center font-black text-white tracking-tight`}
+      className={`${rootClass} flex items-center justify-center font-bold text-white tracking-tight`}
       style={{
         background: `hsl(${hue}, 55%, 42%)`,
         fontSize: `${FONT_PX[size]}px`,

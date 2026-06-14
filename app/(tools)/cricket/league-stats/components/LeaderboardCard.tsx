@@ -25,40 +25,9 @@ export type LeaderboardCardProps = {
   revealIndex?: number;
 };
 
-/* Rank pill — elite gold/silver/bronze for top 3 (28px, glow + gradient ring),
-   dim numeric for the rest (22px). Inlined here to keep this component
-   self-contained. The "elite" feel comes from the inset highlight + outer
-   colored glow shadow — these are what separate the top 3 from the field. */
+/* Rank pill — neutral and calm. A single subtle treatment for every rank;
+   the leader reads as #1 from position, not decoration. */
 function RankBadge({ rank }: { rank: number }): JSX.Element {
-  if (rank <= 3) {
-    const s =
-      rank === 1
-        ? {
-            bg: 'linear-gradient(135deg, #FFE17A 0%, #FFB300 60%, #C97A00 100%)',
-            text: '#5A3A00',
-            glow: '0 0 0 2px rgba(255,200,80,0.35), 0 4px 14px rgba(255,180,60,0.45), inset 0 1px 1px rgba(255,255,255,0.6)',
-          }
-        : rank === 2
-          ? {
-              bg: 'linear-gradient(135deg, #F1F1F1 0%, #BDBDBD 60%, #8E8E8E 100%)',
-              text: '#1A1A1A',
-              glow: '0 0 0 2px rgba(200,200,200,0.35), 0 4px 12px rgba(180,180,180,0.4), inset 0 1px 1px rgba(255,255,255,0.7)',
-            }
-          : {
-              bg: 'linear-gradient(135deg, #E5A572 0%, #B97339 60%, #7A4715 100%)',
-              text: '#fff',
-              glow: '0 0 0 2px rgba(205,127,50,0.35), 0 4px 12px rgba(180,105,40,0.4), inset 0 1px 1px rgba(255,255,255,0.4)',
-            };
-    return (
-      <div
-        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-black"
-        style={{ background: s.bg, color: s.text, boxShadow: s.glow }}
-        aria-label={`Rank ${rank}`}
-      >
-        {rank}
-      </div>
-    );
-  }
   return (
     <div
       className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums"
@@ -129,28 +98,12 @@ export default function LeaderboardCard({
           : '',
       ].join(' ')}
       style={{
-        // Vertical stadium-lighting gradient — accent at the top fading into
-        // the card surface. Podium tier gets a stronger tint (~14%) so the
-        // top 3 read as elevated; default tier stays subtle (~7%) to create
-        // visual breathing room between podium and the field.
-        background: rank <= 3
-          ? `linear-gradient(180deg, color-mix(in srgb, ${accentColor} 14%, var(--card)) 0%, var(--card) 60%)`
-          : `linear-gradient(180deg, color-mix(in srgb, ${accentColor} 7%, var(--card)) 0%, var(--card) 55%)`,
+        // Flat card surface — calm and modern. Elevation comes from the
+        // shadow/border tier above (podium vs field), not a colored fill.
+        background: 'var(--card)',
         animationDelay: revealDelay,
       }}
     >
-      {/* Vertical accent ribbon along the left edge — provides a discipline
-          colour cue without dominating the card. Top 3 ribbons get a brighter
-          tint so the eye is drawn to the leaders. */}
-      <div
-        aria-hidden
-        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-        style={{
-          background: rank <= 3
-            ? accentColor
-            : `color-mix(in srgb, ${accentColor} 35%, transparent)`,
-        }}
-      />
 
       <div className="flex items-start gap-3 min-w-0">
         {/* Avatar — 48px (reduced from 64). Sits left of the content stack

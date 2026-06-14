@@ -60,21 +60,23 @@
   --cricket-hover: #3AAAD9;
   --cricket-glow: rgba(77, 187, 235, 0.25);
 
-  /* ── Cricket league-stats per-tab theme tokens (dark mode) ──
-     Each tab gets a signature accent + glow + tint-for-bg + deep-for-gradient.
-     Used by /cricket/league-stats — see docs/PLAYER_STATS_NEW_SPEC.md. */
-  --stat-batting:        #4ADE80;   /* green */
-  --stat-batting-deep:   #15803D;
-  --stat-batting-glow:   rgba(74, 222, 128, 0.22);
-  --stat-bowling:        #60A5FA;   /* blue */
-  --stat-bowling-deep:   #1D4ED8;
-  --stat-bowling-glow:   rgba(96, 165, 250, 0.22);
-  --stat-allround:       #FBBF24;   /* gold/amber */
-  --stat-allround-deep:  #B45309;
-  --stat-allround-glow:  rgba(251, 191, 36, 0.22);
-  --stat-catches:        #A78BFA;   /* purple */
-  --stat-catches-deep:   #6D28D9;
-  --stat-catches-glow:   rgba(167, 139, 250, 0.22);
+  /* ── Cricket league-stats accent tokens (dark mode) ──
+     Unified to a single accent (cricket blue) for a calm, modern look —
+     disciplines are distinguished by icon + label, not color. Token names
+     are kept so /cricket/league-stats callers don't need touching; they all
+     resolve to the cricket accent. See docs/PLAYER_STATS_NEW_SPEC.md. */
+  --stat-batting:        var(--cricket);
+  --stat-batting-deep:   var(--cricket-deep);
+  --stat-batting-glow:   var(--cricket-glow);
+  --stat-bowling:        var(--cricket);
+  --stat-bowling-deep:   var(--cricket-deep);
+  --stat-bowling-glow:   var(--cricket-glow);
+  --stat-allround:       var(--cricket);
+  --stat-allround-deep:  var(--cricket-deep);
+  --stat-allround-glow:  var(--cricket-glow);
+  --stat-catches:        var(--cricket);
+  --stat-catches-deep:   var(--cricket-deep);
+  --stat-catches-glow:   var(--cricket-glow);
 
   /* Split debt/credit semantic colors */
   --split-owe: #F87171;
@@ -134,19 +136,20 @@
   --cricket-hover: #156490;
   --cricket-glow: rgba(26, 117, 168, 0.20);
 
-  /* Cricket league-stats per-tab theme tokens (light mode) */
-  --stat-batting:        #16A34A;
-  --stat-batting-deep:   #15803D;
-  --stat-batting-glow:   rgba(22, 163, 74, 0.20);
-  --stat-bowling:        #2563EB;
-  --stat-bowling-deep:   #1D4ED8;
-  --stat-bowling-glow:   rgba(37, 99, 235, 0.20);
-  --stat-allround:       #D97706;
-  --stat-allround-deep:  #B45309;
-  --stat-allround-glow:  rgba(217, 119, 6, 0.20);
-  --stat-catches:        #7C3AED;
-  --stat-catches-deep:   #6D28D9;
-  --stat-catches-glow:   rgba(124, 58, 237, 0.18);
+  /* Cricket league-stats accent tokens (light mode) — unified to the single
+     cricket accent; see the dark-mode block above for rationale. */
+  --stat-batting:        var(--cricket);
+  --stat-batting-deep:   var(--cricket-deep);
+  --stat-batting-glow:   var(--cricket-glow);
+  --stat-bowling:        var(--cricket);
+  --stat-bowling-deep:   var(--cricket-deep);
+  --stat-bowling-glow:   var(--cricket-glow);
+  --stat-allround:       var(--cricket);
+  --stat-allround-deep:  var(--cricket-deep);
+  --stat-allround-glow:  var(--cricket-glow);
+  --stat-catches:        var(--cricket);
+  --stat-catches-deep:   var(--cricket-deep);
+  --stat-catches-glow:   var(--cricket-glow);
 
   /* Split debt/credit semantic colors — light mode */
   --split-owe: #DC2626;

@@ -342,26 +342,9 @@ type Column<Row> = {
   format?: (row: Row) => string;
 };
 
-/* ── Rank badge — gold/silver/bronze for top 3, dim for the rest. Compact
-   so a single-line player name reads as the dominant element. ── */
+/* ── Rank badge — neutral numeric for every rank. Compact so a single-line
+   player name reads as the dominant element. ── */
 function RankBadge({ rank }: { rank: number }) {
-  if (rank <= 3) {
-    const s =
-      rank === 1
-        ? { bg: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)', text: '#7C5300' }
-        : rank === 2
-          ? { bg: 'linear-gradient(135deg, #C0C0C0, #909090)', text: '#1A1A1A' }
-          : { bg: 'linear-gradient(135deg, #CD7F32, #A0522D)', text: '#fff' };
-    return (
-      <div
-        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold"
-        style={{ background: s.bg, color: s.text }}
-        aria-label={`Rank ${rank}`}
-      >
-        {rank}
-      </div>
-    );
-  }
   return (
     <div
       className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold"
@@ -638,47 +621,11 @@ function CompactHero({
       <div
         className="relative overflow-hidden rounded-2xl px-4 py-3.5"
         style={{
-          background:
-            'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 18%, var(--card)), color-mix(in srgb, var(--cricket-accent) 12%, var(--card)))',
-          border: '1px solid color-mix(in srgb, var(--cricket) 25%, var(--border))',
-          boxShadow: '0 6px 20px var(--cricket-glow), inset 0 1px 0 color-mix(in srgb, var(--card) 70%, transparent)',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
         }}
       >
-        {/* Stadium-light radial highlight — soft warm glow from top-left,
-            evokes the feel of a light bank shining onto the surface. Sits
-            below all content, ignores pointer events. */}
-        <div
-          aria-hidden
-          className="absolute -top-14 -left-14 w-56 h-56 rounded-full pointer-events-none opacity-70"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--cricket-accent) 32%, transparent) 0%, transparent 65%)',
-            filter: 'blur(10px)',
-          }}
-        />
-        {/* Secondary cool highlight from top-right — fills the corner that
-            used to host the Trophy watermark. Pure radial gradient so it
-            blurs cleanly (no multi-path SVG artifacts). */}
-        <div
-          aria-hidden
-          className="absolute -top-12 -right-12 w-52 h-52 rounded-full pointer-events-none opacity-55"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--cricket) 36%, transparent) 0%, transparent 60%)',
-            filter: 'blur(12px)',
-          }}
-        />
-        {/* Tertiary cool highlight from bottom-right — depth balance. */}
-        <div
-          aria-hidden
-          className="absolute -bottom-16 -right-10 w-56 h-56 rounded-full pointer-events-none opacity-40"
-          style={{
-            background:
-              'radial-gradient(circle, color-mix(in srgb, var(--cricket) 28%, transparent) 0%, transparent 60%)',
-            filter: 'blur(10px)',
-          }}
-        />
-
         {/* Row 1 — eyebrow + title + season selector */}
         <div className="relative flex items-start justify-between gap-3 mb-2.5">
           <div className="min-w-0">
@@ -773,7 +720,7 @@ function MomentumStat({ label, value, pct, color }: { label: string; value: numb
       <Text size="2xs" color="muted" weight="semibold" uppercase tracking="wider" className="text-[9px] mb-1">
         {label}
       </Text>
-      <span className="text-[22px] font-black tabular-nums" style={{ color }}>
+      <span className="text-[22px] font-bold tabular-nums" style={{ color }}>
         <NumberTicker value={value} />
       </span>
       <Text size="2xs" color="dim" className="text-[9px] mt-0.5 font-semibold">
@@ -1206,26 +1153,15 @@ function TabEmptyState({
   return (
     <div className="flex flex-col items-center text-center py-10 px-6 relative overflow-hidden rounded-2xl"
       style={{
-        background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 6%, var(--card)) 0%, var(--card) 100%)`,
-        border: `1px solid color-mix(in srgb, ${accent} 14%, var(--border))`,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
       }}
     >
-      {/* Soft halo behind the icon — radial gradient ring that fades out. */}
-      <div
-        aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 w-56 h-56 rounded-full pointer-events-none opacity-50"
-        style={{
-          background: `radial-gradient(circle, color-mix(in srgb, ${accent} 24%, transparent) 0%, transparent 60%)`,
-          filter: 'blur(6px)',
-        }}
-      />
       <div
         className="relative h-16 w-16 rounded-full flex items-center justify-center mb-3"
         style={{
-          background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 18%, var(--card)) 0%, color-mix(in srgb, ${accent} 8%, var(--card)) 100%)`,
-          border: `1.5px solid color-mix(in srgb, ${accent} 30%, transparent)`,
+          background: `color-mix(in srgb, ${accent} 10%, transparent)`,
           color: accent,
-          boxShadow: `0 4px 14px color-mix(in srgb, ${accent} 18%, transparent)`,
         }}
       >
         {icon}
@@ -1350,7 +1286,7 @@ function StatCell({
       <span
         className={
           primary
-            ? 'text-[22px] font-black tabular-nums'
+            ? 'text-[22px] font-bold tabular-nums'
             : 'text-[14px] font-bold tabular-nums text-[var(--text)]'
         }
         style={primary && accent ? { color: accent } : undefined}
@@ -1437,12 +1373,9 @@ function BattingHeroStats({
     <div className="flex flex-col gap-2 leading-none">
       <div className="flex items-baseline gap-1.5">
         <span
-          className="text-[40px] font-black tabular-nums leading-none"
+          className="text-[28px] font-bold tabular-nums leading-none"
           style={{
             color: 'var(--stat-batting)',
-            // Soft category glow on the hero numeral — barely visible but
-            // gives the digit weight and life rather than feeling drawn.
-            textShadow: '0 2px 12px color-mix(in srgb, var(--stat-batting) 35%, transparent)',
           }}
         >
           <NumberTicker value={runs} />
@@ -1552,7 +1485,7 @@ function BattingRecentChip({ entry, idx = 0 }: { entry: RecentBattingEntry | nul
   const { runs, not_out } = entry;
   const tier = runs >= 50 ? 'gold' : runs >= 30 ? 'green' : runs === 0 ? 'duck' : 'neutral';
   const palette = {
-    gold: { fill: 'linear-gradient(135deg, #FFE17A, #FFA500)', text: '#5A3A00', glow: '0 0 0 1px rgba(255,180,60,0.4), 0 2px 8px rgba(255,180,60,0.25)' },
+    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
     green: { fill: 'color-mix(in srgb, var(--stat-batting) 22%, transparent)', text: 'var(--stat-batting)', glow: 'none' },
     duck: { fill: 'color-mix(in srgb, var(--red) 22%, transparent)', text: 'var(--red)', glow: 'none' },
     neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
@@ -1641,10 +1574,9 @@ function BowlingHeroStats({
     <div className="flex flex-col gap-2 leading-none">
       <div className="flex items-baseline gap-1.5">
         <span
-          className="text-[40px] font-black tabular-nums leading-none"
+          className="text-[28px] font-bold tabular-nums leading-none"
           style={{
             color: 'var(--stat-bowling)',
-            textShadow: '0 2px 12px color-mix(in srgb, var(--stat-bowling) 35%, transparent)',
           }}
         >
           <NumberTicker value={wickets} />
@@ -1697,7 +1629,7 @@ function BowlingRecentChip({ entry, idx = 0 }: { entry: RecentBowlingEntry; idx?
   const { wickets, runs } = entry;
   const tier = wickets >= 5 ? 'gold' : wickets >= 3 ? 'blue' : wickets === 0 ? 'duck' : 'neutral';
   const palette = {
-    gold: { fill: 'linear-gradient(135deg, #FFE17A, #FFA500)', text: '#5A3A00', glow: '0 0 0 1px rgba(255,180,60,0.4), 0 2px 8px rgba(255,180,60,0.25)' },
+    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
     blue: { fill: 'color-mix(in srgb, var(--stat-bowling) 22%, transparent)', text: 'var(--stat-bowling)', glow: 'none' },
     duck: { fill: 'color-mix(in srgb, var(--red) 18%, transparent)', text: 'var(--red)', glow: 'none' },
     neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
@@ -1788,10 +1720,9 @@ function AllRoundHeroStats({
     <div className="flex flex-col gap-2 leading-none">
       <div className="flex items-baseline gap-1.5">
         <span
-          className="text-[40px] font-black tabular-nums leading-none"
+          className="text-[28px] font-bold tabular-nums leading-none"
           style={{
             color: 'var(--stat-allround)',
-            textShadow: '0 2px 12px color-mix(in srgb, var(--stat-allround) 35%, transparent)',
           }}
         >
           {score.toFixed(1)}
@@ -1940,10 +1871,9 @@ function CatchesHeroStats({
     <div className="flex flex-col gap-2 leading-none">
       <div className="flex items-baseline gap-1.5">
         <span
-          className="text-[40px] font-black tabular-nums leading-none"
+          className="text-[28px] font-bold tabular-nums leading-none"
           style={{
             color: 'var(--stat-catches)',
-            textShadow: '0 2px 12px color-mix(in srgb, var(--stat-catches) 35%, transparent)',
           }}
         >
           <NumberTicker value={catches} />
@@ -1990,7 +1920,7 @@ function CatchesRecentChip({ count, idx = 0 }: { count: number; idx?: number }) 
   // 3+ catches in one match = elite (gold). 2 = strong (purple). 1 = present.
   const tier = count >= 3 ? 'gold' : count >= 2 ? 'purple' : 'neutral';
   const palette = {
-    gold: { fill: 'linear-gradient(135deg, #FFE17A, #FFA500)', text: '#5A3A00', glow: '0 0 0 1px rgba(255,180,60,0.4), 0 2px 8px rgba(255,180,60,0.25)' },
+    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
     purple: { fill: 'color-mix(in srgb, var(--stat-catches) 22%, transparent)', text: 'var(--stat-catches)', glow: 'none' },
     neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
   }[tier];

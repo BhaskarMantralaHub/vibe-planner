@@ -67,25 +67,24 @@ export default function StickyPillTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => onChange(tab.key)}
-              className="relative flex-1 flex flex-col items-center justify-center gap-1 px-2 py-3 min-h-[56px] text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--ring)]"
+              className="relative flex-1 flex flex-col items-center justify-center gap-1 px-2 py-3 min-h-[56px] text-sm font-semibold transition-all duration-200 rounded-t-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--ring)]"
               style={{
                 color: isActive ? tab.color : 'var(--muted)',
-                // Faint category-tinted background on the active tab — gives
-                // the tab a sense of "lit up" rather than just colored text.
-                background: isActive
-                  ? `linear-gradient(180deg, color-mix(in srgb, ${tab.color} 9%, transparent) 0%, transparent 100%)`
-                  : 'transparent',
+                // Active tab reads as a bordered box anchored to the divider —
+                // a clear, calm "selected" container (no gradient/glow). Use
+                // explicit per-side borders (not the `border` shorthand) so we
+                // don't mix shorthand + longhand in one style object.
+                background: isActive ? 'var(--card)' : 'transparent',
+                borderTop: isActive ? '1px solid var(--border)' : '1px solid transparent',
+                borderLeft: isActive ? '1px solid var(--border)' : '1px solid transparent',
+                borderRight: isActive ? '1px solid var(--border)' : '1px solid transparent',
+                borderBottom: '1px solid transparent',
               }}
             >
               <span
                 className="inline-flex shrink-0 transition-transform duration-200"
                 style={{
-                  // Active icon nudges up + scales slightly — feels like
-                  // it's "stepping forward" instead of just changing color.
-                  transform: isActive ? 'translateY(-1px) scale(1.08)' : 'none',
-                  filter: isActive
-                    ? `drop-shadow(0 2px 6px color-mix(in srgb, ${tab.color} 45%, transparent))`
-                    : 'none',
+                  transform: isActive ? 'scale(1.05)' : 'none',
                 }}
               >
                 <Icon size={18} className="shrink-0" />
@@ -99,17 +98,15 @@ export default function StickyPillTabs({
             </button>
           );
         })}
-        {/* Sliding underline — smoother spring-out easing curve. Adds a
-            soft accent-tinted glow below the bar so the underline feels
-            like a stadium spotlight, not a flat divider. */}
+        {/* Sliding underline — solid accent bar, no glow. Sits on the bar's
+            bottom divider to anchor the active tab box above it. */}
         <div
           aria-hidden="true"
-          className="absolute bottom-0 left-0 h-[3px] w-1/4 rounded-full"
+          className="absolute bottom-0 left-0 h-[2px] w-1/4 rounded-full"
           style={{
             transform: `translateX(${activeIndex * 100}%)`,
             backgroundColor: activeColor,
             transition: 'transform 320ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease-out',
-            boxShadow: `0 0 12px color-mix(in srgb, ${activeColor} 55%, transparent), 0 0 2px color-mix(in srgb, ${activeColor} 80%, transparent)`,
           }}
         />
       </div>

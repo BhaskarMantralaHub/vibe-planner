@@ -101,24 +101,6 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
       <DrawerTitle>{player.name}</DrawerTitle>
 
       <DrawerHeader className="sticky top-0 z-10 relative overflow-hidden">
-        {/* Context-tinted gradient + stadium-light radial highlight sit
-            absolutely behind the header content. This lets DrawerHeader keep
-            its own padding/structure while we paint discipline depth on top. */}
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 14%, var(--card)) 0%, var(--card) 100%)`,
-          }}
-        />
-        <div
-          aria-hidden
-          className="absolute -top-10 -left-8 w-40 h-40 rounded-full pointer-events-none opacity-60"
-          style={{
-            background: `radial-gradient(circle, color-mix(in srgb, ${accent} 28%, transparent) 0%, transparent 65%)`,
-            filter: 'blur(8px)',
-          }}
-        />
         <div className="relative flex items-center gap-3">
           <PlayerAvatar name={player.name} photoUrl={player.photo_url} size={64} ringColor={accent} />
           <div className="flex-1 min-w-0">
@@ -220,20 +202,15 @@ function SummaryStrip({ context, summary, accent }:
           key={stat.label}
           className="rounded-xl px-2 py-2.5 text-center animate-chip-pop"
           style={{
-            // Accent-tinted gradient tile — mirrors the leaderboard card
-            // surface language so the sheet feels like a "zoom in" of the
-            // card, not a different visual world.
-            background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 10%, var(--card)) 0%, var(--card) 100%)`,
-            border: `1px solid color-mix(in srgb, ${accent} 18%, var(--border))`,
+            // Flat tile — calm surface, single hairline border.
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
             animationDelay: `${idx * 50}ms`,
           }}
         >
           <div
-            className="text-[22px] font-black tabular-nums leading-tight"
-            style={{
-              color: accent,
-              textShadow: `0 2px 10px color-mix(in srgb, ${accent} 30%, transparent)`,
-            }}
+            className="text-[22px] font-bold tabular-nums leading-tight"
+            style={{ color: accent }}
           >
             {stat.value}
           </div>

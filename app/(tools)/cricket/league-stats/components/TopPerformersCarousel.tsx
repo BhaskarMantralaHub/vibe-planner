@@ -56,9 +56,9 @@ export default function TopPerformersCarousel({
               onClick={() => onCardTap?.(card.player_id)}
               className="snap-start flex-shrink-0 w-[156px] rounded-2xl p-3 text-left transition-all active:scale-[0.98] hover:-translate-y-[1px] focus:outline-none focus-visible:ring-2"
               style={{
-                background: `linear-gradient(160deg, color-mix(in srgb, ${accent} 14%, var(--card)) 0%, color-mix(in srgb, ${accent} 5%, var(--card)) 100%)`,
-                border: `1px solid color-mix(in srgb, ${accent} 28%, var(--border))`,
-                boxShadow: `0 4px 14px color-mix(in srgb, ${accent} 12%, transparent), inset 0 1px 0 color-mix(in srgb, var(--card) 80%, transparent)`,
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
               }}
               aria-label={`${card.label}: ${card.player_name}, ${card.metric} ${card.unit}`}
             >
@@ -89,15 +89,8 @@ export default function TopPerformersCarousel({
               {/* Metric */}
               <div className="flex items-baseline gap-1 mb-0.5">
                 <span
-                  className="font-black tabular-nums leading-none"
-                  style={{
-                    fontSize: 26,
-                    color: accent,
-                    // Same accent glow used on the leaderboard hero numeral —
-                    // gives the carousel metric the same "lit up" feel and
-                    // visually links carousel "Top X" with leaderboard rank #1.
-                    textShadow: `0 2px 10px color-mix(in srgb, ${accent} 35%, transparent)`,
-                  }}
+                  className="font-bold tabular-nums leading-none"
+                  style={{ fontSize: 24, color: accent }}
                 >
                   {card.metric}
                 </span>

@@ -143,19 +143,19 @@ export type BestSpellChipProps = {
 };
 
 export function BestSpellChip({ wickets, runs, showPrefix = true }: BestSpellChipProps): JSX.Element {
-  // 5-wicket haul or better = gold tier (celebratory). Otherwise blue tier.
+  // 5-wicket haul or better = solid accent (celebratory). Otherwise a soft
+  // accent tint. Single hue, no gold gradient/glow — calm and modern.
   const elite = wickets >= 5;
   const style = elite
     ? {
-        background: 'linear-gradient(135deg, #FFE17A, #FFA500)',
-        border: '1px solid color-mix(in srgb, #FFA500 60%, transparent)',
-        color: '#5A3A00',
-        boxShadow: '0 0 0 1px rgba(255,180,60,0.4), 0 2px 8px rgba(255,180,60,0.25)',
+        background: 'var(--cricket)',
+        border: '1px solid var(--cricket)',
+        color: '#fff',
       }
     : {
-        background: 'color-mix(in srgb, var(--stat-bowling) 14%, transparent)',
-        border: '1px solid color-mix(in srgb, var(--stat-bowling) 28%, transparent)',
-        color: 'var(--stat-bowling)',
+        background: 'color-mix(in srgb, var(--cricket) 14%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--cricket) 28%, transparent)',
+        color: 'var(--cricket)',
       };
   return (
     <span
