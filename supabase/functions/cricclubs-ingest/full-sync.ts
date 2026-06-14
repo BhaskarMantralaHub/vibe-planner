@@ -412,13 +412,17 @@ export async function autoCompleteScheduleMatches(
   }).format(new Date());
 
   // Rows that match the normal auto-complete criteria (status=upcoming AND
-  // result IS NULL AND past date).
+  // result IS NULL AND today-or-past date). `lte` (not `lt`) so a match played
+  // and synced the SAME day completes immediately instead of waiting for the
+  // next-day run. Same-day live games are still protected: a candidate only
+  // completes if cricclubs has a posted scorecard for it (cmIndex hit), and a
+  // same-day scorecard with no definitive result is skipped below.
   const { data: normalRows } = await supabase
     .from('cricket_schedule_matches')
     .select('id, opponent, match_date')
     .eq('team_id', TEAM_ID_INTERNAL)
     .eq('status', 'upcoming')
-    .lt('match_date', todayPT)
+    .lte('match_date', todayPT)
     .is('result', null);
 
   // Force-overwrite rows: ignore the result-IS-NULL guard. Admin explicitly
@@ -467,6 +471,14 @@ export async function autoCompleteScheduleMatches(
     seen.add(sched.id);
     const cm = cmIndex.get(`${sched.match_date}|${normalizeOpponent(sched.opponent)}`);
     if (!cm) continue;
+    const isForce = forceSet.has(sched.id);
+    // Same-day guard: a match dated today is only finished if cricclubs has a
+    // definitive result. A live (in-progress) scorecard has no winner_team and
+    // no result_text yet — leave the row for a later run rather than recording
+    // a premature draw. Force-overwrite rows bypass this (admin asked for it).
+    if (!isForce && sched.match_date === todayPT && !cm.winner_team && !cm.result_text) {
+      continue;
+    }
     const usAreA = cm.team_a === myCricclubsName;
     const ours = parseTeamScore(usAreA ? cm.team_a_score : cm.team_b_score);
     const opp = parseTeamScore(usAreA ? cm.team_b_score : cm.team_a_score);
@@ -477,8 +489,7 @@ export async function autoCompleteScheduleMatches(
     }
     // Build the UPDATE. For force-overwrite rows we drop the result-IS-NULL
     // guard so cricclubs data replaces the manual entry. For normal rows we
-    // keep the guard as belt-and-suspenders.
-    const isForce = forceSet.has(sched.id);
+    // keep the guard as belt-and-suspenders. (`isForce` computed above.)
     let q = supabase
       .from('cricket_schedule_matches')
       .update({
