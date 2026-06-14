@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // We need to test the module with different env var combinations.
 // Each test re-imports the module fresh by resetting the module registry.

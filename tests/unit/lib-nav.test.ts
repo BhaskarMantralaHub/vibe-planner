@@ -59,12 +59,20 @@ describe('lib/nav', () => {
     expect(cricket!.roles).toContain('admin');
   });
 
-  it('contains Live Scoring tool with cricket and admin roles', () => {
-    const scoring = tools.find((t) => t.name === 'Live Scoring');
-    expect(scoring).toBeDefined();
-    expect(scoring!.href).toBe('/cricket/scoring');
-    expect(scoring!.roles).toContain('cricket');
-    expect(scoring!.roles).toContain('admin');
+  it('contains League Stats tool with cricket and admin roles', () => {
+    const leagueStats = tools.find((t) => t.name === 'League Stats');
+    expect(leagueStats).toBeDefined();
+    expect(leagueStats!.href).toBe('/cricket/league-stats');
+    expect(leagueStats!.roles).toContain('cricket');
+    expect(leagueStats!.roles).toContain('admin');
+  });
+
+  it('does not surface the hidden Live Scoring / Practice Stats tools', () => {
+    // Hidden from the menu 2026-05-04 (routes kept). If re-enabled in
+    // lib/nav.tsx, update this expectation.
+    const names = tools.map((t) => t.name);
+    expect(names).not.toContain('Live Scoring');
+    expect(names).not.toContain('Practice Stats');
   });
 
   it('all tool hrefs are unique', () => {
@@ -104,8 +112,8 @@ describe('lib/nav', () => {
     });
     const names = visibleForCricket.map((t) => t.name);
     expect(names).toContain('Cricket');
-    expect(names).toContain('Live Scoring');
-    expect(names).toContain('Practice Stats');
+    expect(names).toContain('League Schedule');
+    expect(names).toContain('League Stats');
     expect(names).not.toContain('Vibe Planner');
     expect(names).not.toContain('ID Tracker');
     expect(names).not.toContain('Admin');
