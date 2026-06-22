@@ -55,10 +55,23 @@ const SR_KEY = Keychain.get('cricclubs_sync_sr_key');
 // and clears it (exactly like Safari). One shared WebView is reused across all
 // pages so the cf_clearance cookie persists → only the first fetch pays the
 // challenge cost; the rest are fast.
-let _fetchWV = null;
+// Race a promise against a timeout so a stuck WebView call (loadURL /
+// evaluateJavaScript occasionally never resolve mid-navigation) can't hang the
+// whole sync — it rejects, withRetry retries, and the run keeps moving.
+function raceTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => Timer.schedule(ms, false, () => reject(new Error(`timeout:${label}`)))),
+  ]);
+}
+
 async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
-  if (!_fetchWV) _fetchWV = new WebView();
-  await _fetchWV.loadURL(url);
+  // Fresh WebView per fetch. Reusing one across navigations can hang or read
+  // the PREVIOUS page (stale) before the new load completes. WKWebView shares
+  // its cookie store across instances, so the cf_clearance cookie from the
+  // first fetch still applies — only the first page pays the challenge cost.
+  const wv = new WebView();
+  await raceTimeout(wv.loadURL(url), timeoutSec * 1000, 'loadURL');
   // Poll until the interstitial resolves into the real page (or timeout). The
   // challenge page is titled "Just a moment..." and is tiny; real cricclubs
   // pages are tens of KB with ordinary titles.
@@ -67,12 +80,12 @@ async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
     'JSON.stringify({t:document.title,n:document.documentElement.outerHTML.length,r:document.readyState})';
   for (;;) {
     let probe;
-    try { probe = JSON.parse(await _fetchWV.evaluateJavaScript(PROBE)); }
+    try { probe = JSON.parse(await raceTimeout(wv.evaluateJavaScript(PROBE), 6000, 'probe')); }
     catch (_) { probe = { t: '', n: 0, r: 'loading' }; }
     const challenged =
       /just a moment|attention required|checking your browser|cloudflare|please wait/i.test(probe.t);
     if (probe.r === 'complete' && !challenged && probe.n > 15000) {
-      return await _fetchWV.evaluateJavaScript('document.documentElement.outerHTML');
+      return await raceTimeout(wv.evaluateJavaScript('document.documentElement.outerHTML'), 6000, 'html');
     }
     if (Date.now() > deadline) {
       throw new Error(`Cloudflare/timeout: ${url.split('?')[0]} (title="${probe.t}", len=${probe.n})`);
