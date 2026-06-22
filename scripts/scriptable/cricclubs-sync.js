@@ -384,8 +384,11 @@ const SCORECARD_PARSER = String.raw`
 // Roster lookup so we can resolve player names to cricket_players.id for
 // batting/bowling rows (lets league-stats join correctly).
 async function loadRoster() {
+  // cricket_players uses is_active (boolean) for soft-delete, NOT the
+  // deleted_at column the other cricket_* tables use. Matches the Node/Edge
+  // loadRoster (full-sync.ts) — filtering on deleted_at here 400s.
   const rows = await supabase('cricket_players', {
-    query: `?team_id=eq.${CONFIG.team_id}&deleted_at=is.null&select=id,name`,
+    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name`,
   });
   const map = new Map();
   for (const r of rows) map.set(r.name.toLowerCase().trim(), r.id);
