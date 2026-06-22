@@ -24,6 +24,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { parseFixtures, parseMatchList, parseScorecard, type ParsedListEntry } from './parser.ts';
 import { refreshFixtures } from './refresh.ts';
+import { extractHtmlFromBody } from './decode-body.ts';
 import {
   acquireLock,
   releaseLock,
@@ -82,6 +83,7 @@ const json = (body: unknown, status = 200, cors: Record<string, string> = {}): R
     status,
     headers: { 'content-type': 'application/json', ...cors },
   });
+
 
 class AuthError extends Error {
   constructor(public status: number, message: string) {
@@ -202,9 +204,15 @@ Deno.serve(async (req) => {
   // Shares the same singleton lock as V2 full-sync so the two paths never
   // write `cricket_schedule_matches` concurrently (review item #5).
   if (type === 'fixtures') {
-    const html = await req.text();
+    const html = extractHtmlFromBody(await req.text());
     if (!html || html.length < 100) {
       return json({ error: 'request body is empty or too small to be cricclubs HTML' }, 400, cors);
+    }
+    if (!html.includes('<')) {
+      return json(
+        { error: 'body has no HTML tags — iOS likely stripped them. Base64-encode the page HTML in the Shortcut before POSTing.' },
+        400, cors,
+      );
     }
     if (!/schedule-table1|deleteRow|MTCA/i.test(html)) {
       return json(
@@ -262,9 +270,15 @@ Deno.serve(async (req) => {
   // URLs so the caller can loop over them in a Repeat with Each. No DB
   // writes — pure parse-and-return.
   if (type === 'list') {
-    const html = await req.text();
+    const html = extractHtmlFromBody(await req.text());
     if (!html || html.length < 100) {
       return json({ error: 'request body is empty or too small to be cricclubs HTML' }, 400, cors);
+    }
+    if (!html.includes('<')) {
+      return json(
+        { error: 'body has no HTML tags — iOS likely stripped them. Base64-encode the page HTML in the Shortcut before POSTing.' },
+        400, cors,
+      );
     }
     if (!/MTCA|deleteRow|team-data/i.test(html)) {
       return json({ error: 'html does not look like a cricclubs listMatches page' }, 400, cors);

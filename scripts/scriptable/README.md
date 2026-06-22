@@ -105,7 +105,8 @@ If the notification shows `0 ingested` + `5 skipped`, that's correct on a second
    ┌──────────────────────────────┐
    │  cricclubs-sync.js           │
    │                              │
-   │  Request → cricclubs.com  ◄─── (residential IP, no Cloudflare block)
+   │  WebView.loadURL → cricclubs.com  ◄─ runs Cloudflare challenge JS,
+   │    └─ outerHTML (cleared page)       clears it like Safari
    │                              │
    │  WKWebView.evaluateJavaScript(parser)
    │    └─ vanilla DOM parsing    │
@@ -117,6 +118,8 @@ If the notification shows `0 ingested` + `5 skipped`, that's correct on a second
    │                                 /rest/v1/cricket_schedule_matches
    └──────────────────────────────┘
 ```
+
+**Why WKWebView for *fetching* (not `new Request`)?** As of 2026-06, cricclubs serves a Cloudflare JavaScript challenge ("Just a moment…") to plain HTTP GETs — `new Request` / Shortcuts' "Get Contents of URL" can't run JS, so they only ever receive the ~6 KB interstitial. `fetchHtml` loads each URL in a hidden WKWebView, which executes the challenge JS and clears it (like Safari), then reads `document.documentElement.outerHTML`. One WebView is reused so the `cf_clearance` cookie carries across pages. If a fetch ever times out stuck on the interstitial, the WebView may need to be *presented* (visible) for the challenge to run — add `_fetchWV.present()` on the first load.
 
 **Why WKWebView for parsing instead of regex?** Cricclubs scorecards have nested tables with player markers (`*`, `†`), dismissal sub-cells, and HTML entities. Regex parsers for that are brittle; vanilla DOM parsing in a hidden WebView is essentially "cheerio on iOS" and matches the Node parser's logic line-by-line.
 
