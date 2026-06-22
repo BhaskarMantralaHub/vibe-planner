@@ -2,9 +2,10 @@
 // cricclubs-sync.js — Scriptable script for iOS
 // ----------------------------------------------------------------------------
 // Phone-driven cricket sync. Replaces the (Cloudflare-blocked) GH Action and
-// the fragile Shortcut path. Fetches cricclubs.com pages from iPhone's
-// residential IP (no datacenter challenge), parses scorecards in a hidden
-// WKWebView (vanilla DOM, no cheerio dependency on iOS), and upserts to
+// the iOS Shortcut path — both used plain HTTP GETs that can't pass cricclubs'
+// Cloudflare JS challenge. Here we FETCH each page in a hidden WKWebView (a real
+// browser engine that runs the challenge JS and clears it), then parse it in a
+// second hidden WKWebView (vanilla DOM, no cheerio on iOS), and upsert to
 // Supabase via PostgREST.
 //
 // Setup: see README.md adjacent to this file.
@@ -47,17 +48,37 @@ if (!Keychain.contains('cricclubs_sync_sr_key')) {
 const SR_KEY = Keychain.get('cricclubs_sync_sr_key');
 
 // ── 3. HTTP HELPERS ──────────────────────────────────────────────────────────
+// cricclubs serves a Cloudflare JavaScript challenge ("Just a moment...") to
+// plain HTTP GETs (`new Request` / Shortcuts' "Get Contents of URL"), which
+// can't execute JS — they receive only the ~6 KB interstitial. So we load each
+// page in a hidden WKWebView, a real browser engine that runs the challenge JS
+// and clears it (exactly like Safari). One shared WebView is reused across all
+// pages so the cf_clearance cookie persists → only the first fetch pays the
+// challenge cost; the rest are fast.
+let _fetchWV = null;
 async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
-  const req = new Request(url);
-  req.timeoutInterval = timeoutSec;
-  // Use desktop Chrome UA — cricclubs occasionally tightens around non-browser
-  // user agents (and Cloudflare scoring may factor it in). Matches the UA used
-  // by scripts/cricclubs-sync/sync.ts.
-  req.headers = {
-    'User-Agent': CONFIG.user_agent,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  };
-  return await req.loadString();
+  if (!_fetchWV) _fetchWV = new WebView();
+  await _fetchWV.loadURL(url);
+  // Poll until the interstitial resolves into the real page (or timeout). The
+  // challenge page is titled "Just a moment..." and is tiny; real cricclubs
+  // pages are tens of KB with ordinary titles.
+  const deadline = Date.now() + timeoutSec * 1000;
+  const PROBE =
+    'JSON.stringify({t:document.title,n:document.documentElement.outerHTML.length,r:document.readyState})';
+  for (;;) {
+    let probe;
+    try { probe = JSON.parse(await _fetchWV.evaluateJavaScript(PROBE)); }
+    catch (_) { probe = { t: '', n: 0, r: 'loading' }; }
+    const challenged =
+      /just a moment|attention required|checking your browser|cloudflare|please wait/i.test(probe.t);
+    if (probe.r === 'complete' && !challenged && probe.n > 15000) {
+      return await _fetchWV.evaluateJavaScript('document.documentElement.outerHTML');
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`Cloudflare/timeout: ${url.split('?')[0]} (title="${probe.t}", len=${probe.n})`);
+    }
+    await new Promise((r) => Timer.schedule(1000, false, r));
+  }
 }
 
 // Build cricclubs URLs with all three required query params.
