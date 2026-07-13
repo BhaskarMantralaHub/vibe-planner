@@ -7,11 +7,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { nameToGradient } from '@/lib/avatar';
 import { Text, CardMenu, FilterDropdown, RefreshButton, Button } from '@/components/ui';
-import { SegmentedControl } from '@/components/ui/segmented-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Handshake, Trash2, Pencil, ChevronDown, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw } from 'lucide-react';
+import { Plus, Handshake, Trash2, Pencil, ChevronDown, ChevronRight, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw, Info, Search, ArrowLeftRight, ArrowUpDown, SlidersHorizontal, Check } from 'lucide-react';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 import dynamic from 'next/dynamic';
@@ -153,6 +152,159 @@ function SplitsSkeleton() {
   );
 }
 
+/* ── Summary card (You Owe / You're Owed) — tappable, jumps to Balances ── */
+function SummaryCard({ variant, amount, onClick }: { variant: 'owe' | 'owed'; amount: number; onClick: () => void }) {
+  const isOwe = variant === 'owe';
+  const color = isOwe ? 'var(--split-owe)' : 'var(--split-credit)';
+  const bg = isOwe ? 'var(--split-owe-bg)' : 'var(--split-credit-bg)';
+  const border = isOwe ? 'var(--split-owe-border)' : 'var(--split-credit-border)';
+  const Icon = isOwe ? ArrowDownRight : ArrowUpRight;
+  return (
+    <button
+      onClick={onClick}
+      className="group flex items-center gap-3 rounded-xl border p-3.5 min-h-[64px] w-full text-left cursor-pointer transition-all active:scale-[0.99] hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+      style={{ background: bg, borderColor: border }}
+      aria-label={isOwe ? `You owe ${formatCurrency(amount)} — view balances` : `You're owed ${formatCurrency(amount)} — view balances`}
+    >
+      <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--card)', border: `1px solid ${border}` }}>
+        <Icon size={16} style={{ color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <Text as="p" size="xs" weight="semibold" color="muted">{isOwe ? 'You Owe' : "You're Owed"}</Text>
+        <Text as="p" size="lg" weight="bold" tabular style={{ color }}>{formatCurrency(amount)}</Text>
+        <Text as="p" size="2xs" color="dim" className="mt-0.5">{isOwe ? 'Total amount you need to settle' : 'Total amount others owe you'}</Text>
+      </div>
+      <ChevronRight size={18} className="flex-shrink-0 text-[var(--dim)] transition-opacity sm:opacity-0 sm:group-hover:opacity-100" aria-hidden />
+    </button>
+  );
+}
+
+/* ── Splits primary tabs — icon + title + count, with desktop description ── */
+interface SplitsTab { key: string; label: string; desc: string; icon: React.ReactNode; count: number }
+function SplitsTabs({ tabs, active, onChange }: { tabs: SplitsTab[]; active: string; onChange: (key: string) => void }) {
+  return (
+    <div role="tablist" aria-label="Splits views" className="flex gap-1 rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-1.5">
+      {tabs.map((t) => {
+        const isActive = active === t.key;
+        return (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(t.key)}
+            className={`flex-1 min-w-0 flex flex-row items-center sm:items-start justify-center sm:justify-start gap-1.5 sm:gap-2.5 px-1.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl cursor-pointer select-none transition-all duration-200 active:scale-[0.97] ${
+              isActive ? 'text-white' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)]'
+            }`}
+            style={isActive ? { background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', boxShadow: '0 2px 10px var(--cricket-glow)' } : undefined}
+          >
+            <span className="flex-shrink-0 sm:mt-px" aria-hidden>{t.icon}</span>
+            <span className="min-w-0 flex flex-col items-start leading-tight">
+              <span className="flex items-center gap-1 min-w-0">
+                <span className="text-[12px] sm:text-[13px] font-semibold truncate">{t.label}</span>
+                {t.count > 0 && (
+                  <span
+                    className="text-[10px] sm:text-[11px] font-bold leading-none px-1.5 py-0.5 rounded-full"
+                    style={isActive ? { background: 'rgba(255,255,255,0.22)', color: 'white' } : { background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </span>
+              <span className={`hidden sm:block text-[11px] font-medium mt-0.5 ${isActive ? 'text-white/80' : 'text-[var(--dim)]'}`}>{t.desc}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Relationship segmented control (All / I Owe / Owed to Me) ── */
+type RelationValue = 'all' | 'iowe' | 'owed';
+function RelationChips({ value, onChange, fullWidth = false }: { value: RelationValue; onChange: (v: RelationValue) => void; fullWidth?: boolean }) {
+  return (
+    <div role="group" aria-label="Filter by relationship" className={`flex items-center gap-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] p-1 ${fullWidth ? 'w-full' : ''}`}>
+      {([['all', 'All'], ['iowe', 'I Owe'], ['owed', 'Owed to Me']] as const).map(([key, label]) => {
+        const on = value === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            aria-pressed={on}
+            className={`${fullWidth ? 'flex-1' : ''} px-2.5 sm:px-3 py-1.5 min-h-[38px] rounded-lg text-[12px] sm:text-[13px] font-semibold cursor-pointer transition-all active:scale-95 whitespace-nowrap ${on ? '' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+            style={on ? { background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--cricket) 30%, transparent)' } : undefined}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Mobile combined person-filter + sort popover ── */
+function MobileActivityMenu({ people, allCount, personValue, onPerson, sort, onSort }: {
+  people: { key: string; label: string; count: number }[];
+  allCount: number;
+  personValue: string; // '' === All Activity
+  onPerson: (key: string) => void;
+  sort: 'newest' | 'oldest';
+  onSort: (s: 'newest' | 'oldest') => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const personActive = personValue !== '';
+  const peopleOptions = [{ key: '', label: 'All Activity', count: allCount }, ...people];
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen(!open)}
+        aria-label="Filter and sort activity"
+        aria-expanded={open}
+        className="relative h-11 w-11 flex items-center justify-center rounded-xl bg-[var(--surface)] border border-[var(--border)] cursor-pointer active:scale-95 transition-transform"
+      >
+        <SlidersHorizontal size={17} className="text-[var(--cricket)]" />
+        {personActive && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--card)]" style={{ background: 'var(--cricket)' }} />}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-[52px] z-50 w-[240px] max-h-[60vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-2xl p-2 shadow-2xl animate-[scaleIn_0.15s]">
+            <Text as="p" size="2xs" weight="bold" color="dim" uppercase tracking="wider" className="px-2 pt-1 pb-1.5">Sort</Text>
+            {([['newest', 'Newest first'], ['oldest', 'Oldest first']] as const).map(([k, l]) => {
+              const on = sort === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() => onSort(k)}
+                  className={`flex items-center justify-between w-full px-3 py-2.5 min-h-[44px] rounded-xl text-[14px] font-medium cursor-pointer transition-colors ${on ? 'text-[var(--cricket)] bg-[var(--cricket)]/12' : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'}`}
+                >
+                  <span>{l}</span>
+                  {on && <Check size={15} />}
+                </button>
+              );
+            })}
+            <div className="h-px my-1.5" style={{ background: 'var(--border)' }} />
+            <Text as="p" size="2xs" weight="bold" color="dim" uppercase tracking="wider" className="px-2 pt-1 pb-1.5">Show</Text>
+            {peopleOptions.map((opt) => {
+              const on = personValue === opt.key;
+              return (
+                <button
+                  key={opt.key || 'all'}
+                  onClick={() => { onPerson(opt.key); setOpen(false); }}
+                  className={`flex items-center justify-between w-full px-3 py-2.5 min-h-[44px] rounded-xl text-[14px] font-medium cursor-pointer transition-colors ${on ? 'text-[var(--cricket)] bg-[var(--cricket)]/12' : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'}`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  <span className={`ml-2 text-[12px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${on ? 'bg-[var(--cricket)]/20 text-[var(--cricket)]' : 'bg-[var(--border)] text-[var(--dim)]'}`}>{opt.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Dashboard ── */
 
 export default function SplitsDashboard() {
@@ -281,6 +433,9 @@ export default function SplitsDashboard() {
   const [activityPage, setActivityPage] = useState(0);
   const [activityFilter, setActivityFilter] = useState<string>('all');
   const [settlementFilter, setSettlementFilter] = useState<string>('all');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityRelation, setActivityRelation] = useState<'all' | 'iowe' | 'owed'>('all');
+  const [activitySort, setActivitySort] = useState<'newest' | 'oldest'>('newest');
   const PAGE_SIZE = 5;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -294,6 +449,16 @@ export default function SplitsDashboard() {
 
   const handleDeleteSplit = (id: string) => {
     useSplitsStore.getState().deleteSplit(id, myPlayer?.name ?? 'Admin');
+  };
+
+  // Tapping a hero summary card jumps to the Balances tab and scrolls the matching section into view.
+  const goToBalances = (which: 'owe' | 'owed') => {
+    setSubTab('balances');
+    setActivityPage(0);
+    setSettlementPage(0);
+    requestAnimationFrame(() => {
+      document.getElementById(which === 'owe' ? 'balances-owe' : 'balances-owed')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   // Max amounts for proportion bars
@@ -328,9 +493,19 @@ export default function SplitsDashboard() {
         {/* Accent stripe */}
         <div className="h-1" style={{ background: allSettled ? 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))' : heroNet >= 0 ? 'linear-gradient(90deg, var(--split-credit), #6EE7B7)' : 'linear-gradient(90deg, var(--split-owe), #FCA5A5)' }} />
         <div className="p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-1">
-            <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider">Your Net Balance</Text>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wider">Your Net Balance</Text>
+              <button
+                type="button"
+                title="What you're owed minus what you owe."
+                aria-label="What you're owed minus what you owe."
+                className="flex-shrink-0 text-[var(--dim)] hover:text-[var(--muted)] cursor-help rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+              >
+                <Info size={13} />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
               {!allSettled && (
                 <div className="flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: heroNet >= 0 ? 'var(--split-credit-bg)' : 'var(--split-owe-bg)' }}>
                   {heroNet >= 0 ? <TrendingUp size={12} style={{ color: 'var(--split-credit)' }} /> : <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />}
@@ -363,52 +538,41 @@ export default function SplitsDashboard() {
             </>
           )}
           {(totalIOwe > 0 || totalOwedToMe > 0) && (
-            <div className="flex gap-3 mt-4">
-              <div className="flex-1 rounded-xl p-3 border" style={{ background: 'var(--split-owe-bg)', borderColor: 'var(--split-owe-border)' }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <ArrowDownRight size={12} style={{ color: 'var(--split-owe)' }} />
-                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px]">You Owe</Text>
-                </div>
-                <Text as="p" size="lg" weight="bold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(totalIOwe)}</Text>
-              </div>
-              <div className="flex-1 rounded-xl p-3 border" style={{ background: 'var(--split-credit-bg)', borderColor: 'var(--split-credit-border)' }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <ArrowUpRight size={12} style={{ color: 'var(--split-credit)' }} />
-                  <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px]">You&apos;re Owed</Text>
-                </div>
-                <Text as="p" size="lg" weight="bold" tabular style={{ color: 'var(--split-credit)' }}>{formatCurrency(totalOwedToMe)}</Text>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <SummaryCard variant="owe" amount={totalIOwe} onClick={() => goToBalances('owe')} />
+              <SummaryCard variant="owed" amount={totalOwedToMe} onClick={() => goToBalances('owed')} />
             </div>
           )}
         </div>
       </div>
 
-      {/* Add Split — inline, mirrors Expenses/Sponsors pattern */}
-      {isAdmin && (
-        <div className="flex items-center justify-between">
-          <Text size="sm" weight="bold" color="muted" uppercase tracking="wider" className="text-[11px]">
-            Splits
-          </Text>
+      {/* Splits section header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <Text as="h2" size="md" weight="bold" className="leading-tight sm:text-[16px]">Splits</Text>
+          <Text as="p" size="xs" color="muted" className="mt-0.5">Track and manage your shared expenses</Text>
+        </div>
+        {isAdmin && (
           <Button
             onClick={() => useSplitsStore.setState({ showSplitForm: true })}
             variant="primary"
             brand="cricket"
             size="sm"
-            className="gap-1.5"
+            className="gap-1 flex-shrink-0 px-2.5 sm:px-3"
           >
             <Plus size={15} />
             Add Split
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Sub-tabs */}
-      <SegmentedControl
-        options={[
-          { key: 'activity', label: `Activity${activityFeed.length > 0 ? ` (${activityFeed.length})` : ''}` },
-          { key: 'balances', label: `Balances${myDebtsIOwe.length + myDebtsOwedToMe.length > 0 ? ` (${myDebtsIOwe.length + myDebtsOwedToMe.length})` : ''}` },
-          { key: 'settlements', label: `Settled${seasonSettlements.length > 0 ? ` (${seasonSettlements.length})` : ''}` },
-          ...(deletedSplits.length > 0 && isAdmin ? [{ key: 'deleted', label: `Deleted (${deletedSplits.length})` }] : []),
+      <SplitsTabs
+        tabs={[
+          { key: 'activity', label: 'Activity', desc: 'Recent transactions', icon: <Receipt size={15} />, count: activityFeed.length },
+          { key: 'balances', label: 'Balances', desc: 'Who owes what', icon: <ArrowLeftRight size={15} />, count: myDebtsIOwe.length + myDebtsOwedToMe.length },
+          { key: 'settlements', label: 'Settled', desc: 'Completed splits', icon: <CheckCircle2 size={15} />, count: seasonSettlements.length },
+          ...(deletedSplits.length > 0 && isAdmin ? [{ key: 'deleted', label: 'Deleted', desc: 'Recently deleted', icon: <Trash2 size={15} />, count: deletedSplits.length }] : []),
         ]}
         active={subTab}
         onChange={(key) => { setSubTab(key as SplitSubTab); setActivityPage(0); setSettlementPage(0); }}
@@ -421,7 +585,7 @@ export default function SplitsDashboard() {
         <div className="space-y-3">
           {/* You Owe section */}
           {myDebtsIOwe.length > 0 && (
-            <div className="rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-owe-border)' }}>
+            <div id="balances-owe" className="scroll-mt-24 rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-owe-border)' }}>
               <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-owe-bg)' }}>
                   <ArrowDownRight size={13} style={{ color: 'var(--split-owe)' }} />
@@ -514,7 +678,7 @@ export default function SplitsDashboard() {
 
           {/* Owed To You section */}
           {myDebtsOwedToMe.length > 0 && (
-            <div className="rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-credit-border)' }}>
+            <div id="balances-owed" className="scroll-mt-24 rounded-2xl border bg-[var(--card)] overflow-hidden" style={{ borderColor: 'var(--split-credit-border)' }}>
               <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'var(--split-credit-bg)' }}>
                   <ArrowUpRight size={13} style={{ color: 'var(--split-credit)' }} />
@@ -621,9 +785,33 @@ export default function SplitsDashboard() {
       {/* ── Activity tab ── */}
       {subTab === 'activity' && <div key="activity" className="tab-enter">
       {activityFeed.length > 0 ? (() => {
-        const filteredActivity = activityFilter === 'all' ? activityFeed
-          : activityFilter === 'mine' ? activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id))
-          : activityFeed.filter((a) => a.paidById === activityFilter || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === activityFilter));
+        // Word-prefix search: every query term must match the start of some word in the
+        // description or payer name. Avoids "T" matching the "t" buried inside "Mountain".
+        const terms = activitySearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const filteredActivity = activityFeed
+          .filter((a) => {
+            // Person filter (existing FilterDropdown)
+            if (activityFilter !== 'all') {
+              const matchPerson = activityFilter === 'mine'
+                ? (a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id))
+                : (a.paidById === activityFilter || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === activityFilter));
+              if (!matchPerson) return false;
+            }
+            // Relationship filter — derived from split/share data, no business-logic change
+            if (activityRelation !== 'all' && myPlayer) {
+              const iAmPayer = a.paidById === myPlayer.id;
+              const iHaveShare = (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer.id);
+              if (activityRelation === 'iowe' && !(iHaveShare && !iAmPayer)) return false;
+              if (activityRelation === 'owed' && !iAmPayer) return false;
+            }
+            // Search — description/category + payer name, matched by word prefix
+            if (terms.length) {
+              const words = `${a.description} ${a.paidByName}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+              if (!terms.every((t) => words.some((w) => w.startsWith(t)))) return false;
+            }
+            return true;
+          })
+          .sort((a, b) => (activitySort === 'newest' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
         const pagedActivity = filteredActivity.slice(activityPage * PAGE_SIZE, (activityPage + 1) * PAGE_SIZE);
 
         const activityPeople = new Map<string, string>();
@@ -635,24 +823,78 @@ export default function SplitsDashboard() {
           }
         }
 
+        const personPeople = [
+          { key: 'mine', label: 'Mine', count: activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id)).length },
+          ...[...activityPeople.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({
+            key: id, label: name, count: activityFeed.filter((a) => a.paidById === id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === id)).length,
+          })),
+        ];
+
         return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-visible">
-          <div className="p-4 pb-3">
-            <FilterDropdown
-              options={[
-                { key: 'mine', label: 'Mine', count: activityFeed.filter((a) => a.paidById === myPlayer?.id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === myPlayer?.id)).length },
-                ...[...activityPeople.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({
-                  key: id, label: name, count: activityFeed.filter((a) => a.paidById === id || (sharesMap.get(a.id) ?? []).some((sh) => sh.player_id === id)).length,
-                })),
-              ]}
-              value={activityFilter === 'all' ? '' : activityFilter}
-              onChange={(key) => { setActivityFilter(key || 'all'); setActivityPage(0); }}
-              allLabel="All Activity"
-              allCount={activityFeed.length}
-              brand="cricket"
-            />
+        <div className="overflow-visible sm:rounded-2xl sm:border sm:border-[var(--border)] sm:bg-[var(--card)]">
+          {/* Filter / search toolbar */}
+          <div className="pb-3 sm:p-4 sm:pb-3 sm:border-b sm:border-[var(--border)]/50">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+              {/* Row 1: search + (mobile) combined filter menu */}
+              <div className="flex items-center gap-2 sm:flex-1 sm:min-w-0">
+                <div className="relative flex-1 min-w-0">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--dim)] pointer-events-none" />
+                  <input
+                    type="text"
+                    value={activitySearch}
+                    onChange={(e) => { setActivitySearch(e.target.value); setActivityPage(0); }}
+                    placeholder="Search activity..."
+                    aria-label="Search activity"
+                    className="w-full h-11 sm:h-10 pl-9 pr-3 rounded-xl text-[14px] bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--dim)] focus:outline-none focus:border-[var(--cricket)]/50 transition-colors"
+                  />
+                </div>
+                {/* Mobile-only combined person-filter + sort */}
+                <div className="sm:hidden">
+                  <MobileActivityMenu
+                    people={personPeople}
+                    allCount={activityFeed.length}
+                    personValue={activityFilter === 'all' ? '' : activityFilter}
+                    onPerson={(key) => { setActivityFilter(key || 'all'); setActivityPage(0); }}
+                    sort={activitySort}
+                    onSort={(s) => { setActivitySort(s); setActivityPage(0); }}
+                  />
+                </div>
+              </div>
+
+              {/* Desktop-only secondary controls: relationship chips + person filter + sort */}
+              <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                <RelationChips value={activityRelation} onChange={(v) => { setActivityRelation(v); setActivityPage(0); }} />
+                <FilterDropdown
+                  options={personPeople}
+                  value={activityFilter === 'all' ? '' : activityFilter}
+                  onChange={(key) => { setActivityFilter(key || 'all'); setActivityPage(0); }}
+                  allLabel="All Activity"
+                  allCount={activityFeed.length}
+                  brand="cricket"
+                />
+                <button
+                  onClick={() => { setActivitySort((s) => (s === 'newest' ? 'oldest' : 'newest')); setActivityPage(0); }}
+                  className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-[13px] font-medium bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--muted)] cursor-pointer transition-colors"
+                  title="Toggle sort order"
+                  aria-label={activitySort === 'newest' ? 'Sorted newest first — tap for oldest first' : 'Sorted oldest first — tap for newest first'}
+                >
+                  <ArrowUpDown size={14} className="text-[var(--cricket)]" />
+                  <span>{activitySort === 'newest' ? 'Newest first' : 'Oldest first'}</span>
+                </button>
+              </div>
+
+              {/* Row 2 (mobile only): full-width relationship segmented control */}
+              <div className="sm:hidden">
+                <RelationChips value={activityRelation} onChange={(v) => { setActivityRelation(v); setActivityPage(0); }} fullWidth />
+              </div>
+            </div>
           </div>
-          <div className="px-3 pb-3 space-y-2">
+          <div className="pt-2.5 pb-1 space-y-1.5 sm:px-3 sm:pt-3 sm:pb-3 sm:space-y-2">
+            {pagedActivity.length === 0 && (
+              <div className="py-8 text-center">
+                <Text as="p" size="sm" color="muted">No activity matches your filters.</Text>
+              </div>
+            )}
             {pagedActivity.map((a) => {
               const expanded = expandedId === a.id;
               const splitShares = a.type === 'split' ? (sharesMap.get(a.id) ?? []) : [];
@@ -671,21 +913,29 @@ export default function SplitsDashboard() {
                   <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'var(--surface)' }}>
                     <button
                       onClick={() => setExpandedId(expanded ? null : a.id)}
-                      className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
+                      aria-expanded={expanded}
+                      className="flex-1 flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
                     >
                       <PlayerAvatar name={a.paidByName} photoUrl={a.paidByPhoto} />
                       <div className="flex-1 min-w-0 text-left">
-                        <Text size="sm" weight="semibold" truncate className="block">{a.description}</Text>
-                        <Text as="p" size="2xs" color="dim">
-                          {a.paidByName.split(' ')[0]} paid · {formatDate(a.date)}
-                          {a.splitCount > 0 && ` · ${a.splitCount} people`}
+                        <Text size="sm" weight="semibold" className="block line-clamp-2 break-words">{a.description}</Text>
+                        <div className="flex items-center gap-1 mt-0.5 min-w-0 text-[11px] leading-tight">
+                          <span className="text-[var(--dim)] truncate">{a.paidByName.split(' ')[0]} paid</span>
+                          <span className="text-[var(--dim)] flex-shrink-0" aria-hidden>·</span>
+                          <span className="font-semibold text-[var(--muted)] whitespace-nowrap flex-shrink-0">{formatDate(a.date)}</span>
+                          {a.splitCount > 0 && (
+                            <>
+                              <span className="text-[var(--dim)] flex-shrink-0" aria-hidden>·</span>
+                              <span className="text-[var(--dim)] whitespace-nowrap flex-shrink-0">{a.splitCount} people</span>
+                            </>
+                          )}
                           {a.receiptUrls && a.receiptUrls.length > 0 && (
-                            <span className="inline-flex items-center gap-0.5 ml-1 align-middle">
+                            <span className="inline-flex items-center gap-0.5 flex-shrink-0 text-[var(--dim)]">
                               <Paperclip size={10} style={{ color: 'var(--muted)' }} />
                               <span style={{ fontVariantNumeric: 'tabular-nums' }}>{a.receiptUrls.length}</span>
                             </span>
                           )}
-                        </Text>
+                        </div>
                         {myRelation && (
                           <Text as="p" size="2xs" weight="bold" style={{ color: myRelation.color }}>
                             {myRelation.label} {formatCurrency(myRelation.amount)}
@@ -699,11 +949,11 @@ export default function SplitsDashboard() {
                     </button>
 
                     {isAdmin && (
-                      <div className="pr-2 border-l border-[var(--border)]/30 ml-1">
+                      <div className="pr-1 sm:pr-2 flex-shrink-0">
                         <button
                           ref={openMenu === a.id ? menuBtnRef : null}
                           onClick={() => setOpenMenu(openMenu === a.id ? null : a.id)}
-                          className="h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                          className="h-11 w-10 sm:w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
                         >
                           <EllipsisVertical size={14} />
                         </button>
