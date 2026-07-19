@@ -209,31 +209,81 @@ const FIXTURES_PARSER = String.raw`
 `;
 
 // Match list parser — completed matches from listMatches.do
-// Returns array of { cricclubs_match_id, match_date, team_a, team_b, scorecard_url, ... }
+// Mirrors scripts/cricclubs-sync/parser.ts parseMatchList(). cricclubs renders
+// each result as a `div.row.team-data[id^="deleteRow{N}"]` block (NOT a table):
+//   .sch-time     → h2 (day), h5 (mon/yr), h5>strong (format)
+//   .schedule-logo → <li> with a <span> = each team's score (order = team A, B)
+//   .schedule-text → h4 (league-division), h3 (matchup "A v B"), h4 (result)
+// scorecard_url is left null here — main sets it via the scorecardUrl() helper
+// (cricclubs hrefs are club-relative, so an absolute URL must be constructed).
 const MATCH_LIST_PARSER = String.raw`
   function clean(s) { return (s ?? '').replace(/\s+/g, ' ').trim(); }
-  const rows = Array.from(document.querySelectorAll('table tr')).slice(1); // skip header
+  const rows = Array.from(document.querySelectorAll('div.row.team-data[id^="deleteRow"]'));
   const matches = [];
-  for (const tr of rows) {
-    const cells = Array.from(tr.querySelectorAll('td')).map((c) => clean(c.textContent));
-    if (cells.length < 6) continue;
-    const link = tr.querySelector('a[href*="viewScorecard.do"]');
-    if (!link) continue;
-    const href = link.getAttribute('href') || '';
-    const idMatch = href.match(/matchId=(\d+)/);
+  for (const row of rows) {
+    const idMatch = (row.getAttribute('id') || '').match(/deleteRow(\d+)/);
     if (!idMatch) continue;
-    // Cell layout (cricclubs listMatches.do): [Date, Format, League-Division, Team A, Score A, Team B, Score B, Result, ...]
+    const cricclubsMatchId = Number(idMatch[1]);
+
+    // Date + format from .sch-time
+    const timeEl = row.querySelector('.sch-time');
+    let day = '', monYr = '', matchFormat = null;
+    if (timeEl) {
+      const h2 = timeEl.querySelector('h2');
+      day = clean(h2 ? h2.textContent : '');
+      const h5s = Array.from(timeEl.querySelectorAll('h5'));
+      const monEl = h5s.find((h) => !h.querySelector('strong'));
+      monYr = clean(monEl ? monEl.textContent : '');
+      const fmtEl = timeEl.querySelector('h5 strong');
+      matchFormat = fmtEl ? clean(fmtEl.textContent) : null;
+    }
+    let matchDate = null;
+    if (day && monYr) {
+      const d = new Date(day + ' ' + monYr);
+      if (!isNaN(d.getTime())) matchDate = d.toISOString().slice(0, 10);
+    }
+
+    // Team scores from .schedule-logo — only <li> that carry a <span> are scores
+    const scoreLis = Array.from(row.querySelectorAll('.schedule-logo li'))
+      .filter((li) => li.querySelector('span'));
+    const teamScores = scoreLis.map((li) => {
+      const span = li.querySelector('span');
+      const p = li.querySelector('p');
+      return { score: clean(span ? span.textContent : ''), overs: clean(p ? p.textContent : '') };
+    });
+
+    // Headers from .schedule-text (h4/h3 in document order)
+    const textEl = row.querySelector('.schedule-text');
+    const headers = textEl
+      ? Array.from(textEl.querySelectorAll('h4, h3')).map((h) => clean(h.textContent))
+      : [];
+    const leagueDivision = headers[0] || null;
+    const matchup = headers[1] || '';
+    const resultText = headers[2] || '';
+
+    const mm = matchup.match(/^(.+?)\s+v\s+(.+)$/i);
+    const teamA = mm && mm[1] ? mm[1].trim() : null;
+    const teamB = mm && mm[2] ? mm[2].trim() : null;
+
+    let winner = null;
+    if (teamA && resultText.startsWith(teamA)) winner = teamA;
+    else if (teamB && resultText.startsWith(teamB)) winner = teamB;
+
+    const scoreA = teamScores[0];
+    const scoreB = teamScores[1];
+
     matches.push({
-      cricclubs_match_id: Number(idMatch[1]),
-      match_date_raw:     cells[0] || null,
-      match_format:       cells[1] || null,
-      league_division:    cells[2] || null,
-      team_a:             cells[3] || null,
-      team_a_score:       cells[4] || '',
-      team_b:             cells[5] || null,
-      team_b_score:       cells[6] || '',
-      result_text:        cells[7] || '',
-      scorecard_url:      href.startsWith('http') ? href : null,
+      cricclubs_match_id: cricclubsMatchId,
+      match_date:         matchDate,
+      match_format:       matchFormat,
+      league_division:    leagueDivision,
+      team_a:             teamA,
+      team_b:             teamB,
+      team_a_score:       scoreA ? (scoreA.score + ' (' + scoreA.overs + ')') : '',
+      team_b_score:       scoreB ? (scoreB.score + ' (' + scoreB.overs + ')') : '',
+      result_text:        resultText,
+      winner_team:        winner,
+      scorecard_url:      null,
     });
   }
   return JSON.stringify(matches);
@@ -537,10 +587,15 @@ async function autoCompleteSchedule(matchRowId) {
     query: `?id=eq.${matchRowId}&select=match_date,team_a,team_b,winner_team,team_a_score,team_b_score,result_text`,
   });
   if (!cc?.match_date) return;
-  const myTeam = CONFIG.team_name;
-  const oppName = cc.team_a === myTeam ? cc.team_b : cc.team_a;
-  const myScore = cc.team_a === myTeam ? cc.team_a_score : cc.team_b_score;
-  const oppScore = cc.team_a === myTeam ? cc.team_b_score : cc.team_a_score;
+  // cricclubs stores our team with the club prefix ("MTCA Sunrisers Manteca"),
+  // so compare against the prefixed name — matching refreshFixtures and the
+  // Node autoComplete. Comparing against the bare CONFIG.team_name never matched
+  // team_a, so opponent/won-lost were computed wrong.
+  const myName = `MTCA ${CONFIG.team_name.replace(/^MTCA\s+/i, '')}`;
+  const usAreA = cc.team_a === myName;
+  const oppName = usAreA ? cc.team_b : cc.team_a;
+  const myScore = usAreA ? cc.team_a_score : cc.team_b_score;
+  const oppScore = usAreA ? cc.team_b_score : cc.team_a_score;
   // Find unresolved schedule row by date + opponent (case-insensitive match)
   const opponent = oppName?.replace(/^MTCA\s+/i, '') || '';
   const candidates = await supabase('cricket_schedule_matches', {
@@ -551,8 +606,8 @@ async function autoCompleteSchedule(matchRowId) {
     opponent.toLowerCase().trim()
   );
   if (!target) return;
-  const result = cc.winner_team === myTeam ? 'won'
-    : cc.winner_team ? 'lost'
+  const result = cc.winner_team
+    ? (cc.winner_team.toLowerCase().startsWith(myName.toLowerCase()) ? 'won' : 'lost')
     : null;
   if (!result) return;
   await supabase('cricket_schedule_matches', {
@@ -714,18 +769,16 @@ try {
   log.push(`👥 Roster: ${roster.size} players`);
 
   // 6.3 — per-scorecard ingest with skip + retry
-  const isoDate = (s) => {
-    // cricclubs list date is "MM/DD/YYYY" — convert to ISO
-    const m = (s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
-  };
-
   let ingested = 0;
   let skipped = 0;
   let failed = 0;
   for (const m of matches) {
-    m.match_date = isoDate(m.match_date_raw);
-    m.winner_team = inferWinner(m);
+    // Parser already returns ISO match_date + winner_team; fall back to the
+    // result-text heuristic if cricclubs omitted the matchup/result headers.
+    m.winner_team = m.winner_team ?? inferWinner(m);
+    // cricclubs hrefs are club-relative; build the canonical absolute URL so the
+    // app's completed-match card can link to the scorecard (needs non-null url).
+    m.scorecard_url = scorecardUrl(m.cricclubs_match_id);
     const tag = `${m.team_a} vs ${m.team_b}`;
     try {
       if (await shouldSkipScorecard(m.cricclubs_match_id, CONFIG.force_resync)) {
