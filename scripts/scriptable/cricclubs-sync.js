@@ -25,7 +25,7 @@ const CONFIG = {
   league_id:         87,                                                          // cricclubs league query param
   season_from:       '04/01/2026',                                                // MM/DD/YYYY (cricclubs format)
   season_to:         '08/31/2026',
-  force_resync:      false,                                                       // true: re-ingest matches already in DB
+  force_resync:      false,                                                      // true: re-ingest scorecards already in DB (schedule auto-completes either way)
   scorecard_timeout_sec: 30,
   user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 };
@@ -483,8 +483,14 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
     scorecard_url: listEntry.scorecard_url,
     parsed_at: new Date().toISOString(),
   };
+  // PostgREST merge-duplicates needs an explicit on_conflict target; without it
+  // it falls back to the PK (auto-gen uuid, not in payload) → degrades to a
+  // plain INSERT → 409 on the UNIQUE(team_id, cricclubs_match_id) on every
+  // re-run, aborting the whole upsert before winner_team/scorecard_url or the
+  // schedule auto-complete are written. Keys mirror ingest-html.mts.
   const matchRow = await supabase('cricclubs_matches', {
     method: 'POST',
+    query: '?on_conflict=team_id,cricclubs_match_id',
     prefer: 'resolution=merge-duplicates,return=representation',
     body: matchPayload,
   });
@@ -493,6 +499,7 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
   // 2. Raw HTML sibling
   await supabase('cricclubs_match_html', {
     method: 'POST',
+    query: '?on_conflict=match_row_id',
     prefer: 'resolution=merge-duplicates',
     body: { match_row_id: matchRowId, raw_html: rawHtml },
   });
@@ -538,6 +545,7 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
     if (batRows.length) {
       await supabase('cricclubs_batting', {
         method: 'POST',
+        query: '?on_conflict=match_row_id,innings_number,batting_team,cricclubs_name',
         prefer: 'resolution=merge-duplicates',
         body: batRows,
       });
@@ -558,6 +566,7 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
     if (bowlRows.length) {
       await supabase('cricclubs_bowling', {
         method: 'POST',
+        query: '?on_conflict=match_row_id,innings_number,bowling_team,cricclubs_name',
         prefer: 'resolution=merge-duplicates',
         body: bowlRows,
       });
@@ -578,51 +587,68 @@ function extractDivision(leagueDivision) {
   return m ? `Division ${m[1]}` : null;
 }
 
-// Auto-complete schedule rows for past matches that have a matching cricclubs
-// row. Mirrors the Node sync's behavior — never touches rows with a
-// pre-existing result (admin-entered wins).
-async function autoCompleteSchedule(matchRowId) {
-  // Fetch the cricclubs row to learn date + opponent + winner
-  const [cc] = await supabase('cricclubs_matches', {
-    query: `?id=eq.${matchRowId}&select=match_date,team_a,team_b,winner_team,team_a_score,team_b_score,result_text`,
-  });
-  if (!cc?.match_date) return;
-  // cricclubs stores our team with the club prefix ("MTCA Sunrisers Manteca"),
-  // so compare against the prefixed name — matching refreshFixtures and the
-  // Node autoComplete. Comparing against the bare CONFIG.team_name never matched
-  // team_a, so opponent/won-lost were computed wrong.
+// Auto-complete ALL unresolved past schedule rows against every cricclubs match
+// for the team — a single global pass run once at the end (mirrors the working
+// ingest-html.mts autoComplete). This is deliberately decoupled from the
+// per-scorecard loop: a match that was skipped (already ingested) or whose
+// scorecard fetch failed this run still gets its schedule row completed on any
+// later run, instead of being missed forever. Never overwrites a row that
+// already has a result (admin-entered wins are sacred), and leaves a still-live
+// same-day match alone until cricclubs publishes a winner.
+async function autoCompleteAll() {
   const myName = `MTCA ${CONFIG.team_name.replace(/^MTCA\s+/i, '')}`;
-  const usAreA = cc.team_a === myName;
-  const oppName = usAreA ? cc.team_b : cc.team_a;
-  const myScore = usAreA ? cc.team_a_score : cc.team_b_score;
-  const oppScore = usAreA ? cc.team_b_score : cc.team_a_score;
-  // Find unresolved schedule row by date + opponent (case-insensitive match)
-  const opponent = oppName?.replace(/^MTCA\s+/i, '') || '';
-  const candidates = await supabase('cricket_schedule_matches', {
-    query: `?team_id=eq.${CONFIG.team_id}&match_date=eq.${cc.match_date}&result=is.null&deleted_at=is.null&select=id,opponent`,
-  });
-  const target = (candidates || []).find((c) =>
-    c.opponent.toLowerCase().replace(/^mtca\s+/i, '').trim() ===
-    opponent.toLowerCase().trim()
-  );
-  if (!target) return;
-  const result = cc.winner_team
-    ? (cc.winner_team.toLowerCase().startsWith(myName.toLowerCase()) ? 'won' : 'lost')
-    : null;
-  if (!result) return;
-  await supabase('cricket_schedule_matches', {
-    method: 'PATCH',
-    query: `?id=eq.${target.id}`,
-    body: {
-      status: 'completed',
-      result,
-      team_score: stripOvers(myScore),
-      team_overs: extractOvers(myScore),
-      opponent_score: stripOvers(oppScore),
-      opponent_overs: extractOvers(oppScore),
-      result_summary: cc.result_text,
-    },
-  });
+  const todayPT = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+
+  const rows = await supabase('cricket_schedule_matches', {
+    query: `?team_id=eq.${CONFIG.team_id}&result=is.null&deleted_at=is.null`
+      + `&match_date=lte.${todayPT}&select=id,opponent,match_date`,
+  }) || [];
+  if (!rows.length) return 0;
+
+  const cms = await supabase('cricclubs_matches', {
+    query: `?team_id=eq.${CONFIG.team_id}`
+      + `&select=match_date,team_a,team_b,winner_team,team_a_score,team_b_score,result_text`,
+  }) || [];
+  const idx = new Map();
+  for (const cm of cms) {
+    if (!cm.match_date) continue;
+    const opp = cm.team_a === myName ? cm.team_b : cm.team_a;
+    idx.set(`${cm.match_date}|${normalizeOpponent(opp)}`, cm);
+  }
+
+  let completed = 0;
+  for (const s of rows) {
+    const cm = idx.get(`${s.match_date}|${normalizeOpponent(s.opponent)}`);
+    if (!cm) continue;
+    if (s.match_date === todayPT && !cm.winner_team && !cm.result_text) continue; // still live
+    const usAreA = cm.team_a === myName;
+    const myScore = usAreA ? cm.team_a_score : cm.team_b_score;
+    const oppScore = usAreA ? cm.team_b_score : cm.team_a_score;
+    const result = cm.winner_team
+      ? (cm.winner_team.toLowerCase().startsWith(myName.toLowerCase()) ? 'won' : 'lost')
+      : 'draw';
+    try {
+      await supabase('cricket_schedule_matches', {
+        method: 'PATCH',
+        query: `?id=eq.${s.id}&result=is.null`,
+        body: {
+          status: 'completed',
+          result,
+          team_score: stripOvers(myScore),
+          team_overs: extractOvers(myScore),
+          opponent_score: stripOvers(oppScore),
+          opponent_overs: extractOvers(oppScore),
+          result_summary: cm.result_text ?? null,
+        },
+      });
+      completed += 1;
+    } catch (e) {
+      console.warn(`autoComplete failed: ${e.message}`);
+    }
+  }
+  return completed;
 }
 function stripOvers(s) { return s?.split(/\s*\(/)[0]?.trim() ?? null; }
 function extractOvers(s) {
@@ -788,10 +814,6 @@ try {
       const html = await withRetry(() => fetchHtml(scorecardUrl(m.cricclubs_match_id)), 2, 2500);
       const parsed = JSON.parse(await parseInWebView(html, SCORECARD_PARSER));
       const counts = await upsertScorecard(m, parsed, html, roster);
-      const matchRow = await supabase('cricclubs_matches', {
-        query: `?cricclubs_match_id=eq.${m.cricclubs_match_id}&team_id=eq.${CONFIG.team_id}&select=id`,
-      });
-      if (matchRow?.[0]) await autoCompleteSchedule(matchRow[0].id);
       log.push(`✓ ${tag} (bat:${counts.battingCount} bowl:${counts.bowlingCount})`);
       ingested += 1;
     } catch (e) {
@@ -801,6 +823,12 @@ try {
   }
 
   log.push(`✅ ${ingested} ingested · ${skipped} skipped · ${failed} failed`);
+
+  // 6.4 — single global schedule auto-complete pass over ALL past unresolved
+  // rows (not coupled to the per-scorecard loop, so skipped/failed matches
+  // still complete on a later run).
+  const completedCount = await autoCompleteAll();
+  log.push(`🏁 ${completedCount} schedule rows completed`);
 } catch (e) {
   log.push(`❌ FATAL: ${String(e.message ?? e).slice(0, 100)}`);
 }
