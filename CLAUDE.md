@@ -21,6 +21,8 @@ Viber's Toolkit — personal productivity suite on Cloudflare Pages. Two users (
 **Player user_id linking:** Case-insensitive email match in 3 places (DB trigger, AuthGate, auth-store). Never set `user_id` to admin's auth ID.
 **Multi-team:** `cricket_teams`, `team_members`, `team_invites` tables with RLS. See `docs/MULTI_TEAM_DESIGN.md`.
 **League stats:** `/cricket/league-stats` reads from `cricclubs_batting_season` + `cricclubs_bowling_season` views (populated weekly by `scripts/cricclubs-sync` via the GitHub Action). Catches and all-rounder rankings are computed client-side from raw `cricclubs_batting.dismissal` text.
+**League stats views:** each tab renders either a sortable `LeaderboardTable` (**default**) or a stack of `LeaderboardCard`s; the choice is persisted in `localStorage` under `league-stats:view-mode` and read via `useSyncExternalStore` (NOT `useState` + effect — the page is statically exported, so reading storage during render would desync hydration). Table rank re-numbers to follow the active sort. `LeagueStatsSkeleton` takes `viewMode` so the placeholder matches the view that will replace it.
+**Matches played:** `computeMatchesPlayed()` in `league-stats/lib/computeStats.ts` counts DISTINCT `match_row_id`s across raw `cricclubs_batting` + `cricclubs_bowling`. Never use the season views' `innings` for this — `cricclubs_batting_season` filters `NOT did_not_bat`, so a player who was in the XI but never batted is undercounted. It's built from the page's slow-tier queries, so it is empty on first paint; cards/table render `—` (never `0`) until it lands.
 
 ## Commands
 

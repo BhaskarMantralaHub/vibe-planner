@@ -1,5 +1,16 @@
 # Player Stats Page — Current State
 
+> **⚠️ Stale — describes the pre-redesign page.** This document still reflects the original
+> `StatTable`-only layout with 3 tabs. Since then the page gained a Catches tab, a Top Performers
+> carousel, a `CompactHero`, and a `LeaderboardCard` stack; and as of 2026-08-18 each tab renders
+> either a sortable `LeaderboardTable` (the default) or those cards, toggled by a persisted
+> `league-stats:view-mode` preference. A "Mat" (matches played) column/chip is now on every tab.
+> The `StatTable` / `DetailTable` / `PlayerCell` block still present in `LeagueStatsView.tsx` is
+> **dead code** from this era and is not rendered anywhere.
+>
+> Treat the sections below as historical background; read `LeagueStatsView.tsx` and the
+> League-stats notes in `CLAUDE.md` for what actually ships today.
+
 Reference doc describing the cricket league-stats page as it exists today. Use as the baseline for new design specs.
 
 ## Route
