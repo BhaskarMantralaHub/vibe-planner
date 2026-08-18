@@ -177,7 +177,7 @@ export type EconomyHeatBadgeProps = {
   variant?: 'inline' | 'swatch';
 };
 
-function getHeatColor(econ: number): string {
+export function getHeatColor(econ: number): string {
   if (econ <= 4.0) return 'var(--stat-batting-deep)';
   if (econ <= 5.5) return 'var(--stat-batting)';
   if (econ <= 7.0) return '#EAB308'; // yellow-500

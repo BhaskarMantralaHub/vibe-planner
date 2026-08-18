@@ -146,6 +146,34 @@ export function computeMvpScore(
   return Math.round((runs / 20 + wickets * 1.25 + catches + bonus) * 100) / 100;
 }
 
+/**
+ * Matches played per player — the count of distinct scorecards a player
+ * appears in, from EITHER discipline.
+ *
+ * Deliberately NOT the season views' `innings`: `cricclubs_batting_season`
+ * excludes `did_not_bat` rows, so a player who was in the XI but never came
+ * to the crease would be undercounted. Here a DNB row still proves they
+ * played, and a pure bowler with no batting row at all is picked up from
+ * the bowling side.
+ */
+export function computeMatchesPlayed(
+  battingMatchRows: BattingMatchRow[],
+  bowlingMatchRows: BowlingMatchRow[],
+): Map<string, number> {
+  const byPlayer = new Map<string, Set<string>>();
+  const add = (player_id: string | null, match_row_id: string) => {
+    if (!player_id) return;
+    let set = byPlayer.get(player_id);
+    if (!set) byPlayer.set(player_id, (set = new Set()));
+    set.add(match_row_id);
+  };
+  for (const r of battingMatchRows) add(r.player_id, r.match_row_id);
+  for (const r of bowlingMatchRows) add(r.player_id, r.match_row_id);
+  const counts = new Map<string, number>();
+  for (const [pid, set] of byPlayer) counts.set(pid, set.size);
+  return counts;
+}
+
 export function computeBestBowlingFigures(
   bowlingMatchRows: BowlingMatchRow[],
 ): Map<string, { wickets: number; runs: number; display: string }> {
