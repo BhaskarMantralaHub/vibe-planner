@@ -82,10 +82,14 @@ export default function StickyPillTabs({
               }}
             >
               <span
-                className="inline-flex shrink-0 transition-transform duration-200"
-                style={{
-                  transform: isActive ? 'scale(1.05)' : 'none',
-                }}
+                // Keyed on active state so selecting the tab remounts the
+                // icon and replays the pop; the keyframe ends at scale(1.05),
+                // the active tab's resting icon scale.
+                key={isActive ? 'active' : 'idle'}
+                className={
+                  'inline-flex shrink-0 ' +
+                  (isActive ? 'animate-tab-icon-pop' : 'transition-transform duration-200')
+                }
               >
                 <Icon size={18} className="shrink-0" />
               </span>
@@ -106,7 +110,9 @@ export default function StickyPillTabs({
           style={{
             transform: `translateX(${activeIndex * 100}%)`,
             backgroundColor: activeColor,
-            transition: 'transform 320ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease-out',
+            // Overshoot ease — the underline arrives with a little spring,
+            // matching the icon pop's personality.
+            transition: 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 200ms ease-out',
           }}
         />
       </div>

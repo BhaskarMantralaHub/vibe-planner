@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
@@ -120,6 +120,11 @@ type RosterRow = {
 };
 
 type Tab = StickyTabKey; // 'batting' | 'bowling' | 'allround' | 'catches'
+
+// Visual order of the pill tabs — the tab-body transition slides in from the
+// direction of travel (moving right in this list enters from the right),
+// so the page reads like a native pager rather than a stateless fade.
+const TAB_ORDER: readonly Tab[] = ['batting', 'bowling', 'allround', 'catches'];
 
 // Table = whole squad, comparable — the default, because the question people
 // actually open this page with is "who is best at X?". Cards = one player at
@@ -818,6 +823,29 @@ export default function LeagueStatsView() {
     readViewMode,
     () => DEFAULT_VIEW_MODE,
   );
+
+  // ── Tab-body transition choreography ────────────────────────────────────
+  // Two different "verbs" for the two ways this content changes:
+  //   tab switch   → directional slide (pager physics, from the travel side)
+  //   view toggle  → scale+blur refocus (same data, different lens)
+  // The class is resolved DURING render by diffing against refs of the last
+  // committed tab/view — not in an effect — so the keyed wrapper below mounts
+  // with the right animation on the very frame the content changes. Unrelated
+  // re-renders (e.g. slow-tier data landing) leave both refs equal and the
+  // class untouched, so the animation never replays spuriously.
+  const prevTabRef = useRef<Tab>(tab);
+  const prevViewRef = useRef<ViewMode>(viewMode);
+  const bodyAnimRef = useRef('animate-tab-forward');
+  if (tab !== prevTabRef.current) {
+    bodyAnimRef.current =
+      TAB_ORDER.indexOf(tab) > TAB_ORDER.indexOf(prevTabRef.current)
+        ? 'animate-tab-forward'
+        : 'animate-tab-back';
+    prevTabRef.current = tab;
+  } else if (viewMode !== prevViewRef.current) {
+    bodyAnimRef.current = 'animate-view-morph';
+    prevViewRef.current = viewMode;
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [batting, setBatting] = useState<BattingSeasonRow[]>([]);
@@ -1147,9 +1175,10 @@ export default function LeagueStatsView() {
 
       {/* Tab bodies — card-first per spec. Each tab maps its rows to
           <LeaderboardCard>s; tapping a card opens the PlayerDetailSheet.
-          Wrapper is keyed on `tab` so switching tabs replays the slide-in
-          animation, giving a subtle but native-feeling transition. */}
-      <div key={`${tab}-${viewMode}`} className="animate-slide-in space-y-3">
+          Wrapper is keyed on tab + viewMode so every change remounts it and
+          replays the transition; WHICH transition (directional slide vs
+          refocus) was resolved above from what actually changed. */}
+      <div key={`${tab}-${viewMode}`} className={`${bodyAnimRef.current} space-y-3`}>
         {tab === 'batting' && (
           <BattingTabBody
             rows={batting}

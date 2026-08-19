@@ -1,7 +1,7 @@
 'use client';
 
 import type { JSX, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import PlayerAvatar from './PlayerAvatar';
 
@@ -76,7 +76,65 @@ export default function LeaderboardTable<Row>({
     });
   }, [rows, columns, sortKey, sortDir, getPlayer]);
 
+  /* ── FLIP sort glide ────────────────────────────────────────────────────
+   * Re-sorting is a DOM reorder, which CSS alone can't animate — rows would
+   * teleport. So on every header tap we snapshot each row's screen position
+   * (First), let React commit the new order (Last), offset each row back to
+   * where it was with an inline transform (Invert), then release it so it
+   * glides to its new rank (Play). Rows are keyed by player, so the refs
+   * survive the reorder. Pure rAF + transforms — no animation library. */
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const pendingFlipRef = useRef<Map<string, number> | null>(null);
+
+  const captureRowPositions = () => {
+    const snapshot = new Map<string, number>();
+    for (const [key, el] of rowRefs.current) {
+      if (el.isConnected) snapshot.set(key, el.getBoundingClientRect().top);
+    }
+    pendingFlipRef.current = snapshot;
+  };
+
+  // Layout effect (not useEffect) so the inverted offsets are applied before
+  // the browser paints the re-sorted order — otherwise rows flash into place
+  // for one frame and then jump back to start the glide.
+  useLayoutEffect(() => {
+    const prev = pendingFlipRef.current;
+    if (!prev) return;
+    pendingFlipRef.current = null;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // A transform on <tr> makes it the containing block for its descendants,
+    // which can momentarily unstick the frozen player column while the table
+    // is scrolled right (WebKit). The glide is a garnish — skip it whenever
+    // the frozen column is actually engaged and reorder instantly instead.
+    const firstRow: HTMLTableRowElement | undefined = rowRefs.current.values().next().value;
+    const scroller = firstRow?.closest('[data-lb-scroll]');
+    if (scroller && scroller.scrollLeft > 1) return;
+    const moved: HTMLTableRowElement[] = [];
+    for (const [key, el] of rowRefs.current) {
+      const before = prev.get(key);
+      if (before === undefined || !el.isConnected) continue;
+      const delta = before - el.getBoundingClientRect().top;
+      if (Math.abs(delta) < 2) continue;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${delta}px)`;
+      moved.push(el);
+    }
+    if (moved.length === 0) return;
+    // Force a style flush so the inverted position is what's on screen when
+    // the transition below starts — without it both writes coalesce and
+    // nothing animates.
+    void moved[0].getBoundingClientRect();
+    requestAnimationFrame(() => {
+      for (const el of moved) {
+        el.style.transition = 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)';
+        el.style.transform = '';
+      }
+    });
+  }, [sortKey, sortDir]);
+
   const onHeaderClick = (col: TableColumn<Row>) => {
+    // Snapshot BEFORE the state update — these are the "First" positions.
+    captureRowPositions();
     if (sortKey === col.key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -141,12 +199,17 @@ export default function LeaderboardTable<Row>({
                       <span className="text-[9px] font-bold uppercase tracking-[0.08em] leading-none">
                         {col.label}
                       </span>
-                      {active &&
-                        (sortDir === 'asc' ? (
-                          <ArrowUp size={9} strokeWidth={3.5} />
-                        ) : (
-                          <ArrowDown size={9} strokeWidth={3.5} />
-                        ))}
+                      {active && (
+                        // Keyed on direction so every flip remounts the arrow
+                        // and replays the pop — a tiny "the sort heard you".
+                        <span key={sortDir} className="inline-flex animate-sort-arrow-pop">
+                          {sortDir === 'asc' ? (
+                            <ArrowUp size={9} strokeWidth={3.5} />
+                          ) : (
+                            <ArrowDown size={9} strokeWidth={3.5} />
+                          )}
+                        </span>
+                      )}
                     </button>
                   </th>
                 );
@@ -168,9 +231,21 @@ export default function LeaderboardTable<Row>({
                 i % 2 === 1
                   ? 'color-mix(in srgb, var(--muted) 4%, var(--card))'
                   : 'var(--card)';
+              const rowKey = player.id ?? player.name;
               return (
                 <tr
-                  key={player.id ?? player.name}
+                  key={rowKey}
+                  ref={(el) => {
+                    // Registry the FLIP sort glide measures against. Keyed by
+                    // player so a row keeps its ref across reorders.
+                    if (el) rowRefs.current.set(rowKey, el);
+                    else rowRefs.current.delete(rowKey);
+                  }}
+                  style={{
+                    // Entrance cascade — rows rise in with a tight stagger,
+                    // capped so long rosters don't finish with a laggy tail.
+                    animationDelay: `${Math.min(i, 10) * 28}ms`,
+                  }}
                   onClick={tappable ? () => onPlayerTap(player.id!) : undefined}
                   onKeyDown={
                     tappable
@@ -188,9 +263,10 @@ export default function LeaderboardTable<Row>({
                     tappable ? `Rank ${rank}, ${player.name}. Open detailed stats.` : undefined
                   }
                   className={
-                    tappable
+                    'animate-table-row-in ' +
+                    (tappable
                       ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--cricket)]/60'
-                      : ''
+                      : '')
                   }
                 >
                   <td
@@ -302,6 +378,7 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
     >
       <div
         ref={ref}
+        data-lb-scroll
         onScroll={measure}
         // -webkit-overflow-scrolling is the iOS momentum-scroll opt-in; without
         // it the table drags stiffly inside the page's own vertical scroll.
