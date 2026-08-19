@@ -26,8 +26,16 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Dev guard — on localhost, never intercept. Dev-server chunk names are
+// path-stable (not content-hashed), so the cache-first _next/static branch
+// below would pin the first-ever compiled CSS/JS forever and silently mask
+// every local change. Prod filenames are content-hashed, so prod is safe.
+const IS_LOCALHOST =
+  self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
 // Fetch — network-first, scoped to same-origin
 self.addEventListener('fetch', (event) => {
+  if (IS_LOCALHOST) return;
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('supabase.co')) return;
 
