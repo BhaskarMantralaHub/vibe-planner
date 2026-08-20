@@ -3,7 +3,7 @@ import type { JSX } from 'react';
 export type PlayerAvatarProps = {
   name: string;
   photoUrl?: string | null;
-  size?: 32 | 48 | 64 | 80;
+  size?: 24 | 32 | 48 | 64 | 80;
   className?: string;
   ringColor?: string;
 };
@@ -18,6 +18,7 @@ function hashHue(s: string): number {
 }
 
 const SIZE_CLASS: Record<NonNullable<PlayerAvatarProps['size']>, string> = {
+  24: 'h-6 w-6',
   32: 'h-8 w-8',
   48: 'h-12 w-12',
   64: 'h-16 w-16',
@@ -25,6 +26,7 @@ const SIZE_CLASS: Record<NonNullable<PlayerAvatarProps['size']>, string> = {
 };
 
 const FONT_PX: Record<NonNullable<PlayerAvatarProps['size']>, number> = {
+  24: 9,
   32: 11,
   48: 14,
   64: 18,

@@ -437,6 +437,23 @@ code, pre, .font-mono {
   .animate-tab-icon-pop { animation: none; }
 }
 
+/* League-stats frozen player column divider. The hairline mixes in --muted
+   because pure --border was measured at ~10 luminance steps from the row
+   background — effectively invisible. Once the table is scrolled sideways
+   (data-scrolled on the .lb-scroll container), a soft cast shadow joins the
+   hairline so numbers visibly slide UNDER the names. box-shadow (not
+   border-right) because collapsed cell borders don't travel with
+   position: sticky cells in WebKit. */
+.lb-scroll .lb-frozen {
+  box-shadow: 1px 0 0 0 color-mix(in srgb, var(--muted) 35%, var(--border));
+  transition: box-shadow 200ms ease-out;
+}
+.lb-scroll[data-scrolled] .lb-frozen {
+  box-shadow:
+    1px 0 0 0 color-mix(in srgb, var(--muted) 35%, var(--border)),
+    8px 0 12px -6px rgba(2, 6, 23, 0.25);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

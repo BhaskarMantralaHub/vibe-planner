@@ -144,10 +144,14 @@ export default function LeaderboardTable<Row>({
     }
   };
 
-  // Stat columns are fixed-width so the numbers form clean vertical rules;
-  // the frozen player column takes 148px, which fits "Sai Krishna N." at 13px.
-  const PLAYER_COL = 148;
-  const STAT_COL = 56;
+  // Stat columns are fixed-width so the numbers form clean vertical rules.
+  // Sized for data density on a phone: the old 148px player column + 56px
+  // stat columns left room for only TWO stat columns on a 390px viewport —
+  // the table read as "names with numbers cut off". 122 + 46 shows five.
+  // Names truncate harder, but every first name on the roster is unique, and
+  // tapping a row opens the full-name detail sheet.
+  const PLAYER_COL = 122;
+  const STAT_COL = 46;
   const minWidth = PLAYER_COL + columns.length * STAT_COL;
 
   return (
@@ -161,13 +165,13 @@ export default function LeaderboardTable<Row>({
             <tr>
               <th
                 scope="col"
-                className="sticky left-0 z-20 text-left px-3 py-2.5"
+                className="lb-frozen sticky left-0 z-20 text-left pl-2.5 pr-1.5 py-2.5"
                 style={{
                   width: PLAYER_COL,
                   minWidth: PLAYER_COL,
+                  maxWidth: PLAYER_COL,
                   background: 'var(--surface)',
                   borderBottom: '1px solid var(--border)',
-                  boxShadow: '1px 0 0 0 var(--border)',
                 }}
               >
                 <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">
@@ -270,18 +274,27 @@ export default function LeaderboardTable<Row>({
                   }
                 >
                   <td
-                    className="sticky left-0 z-10 px-3 py-2"
+                    className="lb-frozen sticky left-0 z-10 pl-2.5 pr-1.5 py-2.5"
                     style={{
                       width: PLAYER_COL,
                       minWidth: PLAYER_COL,
+                      maxWidth: PLAYER_COL,
                       background: rowBg,
                       borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)',
-                      boxShadow: '1px 0 0 0 var(--border)',
                     }}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    {/* Fixed-width inner lock — table-auto treats the td width
+                        as a hint, and the non-wrapping name would otherwise
+                        force the whole frozen column out to the longest name
+                        (~190px), silently eating the stats space. An inner div
+                        of exact width is the only thing auto-layout respects.
+                        16 = pl-2.5 + pr-1.5. */}
+                    <div
+                      className="flex items-center gap-1.5 min-w-0"
+                      style={{ width: PLAYER_COL - 16 }}
+                    >
                       <span
-                        className="flex-shrink-0 w-4 text-[10px] font-bold tabular-nums text-right"
+                        className="flex-shrink-0 w-3.5 text-[10px] font-bold tabular-nums text-right"
                         style={{ color: rank <= 3 ? accentColor : 'var(--dim)' }}
                       >
                         {rank}
@@ -289,10 +302,10 @@ export default function LeaderboardTable<Row>({
                       <PlayerAvatar
                         name={player.name}
                         photoUrl={player.photoUrl}
-                        size={32}
+                        size={24}
                         ringColor={rank <= 3 ? accentColor : undefined}
                       />
-                      <span className="text-[13px] font-semibold truncate min-w-0 text-[var(--text)]">
+                      <span className="text-[12px] font-semibold truncate min-w-0 text-[var(--text)]">
                         {player.name}
                       </span>
                     </div>
@@ -302,7 +315,7 @@ export default function LeaderboardTable<Row>({
                     return (
                       <td
                         key={col.key}
-                        className="px-1 py-2 text-right tabular-nums"
+                        className="px-1 py-2.5 text-right tabular-nums"
                         style={{
                           width: STAT_COL,
                           minWidth: STAT_COL,
@@ -351,6 +364,9 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
   // Start false so a desktop table that fits never flashes a fade it doesn't
   // need; the mount measurement below turns it on when there really is overflow.
   const [scrollable, setScrollable] = useState(false);
+  // Drives the frozen column's cast shadow (via the .lb-scroll[data-scrolled]
+  // CSS in globals.css) — only once numbers actually slide under the names.
+  const [scrolled, setScrolled] = useState(false);
 
   const measure = useCallback(() => {
     const el = ref.current;
@@ -358,6 +374,7 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
     // 2px slack: sub-pixel layout means scrollLeft rarely hits the exact max.
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
     setScrollable(el.scrollWidth > el.clientWidth + 2);
+    setScrolled(el.scrollLeft > 1);
   }, []);
 
   // Measure on mount and on resize — rotating the phone or switching tabs
@@ -372,9 +389,13 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
   }, [measure, minWidth]);
 
   return (
+    // Full-bleed on phones: -mx-4 cancels the page's px-4 so the 32px of
+    // side padding becomes visible stat columns (≈¾ of a column). Corners
+    // and side borders come back from sm: up, where width isn't scarce.
     <div
-      className="relative rounded-2xl overflow-hidden"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="lb-scroll relative overflow-hidden -mx-4 rounded-none border-y sm:mx-0 sm:rounded-2xl sm:border"
+      data-scrolled={scrolled || undefined}
+      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
     >
       <div
         ref={ref}

@@ -1344,33 +1344,35 @@ function LeagueStatsSkeleton({ viewMode }: { viewMode: ViewMode }) {
 /* Table placeholder — one header strip plus 8 rows, matching the real
    table's 44px header / 48px row rhythm and its frozen-player-column split. */
 function LeaderboardTableSkeleton() {
+  // Mirrors the real table's density pass: full-bleed on phones, 24px
+  // avatars, 44px rows, five visible stat columns.
   return (
     <div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      className="overflow-hidden -mx-4 rounded-none border-y sm:mx-0 sm:rounded-2xl sm:border"
+      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
     >
       <div
-        className="flex items-center gap-2 px-3 h-11"
+        className="flex items-center gap-2 px-2.5 h-11"
         style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
       >
         <Skeleton className="h-2.5 w-14 rounded-md" />
         <div className="flex-1" />
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-2.5 w-7 rounded-md" />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-2.5 w-6 rounded-md" />
         ))}
       </div>
       {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
         <div
           key={i}
-          className="flex items-center gap-2 px-3 h-12"
+          className="flex items-center gap-1.5 px-2.5 h-11"
           style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' }}
         >
           <Skeleton className="h-2.5 w-3 rounded-md flex-shrink-0" />
-          <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
-          <Skeleton className="h-3 w-24 rounded-md" />
+          <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
+          <Skeleton className="h-3 w-20 rounded-md" />
           <div className="flex-1" />
-          {[0, 1, 2, 3].map((j) => (
-            <Skeleton key={j} className="h-3 w-7 rounded-md" />
+          {[0, 1, 2, 3, 4].map((j) => (
+            <Skeleton key={j} className="h-3 w-6 rounded-md" />
           ))}
         </div>
       ))}
