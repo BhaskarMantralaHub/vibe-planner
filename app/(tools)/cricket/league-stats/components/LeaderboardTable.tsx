@@ -152,7 +152,10 @@ export default function LeaderboardTable<Row>({
   // tapping a row opens the full-name detail sheet.
   const PLAYER_COL = 122;
   const STAT_COL = 46;
-  const minWidth = PLAYER_COL + columns.length * STAT_COL;
+  // The last column gets extra right padding so its values never press
+  // against the table edge (full-bleed on phones = the screen edge).
+  const LAST_COL_PAD = 10;
+  const minWidth = PLAYER_COL + columns.length * STAT_COL + LAST_COL_PAD;
 
   return (
     <div className="relative">
@@ -178,16 +181,18 @@ export default function LeaderboardTable<Row>({
                   Player
                 </span>
               </th>
-              {columns.map((col) => {
+              {columns.map((col, colIdx) => {
                 const active = sortKey === col.key;
+                const isLast = colIdx === columns.length - 1;
+                const colWidth = isLast ? STAT_COL + LAST_COL_PAD : STAT_COL;
                 return (
                   <th
                     key={col.key}
                     scope="col"
                     aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                     style={{
-                      width: STAT_COL,
-                      minWidth: STAT_COL,
+                      width: colWidth,
+                      minWidth: colWidth,
                       background: 'var(--surface)',
                       borderBottom: '1px solid var(--border)',
                     }}
@@ -197,7 +202,10 @@ export default function LeaderboardTable<Row>({
                       onClick={() => onHeaderClick(col)}
                       title={col.title ?? col.label}
                       // 44px min touch target per the mobile rules in CLAUDE.md.
-                      className="w-full h-11 px-1 flex items-center justify-end gap-0.5 cursor-pointer select-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60 rounded"
+                      className={
+                        'w-full h-11 pl-1 flex items-center justify-end gap-0.5 cursor-pointer select-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60 rounded ' +
+                        (isLast ? 'pr-3' : 'pr-1')
+                      }
                       style={{ color: active ? accentColor : 'var(--muted)' }}
                     >
                       <span className="text-[9px] font-bold uppercase tracking-[0.08em] leading-none">
@@ -310,15 +318,20 @@ export default function LeaderboardTable<Row>({
                       </span>
                     </div>
                   </td>
-                  {columns.map((col) => {
+                  {columns.map((col, colIdx) => {
                     const active = sortKey === col.key;
+                    const isLast = colIdx === columns.length - 1;
+                    const colWidth = isLast ? STAT_COL + LAST_COL_PAD : STAT_COL;
                     return (
                       <td
                         key={col.key}
-                        className="px-1 py-2.5 text-right tabular-nums"
+                        className={
+                          'pl-1 py-2.5 text-right tabular-nums ' +
+                          (isLast ? 'pr-3' : 'pr-1')
+                        }
                         style={{
-                          width: STAT_COL,
-                          minWidth: STAT_COL,
+                          width: colWidth,
+                          minWidth: colWidth,
                           background: rowBg,
                           borderTop:
                             '1px solid color-mix(in srgb, var(--border) 55%, transparent)',
