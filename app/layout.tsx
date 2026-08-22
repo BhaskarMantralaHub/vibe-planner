@@ -1,7 +1,16 @@
 // build-cache-bust 2026-05-07a
 import type { Metadata, Viewport } from 'next';
-import { GeistSans } from 'geist/font/sans';
+import { Inter } from 'next/font/google';
 import { GeistMono } from 'geist/font/mono';
+
+// Inter is cricbuzz's UI face — chosen for the app after user feedback that
+// the previous type felt off. Self-hosted by next/font at build time (no
+// runtime Google request, CSP-safe on the static export).
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 import { Providers } from './providers';
 import { Shell } from '@/components/Shell';
 import './globals.css';
@@ -34,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable} overflow-x-hidden`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${GeistMono.variable} overflow-x-hidden`}>
       <head />
       <body className="font-sans antialiased overflow-x-hidden w-full">
         <Providers>

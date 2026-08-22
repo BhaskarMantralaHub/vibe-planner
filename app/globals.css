@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@theme inline {
+  /* Map Tailwind's font-sans utility to Inter. This is load-bearing: <body>
+     carries the .font-sans class, which out-specifies the body{} rule below —
+     without this mapping the utility silently falls back to the system stack
+     (which is what shipped for months while everyone thought Geist was live). */
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
 /* ── Deep Space Dark Theme (default) ── */
 :root,
 [data-theme="dark"] {
@@ -61,22 +69,23 @@
   --cricket-glow: rgba(77, 187, 235, 0.25);
 
   /* ── Cricket league-stats accent tokens (dark mode) ──
-     Unified to a single accent (cricket blue) for a calm, modern look —
-     disciplines are distinguished by icon + label, not color. Token names
-     are kept so /cricket/league-stats callers don't need touching; they all
-     resolve to the cricket accent. See docs/PLAYER_STATS_NEW_SPEC.md. */
+     One color per discipline — batting keeps the brand blue; bowling gets
+     cricbuzz teal-green, all-round amber, catches violet. These were once
+     all aliased to the cricket blue ("calm" pass), but the page read as
+     colorless (user feedback 2026-08). Every league-stats component keys
+     off these tokens, so this block IS the page's color system. */
   --stat-batting:        var(--cricket);
   --stat-batting-deep:   var(--cricket-deep);
   --stat-batting-glow:   var(--cricket-glow);
-  --stat-bowling:        var(--cricket);
-  --stat-bowling-deep:   var(--cricket-deep);
-  --stat-bowling-glow:   var(--cricket-glow);
-  --stat-allround:       var(--cricket);
-  --stat-allround-deep:  var(--cricket-deep);
-  --stat-allround-glow:  var(--cricket-glow);
-  --stat-catches:        var(--cricket);
-  --stat-catches-deep:   var(--cricket-deep);
-  --stat-catches-glow:   var(--cricket-glow);
+  --stat-bowling:        #00B48A;
+  --stat-bowling-deep:   #075E45;
+  --stat-bowling-glow:   rgba(0, 180, 138, 0.25);
+  --stat-allround:       #FBBF24;
+  --stat-allround-deep:  #92400E;
+  --stat-allround-glow:  rgba(251, 191, 36, 0.25);
+  --stat-catches:        #C084FC;
+  --stat-catches-deep:   #5B21B6;
+  --stat-catches-glow:   rgba(192, 132, 252, 0.25);
 
   /* Split debt/credit semantic colors */
   --split-owe: #F87171;
@@ -105,8 +114,10 @@
      components paint opaque var(--bg) slabs (sticky masks, scoring screens),
      so any gradient here would show seams wherever those slabs overlap it.
      The hue is what separates white cards from the canvas; the old #F5F6FA
-     was so close to --card that the page read flat. */
-  --bg: #DCE8F9;
+     was so close to --card that the page read flat. Hue chosen per user:
+     a cricbuzz-style green wash (their canvas #ECF0F1 + wash #EDF7F2),
+     deepened slightly so white cards still pop. */
+  --bg: #E6F0EA;
   --surface: #FFFFFF;
   --card: #F6F7FF;
   --card-end: #EEF1FF;
@@ -141,20 +152,22 @@
   --cricket-hover: #156490;
   --cricket-glow: rgba(26, 117, 168, 0.20);
 
-  /* Cricket league-stats accent tokens (light mode) — unified to the single
-     cricket accent; see the dark-mode block above for rationale. */
+  /* Cricket league-stats accent tokens (light mode) — one color per
+     discipline; see the dark-mode block above for rationale. Values are
+     darkened for contrast against white cards (bold stat numerals must
+     stay readable at 12-28px). */
   --stat-batting:        var(--cricket);
   --stat-batting-deep:   var(--cricket-deep);
   --stat-batting-glow:   var(--cricket-glow);
-  --stat-bowling:        var(--cricket);
-  --stat-bowling-deep:   var(--cricket-deep);
-  --stat-bowling-glow:   var(--cricket-glow);
-  --stat-allround:       var(--cricket);
-  --stat-allround-deep:  var(--cricket-deep);
-  --stat-allround-glow:  var(--cricket-glow);
-  --stat-catches:        var(--cricket);
-  --stat-catches-deep:   var(--cricket-deep);
-  --stat-catches-glow:   var(--cricket-glow);
+  --stat-bowling:        #009270;
+  --stat-bowling-deep:   #07794C;
+  --stat-bowling-glow:   rgba(0, 146, 112, 0.20);
+  --stat-allround:       #B45309;
+  --stat-allround-deep:  #92400E;
+  --stat-allround-glow:  rgba(180, 83, 9, 0.20);
+  --stat-catches:        #7C3AED;
+  --stat-catches-deep:   #5B21B6;
+  --stat-catches-glow:   rgba(124, 58, 237, 0.20);
 
   /* Split debt/credit semantic colors — light mode */
   --split-owe: #DC2626;
@@ -205,7 +218,7 @@ html {
 }
 
 body {
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;

@@ -681,8 +681,12 @@ function CompactHero({
       <div
         className="relative overflow-hidden rounded-2xl px-4 py-3.5"
         style={{
-          background: 'var(--card)',
-          border: '1px solid var(--border)',
+          // Brand wash — a soft green→blue gradient so the page opens with
+          // color instead of another white card ("colors look plain"
+          // feedback). Token-mixed, so it adapts to light and dark.
+          background:
+            'linear-gradient(135deg, color-mix(in srgb, var(--green) 12%, var(--card)) 0%, color-mix(in srgb, var(--cricket) 10%, var(--card)) 100%)',
+          border: '1px solid color-mix(in srgb, var(--cricket) 22%, var(--border))',
           boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
         }}
       >
