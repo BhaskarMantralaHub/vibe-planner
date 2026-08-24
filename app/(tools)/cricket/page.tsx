@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
@@ -130,6 +130,12 @@ function CricketDashboard() {
     if (typeof window === 'undefined') return 'players';
     const hash = window.location.hash.replace('#', '') as View;
     if (VALID_VIEWS.includes(hash)) return hash;
+    // ?view= deep-link (hamburger "Finances") — read directly here too so a
+    // hard load of /cricket?view=expenses opens on the right tab without a
+    // players-first flash. Client navigations are handled by the
+    // searchParams effect below instead.
+    const param = new URLSearchParams(window.location.search).get('view') as View | null;
+    if (param && VALID_VIEWS.includes(param)) return param;
     // Round-trip memory: if user came back via Matches → Home or Moments → Home,
     // restore the view they were on before leaving. Survives one session.
     const stored = sessionStorage.getItem(SS_KEY) as View | null;
@@ -138,6 +144,23 @@ function CricketDashboard() {
   });
   const router = useRouter();
   const activeTab = viewToTab(activeView);
+
+  // ?view= deep-link, client-navigation path. Hash links break here: the App
+  // Router updates the URL via pushState (no hashchange event) and commits it
+  // AFTER this component renders, so a hash read on mount sees the old URL.
+  // useSearchParams IS wired into the router, so it delivers the new value on
+  // both cross-route and same-route navigations. Once applied, the param is
+  // consumed into the canonical #hash form so manual tab switches (which
+  // write the hash) aren't shadowed by a stale ?view= in the URL.
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get('view');
+  useEffect(() => {
+    if (!viewParam || !VALID_VIEWS.includes(viewParam as View)) return;
+    setActiveView(viewParam as View);
+    sessionStorage.setItem(SS_KEY, viewParam);
+    window.history.replaceState(null, '', `${window.location.pathname}#${viewParam}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewParam]);
 
   const handleViewChange = (view: View) => {
     setActiveView(view);
@@ -400,7 +423,11 @@ export default function CricketPage() {
     <AuthGate variant="cricket">
       <InviteHandler />
       <RoleGate allowed={['cricket', 'admin']} feature="cricket">
-        <CricketDashboard />
+        {/* Suspense is required by the static export: CricketDashboard calls
+            useSearchParams, which bails out of prerendering without it. */}
+        <Suspense fallback={null}>
+          <CricketDashboard />
+        </Suspense>
       </RoleGate>
     </AuthGate>
   );

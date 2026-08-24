@@ -59,6 +59,18 @@ describe('lib/nav', () => {
     expect(cricket!.roles).toContain('admin');
   });
 
+  it('contains Finances tool deep-linking to the cricket finances tab', () => {
+    const fin = tools.find((t) => t.name === 'Finances');
+    expect(fin).toBeDefined();
+    // Query-param deep-link: hash links break on App Router client
+    // navigations (no hashchange event, URL committed after render); the
+    // dashboard consumes ?view= reactively via useSearchParams.
+    expect(fin!.href).toBe('/cricket?view=expenses');
+    expect(fin!.roles).toContain('cricket');
+    expect(fin!.roles).toContain('admin');
+    expect(fin!.feature).toBe('cricket');
+  });
+
   it('contains League Stats tool with cricket and admin roles', () => {
     const leagueStats = tools.find((t) => t.name === 'League Stats');
     expect(leagueStats).toBeDefined();

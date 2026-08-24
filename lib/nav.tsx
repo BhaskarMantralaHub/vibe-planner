@@ -1,4 +1,4 @@
-import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins, Trophy } from 'lucide-react';
+import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins, Trophy, Receipt } from 'lucide-react';
 // MdScoreboard + ChartColumnBig retained only for the commented-out Live Scoring
 // and Practice Stats entries below; restore the imports when re-enabling.
 import CricketIcon from '@/components/icons/CricketIcon';
@@ -33,7 +33,20 @@ export const tools: Tool[] = [
     name: 'Cricket',
     href: '/cricket',
     icon: <CricketIcon size={22} />,
-    description: 'Team expenses & dues.',
+    description: 'Players & team hub.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
+  {
+    name: 'Finances',
+    // Query-param deep-link (NOT a #hash): on client-side navigations the
+    // App Router updates the URL without firing hashchange and after the
+    // page renders, so hash links silently land on the default tab. The
+    // cricket dashboard consumes ?view= via useSearchParams, which is
+    // reactive on every navigation. 'expenses' = Finances tab default.
+    href: '/cricket?view=expenses',
+    icon: <Receipt size={22} />,
+    description: 'Expenses, dues, splits & sponsors.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
