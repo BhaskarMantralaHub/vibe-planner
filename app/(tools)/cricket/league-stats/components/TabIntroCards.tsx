@@ -115,7 +115,7 @@ export function CatchesRulesCard(): JSX.Element {
         className="relative text-[10px] font-bold uppercase tracking-[0.15em] mb-3"
         style={{ color: 'var(--stat-catches)' }}
       >
-        What Counts as a Catch?
+        How Fielding Credits Work
       </div>
 
       <div className="relative grid grid-cols-2 gap-2">
@@ -123,10 +123,12 @@ export function CatchesRulesCard(): JSX.Element {
         <CatchPatternChip pattern="c †X b Y" meaning="Wicketkeeper catch (dagger = keeper)" />
         <CatchPatternChip pattern="c & b X" meaning="Caught and bowled — X gets credit" />
         <CatchPatternChip pattern="st †X b Y" meaning="Stumped (credited like a catch for v1)" />
+        <CatchPatternChip pattern="run out (X)" meaning="Direct run-out — X gets the credit" />
+        <CatchPatternChip pattern="run out (X/Y)" meaning="Combined run-out — X and Y each get one" />
       </div>
 
       <p className="relative mt-3 text-[10.5px] text-muted-foreground leading-snug">
-        Catches by opposition fielders when our team is batting are ignored. Stumpings count for v1.
+        Fielding by opposition players when our team is batting is ignored. Stumpings count for v1.
       </p>
     </div>
   );

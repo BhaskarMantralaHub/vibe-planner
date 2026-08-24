@@ -27,7 +27,9 @@ const TABS: ReadonlyArray<TabDef> = [
   { key: 'batting', label: 'Batting', Icon: MdSportsCricket, color: 'var(--stat-batting)' },
   { key: 'bowling', label: 'Bowling', Icon: GiTennisBall, color: 'var(--stat-bowling)' },
   { key: 'allround', label: 'All-Round', Icon: Star, color: 'var(--stat-allround)' },
-  { key: 'catches', label: 'Catches', Icon: Hand, color: 'var(--stat-catches)' },
+  // Key stays 'catches' (persisted in code paths everywhere); the label says
+  // Fielding because the tab now covers catches AND run-outs.
+  { key: 'catches', label: 'Fielding', Icon: Hand, color: 'var(--stat-catches)' },
 ];
 
 export default function StickyPillTabs({

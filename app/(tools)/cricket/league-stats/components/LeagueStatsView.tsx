@@ -27,6 +27,7 @@ import {
   computeTopPerformers,
   computeBestBowlingFigures,
   computeMatchesPlayed,
+  extractRunOutFielders,
   recentSeriesForPlayer,
   recentBattingDetailedForPlayer,
   recentBowlingDetailedForPlayer,
@@ -183,12 +184,21 @@ type CatchesRow = {
   player_id: string;
   player_name: string;
   catches: number;
+  // Run-outs credited to this fielder — a combined "run out (P1/P2)" credits
+  // both players with one each (standard club-stats convention).
+  runouts: number;
 };
 
 // Per-match catch event — used to render the catches detail panel
 // (e.g. "vs Sapphires (Apr 25): 2 catches").
 type CatchEvent = {
   catcher_player_id: string;
+  match_row_id: string;
+};
+
+// Per-match run-out event — feeds the player sheet's match timeline.
+type RunOutEvent = {
+  fielder_player_id: string;
   match_row_id: string;
 };
 
@@ -225,30 +235,54 @@ const computeCatches = (
   battingRows: BattingMatchRow[],
   roster: RosterRow[],
   myTeamName: string,
-): { totals: CatchesRow[]; events: CatchEvent[] } => {
-  // Catches are credited to fielders on the OPPOSING team in a given innings.
-  // In our data, our roster's catches are recorded only when the batting_team
-  // is NOT our team (i.e., the opposition is batting and we are fielding).
+): { totals: CatchesRow[]; events: CatchEvent[]; runoutEvents: RunOutEvent[] } => {
+  // Catches and run-outs are credited to fielders on the OPPOSING team in a
+  // given innings. In our data, our roster's fielding is recorded only when
+  // the batting_team is NOT our team (the opposition batting, us fielding).
   const counts = new Map<string, number>();
+  const runoutCounts = new Map<string, number>();
   const events: CatchEvent[] = [];
+  const runoutEvents: RunOutEvent[] = [];
+  // Prefix-match against roster names (case-insensitive). Cricclubs uses
+  // short forms like "Bhaskar B" vs roster "Bhaskar Baachi"; prefix wins.
+  const matchRoster = (shortName: string): RosterRow | undefined => {
+    const low = shortName.toLowerCase();
+    return roster.find((r) => r.name.toLowerCase().startsWith(low));
+  };
   for (const d of battingRows) {
     if (!d.dismissal) continue;
     if (d.batting_team === myTeamName) continue; // we batted; opposition fielded
     const fielder = extractFielderShortName(d.dismissal);
-    if (!fielder) continue;
-    // Prefix-match against roster names (case-insensitive). Cricclubs uses
-    // short forms like "Bhaskar B" vs roster "Bhaskar Baachi"; prefix wins.
-    const fLow = fielder.toLowerCase();
-    const match = roster.find((r) => r.name.toLowerCase().startsWith(fLow));
-    if (!match) continue;
-    counts.set(match.id, (counts.get(match.id) ?? 0) + 1);
-    events.push({ catcher_player_id: match.id, match_row_id: d.match_row_id });
+    if (fielder) {
+      const match = matchRoster(fielder);
+      if (match) {
+        counts.set(match.id, (counts.get(match.id) ?? 0) + 1);
+        events.push({ catcher_player_id: match.id, match_row_id: d.match_row_id });
+      }
+    }
+    // Run-outs: "run out (P1)" or combined "run out (P1/P2)" — both fielders
+    // get one credit each.
+    for (const ro of extractRunOutFielders(d.dismissal)) {
+      const match = matchRoster(ro);
+      if (match) {
+        runoutCounts.set(match.id, (runoutCounts.get(match.id) ?? 0) + 1);
+        runoutEvents.push({ fielder_player_id: match.id, match_row_id: d.match_row_id });
+      }
+    }
   }
-  const totals = [...counts.entries()].map(([player_id, catches]) => {
+  // Union of catchers and run-out fielders — a player with only run-outs
+  // still earns a row on the fielding leaderboard.
+  const ids = new Set([...counts.keys(), ...runoutCounts.keys()]);
+  const totals = [...ids].map((player_id) => {
     const r = roster.find((p) => p.id === player_id)!;
-    return { player_id, player_name: r.name, catches };
+    return {
+      player_id,
+      player_name: r.name,
+      catches: counts.get(player_id) ?? 0,
+      runouts: runoutCounts.get(player_id) ?? 0,
+    };
   });
-  return { totals, events };
+  return { totals, events, runoutEvents };
 };
 
 const computeAllRound = (
@@ -940,10 +974,10 @@ export default function LeagueStatsView() {
     return () => { cancelled = true; };
   }, [currentTeamId, reloadKey]);
 
-  // Derived: catches (totals + per-match events) and all-rounders
-  const { catchesTotals, catchEvents } = useMemo(() => {
+  // Derived: catches + run-outs (totals + per-match events) and all-rounders
+  const { catchesTotals, catchEvents, runoutEvents } = useMemo(() => {
     const r = computeCatches(battingMatches, roster, cricclubsTeamName);
-    return { catchesTotals: r.totals, catchEvents: r.events };
+    return { catchesTotals: r.totals, catchEvents: r.events, runoutEvents: r.runoutEvents };
   }, [battingMatches, roster, cricclubsTeamName]);
   const allRound = useMemo(
     () => computeAllRound(batting, bowling, catchesTotals),
@@ -990,6 +1024,17 @@ export default function LeagueStatsView() {
     }
     return m;
   }, [catchEvents]);
+
+  // Same shape for run-outs — feeds the player sheet's match timeline.
+  const runoutsByPlayer = useMemo(() => {
+    const m = new Map<string, Map<string, number>>(); // player_id -> match_row_id -> count
+    for (const ev of runoutEvents) {
+      if (!m.has(ev.fielder_player_id)) m.set(ev.fielder_player_id, new Map());
+      const inner = m.get(ev.fielder_player_id)!;
+      inner.set(ev.match_row_id, (inner.get(ev.match_row_id) ?? 0) + 1);
+    }
+    return m;
+  }, [runoutEvents]);
 
   // Derived: W-L summary + recent form + current streak.
   const seasonOutcomes = useMemo(() => {
@@ -1091,6 +1136,7 @@ export default function LeagueStatsView() {
         economy: bowl?.economy,
         best_wickets: bowl?.best_wickets,
         catches: ct?.catches,
+        runouts: ct?.runouts,
       },
     };
   }, [sheetPlayerId, roster, batting, bowling, catchesTotals]);
@@ -1255,6 +1301,7 @@ export default function LeagueStatsView() {
         battingInnings={battingByPlayer.get(sheetPlayer.player_id) ?? []}
         bowlingInnings={bowlingByPlayer.get(sheetPlayer.player_id) ?? []}
         catchesByMatch={catchesByPlayer.get(sheetPlayer.player_id)}
+        runoutsByMatch={runoutsByPlayer.get(sheetPlayer.player_id)}
         matchLookup={matchLookup}
       />
     )}
@@ -1525,6 +1572,13 @@ const catchesColumns = (
 ): TableColumn<CatchesRow>[] => [
   matColumn((r) => r.player_id, matchesPlayedByPlayer),
   { key: 'ct', label: 'Ct', title: 'Catches taken', sortValue: (r) => r.catches, render: (r) => r.catches, primary: true },
+  {
+    key: 'ro',
+    label: 'RO',
+    title: 'Run-outs (direct, or combined — both fielders credited)',
+    sortValue: (r) => r.runouts,
+    render: (r) => r.runouts,
+  },
   {
     key: 'best',
     label: 'Best',
@@ -2217,7 +2271,7 @@ function CatchesTabBody({
         accent="var(--stat-catches)"
         icon={<Hand size={32} strokeWidth={2.2} />}
         title="Hands not yet on the ball"
-        description="Catches surface from scorecard dismissals — the first c X b Y entry fills this in."
+        description="Catches and run-outs surface from scorecard dismissals — the first c X b Y or run out (X) entry fills this in."
       />
     );
   }
@@ -2269,6 +2323,7 @@ function CatchesTabBody({
             primaryRow={
               <CatchesHeroStats
                 catches={row.catches}
+                runouts={row.runouts}
                 matchesPlayed={matchesPlayed}
                 best={bestMatch}
               />
@@ -2285,8 +2340,8 @@ function CatchesTabBody({
 }
 
 function CatchesHeroStats({
-  catches, matchesPlayed, best,
-}: { catches: number; matchesPlayed: number | undefined; best: number }) {
+  catches, runouts, matchesPlayed, best,
+}: { catches: number; runouts: number; matchesPlayed: number | undefined; best: number }) {
   return (
     <div className="flex flex-col gap-2 leading-none">
       <div className="flex items-baseline gap-1.5">
@@ -2304,6 +2359,11 @@ function CatchesHeroStats({
       </div>
       <div className="flex items-center gap-1.5 flex-wrap">
         <MatchesChip matchesPlayed={matchesPlayed} />
+        <StatChip
+          label="RO"
+          value={runouts}
+          title="Run-outs (direct, or combined — both fielders credited)"
+        />
         <StatChip label="Best" value={best} title="Most catches in a single match" />
       </div>
     </div>

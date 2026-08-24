@@ -70,7 +70,27 @@ export type MatchRow = {
   league_name: string | null;
   division: string | null;
 };
-export type CatchesRow = { player_id: string; player_name: string; catches: number };
+export type CatchesRow = { player_id: string; player_name: string; catches: number; runouts: number };
+
+/* ── Run-out fielder extraction ───────────────────────────────────────────
+ * Cricclubs dismissal text for run-outs:
+ *   "run out (Player1)"           → direct — one fielder
+ *   "run out (Player1/Player2)"   → combined — BOTH fielders get credit
+ *                                   (standard club-stats convention)
+ *   "run out Player1"             → older format, no parens
+ * Returns the fielder short names (†keeper markers stripped); [] when the
+ * dismissal isn't a run-out or names no fielder. Roster matching (prefix,
+ * case-insensitive) happens at the caller, same as catches. */
+export function extractRunOutFielders(dismissal: string): string[] {
+  const text = dismissal.trim();
+  if (!/^run\s*out/i.test(text)) return [];
+  const paren = text.match(/\(([^)]+)\)/);
+  const inner = paren ? paren[1] : text.replace(/^run\s*out\s*/i, '');
+  return inner
+    .split('/')
+    .map((s) => s.replace(/†/g, '').trim())
+    .filter((s) => s.length > 0);
+}
 
 export type TopPerformerCard = {
   category: 'runs' | 'wickets' | 'economy' | 'catches' | 'mvp';
@@ -108,7 +128,7 @@ const alpha = (a: string, b: string) => a.localeCompare(b);
  * Bowling: wickets DESC, then runs ASC (fewer runs conceded breaks the
  *          wickets tie — classic cricket convention), then economy ASC,
  *          then alphabetical.
- * Catches: catches DESC, then alphabetical.
+ * Catches: catches DESC, then run-outs DESC, then alphabetical.
  */
 export const compareBattingRows = (a: BattingSeasonRow, b: BattingSeasonRow): number =>
   (b.runs - a.runs) ||
@@ -124,6 +144,7 @@ export const compareBowlingRows = (a: BowlingSeasonRow, b: BowlingSeasonRow): nu
 
 export const compareCatchesRows = (a: CatchesRow, b: CatchesRow): number =>
   (b.catches - a.catches) ||
+  (b.runouts - a.runouts) ||
   alpha(a.player_name, b.player_name);
 
 export function computeMvpScore(

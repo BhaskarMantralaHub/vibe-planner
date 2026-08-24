@@ -32,11 +32,13 @@ export type PlayerDetailSheetProps = {
     summary?: {
       runs?: number; innings?: number; average?: number | null; strike_rate?: number | null;
       wickets?: number; economy?: number | null; best_wickets?: number; catches?: number;
+      runouts?: number;
     };
   };
   battingInnings: BattingMatchRow[];
   bowlingInnings: BowlingMatchRow[];
   catchesByMatch?: Map<string, number>;
+  runoutsByMatch?: Map<string, number>;
   matchLookup: MatchLookup;
 };
 
@@ -45,7 +47,7 @@ const ACCENT: Record<Context, string> = {
   allround: 'var(--stat-allround)', catches: 'var(--stat-catches)',
 };
 const LABEL: Record<Context, string> = {
-  batting: 'Batting view', bowling: 'Bowling view', allround: 'All-Round view', catches: 'Catches view',
+  batting: 'Batting view', bowling: 'Bowling view', allround: 'All-Round view', catches: 'Fielding view',
 };
 
 const formatMatchDate = (iso: string | null): string => {
@@ -60,10 +62,10 @@ const formatFigures = (o: number, m: number, r: number, w: number): string =>
 const fmtNum = (v: number | null | undefined, digits = 2): string =>
   v === null || v === undefined || Number.isNaN(v) ? '—' : v.toFixed(digits);
 
-type Entry = { match_row_id: string; date: string | null; opponent: string; bat?: BattingMatchRow; bowl?: BowlingMatchRow; catches?: number };
+type Entry = { match_row_id: string; date: string | null; opponent: string; bat?: BattingMatchRow; bowl?: BowlingMatchRow; catches?: number; runouts?: number };
 
 export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.Element | null {
-  const { open, onClose, context, player, battingInnings, bowlingInnings, catchesByMatch, matchLookup } = props;
+  const { open, onClose, context, player, battingInnings, bowlingInnings, catchesByMatch, runoutsByMatch, matchLookup } = props;
   const accent = ACCENT[context];
 
   const timeline = useMemo<Entry[]>(() => {
@@ -76,8 +78,9 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
     battingInnings.forEach((b) => { ensure(b.match_row_id).bat = b; });
     bowlingInnings.forEach((b) => { ensure(b.match_row_id).bowl = b; });
     catchesByMatch?.forEach((n, id) => { if (n > 0) ensure(id).catches = n; });
+    runoutsByMatch?.forEach((n, id) => { if (n > 0) ensure(id).runouts = n; });
     return Array.from(map.values()).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-  }, [battingInnings, bowlingInnings, catchesByMatch, matchLookup]);
+  }, [battingInnings, bowlingInnings, catchesByMatch, runoutsByMatch, matchLookup]);
 
   const byDateAsc = <T extends { match_row_id: string }>(arr: T[]) =>
     [...arr].sort((a, b) => (matchLookup.get(a.match_row_id)?.date ?? '').localeCompare(matchLookup.get(b.match_row_id)?.date ?? ''));
@@ -192,6 +195,7 @@ function SummaryStrip({ context, summary, accent }:
       { label: 'Inns', value: String(s.innings ?? 0) },
     ] : [
       { label: 'Catches', value: String(s.catches ?? 0) },
+      { label: 'Run-outs', value: String(s.runouts ?? 0) },
       { label: 'Inns', value: String(s.innings ?? 0) },
     ];
 
@@ -263,7 +267,9 @@ function TrendRow({ label, latest, data, color, compact, digits = 0 }:
 }
 
 function Timeline({ context, entries }: { context: Context; entries: Entry[] }): JSX.Element {
-  const filtered = context === 'catches' ? entries.filter((e) => (e.catches ?? 0) > 0) : entries;
+  const filtered = context === 'catches'
+    ? entries.filter((e) => (e.catches ?? 0) > 0 || (e.runouts ?? 0) > 0)
+    : entries;
   if (filtered.length === 0) return <div className="text-sm py-3 text-center" style={{ color: 'var(--muted)' }}>No matches yet</div>;
   const accent = ACCENT[context];
   return (
@@ -324,7 +330,23 @@ function TimelineRow({ entry, context }: { entry: Entry; context: Context }): JS
     );
   }
   if (context === 'catches') {
-    return <div className="px-3 py-2">{header}<div className="text-sm mt-0.5 font-bold tabular-nums">🧤 × {entry.catches ?? 0}</div></div>;
+    const ct = entry.catches ?? 0;
+    const ro = entry.runouts ?? 0;
+    return (
+      <div className="px-3 py-2">{header}
+        <div className="text-sm mt-0.5 font-bold tabular-nums flex items-center gap-3">
+          {ct > 0 && <span>🧤 × {ct}</span>}
+          {ro > 0 && (
+            <span>
+              🎯 × {ro}{' '}
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                run-out{ro > 1 ? 's' : ''}
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
+    );
   }
   const b = entry.bat, bw = entry.bowl;
   const showBat = b && !b.did_not_bat;
