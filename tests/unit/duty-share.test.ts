@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
-import { buildDutyShareText, buildRosterSummaryText } from '@/lib/duty-share';
+import { buildDutyShareText, buildRosterSummaryText, whatsappShareUrl } from '@/lib/duty-share';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
 let seq = 0;
@@ -385,5 +385,33 @@ describe('buildRosterSummaryText', () => {
       { openSlots: 0 },
     )!;
     expect(t).toContain('Amit, Zara');
+  });
+});
+
+describe('whatsappShareUrl', () => {
+  it('builds a wa.me link with no phone number, so any chat can be picked', () => {
+    const url = whatsappShareUrl('hello');
+    expect(url).toBe('https://wa.me/?text=hello');
+  });
+
+  it('percent-encodes the characters that would break a URL', () => {
+    // Raw newlines or spaces would truncate the message at the first one.
+    // Note `*` is deliberately NOT encoded — encodeURIComponent leaves the
+    // unreserved set (-_.!~*'()) alone, and a literal * is valid in a query
+    // string, so WhatsApp still receives the bold markup intact.
+    const url = whatsappShareUrl('🏏 *Bold*\nsecond line');
+    expect(url).toContain('%0A');   // newline
+    expect(url).not.toContain('\n');
+    expect(url).not.toContain(' ');
+    expect(url).toContain('%F0%9F%8F%8F'); // emoji
+  });
+
+  it('round-trips the exact message text', () => {
+    const text = buildRosterSummaryText(
+      [{ name: "O'Brien", completed: 1, booked: 0 }],
+      { openSlots: 2 },
+    )!;
+    const decoded = decodeURIComponent(whatsappShareUrl(text).replace('https://wa.me/?text=', ''));
+    expect(decoded).toBe(text);
   });
 });

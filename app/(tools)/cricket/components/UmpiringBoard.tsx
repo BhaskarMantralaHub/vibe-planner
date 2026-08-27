@@ -6,11 +6,12 @@ import {
 } from '@/components/ui';
 import type { CardMenuItem } from '@/components/ui';
 import {
-  MapPin, Clock, ChevronDown, ChevronRight, Plus, Copy, Share2, UserPlus,
+  MapPin, Clock, ChevronDown, ChevronRight, Plus, Copy, UserPlus,
   EllipsisVertical, CircleCheckBig, UserX, RotateCcw, UserMinus, Trash2, CircleCheck, UserCog, Repeat2,
 } from 'lucide-react';
 import UmpireIcon from '@/components/icons/UmpireIcon';
-import { buildDutyShareText, buildRosterSummaryText } from '@/lib/duty-share';
+import { FaWhatsapp } from 'react-icons/fa';
+import { buildDutyShareText, buildRosterSummaryText, whatsappShareUrl } from '@/lib/duty-share';
 import { nameToGradient } from '@/lib/avatar';
 import { getTeamName } from '../lib/constants';
 import DutyAssignSheet from './DutyAssignSheet';
@@ -300,12 +301,11 @@ export default function UmpiringBoard() {
                 </div>
               </div>
               {shareText && (
-                <Button
-                  variant="secondary" size="md" fullWidth className="mt-3"
-                  onClick={() => copy(shareText, 'Copied — paste into WhatsApp')}
-                >
-                  <Share2 size={14} /> Copy for WhatsApp
-                </Button>
+                <ShareRow
+                  text={shareText}
+                  label="Share on WhatsApp"
+                  onCopy={() => copy(shareText, 'Copied to clipboard')}
+                />
               )}
             </div>
 
@@ -459,12 +459,11 @@ export default function UmpiringBoard() {
           {/* Everyone can share this, not just admins: it is a progress update,
               not an admin tool. */}
           {summaryText && (
-            <Button
-              variant="secondary" size="md" fullWidth
-              onClick={() => copy(summaryText, 'Copied — paste into WhatsApp')}
-            >
-              <Copy size={14} /> Copy season summary
-            </Button>
+            <ShareRow
+              text={summaryText}
+              label="Share summary on WhatsApp"
+              onCopy={() => copy(summaryText, 'Copied to clipboard')}
+            />
           )}
 
           {stats.guests.length > 0 && (
@@ -523,6 +522,45 @@ export default function UmpiringBoard() {
 }
 
 /* ── Pieces ───────────────────────────────────────────────────────────── */
+
+/**
+ * WhatsApp share + copy fallback.
+ *
+ * The share button is a real <a target="_blank">, NOT an onClick that calls
+ * window.open — iOS Safari blocks programmatic window.open unless it happens
+ * inside a direct user gesture, and a React handler often falls outside that.
+ * Button's `asChild` lets the anchor keep the button styling.
+ *
+ * Copy stays as a compact fallback: WhatsApp may not be installed, and the
+ * text is sometimes wanted elsewhere (email, SMS, a different group).
+ */
+function ShareRow({ text, label, onCopy }: {
+  text: string;
+  label: string;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="mt-3 flex gap-2">
+      <Button asChild variant="primary" brand="cricket" size="md" className="flex-1">
+        <a
+          href={whatsappShareUrl(text)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <FaWhatsapp size={16} /> {label}
+        </a>
+      </Button>
+      <Button
+        variant="secondary"
+        size="icon"
+        aria-label="Copy to clipboard"
+        onClick={onCopy}
+      >
+        <Copy size={15} />
+      </Button>
+    </div>
+  );
+}
 
 function DutyMenu({ items }: { items: CardMenuItem[] }) {
   const anchorRef = useRef<HTMLButtonElement | null>(null);

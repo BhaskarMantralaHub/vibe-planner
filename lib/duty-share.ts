@@ -48,6 +48,23 @@ function formatTime(t: string | null): string {
 // A personal commitment reads as a real offer; "we" sounds like a process.
 const REPLY_FALLBACK = "Or just reply here and I'll add you.";
 
+/**
+ * Deep link that opens WhatsApp with the message already written, so the admin
+ * picks a chat instead of copy-pasting.
+ *
+ * `wa.me/?text=` with no phone number is the "share to any chat" form — it
+ * opens the app on mobile and WhatsApp Web on desktop, and needs no API key or
+ * business account. It is also the ONLY thing WhatsApp lets an outside app
+ * pre-fill: there is no URL scheme for creating a poll, and the Business Cloud
+ * API cannot send one either.
+ *
+ * Must be opened via a real <a target="_blank">, not window.open — iOS Safari
+ * blocks programmatic window.open outside a direct user gesture.
+ */
+export function whatsappShareUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
 function formatDateHeading(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'long', month: 'short', day: 'numeric',
