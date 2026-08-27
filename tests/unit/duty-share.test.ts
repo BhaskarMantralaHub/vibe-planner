@@ -158,6 +158,12 @@ describe('buildDutyShareText', () => {
     expect(one).not.toContain('still needed');
   });
 
+  it('offers a reply-in-chat path alongside the link', () => {
+    const text = buildDutyShareText([duty({ status: 'open' })], { today: TODAY })!;
+    expect(text).toContain('Add your name');
+    expect(text).toContain("Or just reply here and I'll add you.");
+  });
+
   it('celebrates rather than nagging when everything is covered', () => {
     const text = buildDutyShareText(
       [duty({ status: 'claimed', assigned_player_name: 'Ashok' })],
@@ -283,13 +289,44 @@ describe('buildRosterSummaryText', () => {
 
   it('asks for help only when there is something to claim', () => {
     const withOpen = buildRosterSummaryText(rows, { openSlots: 2 })!;
-    expect(withOpen).toContain('🙏 *2 duties still need an umpire — please help.*');
+    expect(withOpen).toContain('🙏 *2 umpiring spots still open — please help.*');
     expect(withOpen).toContain('Add your name');
 
     // Nagging about duties that do not exist yet is pure noise.
     const noOpen = buildRosterSummaryText(rows, { openSlots: 0 })!;
     expect(noOpen).toContain('*Every duty is covered for now — thank you!* 🙌');
     expect(noOpen).not.toContain('Add your name');
+  });
+
+  it('counts SPOTS, not duties or matches, and gets singular right', () => {
+    // "1 duty needs an umpire" is circular; "1 match needs someone" is wrong
+    // when a match already has one umpire or needs two.
+    const one = buildRosterSummaryText(rows, { openSlots: 1 })!;
+    expect(one).toContain('🙏 *1 umpiring spot still open — please help.*');
+    expect(one).not.toContain('needs an umpire');
+
+    const many = buildRosterSummaryText(rows, { openSlots: 3 })!;
+    expect(many).toContain('🙏 *3 umpiring spots still open — please help.*');
+  });
+
+  it('offers a reply-in-chat path for people who avoid the app', () => {
+    // The link needs a login, which is a dead end for anyone who never
+    // registered. An admin can assign on their behalf, so replying is a
+    // complete route — but only if the message says so.
+    const t = buildRosterSummaryText(rows, { openSlots: 1 })!;
+    expect(t).toContain("Or just reply here and I'll add you.");
+  });
+
+  it('keeps the reply line free of markup and curly quotes', () => {
+    // This is the line that matters most to the people least likely to act, so
+    // it must not depend on WhatsApp rendering markup — a failed italic leaves
+    // literal underscores and the sentence reads as broken.
+    const t = buildRosterSummaryText(rows, { openSlots: 1 })!;
+    const line = t.split('\n').find((l) => l.startsWith('Or just reply'))!;
+    expect(line).toBeDefined();
+    expect(line).not.toContain('_');
+    expect(line).not.toContain('*');
+    expect(line).not.toContain('\u2019');
   });
 
   it('credits an extra booking by someone who has already stood', () => {

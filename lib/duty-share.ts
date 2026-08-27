@@ -27,6 +27,27 @@ function formatTime(t: string | null): string {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+/**
+ * Second path for anyone who would rather not open the app at all.
+ *
+ * An admin can assign a duty on someone's behalf, so replying in the group is
+ * a complete route to being signed up. Worth stating explicitly: the link
+ * requires a login, which is a dead end for anyone who never registered, and a
+ * message offering only that reads as "not for me".
+ *
+ * DELIBERATELY UNFORMATTED. Everything else in these messages uses *bold* or
+ * _italic_, but this is the line that matters most to the people least likely
+ * to act \u2014 so it must not depend on markup rendering correctly. When WhatsApp
+ * declines to italicise, the underscores show up as literal characters and the
+ * sentence reads as broken. Plain text cannot fail that way.
+ *
+ * Straight apostrophe, not U+2019, for the same reason: fewer ways to render
+ * wrong across clients.
+ */
+// "I'll", not "we'll": one person pastes this and one person does the adding.
+// A personal commitment reads as a real offer; "we" sounds like a process.
+const REPLY_FALLBACK = "Or just reply here and I'll add you.";
+
 function formatDateHeading(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'long', month: 'short', day: 'numeric',
@@ -113,10 +134,16 @@ export function buildRosterSummaryText(
 
   lines.push('');
   if (openSlots > 0) {
+    // Counts SPOTS, not duties and not matches.
+    //  • "1 duty needs an umpire" is circular — a duty IS the umpiring job.
+    //  • "1 match needs someone" is wrong — an open spot can sit on a match
+    //    that already has one umpire, and two spots can be on one match.
+    // "Spot" is also the word the team already uses for these.
     lines.push(
-      `🙏 *${openSlots} ${openSlots === 1 ? 'duty' : 'duties'} still ${openSlots === 1 ? 'needs' : 'need'} an umpire — please help.*`,
+      `🙏 *${openSlots} umpiring ${openSlots === 1 ? 'spot' : 'spots'} still open — please help.*`,
     );
     lines.push(`Add your name 👉 ${url}`);
+    lines.push(REPLY_FALLBACK);
   } else if (yetTo.length > 0) {
     // Nothing to claim right now, so an ask would be pointless. Worded as
     // "every duty is covered" rather than "no duties open", because the latter
@@ -258,6 +285,7 @@ export function buildDutyShareText(
     // "register", which is both wrong and a reason to hesitate. This names the
     // actual action: you put your name against a match.
     lines.push(`Add your name 👉 ${url}`);
+    lines.push(REPLY_FALLBACK);
   }
 
   return lines.join('\n');
