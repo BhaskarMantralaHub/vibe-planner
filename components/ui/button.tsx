@@ -75,10 +75,29 @@ function Button({
 }: ButtonProps & { ref?: React.Ref<HTMLButtonElement> }) {
   const { brand: contextBrand } = useBrand();
   const brand = brandProp ?? contextBrand;
-  const Comp = asChild ? Slot : 'button';
+  // Radix Slot requires EXACTLY ONE child (React.Children.only). Rendering the
+  // spinner as a sibling made `children` an array, so `asChild` threw
+  // "React.Children.only expected to receive a single React element child"
+  // every time — even with loading=false, because [false, <child/>] is still an
+  // array. asChild was therefore unusable; this branch makes it work.
+  //
+  // A slotted child also cannot show the spinner (there is nowhere to put it
+  // without breaking Children.only), and `disabled` is meaningless on an <a>,
+  // so neither is forwarded here.
+  if (asChild) {
+    return (
+      <Slot
+        className={cn(buttonVariants({ variant, size, fullWidth, brand }), className)}
+        ref={ref}
+        {...props}
+      >
+        {children}
+      </Slot>
+    );
+  }
 
   return (
-    <Comp
+    <button
       className={cn(buttonVariants({ variant, size, fullWidth, brand }), className)}
       disabled={disabled || loading}
       ref={ref}
@@ -88,7 +107,7 @@ function Button({
         <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
       )}
       {children}
-    </Comp>
+    </button>
   );
 }
 

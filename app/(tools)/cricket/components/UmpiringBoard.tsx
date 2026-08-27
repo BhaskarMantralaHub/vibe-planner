@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Text, Button, Badge, Alert, SegmentedControl, EmptyState, Skeleton, CardMenu,
+  buttonVariants,
 } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import type { CardMenuItem } from '@/components/ui';
 import {
   MapPin, Clock, ChevronDown, ChevronRight, Plus, Copy, UserPlus,
@@ -529,7 +531,11 @@ export default function UmpiringBoard() {
  * The share button is a real <a target="_blank">, NOT an onClick that calls
  * window.open — iOS Safari blocks programmatic window.open unless it happens
  * inside a direct user gesture, and a React handler often falls outside that.
- * Button's `asChild` lets the anchor keep the button styling.
+ *
+ * It styles the anchor with `buttonVariants()` rather than `<Button asChild>`.
+ * Both work now, but going through buttonVariants keeps this page independent
+ * of Radix Slot's single-child rule — which is what crashed the whole page in
+ * production once already.
  *
  * Copy stays as a compact fallback: WhatsApp may not be installed, and the
  * text is sometimes wanted elsewhere (email, SMS, a different group).
@@ -541,15 +547,17 @@ function ShareRow({ text, label, onCopy }: {
 }) {
   return (
     <div className="mt-3 flex gap-2">
-      <Button asChild variant="primary" brand="cricket" size="md" className="flex-1">
-        <a
-          href={whatsappShareUrl(text)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <FaWhatsapp size={16} /> {label}
-        </a>
-      </Button>
+      <a
+        href={whatsappShareUrl(text)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          buttonVariants({ variant: 'primary', size: 'md', brand: 'cricket' }),
+          'flex-1',
+        )}
+      >
+        <FaWhatsapp size={16} /> {label}
+      </a>
       <Button
         variant="secondary"
         size="icon"
