@@ -302,11 +302,11 @@ export default function UmpiringBoard() {
                 </div>
               </div>
               {shareText && (
-                <ShareRow
+                <ShareFooter
                   text={shareText}
-                  label="Share on WhatsApp"
+                  label="Share duties on WhatsApp"
+                  caption="Send to the group"
                   onCopy={() => copy(shareText, 'Copied to clipboard')}
-                  className="mt-3"
                 />
               )}
             </div>
@@ -408,20 +408,21 @@ export default function UmpiringBoard() {
       {/* ── ROSTER ── */}
       {tab === 'roster' && (
         <div className="space-y-3">
-          <RosterHero stats={stats} target={target} />
-
-          {/* Directly under the hero, mirroring the Upcoming tab. Sharing is
-              the main action on both tabs, so it sits in the same place on
-              each — a share button below a long player grid is easy to miss,
-              and inconsistent placement makes people hunt for it.
-              Not admin-gated: this is a progress update, not an admin tool. */}
-          {summaryText && (
-            <ShareRow
-              text={summaryText}
-              label="Share summary on WhatsApp"
-              onCopy={() => copy(summaryText, 'Copied to clipboard')}
-            />
-          )}
+          {/* Share lives INSIDE the hero, so the icons belong to the summary
+              they send rather than floating between cards. Not admin-gated:
+              this is a progress update, not an admin tool. */}
+          <RosterHero
+            stats={stats}
+            target={target}
+            share={summaryText ? (
+              <ShareFooter
+                text={summaryText}
+                label="Share summary on WhatsApp"
+                caption="Share this summary"
+                onCopy={() => copy(summaryText, 'Copied to clipboard')}
+              />
+            ) : null}
+          />
 
           {/* Filter instead of three stacked boxes: one grid, one mental model,
               and the counts double as the control. */}
@@ -534,7 +535,13 @@ export default function UmpiringBoard() {
 const WHATSAPP_GREEN = '#25D366';
 
 /**
- * Icon-only WhatsApp share, with a copy fallback beside it.
+ * Icon-only WhatsApp share with a copy fallback, as a CARD FOOTER.
+ *
+ * Lives inside the hero card, under a divider, with a caption. As a bare row on
+ * the page background the two icons read as orphaned leftovers — no container,
+ * no subject, and nothing saying what they would send. The divider ties them to
+ * the card whose contents they share, and the caption supplies the subject
+ * without putting words back on the buttons.
  *
  * ICON, NOT TEXT: "Share summary on WhatsApp" ate a full-width button to say
  * what the logo says by itself. WhatsApp's mark in its own green is about as
@@ -557,44 +564,53 @@ const WHATSAPP_GREEN = '#25D366';
  * Copy stays as a fallback: WhatsApp may not be installed, and the text is
  * sometimes wanted elsewhere (email, SMS, a different group).
  */
-function ShareRow({ text, label, onCopy, className }: {
+function ShareFooter({ text, label, caption, onCopy }: {
   text: string;
   label: string;
+  /** Says what the icons will send. Icon-only buttons floating on the page
+   *  background read as orphaned controls; a caption gives them a subject. */
+  caption: string;
   onCopy: () => void;
-  className?: string;
 }) {
   // h-11/w-11 = 44px, the minimum touch target per the project's mobile rules.
+  // The obvious `size="icon"` variant is 40px, so this is sized by hand.
   const iconButton =
     'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ' +
     'transition-all duration-150 ease-out active:scale-[0.96] cursor-pointer ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2';
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      <a
-        href={whatsappShareUrl(text)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={label}
-        title={label}
-        className={cn(iconButton, 'text-white shadow-md hover:brightness-105')}
-        style={{ background: WHATSAPP_GREEN }}
-      >
-        <FaWhatsapp size={22} />
-      </a>
-      <button
-        type="button"
-        onClick={onCopy}
-        aria-label="Copy to clipboard"
-        title="Copy to clipboard"
-        className={cn(
-          iconButton,
-          'border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]',
-          'hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
-        )}
-      >
-        <Copy size={17} />
-      </button>
+    <div
+      className="mt-3 flex items-center justify-between gap-3 border-t pt-3"
+      style={{ borderColor: 'color-mix(in srgb, var(--border) 65%, transparent)' }}
+    >
+      <Text size="2xs" color="muted">{caption}</Text>
+      <div className="flex shrink-0 items-center gap-2">
+        <a
+          href={whatsappShareUrl(text)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={label}
+          title={label}
+          className={cn(iconButton, 'text-white shadow-md hover:brightness-105')}
+          style={{ background: WHATSAPP_GREEN }}
+        >
+          <FaWhatsapp size={22} />
+        </a>
+        <button
+          type="button"
+          onClick={onCopy}
+          aria-label="Copy to clipboard"
+          title="Copy to clipboard"
+          className={cn(
+            iconButton,
+            'border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]',
+            'hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
+          )}
+        >
+          <Copy size={17} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -663,7 +679,11 @@ function Avatar({ player, name, ringColor, size = 34 }: {
 }
 
 /** Donut progress — reads at a glance in a way a thin bar never does. */
-function RosterHero({ stats, target }: { stats: ReturnType<typeof computeDutyStats>; target: number }) {
+function RosterHero({ stats, target, share }: {
+  stats: ReturnType<typeof computeDutyStats>;
+  target: number;
+  share?: React.ReactNode;
+}) {
   const size = 96;
   const stroke = 10;
   const r = (size - stroke) / 2;
@@ -722,6 +742,9 @@ function RosterHero({ stats, target }: { stats: ReturnType<typeof computeDutySta
           </div>
         </div>
       </div>
+
+      {/* Card footer — the share icons belong to this summary. */}
+      {share}
     </div>
   );
 }
