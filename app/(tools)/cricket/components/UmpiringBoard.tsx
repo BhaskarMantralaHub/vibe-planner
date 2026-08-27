@@ -120,7 +120,7 @@ export default function UmpiringBoard() {
 
   const [tab, setTab] = useState<Tab>('upcoming');
   const [showForm, setShowForm] = useState(false);
-  const [showHandedOver, setShowHandedOver] = useState(false);
+  const [showRemoved, setShowRemoved] = useState(false);
   const [assignTarget, setAssignTarget] = useState<CricketUmpiringDuty | null>(null);
   const [swapTarget, setSwapTarget] = useState<CricketUmpiringDuty | null>(null);
   const [rosterFilter, setRosterFilter] = useState<'all' | 'open' | 'booked' | 'done'>('all');
@@ -149,7 +149,10 @@ export default function UmpiringBoard() {
   const today = todayPT();
 
   const live = useMemo(() => duties.filter(isLiveDuty), [duties]);
-  const handedOver = useMemo(() => duties.filter((d) => d.deleted_at !== null), [duties]);
+  // Soft-deleted duties. Since swaps now use status='cancelled' and stay
+  // visible inline, deleted_at means exactly one thing: an admin removed the
+  // slot. The collapsed group is labelled "Removed" to match.
+  const removedDuties = useMemo(() => duties.filter((d) => d.deleted_at !== null), [duties]);
 
   // Cancelled duties are deliberately INCLUDED here. A swapped-away duty must
   // stay on the list: MTCA's own site still names us for that match, so hiding
@@ -231,8 +234,11 @@ export default function UmpiringBoard() {
       });
     }
     // Remove entirely — for a duty entered by mistake, not for a swap.
+    // Distinct from 'Clear slot' above: that unassigns the person and leaves
+    // the slot open, this removes the slot itself. Naming both "delete" is how
+    // an admin removes a duty when they meant to free it up.
     items.push({
-      label: 'Delete', icon: <Trash2 size={14} />, color: 'var(--red)',
+      label: 'Remove this slot', icon: <Trash2 size={14} />, color: 'var(--red)',
       dividerBefore: true,
       onClick: () => void deleteDuty(d.id, adminName),
     });
@@ -278,7 +284,7 @@ export default function UmpiringBoard() {
 
       {/* ── UPCOMING ── */}
       {tab === 'upcoming' && (
-        upcomingGroups.length === 0 && handedOver.length === 0 ? (
+        upcomingGroups.length === 0 && removedDuties.length === 0 ? (
           <EmptyState
             icon={<UmpireIcon size={40} />}
             brand="cricket"
@@ -354,36 +360,45 @@ export default function UmpiringBoard() {
               />
             ))}
 
-            {handedOver.length > 0 && (
+            {removedDuties.length > 0 && (
               <div className="pt-1">
                 <button
                   type="button"
-                  onClick={() => setShowHandedOver((v) => !v)}
+                  onClick={() => setShowRemoved((v) => !v)}
                   className="flex min-h-[44px] items-center gap-1.5 text-[var(--muted)]"
                 >
-                  {showHandedOver ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  {showRemoved ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <Text size="sm" color="muted" weight="medium">
-                    Handed to another team ({handedOver.length})
+                    Removed ({removedDuties.length})
                   </Text>
                 </button>
-                {showHandedOver && (
+                {showRemoved && (
                   <div className="space-y-2 pt-1">
-                    {handedOver.map((d) => (
+                    {removedDuties.map((d) => (
                       <div
                         key={d.id}
                         className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 opacity-60"
                       >
-                        <Text size="sm" weight="medium" className="line-through">
-                          {shortTeam(d.team_a)} v {shortTeam(d.team_b)}
-                        </Text>
-                        <Text as="p" size="2xs" color="dim">
-                          {d.match_date}{d.swap_team ? ` · handed to ${d.swap_team}` : ''}
-                        </Text>
-                        {isAdmin && (
-                          <Button variant="link" size="sm" onClick={() => void restoreDuty(d.id)}>
-                            Restore
-                          </Button>
-                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Text as="p" size="sm" weight="medium" truncate>
+                              {shortTeam(d.team_a)} v {shortTeam(d.team_b)}
+                            </Text>
+                            <Text as="p" size="2xs" color="dim">
+                              {formatShortDate(d.match_date)}
+                              {d.match_time ? ` · ${formatTime(d.match_time)}` : ''}
+                              {` · Umpire ${d.role_slot}`}
+                            </Text>
+                          </div>
+                          {isAdmin && (
+                            <Button
+                              variant="secondary" size="sm" className="shrink-0"
+                              onClick={() => void restoreDuty(d.id)}
+                            >
+                              <RotateCcw size={13} /> Restore
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
