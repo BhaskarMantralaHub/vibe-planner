@@ -170,6 +170,19 @@ export default function UmpiringBoard() {
     [live],
   );
 
+  /**
+   * Matches we are actually going to.
+   *
+   * NOT `upcomingGroups.length` — that list deliberately includes swapped-away
+   * matches so they stay visible (MTCA still lists us for them). But a match we
+   * handed over is one we are NOT attending, so counting it as "coming up"
+   * overstates the commitment.
+   */
+  const matchesComingUp = useMemo(
+    () => upcomingGroups.filter((g) => g.duties.some((d) => d.status !== 'cancelled')).length,
+    [upcomingGroups],
+  );
+
   const stats = useMemo(() => computeDutyStats(duties, players, target), [duties, players, target]);
 
   const adminName = user?.email ?? 'admin';
@@ -297,7 +310,7 @@ export default function UmpiringBoard() {
                       : 'All duties covered'}
                   </Text>
                   <Text as="p" size="2xs" color="muted">
-                    {upcomingGroups.length} {upcomingGroups.length === 1 ? 'match' : 'matches'} coming up
+                    {matchesComingUp} {matchesComingUp === 1 ? 'match' : 'matches'} coming up
                   </Text>
                 </div>
               </div>
