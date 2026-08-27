@@ -198,6 +198,20 @@ interface UmpiringState {
       match_type: 'league' | 'semi_final' | 'final' | null;
     },
   ) => Promise<void>;
+  /** Edit the match details (date, time, venue, teams). Not status/assignment. */
+  updateDuty: (
+    dutyId: string,
+    data: {
+      match_date: string;
+      match_time: string | null;
+      venue: string | null;
+      team_a: string;
+      team_b: string;
+      match_type: 'league' | 'semi_final' | 'final' | null;
+      swap_team: string | null;
+      notes: string | null;
+    },
+  ) => Promise<void>;
   deleteDuty: (dutyId: string, deletedBy: string) => Promise<void>;
   restoreDuty: (dutyId: string) => Promise<void>;
   setDutyTarget: (seasonId: string, target: number) => Promise<void>;
@@ -525,6 +539,32 @@ export const useUmpiringStore = create<UmpiringState>((set, get) => ({
     }
     toast.success('Duty added');
     await get().loadDuties(seasonId);
+  },
+
+  /**
+   * Admin edits the match details of a duty — time changed, wrong ground, etc.
+   *
+   * Deliberately limited to MTCA-fact columns. Status and assignment are not
+   * editable here: those have dedicated actions (assign / mark done / swap)
+   * with their own rules, and letting a details form write them would allow an
+   * edit to silently un-complete a duty.
+   *
+   * CAVEAT worth knowing: on a duty with source='mtca', the weekly sync patches
+   * these same fields from the fixture page, so an edit that disagrees with
+   * MTCA will be reverted on the next run. The form says so. Edits to
+   * swap_in/manual duties are permanent, because the sync never sees them.
+   */
+  updateDuty: async (dutyId, data) => {
+    await patchDuty(get, dutyId, {
+      match_date: data.match_date,
+      match_time: data.match_time,
+      venue: data.venue,
+      team_a: data.team_a,
+      team_b: data.team_b,
+      match_type: data.match_type,
+      swap_team: data.swap_team,
+      notes: data.notes,
+    }, 'Duty updated');
   },
 
   deleteDuty: async (dutyId, deletedBy) => {

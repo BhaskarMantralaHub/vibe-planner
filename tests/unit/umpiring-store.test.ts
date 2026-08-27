@@ -619,6 +619,63 @@ describe('addManualDuty', () => {
   });
 });
 
+describe('updateDuty', () => {
+  const seed = () => {
+    const d = duty({ status: 'claimed', assigned_player_id: 'p1' });
+    useUmpiringStore.setState({ duties: [d] });
+    return d;
+  };
+
+  it('writes the edited date, time and venue', async () => {
+    const d = seed();
+    await useUmpiringStore.getState().updateDuty(d.id, {
+      match_date: '2026-09-06',
+      match_time: '14:30',
+      venue: 'Cordes Park',
+      team_a: 'MTCA A',
+      team_b: 'MTCA B',
+      match_type: 'league',
+      swap_team: null,
+      notes: null,
+    });
+    const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+    expect(patch.match_date).toBe('2026-09-06');
+    expect(patch.match_time).toBe('14:30');
+    expect(patch.venue).toBe('Cordes Park');
+  });
+
+  it('never touches status or assignment', async () => {
+    // A details edit must not be able to un-complete a duty or drop its
+    // umpire — those changes have their own actions with their own rules.
+    const d = seed();
+    await useUmpiringStore.getState().updateDuty(d.id, {
+      match_date: '2026-09-06',
+      match_time: null,
+      venue: null,
+      team_a: 'MTCA A',
+      team_b: 'MTCA B',
+      match_type: null,
+      swap_team: null,
+      notes: null,
+    });
+    const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+    expect(patch).not.toHaveProperty('status');
+    expect(patch).not.toHaveProperty('assigned_player_id');
+    expect(patch).not.toHaveProperty('completed_at');
+    expect(patch).not.toHaveProperty('deleted_at');
+    expect(patch).not.toHaveProperty('role_slot');
+  });
+
+  it('scopes the update by team_id as well as id', async () => {
+    const d = seed();
+    await useUmpiringStore.getState().updateDuty(d.id, {
+      match_date: '2026-09-06', match_time: null, venue: null,
+      team_a: 'A', team_b: 'B', match_type: null, swap_team: null, notes: null,
+    });
+    expect(mockQuery.eq).toHaveBeenCalledWith('team_id', 'team-1');
+  });
+});
+
 describe('setDutyTarget', () => {
   it('upserts on season_id', async () => {
     await useUmpiringStore.getState().setDutyTarget('season-1', 2);

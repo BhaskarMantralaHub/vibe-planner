@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ComposerModal, Input, Label, Button, Text, SegmentedControl } from '@/components/ui';
+import { ComposerModal, Input, Label, Button, Text, SegmentedControl, Alert } from '@/components/ui';
 import { useUmpiringStore, todayPT } from '@/stores/umpiring-store';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
@@ -25,7 +25,7 @@ interface DutyFormProps {
 type DutyKind = 'swap_in' | 'manual';
 
 export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormProps) {
-  const { addManualDuty } = useUmpiringStore();
+  const { addManualDuty, updateDuty } = useUmpiringStore();
 
   const [teamA, setTeamA] = useState('');
   const [teamB, setTeamB] = useState('');
@@ -72,6 +72,20 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
     if (!canSave) return;
     setSaving(true);
     try {
+      if (editing) {
+        await updateDuty(editing.id, {
+          match_date: matchDate,
+          match_time: matchTime || null,
+          venue: venue.trim() || null,
+          team_a: teamA.trim(),
+          team_b: teamB.trim(),
+          match_type: editing.match_type,
+          swap_team: kind === 'swap_in' ? (swapTeam.trim() || null) : null,
+          notes: notes.trim() || null,
+        });
+        onClose();
+        return;
+      }
       await addManualDuty(seasonId, {
         match_date: matchDate,
         match_time: matchTime || null,
@@ -104,6 +118,17 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
       }}
     >
       <div className="space-y-4">
+        {/* An mtca-sourced duty has its date/time/venue refreshed from the
+            fixture page every sync run, so an edit that disagrees with MTCA
+            gets reverted. Better to say so than to let the change quietly
+            vanish on Saturday morning. */}
+        {editing?.source === 'mtca' && (
+          <Alert variant="warning">
+            MTCA publishes this match. If you change the date, time or ground
+            here, the weekly sync will set it back to whatever MTCA says.
+          </Alert>
+        )}
+
         {/* Text inputs FIRST — they must sit above the iOS keyboard. */}
         <div className="space-y-1.5">
           <Label htmlFor="duty-team-a">Teams playing</Label>
@@ -160,7 +185,9 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
           />
         </div>
 
-        {/* Tap-only controls BELOW the text inputs. */}
+        {/* Tap-only controls BELOW the text inputs. Hidden for MTCA duties:
+            their source is owned by the sync, not the admin. */}
+        {editing?.source !== 'mtca' && (
         <div className="space-y-1.5">
           <Label>Where this duty came from</Label>
           <SegmentedControl
@@ -173,6 +200,7 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
             onChange={(k) => setKind(k as DutyKind)}
           />
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -195,6 +223,7 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
           </div>
         </div>
 
+        {!editing && (
         <div className="space-y-1.5">
           <Label>Umpire position</Label>
           <SegmentedControl
@@ -211,6 +240,7 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
             Add one duty per person needed. Two spots on the same match means two duties.
           </Text>
         </div>
+        )}
 
         {/* Footer button as well as the header action — the header one can be
             hidden behind the keyboard on short screens. */}

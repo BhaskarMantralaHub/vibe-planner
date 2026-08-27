@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import type { CardMenuItem } from '@/components/ui';
 import {
   MapPin, Clock, ChevronDown, ChevronRight, Plus, Copy, UserPlus,
-  EllipsisVertical, CircleCheckBig, UserX, RotateCcw, UserMinus, Trash2, CircleCheck, UserCog, Repeat2,
+  EllipsisVertical, CircleCheckBig, UserX, RotateCcw, UserMinus, Trash2, CircleCheck, UserCog, Repeat2, Pencil,
 } from 'lucide-react';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { FaWhatsapp } from 'react-icons/fa';
@@ -123,6 +123,7 @@ export default function UmpiringBoard() {
   const [showRemoved, setShowRemoved] = useState(false);
   const [assignTarget, setAssignTarget] = useState<CricketUmpiringDuty | null>(null);
   const [swapTarget, setSwapTarget] = useState<CricketUmpiringDuty | null>(null);
+  const [editTarget, setEditTarget] = useState<CricketUmpiringDuty | null>(null);
   const [rosterFilter, setRosterFilter] = useState<'all' | 'open' | 'booked' | 'done'>('all');
 
   useEffect(() => {
@@ -210,6 +211,10 @@ export default function UmpiringBoard() {
       icon: <UserCog size={14} />,
       color: 'var(--cricket)',
       onClick: () => setAssignTarget(d),
+    });
+    items.push({
+      label: 'Edit date, time, venue', icon: <Pencil size={14} />, color: 'var(--blue)',
+      onClick: () => setEditTarget(d),
     });
     if (d.status === 'claimed') {
       items.push({ label: 'Mark as done', icon: <CircleCheckBig size={14} />, color: 'var(--green)', onClick: () => void markCompleted(d.id, adminName) });
@@ -544,6 +549,12 @@ export default function UmpiringBoard() {
             <Plus size={24} />
           </button>
           <DutyForm open={showForm} onClose={() => setShowForm(false)} seasonId={selectedSeasonId} />
+          <DutyForm
+            open={editTarget !== null}
+            onClose={() => setEditTarget(null)}
+            seasonId={selectedSeasonId}
+            editing={editTarget}
+          />
         </>
       )}
 
