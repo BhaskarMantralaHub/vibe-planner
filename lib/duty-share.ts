@@ -143,6 +143,10 @@ export function buildRosterSummaryText(
     lines.push('', `✅ *Stood (${stood.length})*`, list(stood, true));
   }
   if (booked.length > 0) {
+    // "Upcoming" here, but "Signed up" in the app's roster legend. Not an
+    // inconsistency: the app has a TAB called Upcoming, so reusing the word for
+    // a group of people would make it mean two things on one screen. A chat
+    // message has no such collision, and "Upcoming" reads better there.
     lines.push('', `🕐 *Upcoming (${booked.length})*`, list(booked, false));
   }
   if (yetTo.length > 0) {

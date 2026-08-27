@@ -430,7 +430,7 @@ export default function UmpiringBoard() {
             {([
               { key: 'all', label: 'Everyone', n: stats.perPlayer.length, color: 'var(--cricket)' },
               { key: 'open', label: 'Yet to umpire', n: stats.open, color: 'var(--orange)' },
-              { key: 'booked', label: 'Booked', n: stats.booked, color: 'var(--blue)' },
+              { key: 'booked', label: 'Signed up', n: stats.booked, color: 'var(--blue)' },
               { key: 'done', label: 'Done', n: stats.done, color: 'var(--green)' },
             ] as const).map((f) => {
               const active = rosterFilter === f.key;
@@ -737,7 +737,7 @@ function RosterHero({ stats, target, share }: {
           </Text>
           <div className="mt-2 space-y-1">
             <LegendRow color="var(--green)" label="Stood" n={stats.done} icon={<CircleCheck size={10} />} />
-            <LegendRow color="var(--blue)" label="Booked in" n={stats.booked} icon={<Clock size={10} />} />
+            <LegendRow color="var(--blue)" label="Signed up" n={stats.booked} icon={<Clock size={10} />} />
             <LegendRow color="var(--orange)" label="Yet to umpire" n={stats.open} />
           </div>
         </div>
