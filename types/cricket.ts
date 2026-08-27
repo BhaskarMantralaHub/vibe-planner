@@ -169,6 +169,83 @@ export type PlayerBalance = {
 };
 
 
+/* ── Umpiring duties ── */
+
+/** open → claimed → completed | no_show. `cancelled` is terminal. */
+export type DutyStatus = 'open' | 'claimed' | 'completed' | 'no_show' | 'cancelled';
+
+/** 'mtca' published by MTCA · 'swap_in' taken over from another team offline · 'manual' admin-created. */
+export type DutySource = 'mtca' | 'swap_in' | 'manual';
+
+export type DutyCancelReason = 'admin' | 'mtca_removed';
+
+/** Reason codes returned by claim_umpiring_duty / release_umpiring_duty. */
+export type DutyClaimResult =
+  | 'ok'
+  | 'not_found'
+  | 'not_member'
+  | 'no_player'
+  | 'not_open'
+  | 'past'
+  | 'duplicate_slot'
+  | 'not_yours'
+  | 'locked';
+
+export type CricketUmpiringDuty = {
+  id: string;
+  team_id: string;
+  season_id: string;
+
+  cricclubs_fixture_id: number | null;   // null = not from MTCA (swap_in / manual)
+  /** Which umpire position this duty is. MTCA publishes only 1 and 2 (its
+   *  fixtures page has exactly two umpire columns); hand-added duties may use
+   *  3-4 for an extra person MTCA has no column for. */
+  role_slot: number;
+
+  match_date: string;
+  match_time: string | null;             // 'HH:MM' 24h
+  venue: string | null;
+  team_a: string;                        // the two sides playing (usually not us)
+  team_b: string;
+  /** No 'practice' — umpiring duties only come from MTCA league and playoff
+   *  fixtures. Includes the playoff rounds, which MTCA does assign umpires on. */
+  match_type: 'league' | 'semi_final' | 'final' | null;
+
+  umpire_team_cricclubs_id: number | null;
+  umpire_team_raw: string | null;
+
+  source: DutySource;
+  swap_team: string | null;
+
+  assigned_player_id: string | null;     // null = open slot
+  assigned_player_name: string | null;   // snapshot; survives a player hard-delete
+  assigned_by: string | null;            // 'self' or an admin's name
+  assigned_at: string | null;
+
+  status: DutyStatus;
+  cancelled_reason: DutyCancelReason | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  notes: string | null;
+
+  /** Set by the sync when MTCA no longer names us for this slot. Admin reviews. */
+  mtca_removed_at: string | null;
+
+  deleted_at: string | null;             // tombstone: duty handed to another team
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CricketUmpiringSettings = {
+  season_id: string;
+  team_id: string;
+  duty_target: number;
+  cricclubs_team_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /* ── Peer-to-peer Splits (completely separate from pool expenses) ── */
 
 export type CricketSplit = {

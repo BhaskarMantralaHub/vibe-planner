@@ -124,6 +124,43 @@ SETTLEMENTS=$(curl -s "${SB_HEADERS[@]}" \
   --data-urlencode "select=from_player,to_player,amount,settled_date")
 echo "Settlements (all): $(echo "$SETTLEMENTS" | jq length)"
 
+# ── Umpiring duties ───────────────────────────────────────────────────────
+# Every fetch below is DEFENSIVE, because this script runs under `set -e` and
+# these tables may not exist yet (the window between deploying code and running
+# the migration). curl still exits 0 on a Postgres error and returns
+# {"code":"42P01",...}; piping that to jq at top level exits non-zero, which
+# under `set -e` KILLS THE WHOLE SCRIPT — nobody gets an email, including the
+# expenses and fees sections that have nothing to do with umpiring.
+#
+# The `if` wrapper is what makes this safe: a failing command inside an `if`
+# condition does not trigger `set -e`.
+TODAY_PT=$(TZ=America/Los_Angeles date +%F)
+
+DUTIES_RAW=$(curl -s "${SB_HEADERS[@]}" \
+  -G "$SUPABASE_URL/rest/v1/cricket_umpiring_duties" \
+  --data-urlencode "select=id,match_date,match_time,venue,team_a,team_b,role_slot,status,assigned_player_id,assigned_player_name" \
+  --data-urlencode "team_id=eq.$TEAM_ID" \
+  --data-urlencode "season_id=eq.$SEASON_ID" \
+  --data-urlencode "deleted_at=is.null" \
+  --data-urlencode "order=match_date.asc" || echo '[]')
+if echo "$DUTIES_RAW" | jq -e 'type == "array"' >/dev/null 2>&1; then
+  DUTIES="$DUTIES_RAW"
+else
+  echo "⚠️  Umpiring duties unavailable (table missing or API error) — section omitted"
+  DUTIES='[]'
+fi
+echo "Umpiring duties in season: $(echo "$DUTIES" | jq length)"
+
+DUTY_TARGET=1
+TARGET_RAW=$(curl -s "${SB_HEADERS[@]}" \
+  -G "$SUPABASE_URL/rest/v1/cricket_umpiring_settings" \
+  --data-urlencode "select=duty_target" \
+  --data-urlencode "season_id=eq.$SEASON_ID" || echo '[]')
+if echo "$TARGET_RAW" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+  DUTY_TARGET=$(echo "$TARGET_RAW" | jq -r '.[0].duty_target // 1')
+fi
+echo "Umpiring duty target: $DUTY_TARGET"
+
 # Build a map of player_id -> name for splits payer lookups (includes guests/inactive
 # so we don't show "Unknown" for past contributors).
 ALL_PLAYERS=$(curl -s "${SB_HEADERS[@]}" \
@@ -310,6 +347,9 @@ $(if [ "$MATCH_COUNT" -gt 0 ]; then echo "
 <!-- Per-player splits (substituted in send_email — sits below Expenses) -->
 <!--SPLITS_FOR_PLAYER-->
 
+<!-- Per-player umpiring duties (substituted in send_email) -->
+<!--UMPIRING_FOR_PLAYER-->
+
 <div style='padding:0 28px'><div style='height:1px;background:#e5e7eb'></div></div>
 
 <!-- Sponsorships -->
@@ -440,6 +480,80 @@ build_splits_section() {
   '
 }
 
+# ── Per-recipient umpiring section ────────────────────────────────────────
+# PRIVACY CONTRACT, same as build_splits_section: this renders ONLY the
+# recipient's own duties. Team-wide numbers appear as AGGREGATES ONLY — never
+# "still pending: Ravi, Akash", which would leak other players' standing to
+# everyone on the roster. The only names in the output are the recipient's own.
+#
+# Hidden entirely when the recipient has nothing to act on and nothing to show,
+# so the email doesn't carry a dead section for people with no involvement.
+build_umpiring_section() {
+  local PID="$1"
+  echo "$DUTIES" | jq -r \
+    --arg pid "$PID" \
+    --arg today "$TODAY_PT" \
+    --argjson target "$DUTY_TARGET" '
+    # Only the recipient'"'"'s rows.
+    (map(select(.assigned_player_id == $pid))) as $mine |
+    ([$mine[] | select(.status == "completed")] | length) as $doneCount |
+    ([$mine[] | select(.status == "claimed" and .match_date >= $today)]
+      | sort_by(.match_date)) as $upcoming |
+    # Team-wide, aggregate only.
+    ([.[] | select(.status == "open" and .match_date >= $today)] | length) as $openSlots |
+
+    if ($doneCount == 0 and ($upcoming | length) == 0 and $openSlots == 0) then "" else
+      ($upcoming | map(
+        "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">"
+          + ((.team_a | sub("^MTCA ";"")) + " v " + (.team_b | sub("^MTCA ";"")))
+          + "</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">"
+          + .match_date + (if .match_time then " · " + .match_time else "" end)
+          + (if .venue then "<br>" + .venue else "" end)
+          + "</td></tr>"
+      ) | join("")) as $rows |
+
+      "<div style=\"padding:0 28px\"><div style=\"height:1px;background:#e5e7eb\"></div></div>" +
+      "<div style=\"padding:20px 28px\">" +
+      "<div style=\"font-size:15px;font-weight:700;color:#1e1e2f\">Your umpiring</div>" +
+      "<div style=\"margin-top:2px;font-size:11px;color:#9ca3af\">Personal — only shown to you.</div>" +
+
+      # Stat tiles: what you have stood, and what is still unclaimed team-wide.
+      "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"4\" border=\"0\" style=\"margin-top:10px\"><tr>" +
+      "<td width=\"50%\" align=\"center\" style=\"padding:14px 6px;background:"
+        + (if $doneCount >= $target then "#f0fdf4" else "#fef3c7" end) + ";border-radius:10px\">" +
+      "<div style=\"font-size:22px;font-weight:800;color:"
+        + (if $doneCount >= $target then "#16a34a" else "#d97706" end) + "\">"
+        + ($doneCount | tostring) + "</div>" +
+      "<div style=\"font-size:10px;color:#6b7280;margin-top:3px\">YOU HAVE STOOD · TARGET "
+        + ($target | tostring) + "</div>" +
+      "</td>" +
+      "<td width=\"50%\" align=\"center\" style=\"padding:14px 6px;background:#f8f9fb;border-radius:10px\">" +
+      "<div style=\"font-size:22px;font-weight:800;color:#4DBBEB\">" + ($openSlots | tostring) + "</div>" +
+      "<div style=\"font-size:10px;color:#6b7280;margin-top:3px\">DUTIES STILL UNCLAIMED</div>" +
+      "</td>" +
+      "</tr></table>" +
+
+      (if ($upcoming | length) > 0 then
+        "<div style=\"margin-top:14px;font-size:12px;font-weight:700;color:#1e1e2f\">You are down for</div>" +
+        "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size:13px;margin-top:6px\">"
+          + $rows + "</table>"
+       else "" end) +
+
+      # The nudge only fires when there is both a gap AND something to claim —
+      # asking someone to sign up when nothing is open is just noise.
+      (if $doneCount < $target and $openSlots > 0 then
+        "<div style=\"margin-top:14px;padding:12px 14px;background:#fff7ed;border-radius:10px;font-size:13px;color:#9a3412\">"
+        + "You have not stood yet this season, and " + ($openSlots | tostring)
+        + (if $openSlots == 1 then " duty still needs" else " duties still need" end)
+        + " an umpire. Please help if you can 🙏</div>"
+       else "" end) +
+
+      "<div style=\"margin-top:10px\"><a href=\"https://viberstoolkit.com/cricket/umpiring\" style=\"color:#4DBBEB;text-decoration:none;font-size:12px;font-weight:600\">View umpiring duties →</a></div>" +
+      "</div>"
+    end
+  '
+}
+
 send_email() {
   local EMAIL="$1"
   local NAME="$2"
@@ -447,12 +561,18 @@ send_email() {
   local FIRST=$(echo "$NAME" | awk '{print $1}')
   local SAFE_FIRST=$(escape_html "$FIRST")
   local SPLITS_SECTION=""
+  local UMPIRING_SECTION=""
   if [ -n "$PID" ]; then
     SPLITS_SECTION=$(build_splits_section "$PID")
+    # `local VAR=$(...)` masks the command's exit status, so a jq failure here
+    # cannot trip `set -e` and kill the whole run. Same reason the splits
+    # section above is safe.
+    UMPIRING_SECTION=$(build_umpiring_section "$PID")
   fi
   # Bash parameter substitution (safe — no sed special char issues)
   local PERSONALIZED_HTML="${HTML//Hey team!/Hey $SAFE_FIRST!}"
   PERSONALIZED_HTML="${PERSONALIZED_HTML//<!--SPLITS_FOR_PLAYER-->/$SPLITS_SECTION}"
+  PERSONALIZED_HTML="${PERSONALIZED_HTML//<!--UMPIRING_FOR_PLAYER-->/$UMPIRING_SECTION}"
 
   local PAYLOAD=$(jq -n \
     --arg to "$EMAIL" \

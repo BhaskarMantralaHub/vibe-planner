@@ -5,3 +5,10 @@ node_modules/
 playwright-report/
 *.html
 *.mhtml
+
+# ...but test fixtures MUST be tracked. They are frozen cricclubs pages that
+# the parser tests replay offline, so an ignored fixture means the test suite
+# passes here and fails everywhere else. The existing three were force-added,
+# which is why this negation was missing.
+!__tests__/fixtures/*.html
+!__tests__/fixtures/*.mhtml

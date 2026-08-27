@@ -9,6 +9,7 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
+import UmpireIcon from '@/components/icons/UmpireIcon';
 import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -346,6 +347,7 @@ function CricketDashboard() {
               { kind: 'view', key: 'players', label: 'Players', icon: CricketPlayerIcon },
               { kind: 'view', key: 'finances', label: 'Finances', icon: Receipt },
               { kind: 'route', key: 'matches', label: 'Matches', icon: CalendarDays, href: '/cricket/schedule' },
+              { kind: 'route', key: 'umpiring', label: 'Umpiring', icon: UmpireIcon, href: '/cricket/umpiring' },
               { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
             ];
             return (

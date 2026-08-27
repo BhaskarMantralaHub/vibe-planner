@@ -134,6 +134,8 @@ jobs:
             "practice_innings"
             "practice_balls"
             "cricket_schedule_matches"
+            "cricket_umpiring_duties"
+            "cricket_umpiring_settings"
             "vibes"
             "id_documents"
             "user_activity"

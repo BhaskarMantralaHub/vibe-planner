@@ -9,10 +9,12 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { PageFooter } from '@/components/PageFooter';
 import Gallery from '../components/Gallery';
 import { Camera, CalendarDays, BarChart3, LayoutGrid } from 'lucide-react';
+import UmpireIcon from '@/components/icons/UmpireIcon';
 import CricketSectionNav, { type CricketSectionNavItem } from '../components/CricketSectionNav';
 
 const NAV_ITEMS: CricketSectionNavItem[] = [
   { kind: 'route', key: 'schedule', label: 'Schedule', icon: CalendarDays, href: '/cricket/schedule' },
+  { kind: 'route', key: 'umpiring', label: 'Umpiring', icon: UmpireIcon, href: '/cricket/umpiring' },
   { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
   { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
   { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },

@@ -13,13 +13,21 @@
 // Order doesn't matter; the script routes each file by content.
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { parseMatchList, parseScorecard, parseFixtures, type ParsedListEntry, type ParsedScorecard, type ParsedFixture } from './parser.js';
+import {
+  parseMatchList, parseScorecard, parseFixtures,
+  extractUmpiringDuties, isOurFixture,
+  type ParsedListEntry, type ParsedScorecard, type ParsedFixture,
+} from './parser.js';
 import { makeServiceRoleClient, loadRoster, resolvePlayerId } from './supabase.js';
 
 // ── Config (matches sync.ts) ────────────────────────────────────────────
 const BASE = 'https://cricclubs.com/MountainHouseTracyCricketAssociationMTCA';
 const CLUB_ID = 14653;
 const LEAGUE_ID = 87;
+// Our numeric cricclubs team id — the value in viewTeam.do?teamId=NNNN links.
+// Used to partition the league-wide fixture feed. Overridable so a second team
+// can run this without a code change.
+const MY_CRICCLUBS_TEAM_ID = Number(process.env.CRICCLUBS_TEAM_ID ?? 1014);
 const INTERNAL_TEAM_ID =
   process.env.CRICCLUBS_TEAM_ID_INTERNAL ?? '8284208d-fb02-44bf-bb8c-3c5411d35386';
 
@@ -298,6 +306,211 @@ const refreshFixtures = async (supabase: Client, fixtures: ParsedFixture[], myNa
   return updated;
 };
 
+// ── Umpiring duties ───────────────────────────────────────────────────────
+// Turns the league-wide fixture feed into cricket_umpiring_duties rows.
+//
+// THE ONE RULE: this writes MTCA's facts and nothing else. It may INSERT a
+// missing slot and PATCH match_date / match_time / venue / team_a / team_b /
+// match_type. It must never touch status, assignment, notes or deleted_at —
+// those are player- and admin-authored. A BEFORE UPDATE trigger on the table
+// enforces this against the service role, so a bug here is contained rather
+// than destroying every claim in the season.
+
+type DutyRow = {
+  id: string;
+  cricclubs_fixture_id: number | null;
+  role_slot: number;
+  match_date: string;
+  match_time: string | null;
+  venue: string | null;
+  team_a: string;
+  team_b: string;
+  match_type: string | null;
+  status: string;
+  source: string;
+  mtca_removed_at: string | null;
+  deleted_at: string | null;
+};
+
+/** Resolves the single active season and its cricclubs team id. */
+const resolveUmpiringContext = async (
+  supabase: Client,
+): Promise<{ seasonId: string; cricclubsTeamId: number } | null> => {
+  const { data: seasons, error } = await supabase
+    .from('cricket_seasons')
+    .select('id, name')
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .eq('is_active', true);
+  if (error) { console.warn(`⚠ umpiring: season lookup failed — ${error.message}`); return null; }
+
+  const rows = (seasons ?? []) as { id: string; name: string }[];
+  // Never fall back to "the first row". Filing a season's duties under the
+  // wrong season hides them from the people who need them and shows phantom
+  // duties to everyone else, with nothing erroring.
+  if (rows.length !== 1) {
+    console.warn(`⚠ umpiring: expected exactly 1 active season, found ${rows.length} — skipping duty sync`);
+    return null;
+  }
+  const seasonId = rows[0]!.id;
+
+  const { data: settings } = await supabase
+    .from('cricket_umpiring_settings')
+    .select('cricclubs_team_id')
+    .eq('season_id', seasonId)
+    .maybeSingle();
+  const cricclubsTeamId = (settings as { cricclubs_team_id: number | null } | null)?.cricclubs_team_id ?? null;
+
+  if (cricclubsTeamId == null) {
+    console.warn(
+      '⚠ umpiring: cricket_umpiring_settings.cricclubs_team_id is not set for this season — skipping duty sync.\n' +
+      '  Set it to the team\'s numeric cricclubs id (visible in any viewTeam.do?teamId=NNNN link).',
+    );
+    return null;
+  }
+  return { seasonId, cricclubsTeamId };
+};
+
+const syncUmpiringDuties = async (
+  supabase: Client,
+  fixtures: ParsedFixture[],
+): Promise<{ inserted: number; patched: number; remapped: number; flagged: number }> => {
+  const result = { inserted: 0, patched: 0, remapped: 0, flagged: 0 };
+
+  // Mass-destruction guard: an empty feed is indistinguishable from cricclubs
+  // changing their HTML, so it must never drive reconciliation.
+  if (fixtures.length === 0) {
+    console.warn('⚠ umpiring: fixture feed is empty — skipping duty sync entirely');
+    return result;
+  }
+
+  const ctx = await resolveUmpiringContext(supabase);
+  if (!ctx) return result;
+  const { seasonId, cricclubsTeamId } = ctx;
+
+  const { duties, skipped } = extractUmpiringDuties(fixtures, cricclubsTeamId);
+  for (const s of skipped) console.warn(`⚠ umpiring: skipped — ${s}`);
+
+  // ALL rows including soft-deleted: a handed-away duty must stay a tombstone
+  // rather than being re-inserted as a fresh open slot.
+  const { data: existingRows, error: exErr } = await supabase
+    .from('cricket_umpiring_duties')
+    .select('id, cricclubs_fixture_id, role_slot, match_date, match_time, venue, team_a, team_b, match_type, status, source, mtca_removed_at, deleted_at')
+    .eq('team_id', INTERNAL_TEAM_ID)
+    .eq('season_id', seasonId);
+  if (exErr) { console.warn(`⚠ umpiring: existing duty lookup failed — ${exErr.message}`); return result; }
+  const existing = (existingRows ?? []) as DutyRow[];
+
+  const keyOf = (fixtureId: number, slot: number) => `${fixtureId}|${slot}`;
+  const byKey = new Map<string, DutyRow>();
+  for (const d of existing) {
+    if (d.cricclubs_fixture_id != null) byKey.set(keyOf(d.cricclubs_fixture_id, d.role_slot), d);
+  }
+
+  // Group both sides by fixture so reconciliation happens at FIXTURE level.
+  // Slot-level logic would destroy a live claim whenever MTCA merely shuffles
+  // us between the Umpire1 and Umpire2 columns.
+  const feedByFixture = new Map<number, typeof duties>();
+  for (const d of duties) {
+    const list = feedByFixture.get(d.cricclubs_fixture_id) ?? [];
+    list.push(d);
+    feedByFixture.set(d.cricclubs_fixture_id, list);
+  }
+  const liveByFixture = new Map<number, DutyRow[]>();
+  for (const d of existing) {
+    if (d.cricclubs_fixture_id == null) continue;      // manual duty — invisible to sync
+    if (d.deleted_at !== null) continue;               // handed away
+    if (d.source !== 'mtca') continue;                 // swapped in by an admin
+    const list = liveByFixture.get(d.cricclubs_fixture_id) ?? [];
+    list.push(d);
+    liveByFixture.set(d.cricclubs_fixture_id, list);
+  }
+
+  for (const [fixtureId, feedDuties] of feedByFixture) {
+    const liveRows = liveByFixture.get(fixtureId) ?? [];
+    const feedSlots = new Set(feedDuties.map((d) => d.role_slot));
+    const liveSlots = new Set(liveRows.map((d) => d.role_slot));
+
+    const missingInDb = feedDuties.filter((d) => !liveSlots.has(d.role_slot));
+    const surplusInDb = liveRows.filter((d) => !feedSlots.has(d.role_slot));
+
+    // ── Role-slot swap: same number of duties, different columns. Remap the
+    // existing row rather than inserting + orphaning, so the claim survives.
+    while (missingInDb.length > 0 && surplusInDb.length > 0) {
+      const target = surplusInDb.shift()!;
+      const wanted = missingInDb.shift()!;
+      const { error } = await supabase
+        .from('cricket_umpiring_duties')
+        .update({ role_slot: wanted.role_slot })
+        .eq('id', target.id);
+      if (!error) {
+        result.remapped += 1;
+        console.log(`  ↔ duty fixture ${fixtureId}: slot ${target.role_slot} → ${wanted.role_slot} (claim preserved)`);
+      }
+    }
+
+    // ── Genuinely new slots.
+    for (const d of missingInDb) {
+      if (byKey.has(keyOf(fixtureId, d.role_slot))) continue;  // tombstoned — leave it
+      const { error } = await supabase.from('cricket_umpiring_duties').insert({
+        team_id: INTERNAL_TEAM_ID,
+        season_id: seasonId,
+        cricclubs_fixture_id: d.cricclubs_fixture_id,
+        role_slot: d.role_slot,
+        match_date: d.match_date,
+        match_time: d.match_time_24h,
+        venue: d.venue,
+        team_a: d.team_a,
+        team_b: d.team_b,
+        match_type: normalizeMatchType(d.match_type),
+        umpire_team_cricclubs_id: d.umpire_team_cricclubs_id,
+        umpire_team_raw: d.umpire_team_raw,
+        source: 'mtca',
+        status: 'open',
+      });
+      if (error) console.warn(`⚠ umpiring insert failed (fixture ${fixtureId} slot ${d.role_slot}): ${error.message}`);
+      else { result.inserted += 1; console.log(`  + duty ${d.match_date} ${d.team_a} v ${d.team_b} (slot ${d.role_slot})`); }
+    }
+
+    // ── MTCA facts on rows we already hold. Explicit allow-list, never a
+    // blanket upsert of the parsed object.
+    for (const d of feedDuties) {
+      const cur = byKey.get(keyOf(fixtureId, d.role_slot))
+        ?? liveRows.find((r) => r.role_slot === d.role_slot);
+      if (!cur || cur.deleted_at !== null) continue;
+      const upd: Record<string, unknown> = {};
+      if (d.match_date !== cur.match_date) upd.match_date = d.match_date;
+      if (d.match_time_24h !== cur.match_time) upd.match_time = d.match_time_24h;
+      if (d.venue !== cur.venue) upd.venue = d.venue;
+      if (d.team_a !== cur.team_a) upd.team_a = d.team_a;
+      if (d.team_b !== cur.team_b) upd.team_b = d.team_b;
+      const mt = normalizeMatchType(d.match_type);
+      if (mt !== cur.match_type) upd.match_type = mt;
+      // MTCA names us again — clear any earlier "removed" flag.
+      if (cur.mtca_removed_at !== null) upd.mtca_removed_at = null;
+      if (Object.keys(upd).length === 0) continue;
+      const { error } = await supabase.from('cricket_umpiring_duties').update(upd).eq('id', cur.id);
+      if (!error) { result.patched += 1; console.log(`  ✓ duty fixture ${fixtureId} slot ${d.role_slot}: ${Object.keys(upd).join(', ')}`); }
+    }
+
+    // ── Surplus after remapping: MTCA reassigned this slot away from us.
+    // FLAG ONLY. Never cancel or delete — the duty may already be claimed, and
+    // the reassignment may be a swap we agreed. An admin decides.
+    for (const d of surplusInDb) {
+      if (d.mtca_removed_at !== null) continue;
+      const { error } = await supabase
+        .from('cricket_umpiring_duties')
+        .update({ mtca_removed_at: new Date().toISOString() })
+        .eq('id', d.id);
+      if (!error) { result.flagged += 1; console.log(`  ⚠ duty fixture ${fixtureId} slot ${d.role_slot}: MTCA no longer names us — flagged for review`); }
+    }
+  }
+
+  // Fixtures we hold duties for that are NO LONGER IN THE FEED are deliberately
+  // left alone. Absence is indistinguishable from the match moving to the past
+  // table, the page being truncated, or a parse failure.
+  return result;
+};
+
 // ── Route each saved HTML file by content ─────────────────────────────────
 const classify = (html: string): 'list' | 'scorecard' | 'fixtures' | 'unknown' => {
   const title = (html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? '').trim();
@@ -379,9 +592,26 @@ const main = async (): Promise<void> => {
     matches += 1; batting += c.batting; bowling += c.bowling;
   }
 
-  const fixturesUpdated = allFixtures.length ? await refreshFixtures(supabase, allFixtures, myName) : 0;
+  // The schedule refresh must only ever see fixtures WE PLAY IN. On the
+  // league-wide feed most rows are other teams' matches; refreshFixtures
+  // resolves the opponent as "whichever side isn't us", which for a foreign
+  // fixture yields a stranger's name. This path keys strictly on fixture id so
+  // it is already safe, but partitioning keeps that true if a fuzzy fallback
+  // is ever added (as exists in the Scriptable script).
+  const ourFixtures = allFixtures.filter((fx) => isOurFixture(fx, MY_CRICCLUBS_TEAM_ID));
+  if (allFixtures.length !== ourFixtures.length) {
+    console.log(`📅 ${allFixtures.length} fixtures in feed · ${ourFixtures.length} are ours (rest are other teams')`);
+  }
+
+  const fixturesUpdated = ourFixtures.length ? await refreshFixtures(supabase, ourFixtures, myName) : 0;
+  const duty = await syncUmpiringDuties(supabase, allFixtures);
   const completed = await autoComplete(supabase);
-  console.log(`\n✅ ${matches} matches · ${batting} batting · ${bowling} bowling · ${fixturesUpdated} fixtures updated · ${completed} schedule rows completed`);
+  console.log(
+    `\n✅ ${matches} matches · ${batting} batting · ${bowling} bowling · ` +
+    `${fixturesUpdated} fixtures updated · ${completed} schedule rows completed\n` +
+    `🧑‍⚖️ duties: ${duty.inserted} new · ${duty.patched} updated · ` +
+    `${duty.remapped} slot-remapped · ${duty.flagged} flagged for review`,
+  );
 };
 
 main().catch((e) => { console.error('FAILED:', e); process.exit(1); });

@@ -62,6 +62,8 @@ jobs:
             "practice_innings"
             "practice_balls"
             "cricket_schedule_matches"
+            "cricket_umpiring_settings"
+            "cricket_umpiring_duties"
             "user_activity"
             "team_audit_log"
             "cricclubs_matches"

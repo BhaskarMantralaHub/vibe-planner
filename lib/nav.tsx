@@ -2,6 +2,7 @@ import { Brain, IdCard, ShieldCheck, CalendarRange, Images, HandCoins, Trophy, R
 // MdScoreboard + ChartColumnBig retained only for the commented-out Live Scoring
 // and Practice Stats entries below; restore the imports when re-enabling.
 import CricketIcon from '@/components/icons/CricketIcon';
+import UmpireIcon from '@/components/icons/UmpireIcon';
 
 export type Tool = {
   name: string;
@@ -85,6 +86,14 @@ export const tools: Tool[] = [
     href: '/cricket/league-stats',
     icon: <Trophy size={22} />,
     description: 'Batting, bowling, all-rounders & catches.',
+    roles: ['cricket', 'admin'],
+    feature: 'cricket',
+  },
+  {
+    name: 'Umpiring',
+    href: '/cricket/umpiring',
+    icon: <UmpireIcon size={22} />,
+    description: 'Claim duties & see who has stood.',
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },

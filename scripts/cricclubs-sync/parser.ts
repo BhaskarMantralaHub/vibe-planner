@@ -86,6 +86,40 @@ export type ParsedFixture = {
   venue: string | null;
   umpire1: string | null;
   umpire2: string | null;
+
+  // Numeric cricclubs team ids, parsed from each cell's
+  // <a href="…viewTeam.do?teamId=NNNN"> — the cells are links, and until now
+  // only their text was kept.
+  //
+  // These make team identity an INTEGER comparison instead of a string match,
+  // which matters because the display names are genuinely hostile: the "MTCA "
+  // prefix is present on some rows and absent on others, casing varies, and
+  // this league contains "Sky Risers", "Risers" and "Valley Risers" alongside
+  // "Sunrisers Manteca" — plus "Manteca Top Guns", which shares a token with
+  // it. Any substring or fuzzy match confuses at least two of those.
+  //
+  // Crucially it is also the only form that survives an MTCA rename. A name
+  // match would return zero duties, report success, and stay silent forever.
+  team_home_id: number | null;
+  team_away_id: number | null;
+  umpire1_team_id: number | null;
+  umpire2_team_id: number | null;
+};
+
+// One umpiring duty slot owed by our team, derived from a fixture row.
+// A fixture yields 0, 1 or 2 of these depending on how many umpire slots name
+// us — the observed norm on this league is that one team supplies BOTH.
+export type ParsedUmpiringDuty = {
+  cricclubs_fixture_id: number;
+  role_slot: 1 | 2;                 // which umpire column named us
+  match_date: string;               // never null — null-date fixtures are skipped
+  match_time_24h: string | null;
+  venue: string | null;
+  team_a: string;                   // the two sides playing (usually not us)
+  team_b: string;
+  match_type: string | null;        // raw cricclubs text; caller normalizes
+  umpire_team_cricclubs_id: number | null;
+  umpire_team_raw: string | null;
 };
 
 const clean = (s: string | undefined | null): string =>
@@ -424,6 +458,92 @@ const parseUSDate = (raw: string): string | null => {
   return `${m[3]}-${m[1]}-${m[2]}`;
 };
 
+// Pull the numeric cricclubs team id out of a cell's link.
+// Cells render as <td><a href="/…/viewTeam.do?teamId=1014&clubId=14653">Name</a></td>.
+// Returns null when the cell has no link — which is normal: an unassigned
+// umpire slot is plain empty text, and placeholders like "TBD" are not links.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const teamIdFromCell = ($: cheerio.CheerioAPI, td: any): number | null => {
+  const href = $(td).find('a').first().attr('href') ?? '';
+  const m = href.match(/[?&]teamId=(\d+)/);
+  if (!m || !m[1]) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+};
+
+/// True when our team is one of the two sides PLAYING this fixture.
+///
+/// This exists to partition the league-wide fixture feed. `refreshFixtures()`
+/// must only ever see fixtures we play in: it resolves the opponent as
+/// "whichever side isn't us", which for a foreign fixture silently yields
+/// another team's name, and its date+venue fallback then matches that onto one
+/// of our own schedule rows with no opponent check — permanently rebinding our
+/// match to a stranger's fixture. Several teams share the same handful of
+/// grounds each weekend, so that collision is likely, not theoretical.
+///
+/// Matched on team id, not name, for the same reasons as the umpire slots.
+export const isOurFixture = (
+  fx: ParsedFixture,
+  ourCricclubsTeamId: number,
+): boolean =>
+  fx.team_home_id === ourCricclubsTeamId || fx.team_away_id === ourCricclubsTeamId;
+
+/// Derive the umpiring duty slots our team owes, from a fixture feed.
+///
+/// One row per slot that names us, so a fixture yields 0, 1 or 2 duties. On
+/// this league the observed norm is that a single team supplies BOTH slots, so
+/// 2 is the common case when we are named at all.
+///
+/// Deliberately NOT name-based. `ourCricclubsTeamId` is an integer (1014 for
+/// Sunrisers Manteca in league 87) held per-season in
+/// cricket_umpiring_settings.cricclubs_team_id.
+///
+/// Fixtures with an unparseable date are SKIPPED and reported, never emitted:
+/// `cricket_umpiring_duties.match_date` is NOT NULL, and one "TBD" date in a
+/// batch insert would abort the whole batch and lose every good duty with it.
+export const extractUmpiringDuties = (
+  fixtures: ParsedFixture[],
+  ourCricclubsTeamId: number,
+): { duties: ParsedUmpiringDuty[]; skipped: string[] } => {
+  const duties: ParsedUmpiringDuty[] = [];
+  const skipped: string[] = [];
+
+  for (const fx of fixtures) {
+    const slots: Array<{ slot: 1 | 2; id: number | null; raw: string | null }> = [
+      { slot: 1, id: fx.umpire1_team_id, raw: fx.umpire1 },
+      { slot: 2, id: fx.umpire2_team_id, raw: fx.umpire2 },
+    ];
+
+    const ours = slots.filter((s) => s.id === ourCricclubsTeamId);
+    if (ours.length === 0) continue;
+
+    // Guard the NOT NULL column rather than letting Postgres reject the batch.
+    if (!fx.match_date) {
+      skipped.push(
+        `fixture ${fx.cricclubs_fixture_id} (${fx.team_home} v ${fx.team_away}): unparseable date`,
+      );
+      continue;
+    }
+
+    for (const s of ours) {
+      duties.push({
+        cricclubs_fixture_id: fx.cricclubs_fixture_id,
+        role_slot: s.slot,
+        match_date: fx.match_date,
+        match_time_24h: fx.match_time_24h,
+        venue: fx.venue,
+        team_a: fx.team_home,
+        team_b: fx.team_away,
+        match_type: fx.match_type,
+        umpire_team_cricclubs_id: s.id,
+        umpire_team_raw: s.raw,
+      });
+    }
+  }
+
+  return { duties, skipped };
+};
+
 export const parseFixtures = (html: string): ParsedFixture[] => {
   const $ = cheerio.load(html);
   const out: ParsedFixture[] = [];
@@ -462,6 +582,10 @@ export const parseFixtures = (html: string): ParsedFixture[] => {
       venue,
       umpire1,
       umpire2,
+      team_home_id: teamIdFromCell($, tds[4]),
+      team_away_id: teamIdFromCell($, tds[5]),
+      umpire1_team_id: teamIdFromCell($, tds[7]),
+      umpire2_team_id: teamIdFromCell($, tds[8]),
     });
   });
 

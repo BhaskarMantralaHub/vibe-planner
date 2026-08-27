@@ -5,7 +5,14 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parseMatchList, parseScorecard, parseFixtures } from '../parser.js';
+import {
+  parseMatchList,
+  parseScorecard,
+  parseFixtures,
+  extractUmpiringDuties,
+  isOurFixture,
+  type ParsedFixture,
+} from '../parser.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): string =>
@@ -143,6 +150,15 @@ describe('parseScorecard', () => {
   });
 });
 
+// Numeric cricclubs team ids, shared by the fixture and umpiring-duty tests.
+// The umpiring feature's whole identity decision rests on these being compared
+// as integers rather than the display names being string-matched — see the
+// ParsedFixture comments in parser.ts for why the names are unusable.
+const SUNRISERS = 1014;  // MTCA Sunrisers Manteca, league 87
+const TOP_GUNS = 1099;   // our own second team; shares the token "Manteca"
+const SKY_RISERS = 1055; // confusable display name vs "Sunrisers"
+const OTHER = 1031;      // MTCA Power Stars
+
 describe('parseFixtures', () => {
   const html = fixture('fixtures-team.html');
   const fixtures = parseFixtures(html);
@@ -186,5 +202,317 @@ describe('parseFixtures', () => {
     // Past fixture 6115 should NOT appear (it's in #schedule-table not #schedule-table1)
     const past = fixtures.find((x) => x.cricclubs_fixture_id === 6115);
     expect(past).toBeUndefined();
+  });
+
+  // ── Numeric team ids ────────────────────────────────────────────────
+  // These are the identity keys the umpiring feature matches on. If cricclubs
+  // ever stops linking the cells, these fail loudly rather than the feature
+  // silently finding zero duties.
+  it('parses numeric team ids from the cell links', () => {
+    const f = fixtures.find((x) => x.cricclubs_fixture_id === 6127);
+    expect(f?.team_home_id).toBe(1020);      // MTCA RICM
+    expect(f?.team_away_id).toBe(SUNRISERS); // MTCA Sunrisers Manteca
+    expect(f?.umpire1_team_id).toBe(1031);   // MTCA Power Stars
+    expect(f?.umpire2_team_id).toBe(1031);
+  });
+
+  it('every upcoming row links all four team cells', () => {
+    for (const f of fixtures) {
+      expect(f.team_home_id, `fixture ${f.cricclubs_fixture_id} home`).not.toBeNull();
+      expect(f.team_away_id, `fixture ${f.cricclubs_fixture_id} away`).not.toBeNull();
+    }
+  });
+
+  it('Sunrisers is one of the two sides in every row of the TEAM-filtered page', () => {
+    // Documents what this snapshot is: the team-scoped fixtures URL. The
+    // league-wide URL is what the umpiring sync needs, and it will contain
+    // rows where neither side is us.
+    for (const f of fixtures) {
+      expect(isOurFixture(f, SUNRISERS)).toBe(true);
+    }
+  });
+
+  it('never umpires its own matches in this snapshot', () => {
+    // Our match is not our duty. Confirms the two concepts are independent.
+    const { duties } = extractUmpiringDuties(fixtures, SUNRISERS);
+    expect(duties).toHaveLength(0);
+  });
+});
+
+const fx = (over: Partial<ParsedFixture> = {}): ParsedFixture => ({
+  cricclubs_fixture_id: 7000,
+  match_type: 'League',
+  match_date: '2026-09-12',
+  match_time_24h: '10:45',
+  team_home: 'MTCA Falcons',
+  team_away: 'MTCA Asuras',
+  venue: 'Cordes Park',
+  umpire1: 'MTCA Power Stars',
+  umpire2: 'MTCA Power Stars',
+  team_home_id: 1035,
+  team_away_id: 1034,
+  umpire1_team_id: OTHER,
+  umpire2_team_id: OTHER,
+  ...over,
+});
+
+describe('extractUmpiringDuties', () => {
+  it('emits nothing when neither slot is ours (the majority case)', () => {
+    const { duties } = extractUmpiringDuties([fx()], SUNRISERS);
+    expect(duties).toHaveLength(0);
+  });
+
+  it('emits 2 duties when one team supplies BOTH slots — the observed norm', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: SUNRISERS, umpire2_team_id: SUNRISERS })],
+      SUNRISERS,
+    );
+    expect(duties.map((d) => d.role_slot)).toEqual([1, 2]);
+    expect(duties[0]?.cricclubs_fixture_id).toBe(duties[1]?.cricclubs_fixture_id);
+  });
+
+  it('emits 1 duty, role_slot 1, when only the first slot is ours', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: SUNRISERS })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(1);
+    expect(duties[0]?.role_slot).toBe(1);
+  });
+
+  it('emits 1 duty, role_slot 2, when only the second slot is ours', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire2_team_id: SUNRISERS })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(1);
+    expect(duties[0]?.role_slot).toBe(2);
+  });
+
+  it('carries the match facts and the matched umpire id through', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: SUNRISERS, umpire1: 'MTCA Sunrisers Manteca' })],
+      SUNRISERS,
+    );
+    const d = duties[0];
+    expect(d?.match_date).toBe('2026-09-12');
+    expect(d?.match_time_24h).toBe('10:45');
+    expect(d?.venue).toBe('Cordes Park');
+    expect(d?.team_a).toBe('MTCA Falcons');
+    expect(d?.team_b).toBe('MTCA Asuras');
+    expect(d?.umpire_team_cricclubs_id).toBe(SUNRISERS);
+    expect(d?.umpire_team_raw).toBe('MTCA Sunrisers Manteca');
+  });
+
+  // ── Confusable rejection ──────────────────────────────────────────
+  // Every one of these would be a FALSE POSITIVE under a substring match:
+  // someone drives to a ground for a duty that was never theirs.
+  it('rejects our own second team, which shares the token "Manteca"', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: TOP_GUNS, umpire1: 'Manteca Top Guns' })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(0);
+  });
+
+  it('rejects "Sky Risers", which a fuzzy match would confuse with "Sunrisers"', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: SKY_RISERS, umpire1: 'MTCA Sky Risers' })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(0);
+  });
+
+  it('ignores the display name entirely — the id decides', () => {
+    // Our name in the cell but another team's id. Proves no name fallback
+    // sneaks in: a name-based matcher would wrongly emit a duty here.
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: OTHER, umpire1: 'MTCA Sunrisers Manteca' })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(0);
+  });
+
+  it('matches on id even when MTCA has renamed us', () => {
+    // The failure this defends against is silent: a name matcher returns zero
+    // duties, reports success, and nobody ever learns they were on duty.
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: SUNRISERS, umpire1: 'MTCA Sunrisers Manteca CC' })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(1);
+  });
+
+  // ── Unassigned and malformed slots ────────────────────────────────
+  it('treats an unlinked or empty umpire cell as no duty', () => {
+    // Blank means "not yet assigned", not "assigned to someone else".
+    const { duties } = extractUmpiringDuties(
+      [fx({ umpire1_team_id: null, umpire1: null, umpire2_team_id: null, umpire2: '' })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(0);
+  });
+
+  it('treats placeholder text with no link as no duty', () => {
+    for (const raw of ['TBD', 'TBA', '-', 'N/A', 'Both Teams', 'Volunteer']) {
+      const { duties } = extractUmpiringDuties(
+        [fx({ umpire1_team_id: null, umpire1: raw, umpire2_team_id: null, umpire2: raw })],
+        SUNRISERS,
+      );
+      expect(duties, `placeholder "${raw}"`).toHaveLength(0);
+    }
+  });
+
+  it('SKIPS a fixture with an unparseable date instead of emitting a null', () => {
+    // match_date is NOT NULL in cricket_umpiring_duties. One bad date in a
+    // batch insert would abort the batch and lose every good duty with it.
+    const { duties, skipped } = extractUmpiringDuties(
+      [fx({ match_date: null, umpire1_team_id: SUNRISERS, umpire2_team_id: SUNRISERS })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(0);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]).toContain('unparseable date');
+  });
+
+  it('keeps a null match_time — only the date is required', () => {
+    const { duties } = extractUmpiringDuties(
+      [fx({ match_time_24h: null, umpire1_team_id: SUNRISERS })],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(1);
+    expect(duties[0]?.match_time_24h).toBeNull();
+  });
+
+  it('handles a mixed feed, emitting duties only for our slots', () => {
+    const { duties } = extractUmpiringDuties(
+      [
+        fx({ cricclubs_fixture_id: 7001 }),
+        fx({ cricclubs_fixture_id: 7002, umpire1_team_id: SUNRISERS, umpire2_team_id: SUNRISERS }),
+        fx({ cricclubs_fixture_id: 7003, umpire1_team_id: TOP_GUNS, umpire2_team_id: TOP_GUNS }),
+        fx({ cricclubs_fixture_id: 7004, umpire2_team_id: SUNRISERS }),
+      ],
+      SUNRISERS,
+    );
+    expect(duties).toHaveLength(3);
+    expect(duties.map((d) => [d.cricclubs_fixture_id, d.role_slot])).toEqual([
+      [7002, 1],
+      [7002, 2],
+      [7004, 2],
+    ]);
+  });
+});
+
+// ── The league-wide fixtures page ─────────────────────────────────────
+// fixtures.do?league=87&clubId=14653 — the SAME url as fixtures-team.html but
+// with `teamId` removed. This is the feed the umpiring sync reads, and these
+// tests pin down the three structural facts the sync depends on. If cricclubs
+// redesigns the page, these fail here instead of the sync silently finding
+// zero duties on a Saturday morning.
+describe('parseFixtures — league-wide page', () => {
+  const fixtures = parseFixtures(fixture('fixtures-league.html'));
+
+  it('returns the whole division, not just our matches', () => {
+    // The team-filtered page yields 9. Dropping teamId widens it to the
+    // full division — which is the entire premise of the umpiring feature.
+    expect(fixtures.length).toBeGreaterThan(9);
+    expect(fixtures).toHaveLength(29);
+  });
+
+  it('renders every row server-side — no pagination', () => {
+    // Load-bearing for removal detection: the sync infers "MTCA took this
+    // duty back" from a slot no longer naming us. If the page paginated,
+    // rows beyond the first page would look absent and real duties would be
+    // wrongly cancelled.
+    const html = fixture('fixtures-league.html');
+    expect(html).toMatch(/iDisplayLength['"\s:]+-1/);
+    expect(html).not.toMatch(/dataTables_paginate/);
+  });
+
+  it('stays within one league — no other MTCA competitions bleed in', () => {
+    // Only league + playoff rows for the Spring League. If winter/summer/
+    // women's fixtures appeared here we would file duties against the wrong
+    // season.
+    const types = new Set(fixtures.map((f) => f.match_type));
+    expect([...types].sort()).toEqual(['Final', 'League', 'Semi Final']);
+  });
+
+  it('keeps the umpire columns at index 7 and 8', () => {
+    // Guards against a column being inserted upstream, which would silently
+    // make the parser read Ground or Scorecard as the umpire.
+    const html = fixture('fixtures-league.html');
+    const headers = html.match(/Umpire1[\s\S]{0,200}?Umpire2/);
+    expect(headers).not.toBeNull();
+  });
+
+  it('links every non-empty umpire cell with a teamId', () => {
+    // The id is the identity key. If cricclubs ever stops linking these, the
+    // feature degrades to matching hostile display names.
+    const named = fixtures.filter((f) => f.umpire1);
+    expect(named.length).toBeGreaterThan(0);
+    for (const f of named) {
+      expect(f.umpire1_team_id, `fixture ${f.cricclubs_fixture_id}`).not.toBeNull();
+    }
+  });
+
+  it('leaves TBD playoff teams unlinked rather than inventing an id', () => {
+    // Semi Finals and Finals list "TBD" as plain text until sides are decided.
+    const tbd = fixtures.filter((f) => f.team_away === 'TBD' || f.team_home === 'TBD');
+    expect(tbd.length).toBeGreaterThan(0);
+    for (const f of tbd) {
+      if (f.team_home === 'TBD') expect(f.team_home_id).toBeNull();
+      if (f.team_away === 'TBD') expect(f.team_away_id).toBeNull();
+    }
+  });
+
+  it('finds our real duties: two slots on 2026-08-29, on other teams matches', () => {
+    const { duties, skipped } = extractUmpiringDuties(fixtures, SUNRISERS);
+    expect(skipped).toHaveLength(0);
+    expect(duties).toHaveLength(2);
+
+    // Both on the same day, at DIFFERENT grounds 45 minutes apart — so they
+    // genuinely need two different people, which is exactly why duties are
+    // stored per slot rather than per match.
+    expect(duties.every((d) => d.match_date === '2026-08-29')).toBe(true);
+    expect(new Set(duties.map((d) => d.venue)).size).toBe(2);
+    expect(duties.map((d) => d.role_slot).sort()).toEqual([1, 2]);
+    expect(duties.every((d) => d.umpire_team_cricclubs_id === SUNRISERS)).toBe(true);
+  });
+
+  it('never marks a fixture we merely umpire as one we play', () => {
+    // The regression that protects the existing match schedule.
+    const { duties } = extractUmpiringDuties(fixtures, SUNRISERS);
+    const dutyFixtureIds = new Set(duties.map((d) => d.cricclubs_fixture_id));
+    for (const f of fixtures) {
+      if (dutyFixtureIds.has(f.cricclubs_fixture_id)) {
+        expect(isOurFixture(f, SUNRISERS)).toBe(false);
+      }
+    }
+  });
+
+  it('emits no duty for a fixture where the umpire slots name other teams', () => {
+    const otherTeamDuties = extractUmpiringDuties(fixtures, 1031).duties;
+    const ourDuties = extractUmpiringDuties(fixtures, SUNRISERS).duties;
+    // Different teams get different duty sets from the same feed.
+    expect(otherTeamDuties.map((d) => d.cricclubs_fixture_id))
+      .not.toEqual(ourDuties.map((d) => d.cricclubs_fixture_id));
+  });
+});
+
+describe('isOurFixture', () => {
+  it('is true when we are home, true when away, false otherwise', () => {
+    expect(isOurFixture(fx({ team_home_id: SUNRISERS }), SUNRISERS)).toBe(true);
+    expect(isOurFixture(fx({ team_away_id: SUNRISERS }), SUNRISERS)).toBe(true);
+    expect(isOurFixture(fx(), SUNRISERS)).toBe(false);
+  });
+
+  it('is false for a fixture we merely UMPIRE — the regression that protects the schedule', () => {
+    // refreshFixtures() must never see this fixture. It resolves the opponent
+    // as "whichever side isn't us", which here yields a stranger's name, and
+    // its date+venue fallback would then rebind one of our own schedule rows
+    // to this foreign match.
+    const foreign = fx({ umpire1_team_id: SUNRISERS, umpire2_team_id: SUNRISERS });
+    expect(isOurFixture(foreign, SUNRISERS)).toBe(false);
+    expect(extractUmpiringDuties([foreign], SUNRISERS).duties).toHaveLength(2);
   });
 });
