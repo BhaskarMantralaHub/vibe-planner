@@ -56,6 +56,12 @@ function formatTime(t: string | null): string | null {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
+function formatShortDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
+
 const MATCH_TYPE_LABEL: Record<string, string> = { semi_final: 'Semi Final', final: 'Final' };
 
 /* ── Match grouping ───────────────────────────────────────────────────────
@@ -171,15 +177,20 @@ export default function UmpiringBoard() {
   );
 
   /**
-   * Matches we are actually going to.
+   * The soonest match we are ACTUALLY attending.
    *
-   * NOT `upcomingGroups.length` — that list deliberately includes swapped-away
-   * matches so they stay visible (MTCA still lists us for them). But a match we
-   * handed over is one we are NOT attending, so counting it as "coming up"
-   * overstates the commitment.
+   * Excludes swapped-away matches: `upcomingGroups` deliberately keeps them so
+   * they stay visible (MTCA still lists us), but we are not going, so they must
+   * not drive the headline.
+   *
+   * The subtitle shows this date rather than a match count. "N matches coming
+   * up" reads as "we have a game" on a cricket app — but these are other teams'
+   * matches we merely officiate. The count also duplicated the workload already
+   * stated on the line above, whereas the date is the one thing not visible
+   * without scrolling.
    */
-  const matchesComingUp = useMemo(
-    () => upcomingGroups.filter((g) => g.duties.some((d) => d.status !== 'cancelled')).length,
+  const nextDuty = useMemo(
+    () => upcomingGroups.find((g) => g.duties.some((d) => d.status !== 'cancelled')) ?? null,
     [upcomingGroups],
   );
 
@@ -310,7 +321,10 @@ export default function UmpiringBoard() {
                       : 'All duties covered'}
                   </Text>
                   <Text as="p" size="2xs" color="muted">
-                    {matchesComingUp} {matchesComingUp === 1 ? 'match' : 'matches'} coming up
+                    {nextDuty
+                      ? `Next: ${formatShortDate(nextDuty.match_date)}`
+                        + (nextDuty.match_time ? ` · ${formatTime(nextDuty.match_time)}` : '')
+                      : 'Nothing scheduled'}
                   </Text>
                 </div>
               </div>
@@ -1075,27 +1089,28 @@ function DutySlotRow({
       )}
 
       <div className="min-w-0 flex-1">
-        <Text
-          as="p"
-          size="sm"
-          weight={isMine ? 'bold' : 'medium'}
-          truncate
-          className={isSwappedAway ? 'line-through' : undefined}
-        >
+        {/* A swapped-away slot said the same thing three times — "Handed to
+            another team", "we are not going", and a "Swapped" badge — and the
+            badge stole the width that then truncated the text to
+            "Handed to ano...". One statement, no badge, nothing clipped. */}
+        <Text as="p" size="sm" weight={isMine ? 'bold' : 'medium'} truncate>
           {isSwappedAway
-            ? (duty.swap_team ? `Handed to ${shortTeam(duty.swap_team)}` : 'Handed to another team')
+            ? (duty.swap_team ? `Handed to ${shortTeam(duty.swap_team)}` : 'Handed over')
             : duty.status === 'open' ? 'Needs an umpire' : (name ?? 'Unassigned')}
         </Text>
         <Text as="p" size="2xs" color="dim">
-          {/* Only worth labelling the position when there are two of them. */}
-          {slotCount > 1 ? `Umpire ${duty.role_slot}` : 'Umpire'}
-          {isMine && !isSwappedAway && ' · you'}
-          {isSwappedAway && ' · we are not going'}
-          {duty.mtca_removed_at && ' · MTCA removed this'}
+          {isSwappedAway
+            ? 'Not going'
+            : (
+              <>
+                {/* Only worth labelling the position when there are two. */}
+                {slotCount > 1 ? `Umpire ${duty.role_slot}` : 'Umpire'}
+                {isMine && ' · you'}
+                {duty.mtca_removed_at && ' · MTCA removed this'}
+              </>
+            )}
         </Text>
       </div>
-
-      {isSwappedAway && <Badge variant="muted" size="sm" className="shrink-0">Swapped</Badge>}
       {duty.status === 'completed' && <Badge variant="green" size="sm" className="shrink-0">Stood</Badge>}
       {duty.status === 'no_show' && isAdmin && <Badge variant="orange" size="sm" className="shrink-0">No-show</Badge>}
 
