@@ -674,6 +674,55 @@ describe('updateDuty', () => {
     });
     expect(mockQuery.eq).toHaveBeenCalledWith('team_id', 'team-1');
   });
+
+  it('updates EVERY slot on the match, not just the one edited', async () => {
+    // Each row stores its own copy of the match facts, so patching one would
+    // leave the sibling slot showing the old time — one match, two times.
+    const fixtureId = 5944;
+    const s1 = duty({ cricclubs_fixture_id: fixtureId, role_slot: 1, match_time: '11:30' });
+    const s2 = duty({ cricclubs_fixture_id: fixtureId, role_slot: 2, match_time: '11:30' });
+    const other = duty({ cricclubs_fixture_id: 9999, role_slot: 1 });
+    useUmpiringStore.setState({ duties: [s1, s2, other] });
+
+    await useUmpiringStore.getState().updateDuty(s1.id, {
+      match_date: s1.match_date, match_time: '13:00', venue: 'Cordes Park',
+      team_a: s1.team_a, team_b: s1.team_b, match_type: 'league',
+      swap_team: null, notes: null,
+    });
+
+    const ids = mockQuery.in.mock.calls.at(-1)?.[1];
+    expect(ids).toContain(s1.id);
+    expect(ids).toContain(s2.id);
+    // A different match must not be dragged along.
+    expect(ids).not.toContain(other.id);
+  });
+
+  it('groups manual duties by date and teams, since they have no fixture id', async () => {
+    const a = duty({ cricclubs_fixture_id: null, role_slot: 1, source: 'manual' });
+    const b = duty({ cricclubs_fixture_id: null, role_slot: 2, source: 'manual' });
+    useUmpiringStore.setState({ duties: [a, b] });
+    await useUmpiringStore.getState().updateDuty(a.id, {
+      match_date: a.match_date, match_time: '09:00', venue: null,
+      team_a: a.team_a, team_b: a.team_b, match_type: null, swap_team: null, notes: null,
+    });
+    const ids = mockQuery.in.mock.calls.at(-1)?.[1];
+    expect(ids).toContain(a.id);
+    expect(ids).toContain(b.id);
+  });
+
+  it('excludes removed slots from the update', async () => {
+    const fixtureId = 4242;
+    const live = duty({ cricclubs_fixture_id: fixtureId, role_slot: 1 });
+    const gone = duty({ cricclubs_fixture_id: fixtureId, role_slot: 2, deleted_at: 'x' });
+    useUmpiringStore.setState({ duties: [live, gone] });
+    await useUmpiringStore.getState().updateDuty(live.id, {
+      match_date: live.match_date, match_time: '09:00', venue: null,
+      team_a: live.team_a, team_b: live.team_b, match_type: null, swap_team: null, notes: null,
+    });
+    const ids = mockQuery.in.mock.calls.at(-1)?.[1];
+    expect(ids).toContain(live.id);
+    expect(ids).not.toContain(gone.id);
+  });
 });
 
 describe('setDutyTarget', () => {

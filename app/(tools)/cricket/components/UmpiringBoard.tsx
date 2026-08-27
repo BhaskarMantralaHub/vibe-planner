@@ -212,10 +212,6 @@ export default function UmpiringBoard() {
       color: 'var(--cricket)',
       onClick: () => setAssignTarget(d),
     });
-    items.push({
-      label: 'Edit date, time, venue', icon: <Pencil size={14} />, color: 'var(--blue)',
-      onClick: () => setEditTarget(d),
-    });
     if (d.status === 'claimed') {
       items.push({ label: 'Mark as done', icon: <CircleCheckBig size={14} />, color: 'var(--green)', onClick: () => void markCompleted(d.id, adminName) });
       items.push({ label: 'Mark no-show', icon: <UserX size={14} />, color: 'var(--orange)', onClick: () => void markNoShow(d.id, adminName) });
@@ -249,6 +245,20 @@ export default function UmpiringBoard() {
     });
     return items;
   };
+
+  /**
+   * Actions that belong to the MATCH rather than to one umpire. Kept separate
+   * from adminMenu so a whole-match edit is never reachable from a single
+   * umpire's row — which is what made it natural to patch only that row.
+   */
+  const matchMenu = (g: DutyGroup): CardMenuItem[] => [
+    {
+      label: 'Edit date, time, venue',
+      icon: <Pencil size={14} />,
+      color: 'var(--blue)',
+      onClick: () => setEditTarget(g.duties[0]!),
+    },
+  ];
 
   const shareText = useMemo(
     () => buildDutyShareText(duties, { teamName: getTeamName(), today }),
@@ -362,6 +372,7 @@ export default function UmpiringBoard() {
                 onClaim={claimDuty}
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
+                matchMenu={isAdmin ? matchMenu(g) : undefined}
               />
             ))}
 
@@ -446,6 +457,7 @@ export default function UmpiringBoard() {
                 onClaim={claimDuty}
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
+                matchMenu={isAdmin ? matchMenu(g) : undefined}
               />
             ))}
           </>
@@ -945,7 +957,7 @@ function DutyTally({ completed, booked }: { completed: number; booked: number })
  */
 function MatchDutyCard({
   group, today, myPlayerId, playersById, isAdmin, pendingId, canClaim,
-  onClaim, onRelease, menuFor,
+  onClaim, onRelease, menuFor, matchMenu,
 }: {
   group: DutyGroup;
   today: string;
@@ -957,6 +969,8 @@ function MatchDutyCard({
   onClaim: (id: string) => void;
   onRelease: (id: string) => void;
   menuFor: (d: CricketUmpiringDuty) => CardMenuItem[];
+  /** Whole-match actions, shown in the card header rather than on a slot. */
+  matchMenu?: CardMenuItem[];
 }) {
   const { dayName, dayNum, month } = dateParts(group.match_date);
   const time = formatTime(group.match_time);
@@ -1018,6 +1032,7 @@ function MatchDutyCard({
             <div className="flex shrink-0 items-center gap-1">
               {isToday && <Badge variant="orange" size="sm">Today</Badge>}
               {typeLabel && <Badge variant="blue" size="sm">{typeLabel}</Badge>}
+              {matchMenu && matchMenu.length > 0 && <DutyMenu items={matchMenu} />}
             </div>
           </div>
 

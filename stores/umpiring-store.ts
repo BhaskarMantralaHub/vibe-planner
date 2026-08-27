@@ -555,16 +555,55 @@ export const useUmpiringStore = create<UmpiringState>((set, get) => ({
    * swap_in/manual duties are permanent, because the sync never sees them.
    */
   updateDuty: async (dutyId, data) => {
-    await patchDuty(get, dutyId, {
-      match_date: data.match_date,
-      match_time: data.match_time,
-      venue: data.venue,
-      team_a: data.team_a,
-      team_b: data.team_b,
-      match_type: data.match_type,
-      swap_team: data.swap_team,
-      notes: data.notes,
-    }, 'Duty updated');
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const teamId = requireTeamId();
+    if (!teamId) return;
+
+    const src = get().duties.find((d) => d.id === dutyId);
+    if (!src) { toast.error('Could not find that duty'); return; }
+
+    // EVERY slot on this match, not just the one whose menu was used.
+    //
+    // Each duty row carries its own copy of the match facts, so a match with
+    // two umpires stores the time twice. Patching one row would leave the
+    // sibling slot showing the old date/time/venue — one match with two
+    // contradictory times, and nothing to flag it.
+    const siblingIds = get().duties
+      .filter((d) => d.deleted_at === null)
+      .filter((d) => (
+        src.cricclubs_fixture_id !== null
+          ? d.season_id === src.season_id && d.cricclubs_fixture_id === src.cricclubs_fixture_id
+          : d.match_date === src.match_date
+            && d.team_a === src.team_a
+            && d.team_b === src.team_b
+      ))
+      .map((d) => d.id);
+
+    const { error } = await supabase
+      .from('cricket_umpiring_duties')
+      .update({
+        match_date: data.match_date,
+        match_time: data.match_time,
+        venue: data.venue,
+        team_a: data.team_a,
+        team_b: data.team_b,
+        match_type: data.match_type,
+        swap_team: data.swap_team,
+        notes: data.notes,
+      })
+      .in('id', siblingIds)
+      .eq('team_id', teamId);
+
+    if (error) {
+      console.error('[umpiring] updateDuty failed:', error);
+      toast.error('Could not update the match');
+      return;
+    }
+    toast.success(
+      siblingIds.length > 1 ? `Match updated (${siblingIds.length} slots)` : 'Match updated',
+    );
+    await get().loadDuties(src.season_id);
   },
 
   deleteDuty: async (dutyId, deletedBy) => {
