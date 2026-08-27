@@ -844,7 +844,7 @@ function MatchDutyCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <Text size="sm" weight="bold" className="leading-snug">
+              <Text as="p" size="sm" weight="bold" className="leading-snug">
                 {shortTeam(group.team_a)}
                 <span className="text-[var(--muted)]"> v </span>
                 {shortTeam(group.team_b)}
@@ -965,6 +965,7 @@ function DutySlotRow({
 
       <div className="min-w-0 flex-1">
         <Text
+          as="p"
           size="sm"
           weight={isMine ? 'bold' : 'medium'}
           truncate
@@ -983,13 +984,13 @@ function DutySlotRow({
         </Text>
       </div>
 
-      {isSwappedAway && <Badge variant="muted" size="sm">Swapped</Badge>}
-      {duty.status === 'completed' && <Badge variant="green" size="sm">Stood</Badge>}
-      {duty.status === 'no_show' && isAdmin && <Badge variant="orange" size="sm">No-show</Badge>}
+      {isSwappedAway && <Badge variant="muted" size="sm" className="shrink-0">Swapped</Badge>}
+      {duty.status === 'completed' && <Badge variant="green" size="sm" className="shrink-0">Stood</Badge>}
+      {duty.status === 'no_show' && isAdmin && <Badge variant="orange" size="sm" className="shrink-0">No-show</Badge>}
 
       {duty.status === 'open' && canClaim && !isSwappedAway && (
         <Button
-          variant="primary" brand="cricket" size="sm"
+          variant="primary" brand="cricket" size="sm" className="shrink-0"
           loading={pending}
           onClick={() => onClaim(duty.id)}
         >
@@ -997,7 +998,7 @@ function DutySlotRow({
         </Button>
       )}
       {isMine && duty.status === 'claimed' && (
-        <Button variant="secondary" size="sm" loading={pending} onClick={() => onRelease(duty.id)}>
+        <Button variant="secondary" size="sm" className="shrink-0" loading={pending} onClick={() => onRelease(duty.id)}>
           Give up
         </Button>
       )}

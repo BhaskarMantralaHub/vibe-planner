@@ -175,7 +175,7 @@ export default function DutySwapSheet({ duty, candidates, adminName, onClose }: 
                   >
                     <Radio on={on} />
                     <div className="min-w-0 flex-1">
-                      <Text size="sm" weight="medium" truncate>
+                      <Text as="p" size="sm" weight="medium" truncate>
                         {shortTeam(o.team_a)} v {shortTeam(o.team_b)}
                       </Text>
                       <div className="flex flex-wrap items-center gap-x-2.5">
