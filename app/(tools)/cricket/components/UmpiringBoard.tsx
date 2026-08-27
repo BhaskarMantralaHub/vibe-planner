@@ -307,6 +307,7 @@ export default function UmpiringBoard() {
                   text={shareText}
                   label="Share on WhatsApp"
                   onCopy={() => copy(shareText, 'Copied to clipboard')}
+                  className="mt-3"
                 />
               )}
             </div>
@@ -410,6 +411,19 @@ export default function UmpiringBoard() {
         <div className="space-y-3">
           <RosterHero stats={stats} target={target} />
 
+          {/* Directly under the hero, mirroring the Upcoming tab. Sharing is
+              the main action on both tabs, so it sits in the same place on
+              each — a share button below a long player grid is easy to miss,
+              and inconsistent placement makes people hunt for it.
+              Not admin-gated: this is a progress update, not an admin tool. */}
+          {summaryText && (
+            <ShareRow
+              text={summaryText}
+              label="Share summary on WhatsApp"
+              onCopy={() => copy(summaryText, 'Copied to clipboard')}
+            />
+          )}
+
           {/* Filter instead of three stacked boxes: one grid, one mental model,
               and the counts double as the control. */}
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
@@ -458,15 +472,6 @@ export default function UmpiringBoard() {
             playersById={playersById}
           />
 
-          {/* Everyone can share this, not just admins: it is a progress update,
-              not an admin tool. */}
-          {summaryText && (
-            <ShareRow
-              text={summaryText}
-              label="Share summary on WhatsApp"
-              onCopy={() => copy(summaryText, 'Copied to clipboard')}
-            />
-          )}
 
           {stats.guests.length > 0 && (
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-3">
@@ -540,13 +545,14 @@ export default function UmpiringBoard() {
  * Copy stays as a compact fallback: WhatsApp may not be installed, and the
  * text is sometimes wanted elsewhere (email, SMS, a different group).
  */
-function ShareRow({ text, label, onCopy }: {
+function ShareRow({ text, label, onCopy, className }: {
   text: string;
   label: string;
   onCopy: () => void;
+  className?: string;
 }) {
   return (
-    <div className="mt-3 flex gap-2">
+    <div className={cn('flex gap-2', className)}>
       <a
         href={whatsappShareUrl(text)}
         target="_blank"
