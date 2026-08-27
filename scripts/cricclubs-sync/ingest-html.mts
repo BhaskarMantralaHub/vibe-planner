@@ -55,6 +55,12 @@ const stripClubPrefix = (s: string | null | undefined): string => (s ?? '').repl
 const normalizeMatchType = (raw: string | null): string | null => {
   if (!raw) return null;
   const lc = raw.toLowerCase();
+  // ORDER IS LOAD-BEARING. "Semi Final" contains "final", so semi must be
+  // tested first or every semi-final would be recorded as a final. Playoffs
+  // are tested before league so "League Semi Final" is not flattened to
+  // 'league' and the knockout round silently lost.
+  if (lc.includes('semi')) return 'semi_final';
+  if (lc.includes('final')) return 'final';
   if (lc.includes('league')) return 'league';
   if (lc.includes('practice')) return 'practice';
   return null;

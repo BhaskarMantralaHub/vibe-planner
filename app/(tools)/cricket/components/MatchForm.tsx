@@ -6,7 +6,7 @@ import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { Alert } from '@/components/ui';
 import type { Match } from './MatchSchedule';
 
-type MatchType = 'league' | 'practice';
+type MatchType = 'league' | 'practice' | 'semi_final' | 'final';
 
 interface MatchFormProps {
   open: boolean;
@@ -20,7 +20,7 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
   const [matchDate, setMatchDate] = useState('');
   const [matchTime, setMatchTime] = useState('10:00');
   const [venue, setVenue] = useState('');
-  const matchType: MatchType = 'league';
+  const [matchType, setMatchType] = useState<MatchType>('league');
   const overs = '20';
   const [isHome, setIsHome] = useState<boolean | null>(null);
   const [umpire, setUmpire] = useState('');
@@ -170,6 +170,38 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
             placeholder="e.g. Cloverleaf Park"
             className={inputClass}
           />
+        </div>
+
+        {/* Match type — was hardcoded to 'league', so a semi-final or final
+            could not be recorded at all. */}
+        <div>
+          <label className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1.5 block">
+            Match Type
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { key: 'league', label: 'League', color: '#3B82F6' },
+              { key: 'practice', label: 'Practice', color: '#16A34A' },
+              { key: 'semi_final', label: 'Semi Final', color: '#8B5CF6' },
+              { key: 'final', label: 'Final', color: '#F59E0B' },
+            ] as const).map((opt) => {
+              const active = matchType === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setMatchType(opt.key)}
+                  className="py-2.5 rounded-xl text-[13px] font-bold cursor-pointer border transition-all active:scale-95"
+                  style={{
+                    backgroundColor: active ? `color-mix(in srgb, ${opt.color} 15%, transparent)` : 'transparent',
+                    borderColor: active ? opt.color : 'var(--border)',
+                    color: active ? opt.color : 'var(--muted)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Home / Away */}

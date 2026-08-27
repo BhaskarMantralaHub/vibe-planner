@@ -30,7 +30,7 @@ export interface Match {
   match_date: string;
   match_time: string;
   venue: string;
-  match_type: 'league' | 'practice';
+  match_type: 'league' | 'practice' | 'semi_final' | 'final';
   overs: number;
   status: 'upcoming' | 'completed';
   notes?: string;
@@ -65,6 +65,9 @@ type CricclubsMeta = {
 const MATCH_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   league: { label: 'League', color: '#3B82F6' },
   practice: { label: 'Practice', color: '#16A34A' },
+  // Playoffs get their own colours so a knockout never reads as a league game.
+  semi_final: { label: 'Semi Final', color: '#8B5CF6' },
+  final: { label: 'Final', color: '#F59E0B' },
 };
 
 /* ── Performer Type Config ── */
