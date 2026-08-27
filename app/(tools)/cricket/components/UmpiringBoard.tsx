@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Text, Button, Badge, Alert, SegmentedControl, EmptyState, Skeleton, CardMenu,
-  buttonVariants,
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import type { CardMenuItem } from '@/components/ui';
@@ -530,20 +529,33 @@ export default function UmpiringBoard() {
 
 /* ── Pieces ───────────────────────────────────────────────────────────── */
 
+/** WhatsApp brand green — the whole point of going icon-only is instant
+ *  recognition, which depends on the colour as much as the glyph. */
+const WHATSAPP_GREEN = '#25D366';
+
 /**
- * WhatsApp share + copy fallback.
+ * Icon-only WhatsApp share, with a copy fallback beside it.
  *
- * The share button is a real <a target="_blank">, NOT an onClick that calls
- * window.open — iOS Safari blocks programmatic window.open unless it happens
- * inside a direct user gesture, and a React handler often falls outside that.
+ * ICON, NOT TEXT: "Share summary on WhatsApp" ate a full-width button to say
+ * what the logo says by itself. WhatsApp's mark in its own green is about as
+ * universally recognised as an icon gets, so the words were costing space
+ * without adding meaning. Each tab has exactly one share action, so there is
+ * nothing to disambiguate either.
  *
- * It styles the anchor with `buttonVariants()` rather than `<Button asChild>`.
- * Both work now, but going through buttonVariants keeps this page independent
- * of Radix Slot's single-child rule — which is what crashed the whole page in
- * production once already.
+ * The label survives as `aria-label` + `title`, so screen readers and hover
+ * tooltips still get the full description.
  *
- * Copy stays as a compact fallback: WhatsApp may not be installed, and the
- * text is sometimes wanted elsewhere (email, SMS, a different group).
+ * The share control is a real <a target="_blank">, NOT an onClick calling
+ * window.open — iOS Safari blocks programmatic window.open outside a direct
+ * user gesture, and a React handler often falls outside that.
+ *
+ * Hand-written classes rather than `buttonVariants()`: the brand green has to
+ * beat the variant's gradient, and fighting `bg-gradient-to-r` with an inline
+ * style is more fragile than not opting into it. It also keeps this page clear
+ * of Radix Slot, which crashed the whole page once already.
+ *
+ * Copy stays as a fallback: WhatsApp may not be installed, and the text is
+ * sometimes wanted elsewhere (email, SMS, a different group).
  */
 function ShareRow({ text, label, onCopy, className }: {
   text: string;
@@ -551,27 +563,38 @@ function ShareRow({ text, label, onCopy, className }: {
   onCopy: () => void;
   className?: string;
 }) {
+  // h-11/w-11 = 44px, the minimum touch target per the project's mobile rules.
+  const iconButton =
+    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ' +
+    'transition-all duration-150 ease-out active:scale-[0.96] cursor-pointer ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2';
+
   return (
-    <div className={cn('flex gap-2', className)}>
+    <div className={cn('flex items-center gap-2', className)}>
       <a
         href={whatsappShareUrl(text)}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={label}
+        title={label}
+        className={cn(iconButton, 'text-white shadow-md hover:brightness-105')}
+        style={{ background: WHATSAPP_GREEN }}
+      >
+        <FaWhatsapp size={22} />
+      </a>
+      <button
+        type="button"
+        onClick={onCopy}
+        aria-label="Copy to clipboard"
+        title="Copy to clipboard"
         className={cn(
-          buttonVariants({ variant: 'primary', size: 'md', brand: 'cricket' }),
-          'flex-1',
+          iconButton,
+          'border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]',
+          'hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
         )}
       >
-        <FaWhatsapp size={16} /> {label}
-      </a>
-      <Button
-        variant="secondary"
-        size="icon"
-        aria-label="Copy to clipboard"
-        onClick={onCopy}
-      >
-        <Copy size={15} />
-      </Button>
+        <Copy size={17} />
+      </button>
     </div>
   );
 }
