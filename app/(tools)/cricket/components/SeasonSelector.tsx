@@ -1,200 +1,163 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
-import { useAuthStore } from '@/stores/auth-store';
 import { SEASON_TYPES } from '../lib/constants';
-import { Alert } from '@/components/ui/alert';
-import { Text } from '@/components/ui';
-import { Plus } from 'lucide-react';
-import { toast } from 'sonner';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerBody, Text } from '@/components/ui';
+import { Check, ChevronDown } from 'lucide-react';
 
-function useIsAdmin() {
-  const { userAccess } = useAuthStore();
-  return userAccess.includes('admin');
-}
+/**
+ * Season picker.
+ *
+ * Rendered on four screens: the cricket dashboard, League Schedule, Umpiring,
+ * and League Stats. Changing it changes what every number on those pages means,
+ * so it is deliberately a modal bottom sheet rather than a dropdown.
+ *
+ * ── Why it stopped being a dropdown ────────────────────────────────────────
+ *  1. CLIPPING. The old menu was `absolute top-full` and on League Stats it
+ *     renders inside a card with `overflow: hidden`. Two options fitted with
+ *     12px to spare, which is why nobody noticed; a third needed 132px in
+ *     104px of space and got cut off. z-index could not rescue it — the
+ *     surrounding hero created its own stacking context.
+ *  2. A TAP OUTSIDE COULD FAIL TO CLOSE IT. The old close handler listened for
+ *     `mousedown` only, and iOS Safari does not reliably synthesise mouse
+ *     events for a tap on non-interactive background, so the menu could stick
+ *     open. A sheet gets a real overlay by construction.
+ *  3. TOUCH TARGETS. The trigger was 38px and the rows 40px, against a 44px
+ *     minimum — on what is about to become the most-tapped control here.
+ *  4. It also deletes an effect that measured the trigger's rect against a
+ *     hardcoded 300px estimate to flip the menu left or right — solving a
+ *     horizontal problem when the one that actually bit was vertical.
+ *
+ * A sheet also has room for the roster count under each season, which is the
+ * context that makes picking one a considered act rather than a guess.
+ *
+ * The shared Drawer is already responsive (`sm:max-w-md sm:mx-auto`), so this
+ * is one implementation for phone and desktop rather than two.
+ *
+ * NOTE: the "New Season" form that used to live here — dead-coded behind a
+ * literal `false` since 2026-05-05 — has been removed. It could not have
+ * worked: `addSeason` inserts without `is_active`, the column defaults to
+ * true, and `uniq_cricket_seasons_one_active_per_team` would have rejected it
+ * while another season was active, with no error handling to notice. Season
+ * creation needs rebuilding, not un-hiding. See docs/fall-2026-season.sql.
+ */
+
+const SEASON_ICON: Record<string, string> = { spring: '🌱', summer: '☀️', fall: '🍂' };
+const SEASON_ORDER: Record<string, number> = { spring: 0, summer: 1, fall: 2 };
 
 export default function SeasonSelector() {
-  const { user } = useAuthStore();
-  const { seasons, selectedSeasonId, setSelectedSeason, addSeason } = useCricketStore();
-  const isAdmin = useIsAdmin();
-  const [showCreate, setShowCreate] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [newYear, setNewYear] = useState(new Date().getFullYear());
-  const [newType, setNewType] = useState('summer');
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const yearInputRef = useRef<HTMLInputElement>(null);
+  const { seasons, seasonPlayers, selectedSeasonId, setSelectedSeason } = useCricketStore();
+  const [open, setOpen] = useState(false);
 
-  const seasonOrder: Record<string, number> = { spring: 0, summer: 1, fall: 2 };
-  const sortedSeasons = [...seasons].sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    return (seasonOrder[a.season_type] ?? 0) - (seasonOrder[b.season_type] ?? 0);
-  });
-  const selectedSeason = sortedSeasons.find((s) => s.id === selectedSeasonId);
+  // Newest year first, then spring → summer → fall within a year.
+  const sorted = useMemo(
+    () => [...seasons].sort((a, b) =>
+      b.year - a.year
+      || (SEASON_ORDER[a.season_type] ?? 0) - (SEASON_ORDER[b.season_type] ?? 0),
+    ),
+    [seasons],
+  );
 
-  // Short label for the trigger pill — e.g. "Spring 2026" — fits on mobile.
-  // Full name (e.g. "2026 MTCA Spring League · Division D") shows in the
-  // dropdown rows where there's room.
+  const selected = sorted.find((s) => s.id === selectedSeasonId);
+
+  /** Roster size per season — the one piece of context available without a
+   *  further query, and the most useful one for picking a season. */
+  const rosterCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const sp of seasonPlayers) {
+      if (sp.left_at !== null) continue;
+      counts.set(sp.season_id, (counts.get(sp.season_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [seasonPlayers]);
+
+  // Short form for the trigger — the stored name runs to "2026 MTCA Spring
+  // League · Division D", far too long for a pill. The sheet shows it in full.
   const shortLabel = (s: typeof seasons[number] | undefined) => {
     if (!s) return 'No seasons';
-    const typeLabel = SEASON_TYPES.find((t) => t.key === s.season_type)?.label ?? s.season_type;
-    return `${typeLabel} ${s.year}`;
+    const type = SEASON_TYPES.find((t) => t.key === s.season_type)?.label ?? s.season_type;
+    return `${type} ${s.year}`;
   };
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    if (showDropdown) {
-      document.addEventListener('mousedown', handleClick);
-      return () => document.removeEventListener('mousedown', handleClick);
-    }
-  }, [showDropdown]);
-
-  const [createError, setCreateError] = useState('');
-
-  // Dropdown left/right alignment — picked dynamically based on trigger
-  // position so the dropdown extends into the side with more viewport room.
-  // On Cricket main page the trigger sits left; on League Schedule it sits
-  // right. A single static anchor breaks one of them.
-  const [dropdownAlign, setDropdownAlign] = useState<'left' | 'right'>('left');
-  useEffect(() => {
-    if (!showDropdown || !dropdownRef.current) return;
-    const rect = dropdownRef.current.getBoundingClientRect();
-    const estDropdownWidth = 300; // generous; full cricclubs name fits
-    const viewportWidth = window.innerWidth;
-    // Flip to right-anchored if a left-anchored dropdown would overflow
-    // the right edge of the viewport (with 16px margin to spare).
-    if (rect.left + estDropdownWidth > viewportWidth - 16) {
-      setDropdownAlign('right');
-    } else {
-      setDropdownAlign('left');
-    }
-  }, [showDropdown]);
-
-  const handleCreate = () => {
-    if (!user) return;
-    const typeLabel = SEASON_TYPES.find((t) => t.key === newType)?.label ?? newType;
-    const newName = `${typeLabel} ${newYear}`;
-
-    // Check for duplicate season
-    const duplicate = seasons.find((s) => s.name.toLowerCase() === newName.toLowerCase());
-    if (duplicate) {
-      setCreateError(`${newName} already exists. Try a different season type or year.`);
-      yearInputRef.current?.focus();
-      yearInputRef.current?.select();
-      return;
-    }
-    setCreateError('');
-    addSeason(user.id, { name: newName, year: newYear, season_type: newType });
-    toast.success(`Season "${newName}" created`);
-    setShowCreate(false);
-  };
-
-  const seasonIcon: Record<string, string> = { spring: '🌱', summer: '☀️', fall: '🍂' };
-  const activeIcon = selectedSeason ? (seasonIcon[selectedSeason.season_type] ?? '📅') : '📅';
+  const icon = selected ? (SEASON_ICON[selected.season_type] ?? '📅') : '📅';
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Season selector */}
-      <div className="relative" ref={dropdownRef}>
-        <button
-          onClick={() => setShowDropdown(!showDropdown)}
-          className="group flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-full text-[14px] font-semibold cursor-pointer transition-all bg-[var(--card)] border border-[var(--border)] hover:border-[var(--cricket)]/40 hover:shadow-sm text-[var(--text)]"
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={sorted.length === 0}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        // min-h-11 = 44px. The old pill was 38px.
+        className="group flex min-h-11 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] pl-3 pr-2.5 text-[14px] font-semibold text-[var(--text)] transition-all hover:border-[var(--cricket)]/40 hover:shadow-sm active:scale-[0.98] disabled:opacity-50"
+      >
+        <span className="text-[16px] leading-none" aria-hidden>{icon}</span>
+        <Text weight="bold">{shortLabel(selected)}</Text>
+        <span
+          className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--hover-bg)] text-[var(--muted)] transition-colors group-hover:bg-[var(--cricket)]/10"
+          aria-hidden
         >
-          <span className="text-[16px]">{activeIcon}</span>
-          <Text weight="bold">{shortLabel(selectedSeason)}</Text>
-          <span className={`flex items-center justify-center h-5 w-5 rounded-full bg-[var(--hover-bg)] group-hover:bg-[var(--cricket)]/10 text-[var(--muted)] text-[9px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▼</span>
-        </button>
-        {showDropdown && sortedSeasons.length > 0 && (
-          // Auto-flips: anchor to trigger's left edge by default, but flips
-          // to right edge when there's not enough viewport space rightward.
-          <div className={`absolute top-full mt-1.5 z-[60] w-max min-w-[180px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1.5 animate-slide-in ${
-            dropdownAlign === 'right' ? 'right-0' : 'left-0'
-          }`}>
-            {sortedSeasons.map((s) => {
+          <ChevronDown size={12} />
+        </span>
+      </button>
+
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerHandle />
+        <DrawerTitle>Choose a season</DrawerTitle>
+        <DrawerBody className="!px-0 !pt-2">
+          <Text
+            as="p"
+            size="2xs"
+            color="muted"
+            weight="bold"
+            uppercase
+            tracking="wider"
+            className="px-5 pb-1"
+          >
+            Season
+          </Text>
+
+          <div className="flex flex-col">
+            {sorted.map((s) => {
               const isActive = s.id === selectedSeasonId;
-              const icon = seasonIcon[s.season_type] ?? '📅';
+              const players = rosterCount.get(s.id) ?? 0;
               return (
                 <button
                   key={s.id}
-                  onClick={() => { setSelectedSeason(s.id); setShowDropdown(false); }}
-                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] cursor-pointer transition-colors ${
-                    isActive
-                      ? 'text-[var(--cricket)] bg-[var(--cricket)]/5 font-bold'
-                      : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
-                  }`}
-                >
-                  <span className="text-[15px]">{icon}</span>
-                  <span className="flex-1 text-left">{s.name}</span>
-                  {isActive && <span className="h-2 w-2 rounded-full bg-[var(--cricket)]" />}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* New-season UI removed 2026-05-05. The cricclubs-sync GitHub Action
-          now auto-creates and activates seasons whenever cricclubs publishes
-          a new league. See scripts/cricclubs-sync/sync.ts. The manual code
-          path is preserved below in case admin-created seasons return as a
-          feature; right now it never renders. */}
-      {false && isAdmin && !showCreate ? (
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center justify-center h-9 w-9 rounded-full border border-dashed border-[var(--cricket)]/40 text-[var(--cricket)] cursor-pointer hover:bg-[var(--cricket)]/10 hover:border-[var(--cricket)] transition-all active:scale-95"
-          title="New Season"
-          aria-label="New Season"
-        >
-          <Plus size={16} strokeWidth={2.25} />
-        </button>
-      ) : false && isAdmin && showCreate ? (
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <div className="flex gap-1.5">
-            {SEASON_TYPES.map((t) => {
-              const exists = seasons.some((s) => s.season_type === t.key && s.year === newYear);
-              const icon = seasonIcon[t.key] ?? '';
-              return (
-                <button
-                  key={t.key}
                   type="button"
-                  onClick={() => !exists && setNewType(t.key)}
-                  disabled={exists}
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-medium cursor-pointer transition-all border disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{
-                    backgroundColor: newType === t.key && !exists ? 'var(--cricket)' : 'transparent',
-                    borderColor: newType === t.key && !exists ? 'var(--cricket)' : 'var(--border)',
-                    color: newType === t.key && !exists ? 'white' : 'var(--muted)',
-                  }}
+                  onClick={() => { setSelectedSeason(s.id); setOpen(false); }}
+                  aria-current={isActive ? 'true' : undefined}
+                  // min-h-14 = 56px, comfortably over the 44px floor and with
+                  // room for the second line.
+                  className="flex min-h-14 w-full items-center gap-3 border-t border-[var(--border)] px-5 py-2.5 text-left transition-colors active:bg-[var(--hover-bg)]"
+                  style={isActive
+                    ? { background: 'color-mix(in srgb, var(--cricket) 7%, transparent)' }
+                    : undefined}
                 >
-                  {icon} {t.label}{exists ? ' ✓' : ''}
+                  <span className="text-[19px] leading-none" aria-hidden>
+                    {SEASON_ICON[s.season_type] ?? '📅'}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    {/* Full stored name here — the pill could only show two words */}
+                    <Text as="p" size="sm" weight="bold" truncate>{s.name}</Text>
+                    <Text as="p" size="2xs" color="muted">
+                      {players > 0
+                        ? `${players} ${players === 1 ? 'player' : 'players'}`
+                        : 'No players on this season yet'}
+                      {s.is_active && ' · Current season'}
+                    </Text>
+                  </span>
+                  {isActive && (
+                    <Check size={17} className="flex-shrink-0 text-[var(--cricket)]" aria-hidden />
+                  )}
                 </button>
               );
             })}
           </div>
-          <input
-            ref={yearInputRef}
-            type="number"
-            value={newYear}
-            onChange={(e) => setNewYear(Number(e.target.value))}
-            className="w-20 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-[13px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-          />
-          <button onClick={handleCreate}
-            disabled={seasons.some((s) => s.season_type === newType && s.year === newYear)}
-            className="rounded-full bg-[var(--cricket)] px-3.5 py-1.5 text-[12px] font-bold text-white cursor-pointer hover:opacity-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-            Create
-          </button>
-          <button onClick={() => { setShowCreate(false); setCreateError(''); }} className="text-[13px] text-[var(--muted)] cursor-pointer hover:text-[var(--text)]">
-            Cancel
-          </button>
-          {createError && (
-            <Alert variant="error" className="w-full text-[12px]">{createError}</Alert>
-          )}
-        </div>
-      ) : null}
-    </div>
+        </DrawerBody>
+      </Drawer>
+    </>
   );
 }
