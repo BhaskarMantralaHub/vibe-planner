@@ -468,6 +468,13 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
   const matchPayload = {
     team_id: CONFIG.team_id,
     cricclubs_match_id: listEntry.cricclubs_match_id,
+    // Which LEAGUE this match belongs to — the only reliable link from a
+    // scorecard back to a season, via cricket_seasons.cricclubs_league_id.
+    // Was omitted here while ingest-html.mts set it, so every match synced from
+    // the phone (the canonical path) landed with a NULL league id and could not
+    // be attributed to a season at all. Season-filtered stats are impossible
+    // without it, and the gap is silent — the match itself looks fine.
+    cricclubs_league_id: CONFIG.league_id,
     match_date: listEntry.match_date,
     match_format: listEntry.match_format,
     league_name: extractLeagueName(listEntry.league_division),
