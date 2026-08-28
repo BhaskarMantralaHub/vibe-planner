@@ -6,12 +6,11 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Text,
-  SegmentedControl,
   Skeleton,
   EmptyState,
 } from '@/components/ui';
 import { NumberTicker } from '@/components/ui/number-ticker';
-import { ChartColumnBig, Star, Hand } from 'lucide-react';
+import { ChartColumnBig, Star, Hand, ChevronRight, LayoutGrid, Rows3 } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { GiTennisBall } from 'react-icons/gi';
 import SeasonSelector from '../../components/SeasonSelector';
@@ -24,6 +23,7 @@ import PlayerDetailSheet from './PlayerDetailSheet';
 import { AllRoundFormulaCard, CatchesRulesCard, BestSpellChip, getHeatColor } from './TabIntroCards';
 import {
   computeTopPerformers,
+  type TopPerformerCard,
   computeBestBowlingFigures,
   computeMatchesPlayed,
   extractRunOutFielders,
@@ -330,16 +330,42 @@ const computeAllRound = (
 };
 
 
-// ── Compact sticky hero ──────────────────────────────────────────────────
-//
-// Replaces (and absorbs) the prior brand banner + SeasonScorecard split.
-// Sticky-top during scroll so the season selector + W/L momentum + form
-// stay visible while users explore the leaderboard below.
-// See docs/PLAYER_STATS_NEW_SPEC.md for the design rationale.
+/**
+ * ── Hero: ONE row ────────────────────────────────────────────────────────
+ *
+ * Season · record · streak-or-form · view toggle, on a single 48px line.
+ *
+ * This was a 187px card with three stacked rows, sitting above a 222px
+ * carousel and a 54px view toggle. Total page chrome came to 635px of an
+ * 844px phone — 75% — leaving room for TWO leaderboard rows out of eighteen
+ * players. The leaderboard is the entire reason for the page.
+ *
+ * What was removed, and why each was affordable:
+ *   • "LEAGUE PERFORMANCE" eyebrow — decoration above a title that also went.
+ *   • "Season Stats" <h1> — the bottom nav already labels this destination
+ *     "Stats" and the app header names the team. It was also FALSE: hardcoded
+ *     over career-wide data.
+ *   • The 54% / 31% / 15% under W/L/UND — percentages of thirteen matches are
+ *     noise, and "7-4-2" states the same fact exactly. Cost three lines of
+ *     vertical space to say less.
+ *   • "newest first" caption — the pills read left-to-right newest already.
+ *   • The brand gradient wash and the card itself — a full-bleed row needs no
+ *     container to be legible.
+ *
+ * Streak and form now SHARE one slot rather than both rendering: a streak IS
+ * the form summary, so showing "🔥 3W" beside W-W-L-W-W says it twice and
+ * costs the width that made the row overflow.
+ *
+ * Deliberately NOT sticky. The old `sticky top-0 z-20` could not work: the
+ * app Shell header is `sticky top-0 z-40` and 59px tall, so this pinned
+ * BEHIND it. (And `main { overflow-x: hidden }` in globals.css makes `main` a
+ * scroll container, which neutralises descendant sticky altogether.) With
+ * chrome down to ~256px, scroll-to-top is one flick away.
+ */
 type FormOutcome = 'won' | 'lost' | 'draw';
 function CompactHero({
   won, lost, undecided, total, formDescending, streak,
-  seasonSelector,
+  seasonSelector, viewToggle,
 }: {
   won: number;
   lost: number;
@@ -348,129 +374,80 @@ function CompactHero({
   formDescending: FormOutcome[];
   streak: { type: FormOutcome; count: number } | null;
   seasonSelector: React.ReactNode;
+  /** Table/Cards control, folded in here to reclaim its own 54px row. */
+  viewToggle?: React.ReactNode;
 }) {
-  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
-  const recent = formDescending.slice(0, 5);
-  return (
-    <div
-      // Negative margin escapes the page's px-4 so the hero spans full width;
-      // inner padding restores the breathing room. `sticky top-0` keeps the
-      // hero pinned during scroll for the scan-first UX described in the spec.
-      className="sticky top-0 z-20 -mx-4 px-4 pt-3 pb-2"
-      style={{ background: 'var(--bg)' }}
-    >
-      <div
-        className="relative overflow-hidden rounded-2xl px-4 py-3.5"
-        style={{
-          // Brand wash — a soft green→blue gradient so the page opens with
-          // color instead of another white card ("colors look plain"
-          // feedback). Token-mixed, so it adapts to light and dark.
-          background:
-            'linear-gradient(135deg, color-mix(in srgb, var(--green) 12%, var(--card)) 0%, color-mix(in srgb, var(--cricket) 10%, var(--card)) 100%)',
-          border: '1px solid color-mix(in srgb, var(--cricket) 22%, var(--border))',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-        }}
-      >
-        {/* Row 1 — eyebrow + title + season selector */}
-        <div className="relative flex items-start justify-between gap-3 mb-2.5">
-          <div className="min-w-0">
-            <Text as="p" size="2xs" color="cricket" weight="semibold" uppercase tracking="wider" className="mb-0.5 text-[10px]">
-              League Performance
-            </Text>
-            <Text as="h1" size="lg" weight="bold" className="sm:text-[20px] leading-tight">
-              Season Stats
-            </Text>
-          </div>
-          <div className="flex-shrink-0">{seasonSelector}</div>
-        </div>
+  const showStreak = streak !== null && streak.count >= 2;
+  // Only when there is no streak worth showing — otherwise the streak chip
+  // already summarises exactly this.
+  const recent = showStreak ? [] : formDescending.slice(0, 5);
 
-        {/* Row 2 — W/L/UND with percentages + streak */}
-        <div className="relative flex items-end justify-between gap-3 mb-2.5">
-          <div className="flex items-end gap-3.5">
-            <MomentumStat label="WON" value={won} pct={pct(won)} color="var(--green)" />
-            <MomentumStat label="LOST" value={lost} pct={pct(lost)} color="var(--red)" />
-            <MomentumStat label="UND" value={undecided} pct={pct(undecided)} color="var(--muted)" />
-          </div>
-          {streak && streak.count >= 2 && (() => {
-            const tone = streak.type === 'won' ? 'var(--green)' : streak.type === 'lost' ? 'var(--red)' : 'var(--muted)';
-            const glyph = streak.type === 'won' ? '🔥' : streak.type === 'lost' ? '❄️' : '⚖️';
-            const letter = streak.type === 'won' ? 'W' : streak.type === 'lost' ? 'L' : 'D';
-            const hot = streak.count >= 3;
+  return (
+    <div className="flex items-center gap-2 pt-3 pb-1 min-h-[48px]">
+      <div className="flex-shrink-0">{seasonSelector}</div>
+
+      {total > 0 && (
+        <span
+          className="text-[15px] font-extrabold tabular-nums tracking-tight flex-shrink-0"
+          aria-label={`${won} won, ${lost} lost, ${undecided} undecided`}
+        >
+          <span style={{ color: 'var(--green)' }}>{won}</span>
+          <span style={{ color: 'var(--dim)' }}>–</span>
+          <span style={{ color: 'var(--red)' }}>{lost}</span>
+          <span style={{ color: 'var(--dim)' }}>–</span>
+          <span style={{ color: 'var(--muted)' }}>{undecided}</span>
+        </span>
+      )}
+
+      {showStreak && (() => {
+        const tone = streak.type === 'won' ? 'var(--green)' : streak.type === 'lost' ? 'var(--red)' : 'var(--muted)';
+        const glyph = streak.type === 'won' ? '🔥' : streak.type === 'lost' ? '❄️' : '⚖️';
+        const letter = streak.type === 'won' ? 'W' : streak.type === 'lost' ? 'L' : 'D';
+        return (
+          <span
+            className={
+              'inline-flex items-center gap-1 h-7 px-2.5 rounded-full flex-shrink-0 '
+              + (streak.count >= 3 ? 'animate-streak-glow' : '')
+            }
+            style={{
+              background: `color-mix(in srgb, ${tone} 14%, transparent)`,
+              border: `1px solid color-mix(in srgb, ${tone} 30%, transparent)`,
+              ...(streak.count >= 3 ? ({ ['--glow-color' as string]: tone }) : {}),
+            }}
+            aria-label={`${streak.count} match ${streak.type} streak`}
+          >
+            <span aria-hidden className="text-[12px] leading-none">{glyph}</span>
+            <span className="text-[12px] font-bold tabular-nums leading-none" style={{ color: tone }}>
+              {streak.count}{letter}
+            </span>
+          </span>
+        );
+      })()}
+
+      {recent.length > 0 && (
+        <span className="flex items-center gap-1 flex-shrink-0">
+          {recent.map((outcome, i) => {
+            const tone = outcome === 'won' ? 'var(--green)' : outcome === 'lost' ? 'var(--red)' : 'var(--muted)';
+            const letter = outcome === 'won' ? 'W' : outcome === 'lost' ? 'L' : 'D';
+            const label = outcome === 'won' ? 'Won' : outcome === 'lost' ? 'Lost' : 'Draw';
             return (
-              <div
+              <span
+                key={i}
                 className={
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg flex-shrink-0 ' +
-                  (hot ? 'animate-streak-glow' : '')
+                  'inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-extrabold '
+                  + (i === 0 ? 'animate-form-pulse' : '')
                 }
-                style={{
-                  background: `color-mix(in srgb, ${tone} 14%, transparent)`,
-                  border: `1px solid color-mix(in srgb, ${tone} 32%, transparent)`,
-                  ...(hot ? ({ ['--glow-color' as string]: tone }) : {}),
-                }}
-                aria-label={`${streak.count} match ${streak.type} streak`}
+                style={{ background: `color-mix(in srgb, ${tone} 22%, transparent)`, color: tone }}
+                aria-label={label}
               >
-                <span aria-hidden className="text-[14px] leading-none">{glyph}</span>
-                <span className="text-[15px] font-bold tabular-nums leading-none" style={{ color: tone }}>
-                  <NumberTicker value={streak.count} />
-                </span>
-                <Text size="2xs" color="muted" className="text-[9px] uppercase tracking-wider font-semibold leading-none">
-                  {letter} streak
-                </Text>
-              </div>
+                {letter}
+              </span>
             );
-          })()}
-        </div>
+          })}
+        </span>
+      )}
 
-        {/* Row 3 — Recent form. Newest pulses subtly. */}
-        {recent.length > 0 && (
-          <div className="relative flex items-center gap-2">
-            <Text size="2xs" color="muted" weight="semibold" uppercase tracking="wider" className="text-[10px] flex-shrink-0">
-              Form
-            </Text>
-            <div className="flex items-center gap-1">
-              {recent.map((outcome, i) => {
-                const tone = outcome === 'won' ? 'var(--green)' : outcome === 'lost' ? 'var(--red)' : 'var(--muted)';
-                const letter = outcome === 'won' ? 'W' : outcome === 'lost' ? 'L' : 'D';
-                const label = outcome === 'won' ? 'Won' : outcome === 'lost' ? 'Lost' : 'Draw';
-                const newest = i === 0;
-                return (
-                  <span
-                    key={i}
-                    className={
-                      'inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-extrabold ' +
-                      (newest ? 'animate-form-pulse' : '')
-                    }
-                    style={{
-                      background: `color-mix(in srgb, ${tone} 22%, transparent)`,
-                      color: tone,
-                    }}
-                    aria-label={label}
-                  >
-                    {letter}
-                  </span>
-                );
-              })}
-              <Text as="span" size="2xs" color="dim" className="ml-1 text-[9px]">newest first</Text>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MomentumStat({ label, value, pct, color }: { label: string; value: number; pct: number; color: string }) {
-  return (
-    <div className="flex flex-col items-start leading-none">
-      <Text size="2xs" color="muted" weight="semibold" uppercase tracking="wider" className="text-[9px] mb-1">
-        {label}
-      </Text>
-      <span className="text-[22px] font-bold tabular-nums" style={{ color }}>
-        <NumberTicker value={value} />
-      </span>
-      <Text size="2xs" color="dim" className="text-[9px] mt-0.5 font-semibold">
-        {pct}%
-      </Text>
+      {viewToggle && <div className="ml-auto flex-shrink-0">{viewToggle}</div>}
     </div>
   );
 }
@@ -727,6 +704,26 @@ export default function LeagueStatsView() {
     [batting, bowling, catchesTotals, battingMatches, bowlingMatches, matches],
   );
 
+  /**
+   * One-line stand-in for the collapsed carousel, e.g. "Sai Krishna, 278 runs".
+   *
+   * Prefers the card matching the ACTIVE tab, so the strip answers the question
+   * the current leaderboard is about rather than always naming the run-scorer.
+   * Falls back to the first card. A collapsed section that carries its headline
+   * is information; one that just says "Top performers" is a closed door.
+   */
+  const leadHeadline = useMemo(() => {
+    if (topPerformers.length === 0) return null;
+    const wanted: Record<Tab, TopPerformerCard['category'][]> = {
+      batting: ['runs'],
+      bowling: ['wickets', 'economy'],
+      catches: ['catches'],
+      allround: ['mvp'],
+    };
+    const card = topPerformers.find((c) => wanted[tab].includes(c.category)) ?? topPerformers[0]!;
+    return `${card.player_name}, ${card.metric} ${card.unit}`.trim();
+  }, [topPerformers, tab]);
+
   // Best bowling figures per player ("4/18" display strings). Used in the
   // Bowling tab footer to surface the season-best spell per player.
   const bestBowlingByPlayer = useMemo(
@@ -810,9 +807,7 @@ export default function LeagueStatsView() {
   return (
     <>
     <div className="space-y-3">
-      {/* Compact sticky hero — absorbs the prior brand banner + SeasonScorecard.
-          Title + season selector + W/L/UND momentum + recent form + streak,
-          all in ~180px. Sticky-top during scroll for scan-first UX. */}
+      {/* One 48px row: season · record · streak-or-form · view toggle. */}
       <CompactHero
         won={summary.won}
         lost={summary.lost}
@@ -821,54 +816,73 @@ export default function LeagueStatsView() {
         formDescending={summary.formDescending}
         streak={summary.streak}
         seasonSelector={<SeasonSelector />}
+        viewToggle={
+          /* A 44px icon button, not a 176px segmented control on its own row.
+             This is a set-once-per-device preference — it is already remembered
+             in localStorage — so it was charging 54px of permanent chrome on
+             every single visit to save one tap, once. */
+          <button
+            type="button"
+            onClick={() => writeViewMode(viewMode === 'table' ? 'cards' : 'table')}
+            aria-label={viewMode === 'table' ? 'Switch to card view' : 'Switch to table view'}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition-transform active:scale-95"
+          >
+            {viewMode === 'table' ? <LayoutGrid size={17} /> : <Rows3 size={17} />}
+          </button>
+        }
       />
 
-      {/* Top Performers — Summary Layer per spec. Pre-computed cards
-          showing the leaders across disciplines. Tap → opens player sheet
-          in that card's discipline context. */}
-      {topPerformers.length > 0 && (
-        <TopPerformersCarousel
-          cards={topPerformers}
-          photoUrlByPlayer={photoUrlByPlayer}
-          onCardTap={(playerId) => {
-            // Map the carousel card's discipline to the right sheet context
-            const card = topPerformers.find((c) => c.player_id === playerId);
-            const ctx: Tab = card?.category === 'wickets' || card?.category === 'economy'
-              ? 'bowling'
-              : card?.category === 'catches'
-                ? 'catches'
-                : card?.category === 'mvp'
-                  ? 'allround'
-                  : 'batting';
-            openPlayerSheet(playerId, ctx);
-          }}
-        />
-      )}
-
-      {/* Tab bar — sticky pill tabs with 4-tab (Catches restored) + animated
-          underline. Sits below the CompactHero (sticky top 0) and acts as
-          its own sticky layer. Together they form the persistent "scan
-          first" header bar. */}
+      {/* Tab bar. `stickyTop` is 0 because nothing above it is sticky any
+          more — see the note on CompactHero about why the old sticky hero
+          could never have worked behind a z-40 app header. */}
       <StickyPillTabs
         active={tab}
         onChange={setTab}
         stickyTop="0"
       />
 
-      {/* Density switch — right-aligned and deliberately small so it reads as
-          a view control, not a fifth tab competing with the discipline tabs. */}
-      <div className="flex justify-end">
-        <SegmentedControl
-          ariaLabel="Leaderboard view"
-          options={[
-            { key: 'table', label: 'Table' },
-            { key: 'cards', label: 'Cards' },
-          ]}
-          active={viewMode}
-          onChange={(k) => writeViewMode(k as ViewMode)}
-          className="w-[176px]"
-        />
-      </div>
+      {/* Top performers — collapsed to a one-line strip.
+          As a carousel this was 222px, a quarter of the phone, summarising the
+          leaderboard immediately beneath it. Collapsed by default because the
+          full answer is already on screen; expandable for the discipline
+          leaders you cannot see from the batting tab alone. */}
+      {topPerformers.length > 0 && (
+        <details className="group rounded-xl border border-[var(--border)] bg-[var(--card)]">
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 py-2.5">
+            <ChevronRight
+              size={14}
+              className="flex-shrink-0 text-[var(--muted)] transition-transform group-open:rotate-90"
+              aria-hidden
+            />
+            <Text size="2xs" color="muted" weight="semibold" uppercase tracking="wider" className="flex-shrink-0">
+              Top performers
+            </Text>
+            {leadHeadline && (
+              <Text as="p" size="xs" weight="semibold" truncate className="min-w-0 flex-1">
+                {leadHeadline}
+              </Text>
+            )}
+          </summary>
+          <div className="pb-1">
+            <TopPerformersCarousel
+              cards={topPerformers}
+              photoUrlByPlayer={photoUrlByPlayer}
+              onCardTap={(playerId) => {
+                // Map the carousel card's discipline to the right sheet context
+                const card = topPerformers.find((c) => c.player_id === playerId);
+                const ctx: Tab = card?.category === 'wickets' || card?.category === 'economy'
+                  ? 'bowling'
+                  : card?.category === 'catches'
+                    ? 'catches'
+                    : card?.category === 'mvp'
+                      ? 'allround'
+                      : 'batting';
+                openPlayerSheet(playerId, ctx);
+              }}
+            />
+          </div>
+        </details>
+      )}
 
       {/* Tab bodies — card-first per spec. Each tab maps its rows to
           <LeaderboardCard>s; tapping a card opens the PlayerDetailSheet.
@@ -1006,25 +1020,21 @@ function TabEmptyState({
 function LeagueStatsSkeleton({ viewMode }: { viewMode: ViewMode }) {
   return (
     <div className="space-y-3.5">
-      {/* Hero placeholder — matches CompactHero height + rounding. */}
-      <Skeleton className="h-[148px] rounded-2xl" />
-
-      {/* Top performers carousel placeholder — 3 visible peeks of cards. */}
-      <div className="-mx-4 px-4 overflow-hidden">
-        <div className="flex gap-3">
-          <CarouselCardSkeleton />
-          <CarouselCardSkeleton />
-          <CarouselCardSkeleton />
-        </div>
+      {/* Hero placeholder — one row: season pill, record, streak, view toggle.
+          Must mirror the real heights, or the content jumps when it lands. */}
+      <div className="flex items-center gap-2 pt-3 pb-1">
+        <Skeleton className="h-[38px] w-[150px] rounded-full" />
+        <Skeleton className="h-[18px] w-[46px] rounded-md" />
+        <Skeleton className="ml-auto h-11 w-11 rounded-xl" />
       </div>
 
       {/* Sticky pill tabs placeholder. */}
       <Skeleton className="h-11 rounded-full" />
 
-      {/* View toggle placeholder — right-aligned, matching SegmentedControl. */}
-      <div className="flex justify-end">
-        <Skeleton className="h-[52px] w-[176px] rounded-2xl" />
-      </div>
+      {/* Collapsed top-performers strip. The carousel behind it is closed by
+          default, so its cards are deliberately NOT part of the skeleton —
+          showing them would promise a taller layout than what arrives. */}
+      <Skeleton className="h-11 rounded-xl" />
 
       {viewMode === 'table' ? (
         <LeaderboardTableSkeleton />
@@ -1110,22 +1120,6 @@ function LeaderboardCardSkeleton({ podium }: { podium: boolean }) {
           <Skeleton className="h-3 w-40 rounded-md" />
         </div>
       </div>
-    </div>
-  );
-}
-
-function CarouselCardSkeleton() {
-  return (
-    <div
-      className="flex-shrink-0 w-[156px] rounded-2xl p-3 border border-[var(--border)]/30 space-y-2"
-      style={{ background: 'var(--card)' }}
-    >
-      <Skeleton className="h-7 w-7 rounded-full" />
-      <Skeleton className="h-3 w-20 rounded-md" />
-      <Skeleton className="h-12 w-12 rounded-full" />
-      <Skeleton className="h-7 w-20 rounded-md" />
-      <Skeleton className="h-3 w-24 rounded-md" />
-      <Skeleton className="h-[22px] w-full rounded-md" />
     </div>
   );
 }
