@@ -1,8 +1,9 @@
 'use client';
 
 import type { JSX, ReactNode } from 'react';
-import { useMemo } from 'react';
-import { X, TrendingUp, Award, Calendar } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, TrendingUp, Award, Calendar, History, Trophy } from 'lucide-react';
+import type { PlayerHistory } from '../lib/seasonAggregates';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, DrawerClose, Text } from '@/components/ui';
 import PlayerAvatar from './PlayerAvatar';
 import Sparkline from './Sparkline';
@@ -33,6 +34,10 @@ export type PlayerDetailSheetProps = {
       runs?: number; innings?: number; average?: number | null; strike_rate?: number | null;
       wickets?: number; economy?: number | null; best_wickets?: number; catches?: number;
       runouts?: number;
+      /** Appearances — distinct scorecards, batting OR bowling. Used by the
+       *  Fielding tile, where batting innings would be the wrong denominator
+       *  for a catch count and would disagree with the leaderboard's "Mat". */
+      matches?: number;
     };
   };
   battingInnings: BattingMatchRow[];
@@ -40,6 +45,20 @@ export type PlayerDetailSheetProps = {
   catchesByMatch?: Map<string, number>;
   runoutsByMatch?: Map<string, number>;
   matchLookup: MatchLookup;
+  /**
+   * The player's record season by season, plus career totals.
+   *
+   * Everything else in this sheet is scoped to the SELECTED season, which is
+   * correct but leaves a player's career total and personal best invisible —
+   * and a personal best is the one figure that should never decay. This is the
+   * only cross-season data here, and it is bounded by season count rather than
+   * innings count: three rows after three years, where a career-long match list
+   * would be thirty-nine.
+   */
+  history?: PlayerHistory;
+  /** Label of the season currently in force, shown above the stat tiles so a
+   *  reader is never in doubt which period the big numbers describe. */
+  scopeLabel?: string | null;
 };
 
 const ACCENT: Record<Context, string> = {
@@ -65,7 +84,10 @@ const fmtNum = (v: number | null | undefined, digits = 2): string =>
 type Entry = { match_row_id: string; date: string | null; opponent: string; bat?: BattingMatchRow; bowl?: BowlingMatchRow; catches?: number; runouts?: number };
 
 export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.Element | null {
-  const { open, onClose, context, player, battingInnings, bowlingInnings, catchesByMatch, runoutsByMatch, matchLookup } = props;
+  const {
+    open, onClose, context, player, battingInnings, bowlingInnings,
+    catchesByMatch, runoutsByMatch, matchLookup, history, scopeLabel,
+  } = props;
   const accent = ACCENT[context];
 
   const timeline = useMemo<Entry[]>(() => {
@@ -89,12 +111,39 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
   const econSeries = byDateAsc(bowlingInnings).slice(-8).map((b) => b.economy ?? 0);
   const catchSeries = timeline.slice().reverse().slice(-8).map((t) => t.catches ?? 0);
 
-  const fifties = battingInnings.filter((b) => b.runs >= 50);
-  const fivers = bowlingInnings.filter((b) => b.wickets >= 5);
+  /**
+   * Achievements, capped at the best three of each kind.
+   *
+   * These used to render one pill per fifty and per five-for, for every one
+   * ever — a wall that grew without limit. Season scoping bounds it to a
+   * season's worth now, but "your three best knocks" is a better answer than
+   * "all of them" regardless, and sorting means the cap never hides the best.
+   */
+  const fifties = [...battingInnings].filter((b) => b.runs >= 50)
+    .sort((a, b) => b.runs - a.runs).slice(0, 3);
+  const fivers = [...bowlingInnings].filter((b) => b.wickets >= 5)
+    .sort((a, b) => b.wickets - a.wickets || a.runs - b.runs).slice(0, 3);
   const bestBowling = bowlingInnings.reduce<{ w: number; r: number } | null>((acc, b) =>
     !acc || b.wickets > acc.w || (b.wickets === acc.w && b.runs < acc.r) ? { w: b.wickets, r: b.runs } : acc, null);
   const bestCatchHaul = catchesByMatch ? Math.max(0, ...Array.from(catchesByMatch.values())) : 0;
   const hasAchievements = fifties.length > 0 || fivers.length > 0 || (bestBowling && bestBowling.w > 0) || bestCatchHaul >= 2;
+
+  /** Career bests, which do not belong to any one season — a personal best
+   *  never decays, so it is shown even while the page is season-scoped. */
+  const careerBest = useMemo(() => {
+    const cb = history?.careerBatting;
+    const cw = history?.careerBowling;
+    const out: { label: string; value: string }[] = [];
+    if (cb && cb.highest_score > 0) out.push({ label: 'Highest score', value: String(cb.highest_score) });
+    if (cw && cw.best_wickets > 0) out.push({ label: 'Best wickets', value: `${cw.best_wickets}w` });
+    if (cb && cb.runs > 0) out.push({ label: 'Career runs', value: String(cb.runs) });
+    if (cw && cw.wickets > 0) out.push({ label: 'Career wickets', value: String(cw.wickets) });
+    return out;
+  }, [history]);
+
+  // More than one season on record is what makes the breakdown worth showing.
+  // With a single season it would just restate the tiles above it.
+  const showHistory = (history?.seasons.length ?? 0) > 1;
 
   if (!open) return null;
 
@@ -130,6 +179,13 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
             instead of appearing as a static page. Each block waits ~80ms
             longer than the previous; reduced-motion respected via globals. */}
         <div className="animate-card-rise" style={{ animationDelay: '0ms' }}>
+          {/* Which period the big numbers describe. Without this the tiles are
+              ambiguous the moment more than one season exists. */}
+          {scopeLabel && (
+            <Text as="p" size="2xs" color="muted" weight="bold" uppercase tracking="wider" className="mb-1.5">
+              {scopeLabel}
+            </Text>
+          )}
           <SummaryStrip context={context} summary={player.summary} accent={accent} />
         </div>
 
@@ -154,6 +210,36 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
                 {bestBowling && bestBowling.w > 0 && <Pill accent="var(--stat-bowling)">Best: {bestBowling.w}/{bestBowling.r}</Pill>}
                 {bestCatchHaul >= 2 && <Pill accent="var(--stat-catches)">{bestCatchHaul} catches in 1 match</Pill>}
               </div>
+            </Section>
+          </div>
+        )}
+
+        {careerBest.length > 0 && (
+          <div className="animate-card-rise" style={{ animationDelay: '300ms' }}>
+            <Section icon={<Trophy className="h-4 w-4" style={{ color: 'var(--orange)' }} />} title="Career best">
+              <div
+                className="rounded-xl px-3 py-2.5 grid gap-x-4 gap-y-1.5"
+                style={{
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  background: 'color-mix(in srgb, var(--orange) 8%, var(--card))',
+                  border: '1px solid color-mix(in srgb, var(--orange) 22%, var(--border))',
+                }}
+              >
+                {careerBest.map((c) => (
+                  <div key={c.label} className="flex items-baseline justify-between gap-2">
+                    <Text size="2xs" color="muted">{c.label}</Text>
+                    <span className="text-[14px] font-extrabold tabular-nums">{c.value}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
+        )}
+
+        {showHistory && history && (
+          <div className="animate-card-rise" style={{ animationDelay: '360ms' }}>
+            <Section icon={<History className="h-4 w-4" style={{ color: accent }} />} title="Season by season">
+              <SeasonHistoryTable history={history} context={context} accent={accent} />
             </Section>
           </div>
         )}
@@ -196,7 +282,11 @@ function SummaryStrip({ context, summary, accent }:
     ] : [
       { label: 'Catches', value: String(s.catches ?? 0) },
       { label: 'Run-outs', value: String(s.runouts ?? 0) },
-      { label: 'Inns', value: String(s.innings ?? 0) },
+      // "Mat", not "Inns": catches accrue per APPEARANCE, and this used to
+      // show batting innings — a number that disagreed with the leaderboard's
+      // Mat column for the same player. Falls back to '—' rather than 0 while
+      // the appearance data is still loading.
+      { label: 'Mat', value: s.matches === undefined ? '—' : String(s.matches) },
     ];
 
   return (
@@ -266,12 +356,32 @@ function TrendRow({ label, latest, data, color, compact, digits = 0 }:
   );
 }
 
+/** Rows shown before the "show all" link. Recent form is what people open a
+ *  profile for; the rest is evidence on demand. */
+const TIMELINE_PREVIEW = 8;
+
 function Timeline({ context, entries }: { context: Context; entries: Entry[] }): JSX.Element {
-  const filtered = context === 'catches'
-    ? entries.filter((e) => (e.catches ?? 0) > 0 || (e.runouts ?? 0) > 0)
-    : entries;
+  const [expanded, setExpanded] = useState(false);
+
+  const filtered = useMemo(() => {
+    const base = context === 'catches'
+      ? entries.filter((e) => (e.catches ?? 0) > 0 || (e.runouts ?? 0) > 0)
+      : entries;
+    // The all-round row renders nothing when a player neither batted nor
+    // bowled. Those entries used to reach the list and paint a bare divider
+    // inside the `divide-y` container — a stray line with no row above it.
+    // Filtered out here rather than returning a hidden element.
+    return context === 'allround'
+      ? base.filter((e) => (e.bat && !e.bat.did_not_bat) || e.bowl)
+      : base;
+  }, [context, entries]);
+
   if (filtered.length === 0) return <div className="text-sm py-3 text-center" style={{ color: 'var(--muted)' }}>No matches yet</div>;
+
   const accent = ACCENT[context];
+  const shown = expanded ? filtered : filtered.slice(0, TIMELINE_PREVIEW);
+  const hidden = filtered.length - shown.length;
+
   return (
     <div
       className="rounded-xl divide-y overflow-hidden"
@@ -281,7 +391,100 @@ function Timeline({ context, entries }: { context: Context; entries: Entry[] }):
         borderColor: `color-mix(in srgb, ${accent} 14%, var(--border))`,
       }}
     >
-      {filtered.map((e) => <TimelineRow key={e.match_row_id} entry={e} context={context} />)}
+      {shown.map((e) => <TimelineRow key={e.match_row_id} entry={e} context={context} />)}
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex min-h-11 w-full items-center justify-center text-[12px] font-bold transition-colors active:opacity-70"
+          style={{ color: accent }}
+        >
+          Show {hidden} more {hidden === 1 ? 'match' : 'matches'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One row per season, with a career totals row.
+ *
+ * The format cricket readers already know from cricinfo and CricClubs, which
+ * is why it needs no explaining. Deliberately NOT expandable: the timeline
+ * above already lists the selected season's innings, so an accordion here
+ * would duplicate it — and expanding one inside a bottom sheet anchored to the
+ * bottom of the screen makes the sheet's top edge jump.
+ */
+function SeasonHistoryTable({ history, context, accent }:
+  { history: PlayerHistory; context: Context; accent: string }): JSX.Element {
+  const bowlingView = context === 'bowling';
+
+  const cols = bowlingView
+    ? ['M', 'Ov', 'Wkts', 'Best', 'Econ']
+    : ['M', 'I', 'Runs', 'HS', 'Avg'];
+
+  const cells = (s: { matches: number; batting: typeof history.careerBatting; bowling: typeof history.careerBowling }) =>
+    bowlingView
+      ? [
+        String(s.matches),
+        s.bowling ? (s.bowling.balls / 6).toFixed(1) : '—',
+        String(s.bowling?.wickets ?? 0),
+        s.bowling?.best_wickets ? `${s.bowling.best_wickets}w` : '—',
+        fmtNum(s.bowling?.economy ?? null, 2),
+      ]
+      : [
+        String(s.matches),
+        String(s.batting?.innings ?? 0),
+        String(s.batting?.runs ?? 0),
+        s.batting?.highest_score ? String(s.batting.highest_score) : '—',
+        fmtNum(s.batting?.batting_average ?? null, 2),
+      ];
+
+  // Career "matches" is the sum of per-season appearances. Safe because a
+  // cricclubs match belongs to exactly one league, so no season can double-count.
+  const careerMatches = history.seasons.reduce((t, s) => t + s.matches, 0);
+  const careerCells = cells({
+    matches: careerMatches,
+    batting: history.careerBatting,
+    bowling: history.careerBowling,
+  });
+
+  const grid = 'grid items-center gap-1.5 px-2.5 py-2 text-[11.5px] tabular-nums';
+  const template = { gridTemplateColumns: '1fr repeat(5, minmax(26px, auto))' };
+
+  return (
+    <div className="overflow-x-auto">
+      <div
+        className="min-w-[280px] rounded-xl overflow-hidden"
+        style={{ border: `1px solid color-mix(in srgb, ${accent} 14%, var(--border))` }}
+      >
+        <div
+          className={`${grid} text-[9px] uppercase tracking-wider font-bold`}
+          style={{ ...template, color: 'var(--muted)', background: `color-mix(in srgb, ${accent} 8%, var(--surface))` }}
+        >
+          <span>Season</span>
+          {cols.map((c) => <span key={c} className="text-right">{c}</span>)}
+        </div>
+
+        {history.seasons.map((s) => (
+          <div
+            key={s.seasonId}
+            className={grid}
+            style={{ ...template, borderTop: '1px solid var(--border)', background: 'var(--card)' }}
+          >
+            <span className="truncate font-semibold">{s.label}</span>
+            {cells(s).map((v, i) => <span key={i} className="text-right">{v}</span>)}
+          </div>
+        ))}
+
+        <div
+          className={`${grid} font-extrabold`}
+          style={{ ...template, borderTop: `2px solid color-mix(in srgb, ${accent} 30%, var(--border))`, background: 'var(--surface)' }}
+        >
+          <span>Career</span>
+          {careerCells.map((v, i) => <span key={i} className="text-right">{v}</span>)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -350,7 +553,9 @@ function TimelineRow({ entry, context }: { entry: Entry; context: Context }): JS
   }
   const b = entry.bat, bw = entry.bowl;
   const showBat = b && !b.did_not_bat;
-  if (!showBat && !bw) return <div className="hidden" />;
+  // Entries with neither are filtered out by Timeline, so this cannot render
+  // an empty row — but the guard stays as a contract check.
+  if (!showBat && !bw) return <></>;
   return (
     <div className="px-3 py-2 space-y-0.5">{header}
       {showBat && (

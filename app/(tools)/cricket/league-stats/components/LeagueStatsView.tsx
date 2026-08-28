@@ -24,6 +24,7 @@ import { AllRoundFormulaCard, CatchesRulesCard, BestSpellChip, getHeatColor } fr
 import {
   aggregateBatting,
   aggregateBowling,
+  computePlayerHistory,
   matchIdsForLeague,
 } from '../lib/seasonAggregates';
 import {
@@ -879,9 +880,47 @@ export default function LeagueStatsView() {
         best_wickets: bowl?.best_wickets,
         catches: ct?.catches,
         runouts: ct?.runouts,
+        /**
+         * Appearances, for the Fielding tile.
+         *
+         * It previously showed `bat?.innings`, so a player with 12 appearances
+         * and 4 batting innings saw "4" next to his catch count — and it
+         * disagreed with the leaderboard's own "Mat" column for the same
+         * player. Catches accumulate per APPEARANCE, so appearances is the
+         * denominator that makes them readable.
+         */
+        matches: matchesPlayedByPlayer.get(sheetPlayerId),
       },
     };
-  }, [sheetPlayerId, roster, batting, bowling, catchesTotals]);
+  }, [sheetPlayerId, roster, batting, bowling, catchesTotals, matchesPlayedByPlayer]);
+
+  /** Label for the scope in force, shown above the sheet's stat tiles. */
+  const scopeLabel = season
+    ? `${season.season_type.charAt(0).toUpperCase()}${season.season_type.slice(1)} ${season.year}`
+    : 'All time';
+
+  /**
+   * The open player's record season by season.
+   *
+   * Deliberately built from the UNSCOPED rows — this is the one thing in the
+   * sheet that must cross seasons, since its whole job is the career context
+   * the scoped tiles cannot show. Computed only while the sheet is open.
+   */
+  const sheetHistory = useMemo(() => {
+    if (!sheetPlayerId) return undefined;
+    return computePlayerHistory(
+      sheetPlayerId,
+      seasons.map((s) => ({
+        id: s.id,
+        label: `${s.season_type.charAt(0).toUpperCase()}${s.season_type.slice(1)} ${s.year}`,
+        leagueId: s.cricclubs_league_id,
+      })),
+      matchesAll,
+      battingMatchesAll,
+      bowlingMatchesAll,
+      rosterNameById,
+    );
+  }, [sheetPlayerId, seasons, matchesAll, battingMatchesAll, bowlingMatchesAll, rosterNameById]);
 
   /**
    * The skeleton mimics the final layout rather than showing generic
@@ -1068,6 +1107,8 @@ export default function LeagueStatsView() {
         catchesByMatch={catchesByPlayer.get(sheetPlayer.player_id)}
         runoutsByMatch={runoutsByPlayer.get(sheetPlayer.player_id)}
         matchLookup={matchLookup}
+        history={sheetHistory}
+        scopeLabel={scopeLabel}
       />
     )}
   </>

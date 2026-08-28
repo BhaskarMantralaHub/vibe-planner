@@ -235,3 +235,83 @@ export function matchIdsForLeague(
   for (const m of matches) if (m.cricclubs_league_id === leagueId) ids.add(m.id);
   return ids;
 }
+
+/* ── One player, across every season ─────────────────────────────────────── */
+
+export interface SeasonSlice {
+  seasonId: string;
+  /** Short label for the row, e.g. "Spring 2026". */
+  label: string;
+  matches: number;
+  batting: BattingAggregate | null;
+  bowling: BowlingAggregate | null;
+}
+
+export interface PlayerHistory {
+  seasons: SeasonSlice[];
+  /** Totals across every season — recomputed from all rows, NOT summed rates. */
+  careerBatting: BattingAggregate | null;
+  careerBowling: BowlingAggregate | null;
+}
+
+/**
+ * A player's record broken down by season, plus career totals.
+ *
+ * This is the context the player sheet otherwise cannot show: with the page
+ * season-scoped, a player's career total and personal best become invisible,
+ * and a personal best is precisely the number that should never decay.
+ *
+ * Bounded by SEASON count, not innings count — three rows after three years,
+ * where a career-long match list would be thirty-nine. That is why this
+ * replaces the "grows forever" problem rather than managing it.
+ *
+ * Career figures are recomputed from ALL rows rather than summed from the
+ * season slices, because rates cannot be summed: a career average is total
+ * runs over total dismissals, never the mean of each season's average.
+ */
+export function computePlayerHistory(
+  playerId: string,
+  seasons: { id: string; label: string; leagueId: number | null }[],
+  matches: { id: string; cricclubs_league_id: number | null }[],
+  battingRows: RawBattingRow[],
+  bowlingRows: RawBowlingRow[],
+  rosterNameById: Map<string, string>,
+): PlayerHistory {
+  const mine = {
+    bat: battingRows.filter((r) => r.player_id === playerId),
+    bowl: bowlingRows.filter((r) => r.player_id === playerId),
+  };
+
+  const slices: SeasonSlice[] = [];
+  for (const s of seasons) {
+    const ids = matchIdsForLeague(matches, s.leagueId);
+    // A season with no league id has no attributable matches — skip it rather
+    // than showing a row of dashes for a season that has not started.
+    if (!ids || ids.size === 0) continue;
+
+    const bat = mine.bat.filter((r) => ids.has(r.match_row_id));
+    const bowl = mine.bowl.filter((r) => ids.has(r.match_row_id));
+    if (bat.length === 0 && bowl.length === 0) continue;
+
+    // Distinct matches they actually appeared in, batting OR bowling — not the
+    // batting innings count, which excludes anyone who was in the XI but never
+    // came in.
+    const appeared = new Set<string>();
+    for (const r of bat) appeared.add(r.match_row_id);
+    for (const r of bowl) appeared.add(r.match_row_id);
+
+    slices.push({
+      seasonId: s.id,
+      label: s.label,
+      matches: appeared.size,
+      batting: aggregateBatting(bat, rosterNameById)[0] ?? null,
+      bowling: aggregateBowling(bowl, rosterNameById)[0] ?? null,
+    });
+  }
+
+  return {
+    seasons: slices,
+    careerBatting: aggregateBatting(mine.bat, rosterNameById)[0] ?? null,
+    careerBowling: aggregateBowling(mine.bowl, rosterNameById)[0] ?? null,
+  };
+}

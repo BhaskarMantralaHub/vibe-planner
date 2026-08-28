@@ -90,7 +90,17 @@ function DrawerHeader({ children, className }: { children: ReactNode; className?
   );
 }
 
-/* ── Body (scrollable content — max 70dvh) ── */
+/* ── Body (scrollable content — max 70dvh) ──
+ *
+ * NOTE for anyone adding a sheet whose content GROWS while open (an accordion,
+ * a "show more", a lazily-loaded list): `maxHeight` is a trap here. Because
+ * DrawerContent is anchored `fixed bottom-0`, content appearing under the cap
+ * grows the box UPWARD — the top edge jumps with no transition and whatever the
+ * reader is looking at teleports up the screen. Such a sheet wants a FIXED
+ * `height: 70dvh` so growth becomes ordinary internal scrolling. Add that as an
+ * opt-in prop when the first such sheet actually needs it; the player sheet was
+ * expected to, until season scoping bounded its list instead.
+ */
 function DrawerBody({ children, className }: { children: ReactNode; className?: string }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 

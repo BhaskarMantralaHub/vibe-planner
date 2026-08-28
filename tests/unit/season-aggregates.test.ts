@@ -3,6 +3,7 @@ import {
   aggregateBatting,
   aggregateBowling,
   ballsFromOvers,
+  computePlayerHistory,
   matchIdsForLeague,
   type RawBattingRow,
   type RawBowlingRow,
@@ -243,6 +244,76 @@ describe('seasons reconcile with the career total', () => {
     expect(sp!.wickets + fa!.wickets).toBe(career!.wickets);
     expect(sp!.innings + fa!.innings).toBe(career!.innings);
     expect(career!.best_wickets).toBe(4);
+  });
+});
+
+describe('computePlayerHistory', () => {
+  const seasons = [
+    { id: 'fall', label: 'Fall 2026', leagueId: 91 },
+    { id: 'spring', label: 'Spring 2026', leagueId: 87 },
+    { id: 'notstarted', label: 'Spring 2027', leagueId: null },
+  ];
+  const matches = [
+    { id: 's1', cricclubs_league_id: 87 },
+    { id: 's2', cricclubs_league_id: 87 },
+    { id: 'f1', cricclubs_league_id: 91 },
+  ];
+  const battingRows = [
+    bat({ match_row_id: 's1', runs: 59, balls: 38 }),
+    bat({ match_row_id: 's2', runs: 12, balls: 14, not_out: true }),
+    bat({ match_row_id: 'f1', runs: 34, balls: 27 }),
+    // Another player — must not leak into the history.
+    bat({ match_row_id: 's1', player_id: 'p2', runs: 100, balls: 50 }),
+  ];
+  const bowlingRows = [
+    bowl({ match_row_id: 's1', overs: 4, runs: 18, wickets: 4 }),
+  ];
+
+  const h = computePlayerHistory('p1', seasons, matches, battingRows, bowlingRows, ROSTER);
+
+  it('produces one row per season the player appeared in', () => {
+    expect(h.seasons.map((s) => s.label)).toEqual(['Fall 2026', 'Spring 2026']);
+  });
+
+  it('skips a season with no league id — it has not started', () => {
+    // Better than a row of dashes for a season nobody has played.
+    expect(h.seasons.find((s) => s.seasonId === 'notstarted')).toBeUndefined();
+  });
+
+  it('counts matches as appearances, batting OR bowling', () => {
+    // Spring: batted in s1 and s2, bowled in s1 → 2 distinct matches.
+    expect(h.seasons.find((s) => s.seasonId === 'spring')!.matches).toBe(2);
+    expect(h.seasons.find((s) => s.seasonId === 'fall')!.matches).toBe(1);
+  });
+
+  it('keeps other players out of the history', () => {
+    const spring = h.seasons.find((s) => s.seasonId === 'spring')!;
+    expect(spring.batting!.runs).toBe(71);   // 59 + 12, not 171
+  });
+
+  it('gives career totals recomputed from all rows, not summed rates', () => {
+    expect(h.careerBatting!.runs).toBe(105);       // 59 + 12 + 34
+    expect(h.careerBatting!.highest_score).toBe(59);
+    // 105 runs / 2 dismissals — the not-out does not count as a dismissal.
+    expect(h.careerBatting!.batting_average).toBe(52.5);
+  });
+
+  it('season runs sum to the career total', () => {
+    const summed = h.seasons.reduce((t, s) => t + (s.batting?.runs ?? 0), 0);
+    expect(summed).toBe(h.careerBatting!.runs);
+  });
+
+  it('returns null aggregates for a discipline the player never did', () => {
+    const fall = h.seasons.find((s) => s.seasonId === 'fall')!;
+    expect(fall.bowling).toBeNull();      // bowled only in Spring
+    expect(fall.batting).not.toBeNull();
+  });
+
+  it('is empty for a player with no innings at all', () => {
+    const none = computePlayerHistory('ghost', seasons, matches, battingRows, bowlingRows, ROSTER);
+    expect(none.seasons).toEqual([]);
+    expect(none.careerBatting).toBeNull();
+    expect(none.careerBowling).toBeNull();
   });
 });
 
