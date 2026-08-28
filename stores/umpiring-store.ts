@@ -89,34 +89,37 @@ export type DutyStats = {
   openSlots: number;
 };
 
+/**
+ * Tally ONE player's duties.
+ *
+ * Exported and used by `computeDutyStats` below, so a single-player view cannot
+ * drift from the roster maths. The per-player sheet needs this on its own: it
+ * can be opened for somebody `computeDutyStats` deliberately omits — a
+ * DEACTIVATED player who umpired earlier in the season still appears by name on
+ * the duty cards, and looking them up in `perPlayer`/`guests` finds nothing.
+ */
+export function dutyStatFor(
+  player: Pick<CricketPlayer, 'id' | 'name'>,
+  duties: CricketUmpiringDuty[],
+  target: number = DEFAULT_DUTY_TARGET,
+): DutyPlayerStat {
+  const mine = duties.filter(isLiveDuty).filter((d) => d.assigned_player_id === player.id);
+  const completed = mine.filter((d) => d.status === 'completed').length;
+  // 'no_show' counts as neither: assigned, but not done.
+  const booked = mine.filter((d) => d.status === 'claimed').length;
+  // A target of 0 means nobody is required to stand, so everyone is done.
+  const state: DutyPlayerState =
+    completed >= target ? 'done' : booked > 0 ? 'booked' : 'open';
+  return { player_id: player.id, name: player.name, completed, booked, state };
+}
+
 export function computeDutyStats(
   duties: CricketUmpiringDuty[],
   players: CricketPlayer[],
   target: number = DEFAULT_DUTY_TARGET,
 ): DutyStats {
   const live = duties.filter(isLiveDuty);
-
-  const completedBy = new Map<string, number>();
-  const bookedBy = new Map<string, number>();
-
-  for (const d of live) {
-    if (!d.assigned_player_id) continue;
-    if (d.status === 'completed') {
-      completedBy.set(d.assigned_player_id, (completedBy.get(d.assigned_player_id) ?? 0) + 1);
-    } else if (d.status === 'claimed') {
-      bookedBy.set(d.assigned_player_id, (bookedBy.get(d.assigned_player_id) ?? 0) + 1);
-    }
-    // 'no_show' deliberately falls through: assigned, but not done.
-  }
-
-  const statFor = (p: CricketPlayer): DutyPlayerStat => {
-    const completed = completedBy.get(p.id) ?? 0;
-    const booked = bookedBy.get(p.id) ?? 0;
-    // A target of 0 means nobody is required to stand, so everyone is done.
-    const state: DutyPlayerState =
-      completed >= target ? 'done' : booked > 0 ? 'booked' : 'open';
-    return { player_id: p.id, name: p.name, completed, booked, state };
-  };
+  const statFor = (p: CricketPlayer): DutyPlayerStat => dutyStatFor(p, duties, target);
 
   const eligiblePlayers = players.filter((p) => p.is_active && !p.is_guest);
   const perPlayer = eligiblePlayers.map(statFor);

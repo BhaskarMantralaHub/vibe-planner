@@ -42,6 +42,7 @@ vi.mock('sonner', () => ({
 import {
   useUmpiringStore,
   computeDutyStats,
+  dutyStatFor,
   isLiveDuty,
   todayPT,
   DEFAULT_DUTY_TARGET,
@@ -261,6 +262,76 @@ describe('computeDutyStats', () => {
       [ravi],
     );
     expect(s.openSlots).toBe(2);
+  });
+});
+
+describe('dutyStatFor', () => {
+  const p = player({ id: 'p1', name: 'Venkat Subbu' });
+
+  it('counts only completed duties as stood', () => {
+    const stat = dutyStatFor(p, [
+      duty({ assigned_player_id: 'p1', status: 'completed' }),
+      duty({ assigned_player_id: 'p1', status: 'no_show' }),
+      duty({ assigned_player_id: 'p1', status: 'claimed' }),
+    ]);
+    expect(stat.completed).toBe(1);
+    expect(stat.booked).toBe(1);
+  });
+
+  it('ignores other players and unassigned slots', () => {
+    const stat = dutyStatFor(p, [
+      duty({ assigned_player_id: 'p2', status: 'completed' }),
+      duty({ assigned_player_id: null, status: 'open' }),
+    ]);
+    expect(stat).toMatchObject({ completed: 0, booked: 0, state: 'open' });
+  });
+
+  it('ignores soft-deleted and cancelled duties that keep an assignee', () => {
+    // Both traps at once: a swapped-away duty retains assigned_player_id, and a
+    // handed-away one is only tombstoned.
+    const stat = dutyStatFor(p, [
+      duty({ assigned_player_id: 'p1', status: 'completed', deleted_at: '2026-08-01T00:00:00Z' }),
+      duty({ assigned_player_id: 'p1', status: 'cancelled', cancelled_reason: 'admin' }),
+    ]);
+    expect(stat.completed).toBe(0);
+    expect(stat.state).toBe('open');
+  });
+
+  it('reports the state against the target', () => {
+    const done = duty({ assigned_player_id: 'p1', status: 'completed' });
+    expect(dutyStatFor(p, [done], 1).state).toBe('done');
+    expect(dutyStatFor(p, [done], 2).state).toBe('open');
+    expect(dutyStatFor(p, [], 0).state).toBe('done');
+  });
+
+  /**
+   * The reason this is exported at all: the per-player sheet can be opened from
+   * a duty card for somebody computeDutyStats leaves out entirely.
+   */
+  it('works for a DEACTIVATED player, whom computeDutyStats omits', () => {
+    const gone = player({ id: 'p9', name: 'Left Midseason', is_active: false });
+    const duties = [duty({ assigned_player_id: 'p9', status: 'completed' })];
+
+    const roster = computeDutyStats(duties, [gone], 1);
+    expect(roster.perPlayer).toHaveLength(0);
+    expect(roster.guests).toHaveLength(0);
+
+    // ...but their own tally still resolves, so the sheet is never blank.
+    expect(dutyStatFor(gone, duties, 1)).toMatchObject({ completed: 1, state: 'done' });
+  });
+
+  it('agrees with computeDutyStats for an active player', () => {
+    // Guards the refactor: the roster grid and the single-player sheet must
+    // never disagree about how many times somebody has stood.
+    const active = player({ id: 'p1', name: 'Venkat Subbu' });
+    const duties = [
+      duty({ assigned_player_id: 'p1', status: 'completed' }),
+      duty({ assigned_player_id: 'p1', status: 'claimed' }),
+      duty({ assigned_player_id: 'p1', status: 'no_show' }),
+      duty({ assigned_player_id: 'p1', status: 'cancelled', cancelled_reason: 'admin' }),
+    ];
+    const fromRoster = computeDutyStats(duties, [active], 1).perPlayer[0];
+    expect(dutyStatFor(active, duties, 1)).toEqual(fromRoster);
   });
 });
 

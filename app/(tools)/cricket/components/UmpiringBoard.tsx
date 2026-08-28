@@ -13,9 +13,11 @@ import {
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { FaWhatsapp } from 'react-icons/fa';
 import { buildDutyShareText, buildRosterSummaryText, whatsappShareUrl } from '@/lib/duty-share';
-import { nameToGradient } from '@/lib/avatar';
 import { getTeamName } from '../lib/constants';
+import { playerLabels, type PlayerLabel } from '../lib/player-labels';
+import PlayerAvatar from './PlayerAvatar';
 import DutyAssignSheet from './DutyAssignSheet';
+import DutyPlayerSheet from './DutyPlayerSheet';
 import DutySwapSheet from './DutySwapSheet';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
@@ -109,7 +111,7 @@ function groupByMatch(duties: CricketUmpiringDuty[]): DutyGroup[] {
 
 export default function UmpiringBoard() {
   const { user, userAccess } = useAuthStore();
-  const { players, selectedSeasonId, adminUserIds } = useCricketStore();
+  const { players, seasons, selectedSeasonId, adminUserIds } = useCricketStore();
   const {
     duties, settings, loading, pendingId,
     loadDuties, claimDuty, releaseDuty,
@@ -125,6 +127,9 @@ export default function UmpiringBoard() {
   const [swapTarget, setSwapTarget] = useState<CricketUmpiringDuty | null>(null);
   const [editTarget, setEditTarget] = useState<CricketUmpiringDuty | null>(null);
   const [rosterFilter, setRosterFilter] = useState<'all' | 'open' | 'booked' | 'done'>('all');
+  // Held as an ID, not the player object, so the sheet re-reads live data after
+  // an admin action instead of showing a frozen copy.
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedSeasonId) loadDuties(selectedSeasonId);
@@ -145,6 +150,17 @@ export default function UmpiringBoard() {
     () => new Map(players.map((p) => [p.id, p])),
     [players],
   );
+
+  /**
+   * Grid labels for EVERY player, computed once here rather than inside the
+   * grid.
+   *
+   * Scope is the whole point. Computed per-grid from the rows on screen, a
+   * person's label changed when you switched roster filters (plain "Venkat"
+   * once the other Venkat dropped out of the filtered list), and the separate
+   * guests grid could render its own "Vittal" beside a different Vittal.
+   */
+  const labels = useMemo(() => playerLabels(players), [players]);
 
   const target = settings?.duty_target ?? DEFAULT_DUTY_TARGET;
   const today = todayPT();
@@ -373,6 +389,7 @@ export default function UmpiringBoard() {
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
                 matchMenu={isAdmin ? matchMenu(g) : undefined}
+                onSelectPlayer={setSelectedPlayerId}
               />
             ))}
 
@@ -458,6 +475,7 @@ export default function UmpiringBoard() {
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
                 matchMenu={isAdmin ? matchMenu(g) : undefined}
+                onSelectPlayer={setSelectedPlayerId}
               />
             ))}
           </>
@@ -529,6 +547,8 @@ export default function UmpiringBoard() {
                 : stats.perPlayer.filter((s) => s.state === rosterFilter)
             }
             playersById={playersById}
+            labels={labels}
+            onSelect={setSelectedPlayerId}
           />
 
 
@@ -538,7 +558,12 @@ export default function UmpiringBoard() {
               <Text as="p" size="2xs" color="dim" className="mb-2">
                 Not counted toward the target
               </Text>
-              <PlayerGrid rows={stats.guests} playersById={playersById} />
+              <PlayerGrid
+                rows={stats.guests}
+                playersById={playersById}
+                labels={labels}
+                onSelect={setSelectedPlayerId}
+              />
             </div>
           )}
         </div>
@@ -589,6 +614,21 @@ export default function UmpiringBoard() {
           onClose={() => setAssignTarget(null)}
         />
       )}
+
+      {/* Not admin-gated. The grid label is one short word, so "who is this?"
+          is a question any signed-in member can have — and the duty history
+          behind it is the same information the roster tiles already summarise. */}
+      <DutyPlayerSheet
+        player={selectedPlayerId ? playersById.get(selectedPlayerId) ?? null : null}
+        duties={duties}
+        target={target}
+        openSlots={openCount}
+        today={today}
+        seasonName={seasons.find((s) => s.id === selectedSeasonId)?.name}
+        isAdmin={isAdmin}
+        onClose={() => setSelectedPlayerId(null)}
+        onGoToUpcoming={() => setTab('upcoming')}
+      />
     </div>
   );
 }
@@ -707,42 +747,6 @@ function DutyMenu({ items }: { items: CardMenuItem[] }) {
   );
 }
 
-/**
- * Player avatar: their photo when we have one, otherwise initials on the
- * deterministic per-name gradient the rest of the app already uses, so the
- * same person is the same colour everywhere. `ringColor` carries duty status.
- */
-function Avatar({ player, name, ringColor, size = 34 }: {
-  player?: CricketPlayer;
-  name: string;
-  ringColor: string;
-  size?: number;
-}) {
-  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const [from, to] = nameToGradient(name);
-  return (
-    <div
-      className="relative shrink-0 rounded-full"
-      style={{ height: size, width: size, boxShadow: `0 0 0 2px color-mix(in srgb, ${ringColor} 55%, transparent)` }}
-    >
-      {player?.photo_url ? (
-        <img
-          src={player.photo_url}
-          alt={name}
-          className="h-full w-full rounded-full object-cover"
-        />
-      ) : (
-        <div
-          className="flex h-full w-full items-center justify-center rounded-full font-extrabold text-white"
-          style={{ fontSize: size * 0.34, background: `linear-gradient(135deg, ${from}, ${to})` }}
-        >
-          {initials}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Donut progress — reads at a glance in a way a thin bar never does. */
 function RosterHero({ stats, target, share }: {
   stats: ReturnType<typeof computeDutyStats>;
@@ -836,39 +840,23 @@ const STATE_STYLE: Record<string, { color: string; icon: React.ReactNode }> = {
 };
 
 /**
- * Shortest label that stays UNAMBIGUOUS within this list.
+ * Avatar tiles rather than a list of name pills.
  *
- * First name alone is ideal, but the roster has two Venkats — showing both
- * tiles as "Venkat" on a fairness board is worse than a longer label, since
- * you cannot tell whose duties are whose. Falls back to "First L." only for
- * the names that actually collide.
+ * `labels` is computed ONCE for the whole roster and passed in — deliberately
+ * not derived from `rows` here. Deriving it from the rows on screen made a
+ * person's label change as you switched roster filters, and gave the guests
+ * grid its own separate count. See ../lib/player-labels.
+ *
+ * Every tile is a button. Only one player on this roster has uploaded a photo,
+ * so the circles are initials and the label is doing all the identifying work
+ * on its own — it has to be possible to ask "who is this?" and get an answer.
  */
-function shortLabels(rows: DutyPlayerStat[]): Map<string, string> {
-  const firstCounts = new Map<string, number>();
-  for (const r of rows) {
-    const first = r.name.split(' ')[0] ?? r.name;
-    firstCounts.set(first, (firstCounts.get(first) ?? 0) + 1);
-  }
-  const out = new Map<string, string>();
-  for (const r of rows) {
-    const parts = r.name.split(' ').filter(Boolean);
-    const first = parts[0] ?? r.name;
-    if ((firstCounts.get(first) ?? 0) > 1 && parts.length > 1) {
-      out.set(r.player_id, `${first} ${parts[1]![0]!.toUpperCase()}`);
-    } else {
-      out.set(r.player_id, first);
-    }
-  }
-  return out;
-}
-
-/** Avatar tiles rather than a list of name pills — faces scan far faster. */
-function PlayerGrid({ rows, playersById }: {
+function PlayerGrid({ rows, playersById, labels, onSelect }: {
   rows: DutyPlayerStat[];
   playersById: Map<string, CricketPlayer>;
+  labels: Map<string, PlayerLabel>;
+  onSelect: (playerId: string) => void;
 }) {
-  const labels = useMemo(() => shortLabels(rows), [rows]);
-
   if (rows.length === 0) {
     return (
       <Text as="p" size="sm" color="muted" align="center" className="py-8">
@@ -880,10 +868,17 @@ function PlayerGrid({ rows, playersById }: {
     <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-6">
       {rows.map((r) => {
         const st = STATE_STYLE[r.state]!;
+        const label = labels.get(r.player_id);
         return (
-          <div key={r.player_id} className="flex flex-col items-center gap-1">
+          <button
+            key={r.player_id}
+            type="button"
+            onClick={() => onSelect(r.player_id)}
+            aria-label={`${r.name} — umpiring detail`}
+            className="flex flex-col items-center gap-1 rounded-2xl py-1 transition-transform active:scale-95"
+          >
             <div className="relative">
-              <Avatar
+              <PlayerAvatar
                 player={playersById.get(r.player_id)}
                 name={r.name}
                 ringColor={st.color}
@@ -908,15 +903,28 @@ function PlayerGrid({ rows, playersById }: {
               )}
             </div>
 
-            <Text size="2xs" align="center" weight="medium" className="line-clamp-1 leading-tight">
-              {labels.get(r.player_id)}
-            </Text>
+            {/* Fixed min-height so tiles stay aligned whether or not this
+                particular name needed its surname to disambiguate. */}
+            <div className="flex min-h-[26px] w-full flex-col items-center justify-start leading-tight">
+              <Text as="p" size="2xs" align="center" weight="medium" className="w-full truncate">
+                {label?.primary ?? r.name}
+              </Text>
+              {label?.secondary && (
+                // `block` is load-bearing: `truncate` is inert on an inline
+                // element, and this span only avoids that today by being a
+                // flex item. Stated explicitly so restyling the parent cannot
+                // silently bring the overlapping-names bug back.
+                <span className="block w-full truncate text-center text-[9px] text-[var(--dim)]">
+                  {label.secondary}
+                </span>
+              )}
+            </div>
 
             {/* Always show the tally, not just for repeat umpires — "how many
                 times has each person done this" is the question the tab exists
                 to answer, and a blank tile forces you to decode the dot. */}
             <DutyTally completed={r.completed} booked={r.booked} />
-          </div>
+          </button>
         );
       })}
     </div>
@@ -957,7 +965,7 @@ function DutyTally({ completed, booked }: { completed: number; booked: number })
  */
 function MatchDutyCard({
   group, today, myPlayerId, playersById, isAdmin, pendingId, canClaim,
-  onClaim, onRelease, menuFor, matchMenu,
+  onClaim, onRelease, menuFor, matchMenu, onSelectPlayer,
 }: {
   group: DutyGroup;
   today: string;
@@ -971,6 +979,8 @@ function MatchDutyCard({
   menuFor: (d: CricketUmpiringDuty) => CardMenuItem[];
   /** Whole-match actions, shown in the card header rather than on a slot. */
   matchMenu?: CardMenuItem[];
+  /** Opens the per-player sheet from a named umpire on a slot. */
+  onSelectPlayer: (playerId: string) => void;
 }) {
   const { dayName, dayNum, month } = dateParts(group.match_date);
   const time = formatTime(group.match_time);
@@ -1051,6 +1061,7 @@ function MatchDutyCard({
                 onClaim={onClaim}
                 onRelease={onRelease}
                 menu={isAdmin ? menuFor(d) : undefined}
+                onSelectPlayer={onSelectPlayer}
               />
             ))}
           </div>
@@ -1068,6 +1079,7 @@ function MatchDutyCard({
 
 function DutySlotRow({
   duty, isMine, player, slotCount, isAdmin, pending, canClaim, onClaim, onRelease, menu,
+  onSelectPlayer,
 }: {
   duty: CricketUmpiringDuty;
   isMine: boolean;
@@ -1079,6 +1091,7 @@ function DutySlotRow({
   onClaim: (id: string) => void;
   onRelease: (id: string) => void;
   menu?: CardMenuItem[];
+  onSelectPlayer: (playerId: string) => void;
 }) {
   const name = duty.assigned_player_name;
 
@@ -1092,19 +1105,19 @@ function DutySlotRow({
             : duty.status === 'claimed' ? 'var(--blue)'
               : 'var(--muted)';
 
-  return (
-    <div
-      className="flex items-center gap-2.5 rounded-2xl px-2 py-1.5"
-      style={{
-        background: duty.status === 'open'
-          ? 'color-mix(in srgb, var(--orange) 8%, transparent)'
-          : 'var(--surface)',
-        border: duty.status === 'open'
-          ? '1px dashed color-mix(in srgb, var(--orange) 45%, transparent)'
-          : '1px solid transparent',
-        opacity: isSwappedAway ? 0.55 : 1,
-      }}
-    >
+  /**
+   * Tappable exactly when a real person's NAME is on screen — which is the same
+   * condition that renders their avatar below. An open slot ("Needs an umpire")
+   * and a swapped-away one ("Handed to X") show no name, so there is nobody to
+   * open; a hard-deleted player leaves only the name snapshot with no id.
+   *
+   * The row itself stays a <div>: it already contains "I'll do it" / "Give up"
+   * and the admin menu, and a button cannot contain buttons.
+   */
+  const identity = !isSwappedAway && duty.status !== 'open' && player ? player : null;
+
+  const avatarAndName = (
+    <>
       {isSwappedAway ? (
         <div
           className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full"
@@ -1126,7 +1139,7 @@ function DutySlotRow({
           <UserPlus size={15} />
         </div>
       ) : (
-        <Avatar player={player} name={name ?? '?'} ringColor={statusColor} />
+        <PlayerAvatar player={player} name={name ?? '?'} ringColor={statusColor} />
       )}
 
       <div className="min-w-0 flex-1">
@@ -1152,6 +1165,35 @@ function DutySlotRow({
             )}
         </Text>
       </div>
+    </>
+  );
+
+  return (
+    <div
+      className="flex items-center gap-2.5 rounded-2xl px-2 py-1.5"
+      style={{
+        background: duty.status === 'open'
+          ? 'color-mix(in srgb, var(--orange) 8%, transparent)'
+          : 'var(--surface)',
+        border: duty.status === 'open'
+          ? '1px dashed color-mix(in srgb, var(--orange) 45%, transparent)'
+          : '1px solid transparent',
+        opacity: isSwappedAway ? 0.55 : 1,
+      }}
+    >
+      {identity ? (
+        <button
+          type="button"
+          onClick={() => onSelectPlayer(identity.id)}
+          aria-label={`${identity.name} — umpiring detail`}
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left transition-transform active:scale-[0.99]"
+        >
+          {avatarAndName}
+        </button>
+      ) : (
+        avatarAndName
+      )}
+
       {duty.status === 'completed' && <Badge variant="green" size="sm" className="shrink-0">Stood</Badge>}
       {duty.status === 'no_show' && isAdmin && <Badge variant="orange" size="sm" className="shrink-0">No-show</Badge>}
 

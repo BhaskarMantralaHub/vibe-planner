@@ -179,6 +179,109 @@ export function buildRosterSummaryText(
   return lines.join('\n');
 }
 
+export interface PlayerMessageOptions {
+  /** Today in Pacific, YYYY-MM-DD. */
+  today: string;
+  url?: string;
+  /** Unclaimed spots across the whole season, for the ask. */
+  openSlots?: number;
+  /**
+   * Season this is about, e.g. "2026 MTCA Spring League · Division D".
+   *
+   * Goes on its OWN line rather than into the sentence. The real names run to
+   * ~36 characters — roughly a full line on a phone — so "Thanks for standing
+   * as umpire in 2026 MTCA Spring League · Division D" buries the thank-you.
+   * When it is missing, the sentences fall back to the words "this season".
+   */
+  seasonName?: string;
+}
+
+/**
+ * A message about ONE player, for an admin to send them directly.
+ *
+ * `duties` must already be narrowed to this player's duties — the caller has
+ * them to hand, and taking them pre-filtered keeps this function free of any
+ * notion of player identity (which is resolved by email in one place and by
+ * `user_id` in another, and does not belong in a text formatter).
+ *
+ * What it says depends on where they stand, in this order of urgency:
+ *   1. A duty coming up      → a reminder with the details. Time-critical.
+ *   2. Never stood, spots open → an ask.
+ *   3. Already stood          → a thank-you.
+ *   4. Never stood, nothing open → null. There is no honest message here: we
+ *      cannot ask them to take a spot that does not exist, and a "you still owe
+ *      one" with no way to act on it is just a complaint.
+ *
+ * The ask deliberately leads with the rule that applies to EVERYONE rather than
+ * with what this person hasn't done. Same facts; one reads as a rota, the other
+ * as being singled out, and in a volunteer group that decides whether anyone
+ * replies.
+ */
+export function buildPlayerMessageText(
+  name: string,
+  duties: CricketUmpiringDuty[],
+  opts: PlayerMessageOptions,
+): string | null {
+  const {
+    today, url = 'viberstoolkit.com/cricket/umpiring', openSlots = 0, seasonName,
+  } = opts;
+
+  const live = duties.filter((d) => d.deleted_at === null && d.status !== 'cancelled');
+  const completed = live.filter((d) => d.status === 'completed').length;
+  const upcoming = live
+    .filter((d) => d.status === 'claimed' && d.match_date >= today)
+    .sort((a, b) => a.match_date.localeCompare(b.match_date)
+      || (a.match_time ?? '').localeCompare(b.match_time ?? ''));
+
+  // Named season replaces the vague words rather than adding to them —
+  // "at least once in this season, 2026 MTCA Spring League" says it twice.
+  const thisSeason = seasonName ? '' : ' this season';
+  const seasonLine = seasonName ? [`_${seasonName}_`] : [];
+
+  const next = upcoming[0];
+  if (next) {
+    const lines = [
+      `🏏 *Umpiring reminder — ${name}*`,
+      ...seasonLine,
+      '',
+      `${formatDateHeading(next.match_date)} · ${formatTime(next.match_time)}`,
+      `${shortTeam(next.team_a)} v ${shortTeam(next.team_b)}`,
+    ];
+    if (next.venue) lines.push(`📍 ${next.venue}`);
+    lines.push('', "You're our umpire for this one. Thank you! 🙏");
+    // Only worth saying when there IS a second one — otherwise it reads as if
+    // we are hinting at more work.
+    if (upcoming.length > 1) {
+      lines.push(`_You also have ${upcoming.length - 1} more coming up._`);
+    }
+    return lines.join('\n');
+  }
+
+  if (completed === 0) {
+    if (openSlots === 0) return null;
+    return [
+      `🏏 Hi ${name}`,
+      ...seasonLine,
+      '',
+      `Every player stands as umpire at least once${thisSeason}, and ${openSlots} `
+        + `${openSlots === 1 ? 'spot is' : 'spots are'} still open.`,
+      '',
+      'Could you take one? 🙏',
+      `Pick a match 👉 ${url}`,
+      REPLY_FALLBACK,
+    ].join('\n');
+  }
+
+  return [
+    `🏏 Hi ${name}`,
+    ...seasonLine,
+    '',
+    completed === 1
+      ? `Thanks for standing as umpire${thisSeason} — much appreciated! 🙌`
+      : `Thanks for standing as umpire ${completed} times${thisSeason} — much appreciated! 🙌`,
+  ].join('\n');
+}
+
 export interface DutyShareOptions {
   teamName?: string;
   /** Public URL players can open to claim. */

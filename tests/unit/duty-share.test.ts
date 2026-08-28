@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
-import { buildDutyShareText, buildRosterSummaryText, whatsappShareUrl } from '@/lib/duty-share';
+import {
+  buildDutyShareText, buildPlayerMessageText, buildRosterSummaryText, whatsappShareUrl,
+} from '@/lib/duty-share';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
 let seq = 0;
@@ -385,6 +387,168 @@ describe('buildRosterSummaryText', () => {
       { openSlots: 0 },
     )!;
     expect(t).toContain('Amit, Zara');
+  });
+});
+
+describe('buildPlayerMessageText', () => {
+  it('reminds them about a duty coming up, with the details', () => {
+    const text = buildPlayerMessageText(
+      'Kittu',
+      [duty({ status: 'claimed', assigned_player_id: 'p1', match_date: '2026-08-29' })],
+      { today: TODAY },
+    )!;
+    expect(text).toContain('Kittu');
+    expect(text).toContain('California Super Kings v Oakwood Mavericks');
+    expect(text).toContain('10:45 AM');
+    expect(text).toContain('Hansen Park');
+    expect(text).not.toContain('MTCA');
+  });
+
+  it('mentions further duties only when there is more than one', () => {
+    const one = buildPlayerMessageText(
+      'Kittu',
+      [duty({ status: 'claimed', match_date: '2026-08-29' })],
+      { today: TODAY },
+    )!;
+    expect(one).not.toContain('more coming up');
+
+    const two = buildPlayerMessageText(
+      'Kittu',
+      [
+        duty({ status: 'claimed', match_date: '2026-08-29' }),
+        duty({ status: 'claimed', match_date: '2026-09-05' }),
+      ],
+      { today: TODAY },
+    )!;
+    expect(two).toContain('1 more coming up');
+    // The reminder must name the SOONEST one.
+    expect(two).toContain('Saturday, Aug 29');
+  });
+
+  it('asks when they have never stood and spots are open', () => {
+    const text = buildPlayerMessageText('Srinivas', [], { today: TODAY, openSlots: 2 })!;
+    expect(text).toContain('2 spots are still open');
+    expect(text).toContain('Could you take one?');
+    expect(text).toContain('viberstoolkit.com/cricket/umpiring');
+    expect(text).toContain("reply here and I'll add you");
+  });
+
+  it('leads the ask with the rule, not with what they have not done', () => {
+    // Tone is the point: a volunteer rota message that opens by naming the
+    // person's omission does not get replies.
+    const text = buildPlayerMessageText('Srinivas', [], { today: TODAY, openSlots: 1 })!;
+    expect(text).toContain('Every player stands as umpire at least once');
+    expect(text).not.toMatch(/you (have not|haven't|still owe)/i);
+    expect(text).toContain('1 spot is still open');
+  });
+
+  it('returns null when they have never stood and nothing is open', () => {
+    // There is no honest message here — we cannot ask for a spot that does not
+    // exist, and "you still owe one" with no way to act is just a complaint.
+    expect(buildPlayerMessageText('Srinivas', [], { today: TODAY, openSlots: 0 })).toBeNull();
+  });
+
+  it('thanks somebody who has already stood', () => {
+    const once = buildPlayerMessageText(
+      'Adi',
+      [duty({ status: 'completed', match_date: '2026-07-04' })],
+      { today: TODAY, openSlots: 3 },
+    )!;
+    expect(once).toContain('Thanks for standing as umpire this season');
+
+    const twice = buildPlayerMessageText(
+      'Ashok',
+      [
+        duty({ status: 'completed', match_date: '2026-07-04' }),
+        duty({ status: 'completed', match_date: '2026-07-18' }),
+      ],
+      { today: TODAY, openSlots: 3 },
+    )!;
+    expect(twice).toContain('2 times');
+  });
+
+  it('does not treat a past unmarked claim as upcoming', () => {
+    // A claim on a match already played is not a reminder — nothing to remind
+    // them about, and the date would read as being in the future.
+    const text = buildPlayerMessageText(
+      'Madhu',
+      [duty({ status: 'claimed', match_date: '2026-08-01' })],
+      { today: TODAY, openSlots: 1 },
+    )!;
+    expect(text).not.toContain('Umpiring reminder');
+    expect(text).toContain('Could you take one?');
+  });
+
+  describe('season name', () => {
+    // Real season names run to ~36 characters, so they get their own line
+    // instead of being inlined into a sentence.
+    const SEASON = '2026 MTCA Spring League · Division D';
+
+    it('names the season on its own line and drops "this season"', () => {
+      const text = buildPlayerMessageText(
+        'Venkat',
+        [duty({ status: 'completed', match_date: '2026-07-04' })],
+        { today: TODAY, seasonName: SEASON },
+      )!;
+      expect(text).toContain(`_${SEASON}_`);
+      expect(text.split('\n')[1]).toBe(`_${SEASON}_`);
+      // Not both — "as umpire this season, 2026 MTCA Spring League" says it twice.
+      expect(text).not.toContain('this season');
+      expect(text).toContain('Thanks for standing as umpire — much appreciated!');
+    });
+
+    it('names it in the ask too', () => {
+      const text = buildPlayerMessageText('Srinivas', [], {
+        today: TODAY, openSlots: 2, seasonName: SEASON,
+      })!;
+      expect(text).toContain(`_${SEASON}_`);
+      expect(text).toContain('Every player stands as umpire at least once, and 2 spots');
+      expect(text).not.toContain('this season');
+    });
+
+    it('names it on a reminder', () => {
+      const text = buildPlayerMessageText(
+        'Venkat',
+        [duty({ status: 'claimed', match_date: '2026-08-29' })],
+        { today: TODAY, seasonName: SEASON },
+      )!;
+      expect(text).toContain(`_${SEASON}_`);
+    });
+
+    it('falls back to the words "this season" when unknown', () => {
+      const text = buildPlayerMessageText(
+        'Venkat',
+        [duty({ status: 'completed', match_date: '2026-07-04' })],
+        { today: TODAY },
+      )!;
+      expect(text).toContain('as umpire this season');
+      expect(text).not.toContain('_');
+    });
+
+    it('keeps the repeat count alongside the season', () => {
+      const text = buildPlayerMessageText(
+        'Ashok',
+        [
+          duty({ status: 'completed', match_date: '2026-07-04' }),
+          duty({ status: 'completed', match_date: '2026-07-18' }),
+        ],
+        { today: TODAY, seasonName: SEASON },
+      )!;
+      expect(text).toContain('as umpire 2 times — much appreciated!');
+    });
+  });
+
+  it('ignores deleted and swapped-away duties', () => {
+    const text = buildPlayerMessageText(
+      'Madhu',
+      [
+        duty({ status: 'claimed', match_date: '2026-08-29', deleted_at: '2026-08-20T00:00:00Z' }),
+        duty({ status: 'cancelled', cancelled_reason: 'admin', match_date: '2026-08-30' }),
+      ],
+      { today: TODAY, openSlots: 1 },
+    )!;
+    // Neither counts, so this falls through to the ask.
+    expect(text).toContain('Could you take one?');
   });
 });
 
