@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
+import { seasonRoster, billableRoster } from '../lib/season-roster';
 import { EmptyState, Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter, Button, Text } from '@/components/ui';
 import { CircleCheck, CircleAlert, CircleX, Pencil, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,8 +13,22 @@ export default function FeeTracker() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const adminName = (user?.user_metadata?.full_name as string) || user?.email || 'Admin';
-  const { players, fees, selectedSeasonId, seasons, updateSeason, recordFee, deleteFee } = useCricketStore();
-  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
+  const { players, seasonPlayers, fees, selectedSeasonId, seasons, updateSeason, recordFee, deleteFee } = useCricketStore();
+
+  /**
+   * Only THIS season's roster is billed — previously this read the whole team,
+   * so a player who joined for Fall appeared in Spring's dues owing a fee for a
+   * season they never played, and Spring's outstanding total rose with them.
+   *
+   * Season-level guests are excluded from the fee denominator via
+   * billableRoster. Falls back to the team-wide list for a season with no
+   * roster rows, which is exactly today's behaviour — see ../lib/season-roster.
+   */
+  const roster = useMemo(
+    () => seasonRoster(players, seasonPlayers, selectedSeasonId),
+    [players, seasonPlayers, selectedSeasonId],
+  );
+  const activePlayers = useMemo(() => billableRoster(roster), [roster]);
 
   const season = seasons.find((s) => s.id === selectedSeasonId);
   const feeAmount = season?.fee_amount ?? 60;
@@ -29,9 +44,23 @@ export default function FeeTracker() {
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
 
   const totalExpected = activePlayers.length * feeAmount;
+  // Deliberately ALL fee rows, including anyone no longer on the roster: money
+  // received is money in the pool, and dropping it would make the season's
+  // collected total fall with no expense to explain the gap.
   const totalCollected = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
-  const paidCount = seasonFees.filter((f) => Number(f.amount_paid) >= feeAmount).length;
-  const partialCount = seasonFees.filter((f) => Number(f.amount_paid) > 0 && Number(f.amount_paid) < feeAmount).length;
+
+  /**
+   * The counts, unlike the total, MUST be roster-scoped.
+   *
+   * They previously counted every fee row while the denominator was the player
+   * list, so the moment a paid player was off that list, `unpaidCount` went
+   * NEGATIVE — 18 - 19 - 0 = -1. Unreachable while the denominator was the
+   * whole team; reachable the instant this screen started filtering by season.
+   */
+  const rosterIds = new Set(activePlayers.map((p) => p.id));
+  const rosterFees = seasonFees.filter((f) => rosterIds.has(f.player_id));
+  const paidCount = rosterFees.filter((f) => Number(f.amount_paid) >= feeAmount).length;
+  const partialCount = rosterFees.filter((f) => Number(f.amount_paid) > 0 && Number(f.amount_paid) < feeAmount).length;
   const unpaidCount = activePlayers.length - paidCount - partialCount;
   const progressPct = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 

@@ -6,6 +6,7 @@ import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
+import { seasonRoster, billableRoster } from './lib/season-roster';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
@@ -120,11 +121,14 @@ const CAPSULE_TABS: CapsuleTab[] = [
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId, players, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
+  const { loadAll, loading, selectedSeasonId, players, seasonPlayers, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
   const isGlobalAdmin = userAccess.includes('admin');
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
-  const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
+  // This season's roster, not the whole team — so the Players stat card counts
+  // who is actually playing the selected season. Falls back to the team-wide
+  // list for a season with no roster rows. See ./lib/season-roster.
+  const activePlayers = billableRoster(seasonRoster(players, seasonPlayers, selectedSeasonId));
   const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'charts', 'sponsors', 'splits'];
   const SS_KEY = 'cricket:activeView';
   const [activeView, setActiveView] = useState<View>(() => {
