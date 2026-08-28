@@ -1415,12 +1415,51 @@ export default function MatchSchedule() {
     ];
   };
 
+  /**
+   * Bottom tab bar — floating pill, portaled to body (workaround for iOS Safari
+   * fixed-positioning bugs inside transformed/filtered ancestors).
+   *
+   * Declared HERE, above the early returns, and rendered by all three branches.
+   * It used to live only in the main return, so a season with no matches — or
+   * any moment while loading — lost the tab bar completely, stranding the user
+   * on the schedule page with no way to reach Stats, Moments or Home. That is
+   * exactly the state a brand-new season starts in.
+   */
+  const bottomNav = typeof document !== 'undefined'
+    ? createPortal(
+        (() => {
+          const navItems: CricketSectionNavItem[] = [
+            { kind: 'view', key: 'upcoming', label: 'Upcoming', icon: CalendarDays, count: upcoming.length },
+            { kind: 'view', key: 'completed', label: 'Completed', icon: CircleCheckBig, count: completed.length },
+            { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
+            { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
+            { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
+          ];
+          return (
+            <CricketSectionNav
+              items={navItems}
+              activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
+              onViewChange={(key) => {
+                setActiveTab(key as 'upcoming' | 'completed');
+                setOpenMenu(null);
+              }}
+              onActiveTap={() => setOpenMenu(null)}
+            />
+          );
+        })(),
+        document.body,
+      )
+    : null;
+
   /* ── Loading state ── */
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--dim)] border-t-transparent" />
-      </div>
+      <>
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--dim)] border-t-transparent" />
+        </div>
+        {bottomNav}
+      </>
     );
   }
 
@@ -1440,6 +1479,7 @@ export default function MatchSchedule() {
           onClose={() => { setShowForm(false); setEditingMatch(null); }}
           onSubmit={handleAdd}
         />
+        {bottomNav}
       </div>
     );
   }
@@ -1495,33 +1535,8 @@ export default function MatchSchedule() {
         </div>
       )}
 
-      {/* Bottom tab bar — floating pill, portaled to body
-          (workaround for iOS Safari fixed-positioning bugs inside
-          transformed/filtered ancestors). */}
-      {typeof document !== 'undefined' &&
-        createPortal(
-          (() => {
-            const navItems: CricketSectionNavItem[] = [
-              { kind: 'view', key: 'upcoming', label: 'Upcoming', icon: CalendarDays, count: upcoming.length },
-              { kind: 'view', key: 'completed', label: 'Completed', icon: CircleCheckBig, count: completed.length },
-              { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
-              { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
-              { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
-            ];
-            return (
-              <CricketSectionNav
-                items={navItems}
-                activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
-                onViewChange={(key) => {
-                  setActiveTab(key as 'upcoming' | 'completed');
-                  setOpenMenu(null);
-                }}
-                onActiveTap={() => setOpenMenu(null)}
-              />
-            );
-          })(),
-          document.body,
-        )}
+      {/* Declared above the early returns so every branch shows it. */}
+      {bottomNav}
 
       {/* Tab content */}
       <div className="min-h-[200px]">
