@@ -369,7 +369,15 @@ export default function PlayerManager() {
             .neq('team_id', teamId)
             .eq('is_active', true)
             .limit(1)
-            .single();
+            // maybeSingle, NOT single: "no player on another team has this
+            // email" is the NORMAL result when adding somebody new, and single()
+            // turns it into a 406 PGRST116 ("cannot coerce the result to a
+            // single JSON object"). That mattered beyond the noise — a real
+            // failure (RLS, network) produced the same warn-and-continue path,
+            // so the duplicate check could silently stop working and nobody
+            // would know. Now zero rows is data:null/error:null, and an error
+            // is genuinely an error.
+            .maybeSingle();
           if (emailErr) { console.warn('[player] email check failed:', emailErr.message); }
           if (emailMatch) {
             setFormError(`A player with this email already exists (${emailMatch.name}). Type their name and use the suggestion dropdown to link their profile.`);
@@ -386,7 +394,8 @@ export default function PlayerManager() {
             .neq('team_id', teamId)
             .eq('is_active', true)
             .limit(1)
-            .single();
+            // maybeSingle for the same reason as the email check above.
+            .maybeSingle();
           if (ccErr) { console.warn('[player] cricclub check failed:', ccErr.message); }
           if (ccMatch) {
             setFormError(`CricClub ID "${cricclubId.trim()}" belongs to ${ccMatch.name} on another team. Type their name and use the suggestion dropdown to link their profile.`);
