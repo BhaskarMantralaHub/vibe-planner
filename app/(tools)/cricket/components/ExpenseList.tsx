@@ -233,11 +233,31 @@ function PoolFundHero({
             { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)' },
           ] as const).map(({ icon: Icon, label, value, color }, i) => (
             <div key={label}
-              className="px-3 py-3 sm:py-3.5"
+              /* Tighter padding at four columns. At 390px each cell has ~61px of
+                 content, and "SPONSORS" plus its icon overflowed that. */
+              className={`${carriedForward !== 0 ? 'px-2' : 'px-3'} py-3 sm:py-3.5`}
               style={{ borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Icon size={11} style={{ color }} />
-                <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color }}>{label}</Text>
+              <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                {/* The icon is decoration; the label carries the meaning. At
+                    four columns it costs 17px the longest label needs, so it
+                    goes rather than clipping the word. Returns on wider
+                    screens, where there is room for both. */}
+                <Icon
+                  size={11}
+                  style={{ color }}
+                  className={carriedForward !== 0 ? 'hidden flex-shrink-0 sm:block' : 'flex-shrink-0'}
+                />
+                <Text
+                  as="p"
+                  size="2xs"
+                  weight="bold"
+                  uppercase
+                  tracking={carriedForward !== 0 ? 'normal' : 'wider'}
+                  style={{ color }}
+                  className="min-w-0 truncate"
+                >
+                  {label}
+                </Text>
               </div>
               <Text size="md" weight="bold" tabular className="leading-none">
                 {formatCurrency(value)}
