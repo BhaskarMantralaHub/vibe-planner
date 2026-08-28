@@ -10,11 +10,11 @@ import { MdSportsCricket } from 'react-icons/md';
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
   FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
 };
-import { formatCurrency, formatDate } from '../lib/utils';
+import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { EmptyState, Text, CardMenu, Badge, Spinner, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, TrendingUp, Heart, ArrowDownRight, Wallet, Paperclip, ReceiptText, Plus } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, TrendingUp, Heart, ArrowDownRight, ArrowDownToLine, Wallet, Paperclip, ReceiptText, Plus } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressReceiptImage } from '../lib/image';
@@ -118,11 +118,16 @@ function PoolHealthBadge({ pct, isLow }: { pct: number; isLow: boolean }) {
 /* ── Pool Fund Hero — refined: one focal number + integrated bar + stat strip ── */
 function PoolFundHero({
   totalFees, totalSponsorship, totalSpent, poolBalance, isLow, perPerson, hasPlayers,
+  carriedForward = 0,
 }: {
   totalFees: number; totalSponsorship: number; totalSpent: number;
   poolBalance: number; isLow: boolean; perPerson: number; hasPlayers: boolean;
+  /** Money carried in from the previous season. Part of what the pool holds,
+   *  so it belongs in "collected" — otherwise the card showed $60.00 while the
+   *  carried-forward entry immediately above it showed +$233.21. */
+  carriedForward?: number;
 }) {
-  const totalCollected = totalFees + totalSponsorship;
+  const totalCollected = carriedForward + totalFees + totalSponsorship;
   const spentPct = totalCollected > 0 ? Math.min((totalSpent / totalCollected) * 100, 100) : 0;
   const remaining = totalCollected - totalSpent;
   const status = isLow
@@ -206,10 +211,23 @@ function PoolFundHero({
           </div>
         )}
 
-        {/* Stat strip — internal dividers, no individual cards */}
-        <div className="grid grid-cols-3 rounded-xl overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        {/* Stat strip — internal dividers, no individual cards.
+            Gains a fourth column only when money actually carried over, so the
+            three-way split stays the common case. Without it the numbers do not
+            add up on screen: fees + sponsors − spent would not reach the
+            headline balance. */}
+        <div
+          className="grid rounded-xl overflow-hidden"
+          style={{
+            gridTemplateColumns: `repeat(${carriedForward !== 0 ? 4 : 3}, minmax(0, 1fr))`,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+          }}
+        >
           {([
+            ...(carriedForward !== 0
+              ? [{ icon: ArrowDownToLine, label: 'Carried', value: carriedForward, color: 'var(--split-credit)' } as const]
+              : []),
             { icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)' },
             { icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB' },
             { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)' },
@@ -692,7 +710,7 @@ function EditExpenseDrawer({ expense, open, onSave, onClose }: {
 export default function ExpenseList() {
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { expenses, fees, sponsorships, players, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
+  const { expenses, fees, sponsorships, players, seasons, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string; permanent?: boolean } | null>(null);
   const [editingExpense, setEditingExpense] = useState<CricketExpense | null>(null);
@@ -705,12 +723,30 @@ export default function ExpenseList() {
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
 
-  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
-  const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
-  const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
-  const totalCollected = totalFees + totalSponsorship;
-  const totalSpent = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const poolBalance = totalCollected - totalSpent;
+  /**
+   * The Pool Balance card. Uses the shared calculation so it cannot disagree
+   * with the dashboard, the WhatsApp share or the share image.
+   *
+   * This was a FIFTH copy of the sum — one the code review missed, because it
+   * lives inside the expense list rather than anywhere balance-shaped. It
+   * showed $60.00 for Fall while the carried-forward entry directly above it
+   * showed +$233.21: the card ignored money carried over.
+   */
+  const pool = computeSeasonPool(selectedSeasonId ?? '', seasons, {
+    fees,
+    sponsors: sponsorships.filter((s) => !s.deleted_at),
+    expenses: expenses.filter((e) => !e.deleted_at),
+  });
+  const totalFees = pool.feesCollected;
+  const totalSponsorship = pool.sponsorshipsCollected;
+  const totalSpent = pool.totalSpent;
+  const poolBalance = pool.balance;
+  const carriedForward = pool.carried.amount;
+  // Everything the pool has ever held — carried in, fees and sponsorships.
+  // Gates whether the hero card renders at all, so it must include the carried
+  // figure: a season whose only money came from the previous one still has a
+  // pool worth showing.
+  const totalCollected = pool.totalIn;
   const isLow = poolBalance < 0;
   const perPerson = activePlayers.length > 0 ? Math.ceil(Math.abs(poolBalance) / activePlayers.length) : 0;
 
@@ -817,6 +853,7 @@ export default function ExpenseList() {
               isLow={isLow}
               perPerson={perPerson}
               hasPlayers={activePlayers.length > 0}
+              carriedForward={carriedForward}
             />
           </div>
         )}
