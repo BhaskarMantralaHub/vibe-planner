@@ -786,6 +786,9 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const newSeason: CricketSeason = {
       id: localId, user_id: userId, ...data, season_type: data.season_type as CricketSeason['season_type'],
       share_token: genId(), fee_amount: 60, is_active: true, created_at: now, updated_at: now,
+      // A brand-new season has no cricclubs league until MTCA publishes one,
+      // and nothing carried forward until an admin sets it.
+      cricclubs_league_id: null, opening_balance: 0,
     };
     set({ seasons: [newSeason, ...get().seasons], selectedSeasonId: localId });
 

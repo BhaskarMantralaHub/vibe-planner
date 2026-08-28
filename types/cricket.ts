@@ -63,6 +63,22 @@ export type CricketSeason = {
   share_token: string;
   fee_amount: number;
   is_active: boolean;
+  /**
+   * The cricclubs league this season maps to. MTCA issues a NEW league id per
+   * season (Spring 2026 = 87), and this is the only reliable link from a
+   * scraped scorecard back to a season — `cricclubs_matches
+   * .cricclubs_league_id` joins to it. Null until MTCA publishes the league,
+   * which means the season provably has no match data yet.
+   */
+  cricclubs_league_id: number | null;
+  /**
+   * Pool money carried in from the previous season. A STATIC admin-set
+   * snapshot, never derived live from prior seasons — a live chain would let an
+   * edit to an old expense silently rewrite every later balance. Nullable
+   * because restore.yml rebuilds rows without applying defaults; read as
+   * `opening_balance ?? 0`.
+   */
+  opening_balance: number | null;
   created_at: string;
   updated_at: string;
 };

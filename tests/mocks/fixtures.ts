@@ -61,11 +61,18 @@ export const SEASONS: CricketSeason[] = [
     id: 'season-spring-2026', user_id: ADMIN_USER.id, name: 'Spring 2026',
     year: 2026, season_type: 'spring', share_token: 'share-token-1',
     fee_amount: 60, is_active: true, created_at: '2026-03-01T00:00:00Z', updated_at: '2026-03-01T00:00:00Z',
+    // Mirrors production: the played season has a cricclubs league, so its
+    // stats can be scoped. Carries no opening balance — it is the first season.
+    cricclubs_league_id: 87, opening_balance: 0,
   },
   {
     id: 'season-fall-2025', user_id: ADMIN_USER.id, name: 'Fall 2025',
     year: 2025, season_type: 'fall', share_token: 'share-token-2',
     fee_amount: 50, is_active: true, created_at: '2025-09-01T00:00:00Z', updated_at: '2025-09-01T00:00:00Z',
+    // Deliberately NULL: a season MTCA has not published a league for yet.
+    // That is the case that must scope to zero matches rather than silently
+    // falling back to career figures.
+    cricclubs_league_id: null, opening_balance: null,
   },
 ];
 

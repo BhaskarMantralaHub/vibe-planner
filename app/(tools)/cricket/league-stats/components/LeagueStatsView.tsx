@@ -22,6 +22,11 @@ import TopPerformersCarousel from './TopPerformersCarousel';
 import PlayerDetailSheet from './PlayerDetailSheet';
 import { AllRoundFormulaCard, CatchesRulesCard, BestSpellChip, getHeatColor } from './TabIntroCards';
 import {
+  aggregateBatting,
+  aggregateBowling,
+  matchIdsForLeague,
+} from '../lib/seasonAggregates';
+import {
   computeTopPerformers,
   type TopPerformerCard,
   computeBestBowlingFigures,
@@ -110,6 +115,10 @@ type MatchRow = {
   winner_team: string | null;
   league_name: string | null;
   division: string | null;
+  /** Joins to cricket_seasons.cricclubs_league_id — the ONLY reliable link
+   *  from a scraped scorecard back to a season. Never scope by date: MTCA
+   *  issues a new league per season and dates shift. */
+  cricclubs_league_id: number | null;
 };
 
 type RosterRow = {
@@ -459,9 +468,12 @@ export default function LeagueStatsView() {
   // Pull the cricket-store's seasons loader. Landing directly on
   // /cricket/league-stats (no prior cricket-page visit) leaves `seasons`
   // empty, which makes the SeasonSelector in the hero render "No seasons".
-  // Trigger a load on mount — cheap query, idempotent. Only the loader is
-  // pulled (not the whole store) so render is not coupled to season changes.
+  // Trigger a load on mount — cheap query, idempotent.
   const loadSeasons = useCricketStore((s) => s.loadSeasons);
+  // Seasons and the current selection now DRIVE this page's figures, so unlike
+  // before they are subscribed to: changing the pill must re-scope the stats.
+  const seasons = useCricketStore((s) => s.seasons);
+  const selectedSeasonId = useCricketStore((s) => s.selectedSeasonId);
   useEffect(() => {
     loadSeasons().catch(() => {
       // Non-fatal — stats can render without seasons; the selector just
@@ -510,11 +522,21 @@ export default function LeagueStatsView() {
   }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [batting, setBatting] = useState<BattingSeasonRow[]>([]);
-  const [bowling, setBowling] = useState<BowlingSeasonRow[]>([]);
-  const [battingMatches, setBattingMatches] = useState<BattingMatchRow[]>([]);
-  const [bowlingMatches, setBowlingMatches] = useState<BowlingMatchRow[]>([]);
-  const [matches, setMatches] = useState<MatchRow[]>([]);
+  /** Career aggregates from the two `_season` views. Used only as the fallback
+   *  when a season cannot be scoped — see `scoped` below. */
+  const [careerBatting, setCareerBatting] = useState<BattingSeasonRow[]>([]);
+  const [careerBowling, setCareerBowling] = useState<BowlingSeasonRow[]>([]);
+  /** The raw per-innings rows have arrived. Season-scoped figures are derived
+   *  from them, so the page must not paint career numbers first and then swap —
+   *  the figures would visibly change under the reader. */
+  const [rawLoaded, setRawLoaded] = useState(false);
+  /* The UNSCOPED rows as fetched. Nothing below should read these directly —
+   * the season-scoped `battingMatches` / `bowlingMatches` / `matches` derived
+   * further down shadow them deliberately, so every consumer is scoped by
+   * default and forgetting to scope one is not possible. */
+  const [battingMatchesAll, setBattingMatchesAll] = useState<BattingMatchRow[]>([]);
+  const [bowlingMatchesAll, setBowlingMatchesAll] = useState<BowlingMatchRow[]>([]);
+  const [matchesAll, setMatchesAll] = useState<MatchRow[]>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   // Bump to re-fire the data-load effect (used by the error-state Retry button).
   const [reloadKey, setReloadKey] = useState(0);
@@ -543,7 +565,7 @@ export default function LeagueStatsView() {
       supabase.from('cricclubs_bowling_season').select('*').eq('team_id', currentTeamId),
       supabase
         .from('cricclubs_matches')
-        .select('id, team_id, team_a, team_b, match_date, winner_team, league_name, division')
+        .select('id, team_id, team_a, team_b, match_date, winner_team, league_name, division, cricclubs_league_id')
         .eq('team_id', currentTeamId)
         .order('match_date', { ascending: true }),
       supabase
@@ -559,9 +581,9 @@ export default function LeagueStatsView() {
         setLoading(false);
         return;
       }
-      setBatting((bat.data ?? []) as BattingSeasonRow[]);
-      setBowling((bowl.data ?? []) as BowlingSeasonRow[]);
-      setMatches((mch.data ?? []) as MatchRow[]);
+      setCareerBatting((bat.data ?? []) as BattingSeasonRow[]);
+      setCareerBowling((bowl.data ?? []) as BowlingSeasonRow[]);
+      setMatchesAll((mch.data ?? []) as MatchRow[]);
       setRoster((ros.data ?? []) as RosterRow[]);
       setLoading(false);
     });
@@ -591,12 +613,88 @@ export default function LeagueStatsView() {
         console.warn('League stats: per-innings load failed', batm.error ?? bowm.error);
         return;
       }
-      setBattingMatches((batm.data ?? []) as BattingMatchRow[]);
-      setBowlingMatches((bowm.data ?? []) as BowlingMatchRow[]);
+      setBattingMatchesAll((batm.data ?? []) as BattingMatchRow[]);
+      setBowlingMatchesAll((bowm.data ?? []) as BowlingMatchRow[]);
+      setRawLoaded(true);
     });
 
     return () => { cancelled = true; };
   }, [currentTeamId, reloadKey]);
+
+  /* ── Season scoping ─────────────────────────────────────────────────────
+   *
+   * Everything below this point sees ONLY the selected season's data.
+   *
+   * The season pill on this page used to be decorative — `selectedSeasonId`
+   * was never read here, and every query filtered by team alone. Invisible
+   * while one season had data; the day Fall's first scorecard landed, tapping
+   * "Fall 2026" would have shown Spring and Fall added together.
+   *
+   * Scoping is by cricclubs LEAGUE id, never by date.
+   *
+   * A selected season with NO league id scopes to the EMPTY set, not to career
+   * figures. That distinction is the whole point: MTCA has not published Fall's
+   * league yet, so Fall cannot have a single match attributed to it — and
+   * showing Spring's 13 matches under a "Fall 2026" pill is precisely the lie
+   * this change exists to remove. Empty and honest beats populated and wrong.
+   *
+   * Career figures are therefore only used when NO season is selected at all.
+   */
+  const season = seasons.find((s) => s.id === selectedSeasonId);
+  const seasonLeagueId = season?.cricclubs_league_id ?? null;
+
+  const seasonMatchIds = useMemo(
+    () => {
+      if (!season) return null;
+      return matchIdsForLeague(matchesAll, seasonLeagueId) ?? new Set<string>();
+    },
+    [season, matchesAll, seasonLeagueId],
+  );
+  /** True when figures on screen are this season's rather than career-wide. */
+  const scoped = seasonMatchIds !== null;
+
+  // These three shadow the raw state above, so every downstream consumer —
+  // the W/L record, the streak, top performers, matches played, best figures,
+  // the per-player drilldowns — is season-scoped without needing to know.
+  const matches = useMemo(
+    () => (seasonMatchIds ? matchesAll.filter((m) => seasonMatchIds.has(m.id)) : matchesAll),
+    [matchesAll, seasonMatchIds],
+  );
+  const battingMatches = useMemo(
+    () => (seasonMatchIds ? battingMatchesAll.filter((r) => seasonMatchIds.has(r.match_row_id)) : battingMatchesAll),
+    [battingMatchesAll, seasonMatchIds],
+  );
+  const bowlingMatches = useMemo(
+    () => (seasonMatchIds ? bowlingMatchesAll.filter((r) => seasonMatchIds.has(r.match_row_id)) : bowlingMatchesAll),
+    [bowlingMatchesAll, seasonMatchIds],
+  );
+
+  const rosterNameById = useMemo(
+    () => new Map(roster.map((r) => [r.id, r.name])),
+    [roster],
+  );
+
+  /**
+   * Batting/bowling aggregates for the scope in force.
+   *
+   * When scoped, these are recomputed client-side from the raw innings rows by
+   * `seasonAggregates`, which reproduces the two views' SQL exactly — the sum
+   * of every season is asserted to equal the career total in
+   * tests/unit/season-aggregates.test.ts. When not scoped, the views' own
+   * output is used unchanged.
+   */
+  const batting = useMemo<BattingSeasonRow[]>(
+    () => (scoped
+      ? aggregateBatting(battingMatches, rosterNameById) as BattingSeasonRow[]
+      : careerBatting),
+    [scoped, battingMatches, rosterNameById, careerBatting],
+  );
+  const bowling = useMemo<BowlingSeasonRow[]>(
+    () => (scoped
+      ? aggregateBowling(bowlingMatches, rosterNameById) as BowlingSeasonRow[]
+      : careerBowling),
+    [scoped, bowlingMatches, rosterNameById, careerBowling],
+  );
 
   // Derived: catches + run-outs (totals + per-match events) and all-rounders
   const { catchesTotals, catchEvents, runoutEvents } = useMemo(() => {
@@ -785,11 +883,17 @@ export default function LeagueStatsView() {
     };
   }, [sheetPlayerId, roster, batting, bowling, catchesTotals]);
 
-  if (loading) {
-    // Skeleton mimics the final layout: hero card, top-performers carousel
-    // row, sticky tab pill bar, and 4 leaderboard card placeholders. This
-    // avoids the disorienting "shape-shift" you get when generic rectangles
-    // resolve into a totally different layout (spec P9, mobile UX principle).
+  /**
+   * The skeleton mimics the final layout rather than showing generic
+   * rectangles, so resolving does not shape-shift.
+   *
+   * `scoped && !rawLoaded` is the second condition and it matters: when a
+   * season filter is in force the figures come from the raw innings rows, so
+   * painting the career aggregates first and swapping when the raw rows land
+   * would show every number changing under the reader. Better a slightly
+   * longer skeleton than figures that visibly correct themselves.
+   */
+  if (loading || (scoped && !rawLoaded)) {
     return <LeagueStatsSkeleton viewMode={viewMode} />;
   }
 
@@ -1450,7 +1554,10 @@ function MatchesChip({ matchesPlayed }: { matchesPlayed: number | undefined }) {
     <StatChip
       label="Mat"
       value={matchesPlayed ?? '—'}
-      title="Matches played this season (appeared on the scorecard, batting or bowling)"
+      // No longer claims "this season" — the count now genuinely follows the
+      // selected season, but it falls back to career when no season is chosen,
+      // so the neutral wording is the one that is always true.
+      title="Matches played (appeared on the scorecard, batting or bowling)"
     />
   );
 }
