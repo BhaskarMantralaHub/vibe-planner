@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getTeamName, getTeamLogoUrl, getCategoryConfig } from '../lib/constants';
-import { formatCurrency, formatDate } from '../lib/utils';
+import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { FileDown, Share2 } from 'lucide-react';
 
 function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
@@ -16,9 +16,23 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
 
-  const totalCollected = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
-  const totalSpent = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const poolBalance = totalCollected - totalSpent;
+  /**
+   * Same shared calculation the dashboard uses.
+   *
+   * This block previously computed `fees − expenses`, omitting sponsorships
+   * entirely — while the share IMAGE below computed `(fees + sponsors) −
+   * expenses`. So the two shares printed different pool balances for the same
+   * season, and the WhatsApp text under-reported by the sponsorship total
+   * ($420 for Spring 2026). It also now includes money carried over.
+   */
+  const pool = computeSeasonPool(selectedSeasonId ?? '', seasons, {
+    fees: store.fees,
+    sponsors: store.sponsorships.filter((s) => !s.deleted_at),
+    expenses: store.expenses.filter((e) => !e.deleted_at),
+  });
+  const totalCollected = pool.totalIn;
+  const totalSpent = pool.totalSpent;
+  const poolBalance = pool.balance;
 
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
   const lines: string[] = [];
@@ -78,11 +92,19 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   const feeMap = Object.fromEntries(seasonFees.map((f) => [f.player_id, f]));
   const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
 
-  const totalFees = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0);
-  const totalSponsorship = seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
-  const totalCollected = totalFees + totalSponsorship;
-  const totalSpent = seasonExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const poolBalance = totalCollected - totalSpent;
+  // Shared calculation — the third of the four copies this replaces. It now
+  // agrees with the text share above and the dashboard, and picks up carried
+  // forward money.
+  const pool = computeSeasonPool(selectedSeasonId ?? '', seasons, {
+    fees,
+    sponsors: sponsorships.filter((s) => !s.deleted_at),
+    expenses: expenses.filter((e) => !e.deleted_at),
+  });
+  const totalFees = pool.feesCollected;
+  const totalSponsorship = pool.sponsorshipsCollected;
+  const totalCollected = pool.totalIn;
+  const totalSpent = pool.totalSpent;
+  const poolBalance = pool.balance;
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();

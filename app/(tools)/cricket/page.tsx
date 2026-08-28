@@ -8,7 +8,8 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { seasonRoster, billableRoster } from './lib/season-roster';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera } from 'lucide-react';
+import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
+import { toast } from 'sonner';
 import { MdSportsCricket } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
@@ -18,7 +19,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Text } from '@/components/ui';
 import { PageFooter } from '@/components/PageFooter';
 import InviteHandler from '@/components/InviteHandler';
-import { formatCurrency } from './lib/utils';
+import { formatCurrency, computeSeasonPool, type CarriedForward } from './lib/utils';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
@@ -95,6 +96,84 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
 type Tab = 'players' | 'finances';
 
 // Maps View → parent Tab
+/**
+ * The pool money a season starts with, shown as a line item.
+ *
+ * Deliberately looks like an entry rather than a summary tile: it is money that
+ * arrived, sitting in the list where the other money is, so the season balance
+ * visibly adds up instead of appearing from nowhere.
+ *
+ * The "Updates live" note is load-bearing. While the previous season is still
+ * being played this figure tracks it, so it WILL change if more of that
+ * season's money is spent — and a number that moves without explanation is
+ * exactly what makes people distrust a ledger. Once an admin freezes the
+ * season, the note disappears because the figure has stopped moving.
+ */
+function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
+  carried: CarriedForward;
+  isAdmin: boolean;
+  onFreeze: (amount: number) => void;
+  onUnfreeze: () => void;
+}) {
+  const isDeficit = carried.amount < 0;
+  const tone = isDeficit ? 'var(--red)' : 'var(--green)';
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-2xl px-3.5 py-3"
+      style={{
+        background: `color-mix(in srgb, ${tone} 7%, var(--card))`,
+        border: `1px solid color-mix(in srgb, ${tone} 24%, var(--border))`,
+      }}
+    >
+      <span
+        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+        style={{ background: `color-mix(in srgb, ${tone} 15%, transparent)`, color: tone }}
+        aria-hidden
+      >
+        <ArrowDownToLine size={16} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <Text as="p" size="sm" weight="bold" truncate>
+          {isDeficit ? 'Deficit carried forward' : 'Carried forward'}
+        </Text>
+        <Text as="p" size="2xs" color="muted" truncate>
+          {carried.fromSeasonName ? `From ${carried.fromSeasonName}` : 'From the previous season'}
+          {carried.live && ' · updates live'}
+        </Text>
+      </div>
+
+      <span
+        className="flex-shrink-0 text-[16px] font-extrabold tabular-nums"
+        style={{ color: tone }}
+      >
+        {isDeficit ? '−' : '+'}{formatCurrency(Math.abs(carried.amount))}
+      </span>
+
+      {/* Freezing is what stops the live chain. Leave it live forever and one
+          correction to an old expense would silently rewrite every later
+          season's balance; freeze it when a season closes and history stops
+          moving. Sits on the entry because that is where the number is. */}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => (carried.live ? onFreeze(carried.amount) : onUnfreeze())}
+          aria-label={carried.live
+            ? `Lock this at ${formatCurrency(carried.amount)}`
+            : 'Unlock and track the previous season again'}
+          title={carried.live
+            ? 'Lock this figure — do it once the previous season is finished'
+            : 'Unlock to track the previous season again'}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition-transform active:scale-95"
+        >
+          {carried.live ? <LockOpen size={14} /> : <Lock size={14} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function viewToTab(view: View): Tab {
   if (view === 'players' || view === 'fees') return 'players';
   return 'finances';
@@ -121,7 +200,7 @@ const CAPSULE_TABS: CapsuleTab[] = [
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId, players, seasonPlayers, expenses, fees, sponsorships, adminUserIds } = useCricketStore();
+  const { loadAll, loading, selectedSeasonId, seasons, players, seasonPlayers, expenses, fees, sponsorships, adminUserIds, updateSeason } = useCricketStore();
   const isGlobalAdmin = userAccess.includes('admin');
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
@@ -211,13 +290,33 @@ function CricketDashboard() {
   const season = useCricketStore.getState().seasons.find((s) => s.id === selectedSeasonId);
   const feeAmount = season?.fee_amount ?? 60;
   const seasonExpensesList = expenses.filter((e) => e.season_id === selectedSeasonId && !e.deleted_at);
-  const totalSpent = seasonExpensesList.reduce((sum, e) => sum + Number(e.amount), 0);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feesPaid = seasonFees.filter((f) => Number(f.amount_paid) >= feeAmount).length;
-  const seasonSponsors = sponsorships.filter((s) => s.season_id === selectedSeasonId && !s.deleted_at);
-  const totalCollected = seasonFees.reduce((sum, f) => sum + Number(f.amount_paid), 0)
-    + seasonSponsors.reduce((sum, s) => sum + Number(s.amount), 0);
-  const poolBalance = totalCollected - totalSpent;
+
+  /**
+   * Pool position for this season, INCLUDING whatever carried over.
+   *
+   * One shared function rather than arithmetic inlined here — there used to be
+   * four copies of this sum across the app and they had already drifted (the
+   * WhatsApp text share silently dropped sponsorships). See computeSeasonPool
+   * in ./lib/utils.
+   *
+   * The carried figure tracks the previous season LIVE until an admin freezes
+   * it, because Spring is still being played: a snapshot would go stale the
+   * moment more of Spring's money is spent.
+   */
+  const pool = computeSeasonPool(
+    selectedSeasonId ?? '',
+    seasons,
+    {
+      fees,
+      sponsors: sponsorships.filter((s) => !s.deleted_at),
+      expenses: expenses.filter((e) => !e.deleted_at),
+    },
+  );
+  const totalSpent = pool.totalSpent;
+  const totalCollected = pool.totalIn;
+  const poolBalance = pool.balance;
 
   useEffect(() => {
     document.title = userTeams.find(t => t.team_id === currentTeamId)?.team_name ?? 'Cricket';
@@ -400,7 +499,33 @@ function CricketDashboard() {
           {/* Content */}
           <div key={activeView} className="min-w-0 animate-fade-in">
             {activeView === 'players' && <PlayerManager />}
-            {activeView === 'expenses' && <ExpenseList />}
+            {activeView === 'expenses' && (
+              <div className="space-y-3">
+                {/* Carried-forward money as a visible ENTRY, not a hidden
+                    column. It belongs in the list people scan when asking
+                    "where did the money come from", and stating it as a line
+                    item makes the pool balance add up on screen.
+                    Hidden at exactly zero — a "$0.00 carried forward" row is
+                    noise, and the first season legitimately has none. */}
+                {Math.abs(pool.carried.amount) >= 0.01 && (
+                  <CarriedForwardEntry
+                    carried={pool.carried}
+                    isAdmin={isAdmin}
+                    onFreeze={(amount) => {
+                      if (!selectedSeasonId) return;
+                      updateSeason(selectedSeasonId, { opening_balance: amount });
+                      toast.success(`Locked at ${formatCurrency(amount)}`);
+                    }}
+                    onUnfreeze={() => {
+                      if (!selectedSeasonId) return;
+                      updateSeason(selectedSeasonId, { opening_balance: null });
+                      toast.success('Now tracking the previous season again');
+                    }}
+                  />
+                )}
+                <ExpenseList />
+              </div>
+            )}
             {activeView === 'splits' && <SplitsDashboard />}
             {activeView === 'charts' && (
               <div className="space-y-5">
