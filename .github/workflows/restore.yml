@@ -43,6 +43,8 @@ jobs:
             "id_documents"
             "cricket_players"
             "cricket_seasons"
+            # Must follow players and seasons: composite FKs reference both.
+            "cricket_season_players"
             "cricket_expenses"
             "cricket_expense_splits"
             "cricket_settlements"
@@ -86,7 +88,12 @@ jobs:
 
           echo "" >> "$OUTPUT"
           echo "-- Uncomment the next line to wipe existing data first:" >> "$OUTPUT"
-          echo "-- TRUNCATE cricclubs_bowling, cricclubs_batting, cricclubs_match_html, cricclubs_matches, team_audit_log, user_activity, cricket_schedule_matches, practice_balls, practice_innings, practice_match_players, practice_matches, cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_split_settlements, cricket_split_shares, cricket_splits, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, team_invites, team_members, cricket_teams, app_settings, profiles CASCADE;" >> "$OUTPUT"
+          # cricket_season_players is named EXPLICITLY. TRUNCATE ... CASCADE
+          # already dragged it in via its composite FKs to cricket_players and
+          # cricket_seasons, regardless of ON DELETE action — so it was being
+          # wiped without appearing in the statement an admin reads before
+          # uncommenting it. Listed so the wipe is deliberate and visible.
+          echo "-- TRUNCATE cricclubs_bowling, cricclubs_batting, cricclubs_match_html, cricclubs_matches, team_audit_log, user_activity, cricket_schedule_matches, practice_balls, practice_innings, practice_match_players, practice_matches, cricket_notifications, cricket_comment_reactions, cricket_gallery_likes, cricket_gallery_comments, cricket_gallery_tags, cricket_gallery, cricket_sponsorships, cricket_season_fees, cricket_season_players, cricket_split_settlements, cricket_split_shares, cricket_splits, cricket_settlements, cricket_expense_splits, cricket_expenses, cricket_seasons, cricket_players, id_documents, vibes, team_invites, team_members, cricket_teams, app_settings, profiles CASCADE;" >> "$OUTPUT"
           echo "" >> "$OUTPUT"
 
           for TABLE in "${TABLES_ORDERED[@]}"; do

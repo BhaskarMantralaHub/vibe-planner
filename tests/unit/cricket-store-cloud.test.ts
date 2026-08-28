@@ -53,6 +53,7 @@ vi.mock('@/app/(tools)/cricket/lib/utils', () => ({
 }));
 
 import { useCricketStore } from '@/stores/cricket-store';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   ADMIN_USER, PLAYER_USER_1, PLAYER_USER_2,
   PLAYERS, SEASONS, EXPENSES, SPLITS, SETTLEMENTS, FEES, SPONSORSHIPS,
@@ -166,6 +167,45 @@ describe('loadAll (cloud)', () => {
     // Gallery posts < GALLERY_PAGE_SIZE (20) → hasMoreGallery false
     expect(state.hasMoreGallery).toBe(false);
     expect(state.galleryOffset).toBe(GALLERY_POSTS.length);
+  });
+
+  /**
+   * Regression: loadAll used to overwrite selectedSeasonId on EVERY call with
+   * pickCurrentSeason(), which prefers the active season. Because loadAll also
+   * revalidates in the background, an admin who switched to a non-active season
+   * — collecting Fall dues while Spring stays active for the playoffs — was
+   * silently returned to Spring, and cricket_season_fees rows are stamped with
+   * selectedSeasonId, so the next payment landed on the wrong season.
+   */
+  it('KEEPS a deliberately chosen season across a reload', async () => {
+    configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS });
+    // Not the one pickCurrentSeason would choose.
+    useCricketStore.setState({ selectedSeasonId: 'season-fall-2025' });
+
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+
+    expect(useCricketStore.getState().selectedSeasonId).toBe('season-fall-2025');
+  });
+
+  it('auto-picks when the chosen season no longer exists', async () => {
+    // A deleted season, or a team switch — seasons are queried per team.
+    configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS });
+    useCricketStore.setState({ selectedSeasonId: 'season-that-was-deleted' });
+
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+
+    const { selectedSeasonId } = useCricketStore.getState();
+    expect(selectedSeasonId).not.toBe('season-that-was-deleted');
+    expect(SEASONS.map((s) => s.id)).toContain(selectedSeasonId);
+  });
+
+  it('auto-picks when nothing was chosen yet', async () => {
+    configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS });
+    useCricketStore.setState({ selectedSeasonId: null });
+
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+
+    expect(useCricketStore.getState().selectedSeasonId).toBe('season-spring-2026');
   });
 
   it('queries the correct 13 tables', async () => {
@@ -577,6 +617,121 @@ describe('Seasons (cloud)', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // Expenses — cloud mode
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Season rosters (cloud) — WRITE side only
+// ═══════════════════════════════════════════════════════════════════════════
+// These land BEFORE any screen filters by roster, deliberately: if a screen
+// started billing from the roster before an admin could enrol anyone, a newly
+// added player would exist, appear nowhere, and be impossible to charge.
+
+describe('Season rosters (cloud)', () => {
+  const ROW = {
+    season_id: 'season-spring-2026', player_id: 'p1', team_id: 'team-1',
+    is_guest: false, left_at: null,
+    joined_at: '2026-08-28T00:00:00Z', created_at: '2026-08-28T00:00:00Z',
+  };
+
+  // Both actions go through requireTeamId(), which reads the auth store. No
+  // other test in this file needs it, so it is set here rather than globally —
+  // a real session always has a team selected.
+  beforeEach(() => {
+    useAuthStore.setState({ currentTeamId: 'team-1' });
+  });
+
+  it('enrollInSeason upserts with the composite conflict target', async () => {
+    // Without on_conflict on (season_id, player_id) PostgREST falls back to the
+    // primary key — which IS that pair here — but stating it keeps an admin
+    // double-tap a no-op instead of a 409.
+    const builder = configureFromSingle('cricket_season_players', ROW);
+    useCricketStore.setState({ seasonPlayers: [] });
+
+    const ok = await useCricketStore.getState().enrollInSeason('season-spring-2026', 'p1');
+
+    expect(ok).toBe(true);
+    expect(builder.upsert).toHaveBeenCalledWith(
+      { season_id: 'season-spring-2026', player_id: 'p1', team_id: 'team-1', is_guest: false },
+      { onConflict: 'season_id,player_id', ignoreDuplicates: true },
+    );
+    expect(useCricketStore.getState().seasonPlayers).toHaveLength(1);
+  });
+
+  it('enrollInSeason is idempotent — re-adding does not duplicate', async () => {
+    configureFromSingle('cricket_season_players', null);
+    useCricketStore.setState({ seasonPlayers: [ROW] });
+
+    const ok = await useCricketStore.getState().enrollInSeason('season-spring-2026', 'p1');
+
+    expect(ok).toBe(true);
+    // ignoreDuplicates returns no row; the desired state already held.
+    expect(useCricketStore.getState().seasonPlayers).toHaveLength(1);
+  });
+
+  it('enrollInSeason reports failure instead of claiming success', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    configureFromSingle('cricket_season_players', null, 'insert failed');
+    useCricketStore.setState({ seasonPlayers: [] });
+
+    const ok = await useCricketStore.getState().enrollInSeason('season-spring-2026', 'p1');
+
+    // The bug this guards against: the old permanent-delete path returned no
+    // status, so a rejected write still toasted success.
+    expect(ok).toBe(false);
+    expect(useCricketStore.getState().seasonPlayers).toHaveLength(0);
+    consoleSpy.mockRestore();
+  });
+
+  it('removeFromSeason deletes only that season+player+team row', async () => {
+    const builder = configureFromSingle('cricket_season_players');
+    useCricketStore.setState({ seasonPlayers: [ROW] });
+
+    const ok = await useCricketStore.getState().removeFromSeason('season-spring-2026', 'p1');
+
+    expect(ok).toBe(true);
+    expect(builder.delete).toHaveBeenCalled();
+    expect(builder.eq).toHaveBeenCalledWith('season_id', 'season-spring-2026');
+    expect(builder.eq).toHaveBeenCalledWith('player_id', 'p1');
+    // team_id guard matters: without it an admin of one team could delete
+    // another team's roster row if they guessed the ids.
+    expect(builder.eq).toHaveBeenCalledWith('team_id', 'team-1');
+    expect(useCricketStore.getState().seasonPlayers).toHaveLength(0);
+  });
+
+  it('removeFromSeason leaves OTHER seasons for the same player alone', async () => {
+    // The whole point of the table: dropping somebody from Fall must not touch
+    // their Spring history.
+    configureFromSingle('cricket_season_players');
+    const fallRow = { ...ROW, season_id: 'season-fall-2025' };
+    useCricketStore.setState({ seasonPlayers: [ROW, fallRow] });
+
+    await useCricketStore.getState().removeFromSeason('season-fall-2025', 'p1');
+
+    const left = useCricketStore.getState().seasonPlayers;
+    expect(left).toHaveLength(1);
+    expect(left[0]!.season_id).toBe('season-spring-2026');
+  });
+
+  it('removeFromSeason reports failure instead of claiming success', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    configureFromSingle('cricket_season_players', null, 'delete failed');
+    useCricketStore.setState({ seasonPlayers: [ROW] });
+
+    const ok = await useCricketStore.getState().removeFromSeason('season-spring-2026', 'p1');
+
+    expect(ok).toBe(false);
+    // Row stays — the UI must not show it gone when the database still has it.
+    expect(useCricketStore.getState().seasonPlayers).toHaveLength(1);
+    consoleSpy.mockRestore();
+  });
+
+  it('loadAll pulls the season roster into state', async () => {
+    configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS, cricket_season_players: [ROW] });
+
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+
+    expect(useCricketStore.getState().seasonPlayers).toEqual([ROW]);
+  });
+});
 
 describe('Expenses (cloud)', () => {
   it('addExpense calls supabase insert and reconciles ID', async () => {

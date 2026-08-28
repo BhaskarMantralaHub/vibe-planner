@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   CricketPlayer,
   CricketSeason,
+  CricketSeasonPlayer,
   CricketExpense,
   CricketExpenseSplit,
   CricketSettlement,
@@ -42,6 +43,26 @@ const GALLERY_PAGE_SIZE = 20;
 function genId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/**
+ * Which season to show after a load.
+ *
+ * KEEPS the current selection whenever it is still valid, and only falls back to
+ * the automatic pick when there isn't one. Every load used to overwrite the
+ * selection with `pickCurrentSeason`, which prefers the ACTIVE season — so an
+ * admin who deliberately switched to a non-active season (collecting Fall dues
+ * while Spring stays active for the playoffs) was pulled back to Spring by the
+ * next background revalidation, with no visible cause. The damage is real
+ * rather than cosmetic: `cricket_season_fees` rows are stamped with
+ * `selectedSeasonId`, so the next payment recorded would land on Spring.
+ *
+ * A selection that no longer exists — deleted season, or a team switch, since
+ * seasons are queried per team — falls through to the automatic pick.
+ */
+function resolveSeason(seasons: CricketSeason[], current: string | null): string | null {
+  if (current && seasons.some((s) => s.id === current)) return current;
+  return pickCurrentSeason(seasons);
 }
 
 function pickCurrentSeason(seasons: CricketSeason[]): string | null {
@@ -100,6 +121,9 @@ function localSave(data: LocalData): void {
 interface CricketState {
   players: CricketPlayer[];
   seasons: CricketSeason[];
+  /** Per-season rosters. Loaded for every season of the team, not just the
+   *  selected one, so a player sheet can show their whole history. */
+  seasonPlayers: CricketSeasonPlayer[];
   expenses: CricketExpense[];
   splits: CricketExpenseSplit[];
   settlements: CricketSettlement[];
@@ -139,6 +163,12 @@ interface CricketState {
   updatePlayer: (id: string, updates: Partial<CricketPlayer>) => void;
   removePlayer: (id: string) => void;
   restorePlayer: (id: string) => void;
+
+  // Season rosters
+  /** Put a player on a season's roster. Idempotent — re-adding is a no-op. */
+  enrollInSeason: (seasonId: string, playerId: string, isGuest?: boolean) => Promise<boolean>;
+  /** Take a player off a season's roster, leaving every other season alone. */
+  removeFromSeason: (seasonId: string, playerId: string) => Promise<boolean>;
 
   // Seasons
   addSeason: (userId: string, data: { name: string; year: number; season_type: string }) => void;
@@ -203,6 +233,7 @@ interface CricketState {
 export const useCricketStore = create<CricketState>((set, get) => ({
   players: [],
   seasons: [],
+  seasonPlayers: [],
   expenses: [],
   splits: [],
   settlements: [],
@@ -250,11 +281,31 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       const supabase = getSupabaseClient();
       if (!supabase) { set({ loading: false }); return; }
 
+      /**
+       * Season rosters are fetched as their own query rather than being added to
+       * get_dashboard_data. The RPC is a reviewed SQL function, and this is ~20
+       * rows per season, so one extra round-trip running in PARALLEL costs less
+       * than a schema change to it. Runs on both the RPC and fallback paths.
+       */
+      const rosterQuery = teamId
+        ? supabase.from('cricket_season_players').select('*').eq('team_id', teamId)
+        : supabase.from('cricket_season_players').select('*');
+
       // Try batch RPC first (1 round-trip), fall back to parallel queries (13 round-trips)
-      const { data: dashboard, error: rpcError } = await supabase.rpc('get_dashboard_data', {
-        p_team_id: teamId,
-        p_gallery_limit: GALLERY_PAGE_SIZE,
-      });
+      const [{ data: dashboard, error: rpcError }, rosterRes] = await Promise.all([
+        supabase.rpc('get_dashboard_data', {
+          p_team_id: teamId,
+          p_gallery_limit: GALLERY_PAGE_SIZE,
+        }),
+        rosterQuery,
+      ]);
+
+      // Loaded but NOT yet used for filtering anywhere — every roster read is
+      // still team-wide. Landing the data first keeps this step behaviour-free.
+      const seasonPlayers = (rosterRes.data ?? []) as CricketSeasonPlayer[];
+      if (rosterRes.error) {
+        console.error('[cricket] season roster load failed:', rosterRes.error);
+      }
 
       let players: CricketPlayer[], seasons: CricketSeason[], expenses: CricketExpense[],
         splits: CricketExpenseSplit[], settlements: CricketSettlement[], fees: CricketSeasonFee[],
@@ -338,12 +389,12 @@ export const useCricketStore = create<CricketState>((set, get) => ({
         notifications = (nR.data ?? []) as GalleryNotification[];
       }
 
-      const selectedSeasonId = pickCurrentSeason(seasons);
+      const selectedSeasonId = resolveSeason(seasons, get().selectedSeasonId);
       const hasMoreGallery = gallery.length === GALLERY_PAGE_SIZE;
-      set({ players, seasons, expenses, splits, settlements, fees, sponsorships, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false, lastLoadedAt: Date.now(), lastLoadedTeamId: teamId });
+      set({ players, seasons, seasonPlayers, expenses, splits, settlements, fees, sponsorships, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, notifications, selectedSeasonId, hasMoreGallery, galleryOffset: gallery.length, loading: false, lastLoadedAt: Date.now(), lastLoadedTeamId: teamId });
     } else {
       const data = localLoad();
-      const selectedSeasonId = pickCurrentSeason(data.seasons);
+      const selectedSeasonId = resolveSeason(data.seasons, get().selectedSeasonId);
       set({ ...data, fees: [], selectedSeasonId, hasMoreGallery: false, galleryOffset: 0, loading: false });
     }
     } finally {
@@ -359,7 +410,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     if (!isCloudMode()) {
       const data = localLoad();
-      const selectedSeasonId = pickCurrentSeason(data.seasons);
+      const selectedSeasonId = resolveSeason(data.seasons, get().selectedSeasonId);
       set({ ...data, fees: [], selectedSeasonId, hasMoreGallery: false, galleryOffset: 0, loading: false });
       return;
     }
@@ -390,7 +441,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     const seasons = (seasonsRes.data ?? []) as CricketSeason[];
     const gallery = (galleryRes.data ?? []) as GalleryPost[];
     const notifications = (notificationsRes.data ?? []) as GalleryNotification[];
-    const selectedSeasonId = pickCurrentSeason(seasons);
+    const selectedSeasonId = resolveSeason(seasons, get().selectedSeasonId);
     const hasMoreGallery = gallery.length === GALLERY_PAGE_SIZE;
     const postIds = gallery.map((p) => p.id);
 
@@ -424,7 +475,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     if (!isCloudMode()) {
       const data = localLoad();
-      const selectedSeasonId = pickCurrentSeason(data.seasons);
+      const selectedSeasonId = resolveSeason(data.seasons, get().selectedSeasonId);
       set({ seasons: data.seasons, selectedSeasonId });
       return;
     }
@@ -438,7 +489,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     const { data } = await q;
     const seasons = (data ?? []) as CricketSeason[];
-    const selectedSeasonId = pickCurrentSeason(seasons);
+    const selectedSeasonId = resolveSeason(seasons, get().selectedSeasonId);
     set({ seasons, selectedSeasonId });
   },
 
@@ -535,6 +586,27 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           if (error) { console.error('[cricket] addPlayer failed:', error); toast.error('Couldn\'t add player. Check your connection and try again.'); }
           if (row) {
             set({ players: get().players.map((p) => p.id === localId ? row : p) });
+            /**
+             * Enrol into the season currently on screen.
+             *
+             * Uses `row.id` — the real database id — not the optimistic local
+             * one, which is why this sits inside the insert callback.
+             *
+             * The season-level guest flag is seeded from the record-level one on
+             * creation, because a walk-in added mid-season is a guest of that
+             * season too. The two can diverge later: a Spring guest returning as
+             * a Fall regular keeps `cricket_players.is_guest = true` (still no
+             * account) while their Fall row says otherwise.
+             */
+            const seasonId = get().selectedSeasonId;
+            if (seasonId) {
+              get().enrollInSeason(seasonId, row.id, row.is_guest).then((ok) => {
+                // Not fatal — the player exists and, until the read side flips,
+                // still shows everywhere. But say so, because after that switch
+                // they would appear in no season at all.
+                if (!ok) toast.error(`${row.name} was added, but not to this season's roster`);
+              });
+            }
             toast.success('Player added');
             // Auto-add to team_members if linked to a user (so they see the team switcher)
             if (linkedUserId) {
@@ -620,6 +692,90 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     } else {
       localSave({ players: get().players, seasons: get().seasons, expenses: get().expenses, splits: get().splits, settlements: get().settlements });
     }
+  },
+
+  // ── Season rosters ───────────────────────────────────────────────────
+  /**
+   * These are WRITE paths only. Nothing filters by the roster yet, so they are
+   * safe to ship ahead of the read side — and they have to be, in that order:
+   * if a screen started filtering by roster before an admin could enrol anyone,
+   * a newly added player would exist, appear nowhere, and be impossible to
+   * charge a fee.
+   *
+   * Both return a boolean rather than void so callers can avoid the mistake the
+   * old permanent-delete made — reporting success on a failed write.
+   */
+
+  enrollInSeason: async (seasonId, playerId, isGuest = false) => {
+    const teamId = requireTeamId();
+    if (!teamId) return false;
+    if (!isCloudMode()) return false;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    const { data: row, error } = await supabase
+      .from('cricket_season_players')
+      // The PK is (season_id, player_id), so a duplicate enrolment is a no-op
+      // rather than an error — an admin double-tap must not fail.
+      .upsert(
+        { season_id: seasonId, player_id: playerId, team_id: teamId, is_guest: isGuest },
+        { onConflict: 'season_id,player_id', ignoreDuplicates: true },
+      )
+      .select().maybeSingle();
+
+    if (error) {
+      console.error('[cricket] enrollInSeason failed:', error);
+      return false;
+    }
+    // ignoreDuplicates returns no row when it was already there; either way the
+    // desired state now holds, so reflect it locally without a refetch.
+    const existing = get().seasonPlayers.some(
+      (sp) => sp.season_id === seasonId && sp.player_id === playerId,
+    );
+    if (!existing) {
+      const now = new Date().toISOString();
+      set({
+        seasonPlayers: [
+          ...get().seasonPlayers,
+          (row as CricketSeasonPlayer | null) ?? {
+            season_id: seasonId, player_id: playerId, team_id: teamId,
+            is_guest: isGuest, left_at: null, joined_at: now, created_at: now,
+          },
+        ],
+      });
+    }
+    return true;
+  },
+
+  removeFromSeason: async (seasonId, playerId) => {
+    const teamId = requireTeamId();
+    if (!teamId) return false;
+    if (!isCloudMode()) return false;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    // Deletes the membership row only. The player record, and every OTHER
+    // season they were in, are untouched — that separation is the entire point
+    // of this table.
+    const { error } = await supabase
+      .from('cricket_season_players')
+      .delete()
+      .eq('season_id', seasonId)
+      .eq('player_id', playerId)
+      .eq('team_id', teamId);
+
+    if (error) {
+      console.error('[cricket] removeFromSeason failed:', error);
+      return false;
+    }
+    set({
+      seasonPlayers: get().seasonPlayers.filter(
+        (sp) => !(sp.season_id === seasonId && sp.player_id === playerId),
+      ),
+    });
+    return true;
   },
 
   // ── Seasons ──────────────────────────────────────────────────────────

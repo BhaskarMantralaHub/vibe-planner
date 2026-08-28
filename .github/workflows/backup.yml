@@ -115,6 +115,8 @@ jobs:
             "team_invites"
             "cricket_players"
             "cricket_seasons"
+            # After players and seasons: its composite FKs reference both.
+            "cricket_season_players"
             "cricket_expenses"
             "cricket_expense_splits"
             "cricket_settlements"

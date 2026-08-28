@@ -25,6 +25,35 @@ export type CricketPlayer = {
   updated_at: string;
 };
 
+/**
+ * One person's membership of one season — see docs/season-roster-migration.sql.
+ *
+ * `cricket_players` stays the identity record (name, photo, email, jersey);
+ * this is purely "did they play this season", so somebody can sit out Fall
+ * without being erased from Spring.
+ */
+export type CricketSeasonPlayer = {
+  season_id: string;
+  player_id: string;
+  team_id: string;
+  /**
+   * SEASON-level guest: excluded from THIS season's fee and duty denominators.
+   * Deliberately distinct from `CricketPlayer.is_guest`, which is the
+   * RECORD-level fact ("walk-in stub, no email, no account"). Somebody can
+   * guest one season and be a regular the next.
+   */
+  is_guest: boolean;
+  /**
+   * Left partway through. The row is KEPT rather than deleted so fees they
+   * already paid and duties they stood still count for the season — deleting
+   * would remove their payment from the collected total with no expense to
+   * explain the gap. Cannot express a rejoin within one season.
+   */
+  left_at: string | null;
+  joined_at: string;
+  created_at: string;
+};
+
 export type CricketSeason = {
   id: string;
   user_id: string;

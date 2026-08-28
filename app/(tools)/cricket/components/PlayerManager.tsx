@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
 import { GiTennisBall, GiGloves } from 'react-icons/gi';
-import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badge as BadgeIcon, Copy, Check, ChevronRight, Camera, X, UserPlus, UserX } from 'lucide-react';
+import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badge as BadgeIcon, Copy, Check, ChevronRight, Camera, X, UserPlus, UserX, CalendarPlus, CalendarMinus } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
@@ -110,7 +110,40 @@ export default function PlayerManager() {
   const { user } = useAuthStore();
   const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
-  const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer } = useCricketStore();
+  const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer,
+    seasonPlayers, seasons, selectedSeasonId, enrollInSeason, removeFromSeason } = useCricketStore();
+
+  /**
+   * Season-roster membership for the season currently selected.
+   *
+   * This is a WRITE-side control only — nothing on this screen filters by it
+   * yet, so the Roster and Guests tabs still show the whole team. Deliberate:
+   * an admin must be able to fix a season's roster BEFORE any screen starts
+   * billing from it. See CLAUDE.md → Season rosters.
+   */
+  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
+  // Short form ("Fall 2026") — the stored name is "2026 MTCA Fall League",
+  // far too long for a menu row.
+  const seasonLabel = selectedSeason
+    ? `${selectedSeason.season_type.charAt(0).toUpperCase()}${selectedSeason.season_type.slice(1)} ${selectedSeason.year}`
+    : null;
+  const onSelectedRoster = (playerId: string) =>
+    seasonPlayers.some((sp) => sp.season_id === selectedSeasonId && sp.player_id === playerId);
+
+  const toggleSeasonMembership = async (p: CricketPlayer) => {
+    if (!selectedSeasonId || !seasonLabel) return;
+    if (onSelectedRoster(p.id)) {
+      const ok = await removeFromSeason(selectedSeasonId, p.id);
+      toast[ok ? 'success' : 'error'](
+        ok ? `${p.name} removed from ${seasonLabel}` : `Couldn't remove ${p.name} from ${seasonLabel}`,
+      );
+    } else {
+      const ok = await enrollInSeason(selectedSeasonId, p.id, p.is_guest);
+      toast[ok ? 'success' : 'error'](
+        ok ? `${p.name} added to ${seasonLabel}` : `Couldn't add ${p.name} to ${seasonLabel}`,
+      );
+    }
+  };
   const userEmail = user?.email?.toLowerCase();
   const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
   const isSelfEditing = !isAdmin && editingPlayer === myPlayer?.id;
@@ -1054,6 +1087,20 @@ export default function PlayerManager() {
                               ...(isMe ? [
                                 { label: 'Leave Team', icon: <UserX size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p), dividerBefore: true },
                               ] : []),
+                              // Season membership sits ABOVE the destructive
+                              // block, and is worded so it cannot be confused
+                              // with "Remove" (deactivate, team-wide) below it.
+                              // Reversible in one tap — the label flips — so no
+                              // confirmation dialog.
+                              ...(seasonLabel ? [{
+                                label: onSelectedRoster(p.id)
+                                  ? `Remove from ${seasonLabel}`
+                                  : `Add to ${seasonLabel}`,
+                                icon: onSelectedRoster(p.id) ? <CalendarMinus size={15} /> : <CalendarPlus size={15} />,
+                                color: onSelectedRoster(p.id) ? 'var(--orange)' : 'var(--cricket)',
+                                onClick: () => { void toggleSeasonMembership(p); },
+                                dividerBefore: true,
+                              }] : []),
                               ...(!isMe ? [
                                 { label: 'Admin Access', icon: <Crown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
                                 { label: 'Move to Guest', icon: <BadgeIcon size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
@@ -1447,10 +1494,25 @@ export default function PlayerManager() {
                 }
                 const supabase = getSupabaseClient();
                 if (!supabase) return;
-                // Hard delete — only for guests (extra .eq('is_guest', true) safety guard)
+                /**
+                 * Deactivate, not hard delete.
+                 *
+                 * A hard delete now FAILS: cricket_season_players has an
+                 * ON DELETE RESTRICT foreign key on the player leg, deliberately,
+                 * so removing a person cannot silently erase which seasons they
+                 * played (see docs/season-roster-fixes.sql).
+                 *
+                 * Deactivating is equivalent from the admin's point of view — the
+                 * Guests tab filters on is_active, so the row disappears — and it
+                 * still frees the name for reuse, because the guest-name unique
+                 * index is predicated on is_active = true.
+                 *
+                 * Keeps the .eq('is_guest', true) guard so this path can never
+                 * touch a regular player.
+                 */
                 const { error } = await supabase
                   .from('cricket_players')
-                  .delete()
+                  .update({ is_active: false, designation: null })
                   .eq('id', player.id)
                   .eq('is_guest', true);
                 if (error) { toast.error('Failed to delete guest player'); console.error(error); return; }
@@ -1522,16 +1584,52 @@ export default function PlayerManager() {
                   const supabase = getSupabaseClient();
                   if (!supabase) return;
                   const teamId = useAuthStore.getState().currentTeamId;
-                  // 1. Hard-delete player record for THIS team only
-                  // (audit trail in team_audit_log captures full old_data)
-                  await supabase.from('cricket_players').delete().eq('id', p.id).eq('team_id', teamId);
-                  useCricketStore.setState({ players: useCricketStore.getState().players.filter(pl => pl.id !== p.id) });
-                  // 2. Remove team membership for this team only
+                  /**
+                   * 1. Deactivate the player record for THIS team.
+                   *
+                   * This used to hard delete, which is BOTH what the dialog above
+                   * already promises it does not do ("will deactivate their player
+                   * record (kept for audit)") and, since the season roster landed,
+                   * impossible: cricket_season_players has an ON DELETE RESTRICT
+                   * on the player leg so that removing somebody cannot erase which
+                   * seasons they played.
+                   *
+                   * The old call had NO error check and optimistically dropped the
+                   * row from the store, so the failure was invisible: the toast
+                   * said "permanently deleted" and the player returned on the next
+                   * refresh. Now it matches the promise and reports failures.
+                   */
+                  const { error } = await supabase
+                    .from('cricket_players')
+                    .update({ is_active: false, designation: null })
+                    .eq('id', p.id)
+                    .eq('team_id', teamId);
+                  if (error) {
+                    toast.error(`Could not remove ${p.name}`);
+                    console.error(error);
+                    return;
+                  }
+                  useCricketStore.setState({
+                    players: useCricketStore.getState().players.map((pl) =>
+                      pl.id === p.id ? { ...pl, is_active: false, designation: null } : pl,
+                    ),
+                  });
+                  // 2. Remove team membership for this team only — this is what
+                  //    actually revokes access, and it is why deactivating rather
+                  //    than deleting loses nothing operationally.
                   if (p.user_id && teamId) {
-                    await supabase.from('team_members').delete().eq('user_id', p.user_id).eq('team_id', teamId);
+                    const { error: memberError } = await supabase
+                      .from('team_members').delete()
+                      .eq('user_id', p.user_id).eq('team_id', teamId);
+                    if (memberError) {
+                      toast.error(`${p.name} was deactivated, but removing team access failed`);
+                      console.error(memberError);
+                      setPermanentDeleting(null);
+                      return;
+                    }
                   }
                   setPermanentDeleting(null);
-                  toast.success(`${p.name} permanently deleted`);
+                  toast.success(`${p.name} removed from this team`);
                 }}
               >
                 {permanentDeleting.id === myPlayer?.id ? 'Leave Team' : 'Delete Permanently'}
