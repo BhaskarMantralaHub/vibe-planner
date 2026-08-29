@@ -180,6 +180,9 @@ interface UmpiringState {
   assignDuty: (dutyId: string, playerId: string, adminName: string) => Promise<void>;
   clearAssignment: (dutyId: string) => Promise<void>;
   markCompleted: (dutyId: string, adminName: string) => Promise<void>;
+  /** Every claimed slot on one match, in a single write. Returns false on
+   *  failure so the caller never reports success for a rejected update. */
+  markMatchCompleted: (dutyIds: string[], adminName: string) => Promise<boolean>;
   markNoShow: (dutyId: string, adminName: string) => Promise<void>;
   reopenDuty: (dutyId: string) => Promise<void>;
   cancelDuty: (dutyId: string, reason: DutyCancelReason) => Promise<void>;
@@ -382,6 +385,54 @@ export const useUmpiringStore = create<UmpiringState>((set, get) => ({
       completed_at: new Date().toISOString(),
       completed_by: adminName,
     }, 'Marked as done');
+  },
+
+  /**
+   * Mark every claimed slot on ONE match as done, in a single write.
+   *
+   * Completion is a fact about the match, not about each umpire: if it was
+   * played and our people stood, they all stood. Marking them individually is
+   * busywork that also invites marking one and forgetting the other, which
+   * silently under-counts somebody's duty on the fairness board.
+   *
+   * One UPDATE rather than a loop of `markCompleted`, for three reasons: a loop
+   * fires one success toast PER duty, reloads the season once per duty, and can
+   * half-succeed with no single place to report it.
+   *
+   * Only `claimed` rows are touched — filtered by the caller AND re-asserted in
+   * the query, so a duty completed or cancelled on another device between
+   * render and tap cannot be dragged back into 'completed'.
+   */
+  markMatchCompleted: async (dutyIds, adminName) => {
+    if (dutyIds.length === 0) return false;
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+    const teamId = requireTeamId();
+    if (!teamId) return false;
+
+    const seasonId = get().duties.find((d) => d.id === dutyIds[0])?.season_id;
+
+    // status and completed_at MUST move together — chk_umpiring_completed_at
+    // ties them, so splitting them into two PATCHes fails on the first.
+    const { error } = await supabase
+      .from('cricket_umpiring_duties')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        completed_by: adminName,
+      })
+      .in('id', dutyIds)
+      .eq('team_id', teamId)
+      .eq('status', 'claimed');
+
+    if (error) {
+      console.error('[umpiring] match completion failed:', error);
+      toast.error('Could not mark the match done');
+      return false;
+    }
+    toast.success(dutyIds.length > 1 ? `${dutyIds.length} duties marked done` : 'Marked as done');
+    if (seasonId) await get().loadDuties(seasonId);
+    return true;
   },
 
   markNoShow: async (dutyId, adminName) => {

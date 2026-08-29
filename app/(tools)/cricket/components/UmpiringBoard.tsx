@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { FaWhatsapp } from 'react-icons/fa';
-import { buildDutyShareText, buildRosterSummaryText, whatsappShareUrl } from '@/lib/duty-share';
+import { buildDutyShareText, buildRosterSummaryText, buildThanksText, whatsappShareUrl } from '@/lib/duty-share';
 import { getTeamName } from '../lib/constants';
 import { playerLabels, type PlayerLabel } from '../lib/player-labels';
 import PlayerAvatar from './PlayerAvatar';
@@ -115,7 +115,7 @@ export default function UmpiringBoard() {
   const {
     duties, settings, loading, pendingId,
     loadDuties, claimDuty, releaseDuty,
-    markCompleted, markNoShow, reopenDuty, clearAssignment, deleteDuty, restoreDuty, undoSwap,
+    markMatchCompleted, markNoShow, reopenDuty, clearAssignment, deleteDuty, restoreDuty, undoSwap,
   } = useUmpiringStore();
 
   const isAdmin = userAccess.includes('admin') || (user ? adminUserIds.includes(user.id) : false);
@@ -229,7 +229,10 @@ export default function UmpiringBoard() {
       onClick: () => setAssignTarget(d),
     });
     if (d.status === 'claimed') {
-      items.push({ label: 'Mark as done', icon: <CircleCheckBig size={14} />, color: 'var(--green)', onClick: () => void markCompleted(d.id, adminName) });
+      // "Mark done" deliberately lives on the MATCH menu in the card header,
+      // not here — if the match was played, everyone who stood is done, and
+      // marking them one at a time invites marking one and forgetting the
+      // other. What stays here is what is genuinely about ONE person.
       items.push({ label: 'Mark no-show', icon: <UserX size={14} />, color: 'var(--orange)', onClick: () => void markNoShow(d.id, adminName) });
       items.push({ label: 'Clear slot', icon: <UserMinus size={14} />, color: 'var(--muted)', onClick: () => void clearAssignment(d.id) });
     }
@@ -267,14 +270,90 @@ export default function UmpiringBoard() {
    * from adminMenu so a whole-match edit is never reachable from a single
    * umpire's row — which is what made it natural to patch only that row.
    */
-  const matchMenu = (g: DutyGroup): CardMenuItem[] => [
-    {
-      label: 'Edit date, time, venue',
-      icon: <Pencil size={14} />,
-      color: 'var(--blue)',
-      onClick: () => setEditTarget(g.duties[0]!),
-    },
-  ];
+  /**
+   * WhatsApp thank-you for a match that has been stood.
+   *
+   * Named after the fact rather than at claim time: thanking someone for a job
+   * they have actually done is worth something, and thanking them in advance is
+   * a reminder wearing a nicer hat.
+   *
+   * Only players who COMPLETED count — a no-show must never appear in a public
+   * thank-you, which is exactly the mistake a `completed_at IS NOT NULL` filter
+   * would make, since the schema stamps that column for both.
+   */
+  const thanksFor = (g: DutyGroup): string | null => {
+    const names = g.duties
+      .filter((d) => d.status === 'completed')
+      .map((d) => d.assigned_player_name?.trim())
+      .filter((n): n is string => Boolean(n))
+      // Two slots can name the same person on a hand-added duty.
+      .filter((n, i, all) => all.indexOf(n) === i)
+      // First name only — "Hi Madhu", not "Hi Madhu Gundapaneni".
+      .map((n) => n.replace(/\([^)]*\)/g, ' ').trim().split(' ')[0] ?? n);
+
+    return buildThanksText(names, {
+      date: g.match_date,
+      teamA: g.team_a,
+      teamB: g.team_b,
+      venue: g.venue,
+    }, { teamName: getTeamName() });
+  };
+
+  const matchMenu = (g: DutyGroup): CardMenuItem[] => {
+    const items: CardMenuItem[] = [];
+
+    // Thanking people is not an admin privilege.
+    const thanks = thanksFor(g);
+    if (thanks) {
+      items.push({
+        label: 'Thank them on WhatsApp',
+        icon: <FaWhatsapp size={14} />,
+        color: '#25D366',
+        onClick: () => { window.open(whatsappShareUrl(thanks), '_blank', 'noopener'); },
+      });
+      items.push({
+        label: 'Copy thank-you',
+        icon: <Copy size={14} />,
+        color: 'var(--muted)',
+        onClick: () => copy(thanks, 'Thank-you copied'),
+      });
+    }
+
+    /**
+     * Completion belongs to the MATCH, not to each umpire.
+     *
+     * If the match was played and our people stood, they all stood — marking
+     * two umpires done one at a time is busywork that also invites marking one
+     * and forgetting the other, which silently under-counts somebody's duty.
+     *
+     * The exceptions stay per-umpire on the row menu, because they are
+     * genuinely individual: "Mark no-show" applies to one person who did not
+     * turn up, and "Clear slot" to one assignment that was wrong.
+     */
+    const claimed = g.duties.filter((d) => d.status === 'claimed');
+    if (isAdmin && claimed.length > 0) {
+      items.push({
+        label: claimed.length > 1 ? `Mark done (${claimed.length} umpires)` : 'Mark done',
+        icon: <CircleCheckBig size={14} />,
+        color: 'var(--green)',
+        // One write for the whole match — the store handles its own toast and
+        // reload, so looping would fire both once per umpire.
+        onClick: () => void markMatchCompleted(claimed.map((d) => d.id), adminName),
+      });
+    }
+
+    if (isAdmin) {
+      items.push({
+        label: 'Edit date, time, venue',
+        icon: <Pencil size={14} />,
+        color: 'var(--blue)',
+        onClick: () => setEditTarget(g.duties[0]!),
+        dividerBefore: items.length > 0,
+      });
+    }
+
+    return items;
+  };
 
   const shareText = useMemo(
     () => buildDutyShareText(duties, { teamName: getTeamName(), today }),
@@ -388,7 +467,7 @@ export default function UmpiringBoard() {
                 onClaim={claimDuty}
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
-                matchMenu={isAdmin ? matchMenu(g) : undefined}
+                matchMenu={matchMenu(g)}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}
@@ -474,7 +553,7 @@ export default function UmpiringBoard() {
                 onClaim={claimDuty}
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
-                matchMenu={isAdmin ? matchMenu(g) : undefined}
+                matchMenu={matchMenu(g)}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}

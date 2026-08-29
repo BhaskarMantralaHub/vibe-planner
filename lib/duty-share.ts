@@ -179,6 +179,56 @@ export function buildRosterSummaryText(
   return lines.join('\n');
 }
 
+/**
+ * A thank-you for a match that has just been stood, ready to paste in the group.
+ *
+ * Written for ONE or TWO names, because that is what a match produces — MTCA
+ * gives each fixture two umpire slots and we are named on one or both. The
+ * greeting reads "Hi Madhu" or "Hi Madhu and Mani", never a comma-list, since
+ * anything longer is not a thing this can be called with.
+ *
+ * Public praise is the whole point. Umpiring is the least glamorous job in club
+ * cricket — you give up a Saturday to stand at a match your own team is not
+ * playing — and being named in the group is the only reward on offer. So the
+ * names lead, and the match details follow as context rather than as the
+ * subject.
+ *
+ * Returns null when nobody is named, so a caller can hide the button instead of
+ * offering to send an empty thank-you.
+ */
+export function buildThanksText(
+  names: string[],
+  match: { date: string; teamA: string; teamB: string; venue?: string | null },
+  opts: { teamName?: string } = {},
+): string | null {
+  const clean = names.map((n) => n.trim()).filter(Boolean);
+  if (clean.length === 0) return null;
+
+  // "A and B", not "A, B" — two people are a pair, not a list.
+  const who = clean.length === 1
+    ? clean[0]!
+    : `${clean.slice(0, -1).join(', ')} and ${clean[clean.length - 1]!}`;
+
+  const lines = [
+    `🙏 *Thank you, ${who}!*`,
+    '',
+    `${clean.length === 1 ? 'You' : 'You both'} stood as umpire for us at`,
+    `${shortTeam(match.teamA)} v ${shortTeam(match.teamB)} · ${formatDateHeading(match.date)}`,
+  ];
+  if (match.venue) lines.push(`📍 ${match.venue}`);
+
+  lines.push(
+    '',
+    // Names the specific cost, because a bare "thanks" reads as a formality.
+    // Umpiring means giving up a day for a match you are not even playing in.
+    'Giving up your day for a match you were not even playing in is exactly the sort of thing that keeps this team going. 🧡',
+    '',
+    `🏏 *${opts.teamName ?? 'Sunrisers'}*`,
+  );
+
+  return lines.join('\n');
+}
+
 export interface PlayerMessageOptions {
   /** Today in Pacific, YYYY-MM-DD. */
   today: string;

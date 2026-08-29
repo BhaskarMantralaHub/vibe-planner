@@ -117,6 +117,13 @@ beforeEach(() => {
   toastCalls.length = 0;
   mockRpc.mockReset().mockResolvedValue({ data: 'ok', error: null });
   mockSupabase.from = vi.fn().mockReturnValue(mockQuery);
+  // Clear the CHAIN mocks too. Without this their call history accumulates
+  // across the whole file, so a test can only ever inspect `.at(-1)` and can
+  // never assert "this made exactly one update" or "this made none" — the two
+  // assertions that catch a loop where a single write was intended, and an
+  // unguarded `.in('id', [])`.
+  for (const m of chainMethods) mockQuery[m].mockClear();
+  mockQuery.maybeSingle.mockClear();
   useUmpiringStore.getState().reset();
   useUIStore.setState({ inflightCount: 0 });
 });
@@ -470,6 +477,57 @@ describe('admin duty actions', () => {
     expect(patch.status).toBe('completed');
     expect(patch.completed_at).toBeTruthy();
     expect(patch.completed_by).toBe('Admin');
+  });
+
+  describe('markMatchCompleted', () => {
+    it('marks every claimed slot on the match in ONE update', async () => {
+      // A loop of markCompleted would fire a success toast and a season reload
+      // per umpire, and could half-succeed with nowhere to report it.
+      const a = duty({ status: 'claimed', assigned_player_id: 'p1', role_slot: 1 });
+      const b = duty({ status: 'claimed', assigned_player_id: 'p2', role_slot: 2 });
+      useUmpiringStore.setState({ duties: [a, b] });
+
+      const ok = await useUmpiringStore.getState().markMatchCompleted([a.id, b.id], 'Admin');
+
+      expect(ok).toBe(true);
+      expect(mockQuery.update).toHaveBeenCalledTimes(1);
+      expect(mockQuery.in).toHaveBeenCalledWith('id', [a.id, b.id]);
+    });
+
+    it('sets status AND completed_at together, as the constraint requires', async () => {
+      const a = duty({ status: 'claimed', assigned_player_id: 'p1' });
+      useUmpiringStore.setState({ duties: [a] });
+
+      await useUmpiringStore.getState().markMatchCompleted([a.id], 'Admin');
+
+      const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+      expect(patch.status).toBe('completed');
+      expect(patch.completed_at).toBeTruthy();
+      expect(patch.completed_by).toBe('Admin');
+    });
+
+    it('re-asserts status=claimed in the query, not just in the caller', async () => {
+      // Guards a duty completed or cancelled on another device between render
+      // and tap — it must not be dragged back into 'completed'.
+      const a = duty({ status: 'claimed', assigned_player_id: 'p1' });
+      useUmpiringStore.setState({ duties: [a] });
+
+      await useUmpiringStore.getState().markMatchCompleted([a.id], 'Admin');
+
+      expect(mockQuery.eq).toHaveBeenCalledWith('status', 'claimed');
+      // team_id guard too — an admin of one team must not reach another's rows.
+      expect(mockQuery.eq).toHaveBeenCalledWith('team_id', 'team-1');
+    });
+
+    it('is a no-op for an empty list rather than updating everything', async () => {
+      // An unguarded .in('id', []) is the kind of thing that updates nothing on
+      // one client and everything on another.
+      useUmpiringStore.setState({ duties: [] });
+      const ok = await useUmpiringStore.getState().markMatchCompleted([], 'Admin');
+
+      expect(ok).toBe(false);
+      expect(mockQuery.update).not.toHaveBeenCalled();
+    });
   });
 
   it('markNoShow also stamps completed_at, as the constraint requires', async () => {
