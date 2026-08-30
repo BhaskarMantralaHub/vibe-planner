@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import {
-  buildDutyShareText, buildPlayerMessageText, buildRosterSummaryText, whatsappShareUrl,
+  buildAssignedReminderText, buildDutyShareText, buildPlayerMessageText,
+  buildRosterSummaryText, buildThanksText, whatsappShareUrl,
 } from '@/lib/duty-share';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
@@ -549,6 +550,144 @@ describe('buildPlayerMessageText', () => {
     )!;
     // Neither counts, so this falls through to the ask.
     expect(text).toContain('Could you take one?');
+  });
+});
+
+describe('buildAssignedReminderText', () => {
+  const claimed = (over: Partial<CricketUmpiringDuty> = {}) =>
+    duty({ status: 'claimed', assigned_player_id: 'p1', assigned_player_name: 'Madhu G', ...over });
+
+  it('names one person and their match', () => {
+    const text = buildAssignedReminderText([claimed()], { today: TODAY })!;
+    expect(text).toContain('Hi Madhu 🙏');
+    expect(text).toContain('California Super Kings v Oakwood Mavericks');
+    expect(text).toContain('🧢 Madhu');
+    expect(text).toContain('10:45 AM');
+    expect(text).toContain('Hansen Park');
+  });
+
+  // Asserted as WHOLE LINES, not substrings. `toContain('and Mani')` also
+  // matches "and Manigopal", so a substring assertion here passes for the wrong
+  // reason and would not catch a broken join.
+  const greeting = (text: string) => text.split('\n').find((l) => l.startsWith('Hi '));
+
+  it('joins two names with "and", not a comma', () => {
+    // "Madhu, Mani" reads like a roster printout; "Madhu and Mani" reads like
+    // someone talking to them.
+    const text = buildAssignedReminderText([
+      claimed({ role_slot: 1, assigned_player_name: 'Madhu G' }),
+      claimed({ role_slot: 2, assigned_player_name: 'Mani V', cricclubs_fixture_id: 6000 }),
+    ], { today: TODAY })!;
+    expect(greeting(text)).toBe('Hi Madhu and Mani 🙏');
+  });
+
+  it('uses "A, B and C" beyond two', () => {
+    const text = buildAssignedReminderText([
+      claimed({ assigned_player_name: 'Madhu G', cricclubs_fixture_id: 1 }),
+      claimed({ assigned_player_name: 'Mani V', cricclubs_fixture_id: 2, match_date: '2026-08-30' }),
+      claimed({ assigned_player_name: 'Naresh Muthaluru', cricclubs_fixture_id: 3, match_date: '2026-08-31' }),
+    ], { today: TODAY })!;
+    expect(greeting(text)).toBe('Hi Madhu, Mani and Naresh 🙏');
+  });
+
+  it('uses first names only', () => {
+    const text = buildAssignedReminderText([
+      claimed({ assigned_player_name: 'Venkat Gudala (Kittu)' }),
+    ], { today: TODAY })!;
+    expect(text).toContain('Hi Venkat');
+    expect(text).not.toContain('Gudala');
+  });
+
+  it('groups two umpires on ONE fixture into a single block', () => {
+    // Two slots on one match is one commitment — printing the match twice
+    // reads as two separate duties.
+    const text = buildAssignedReminderText([
+      claimed({ role_slot: 1, cricclubs_fixture_id: 500, assigned_player_name: 'Madhu G' }),
+      claimed({ role_slot: 2, cricclubs_fixture_id: 500, assigned_player_name: 'Mani V' }),
+    ], { today: TODAY })!;
+    const occurrences = text.split('California Super Kings v Oakwood Mavericks').length - 1;
+    expect(occurrences).toBe(1);
+    expect(text.split('\n')).toContain('🧢 Madhu and Mani');
+  });
+
+  it('lists each match separately across a weekend', () => {
+    const text = buildAssignedReminderText([
+      claimed({ cricclubs_fixture_id: 1, match_date: '2026-08-29', assigned_player_name: 'Madhu G' }),
+      claimed({ cricclubs_fixture_id: 2, match_date: '2026-08-30', assigned_player_name: 'Naresh M' }),
+    ], { today: TODAY })!;
+    expect(text).toContain('Saturday, Aug 29');
+    expect(text).toContain('Sunday, Aug 30');
+    expect(text).toContain('coming up');
+  });
+
+  it('names each person once in the greeting even with two duties', () => {
+    const text = buildAssignedReminderText([
+      claimed({ cricclubs_fixture_id: 1, match_date: '2026-08-29' }),
+      claimed({ cricclubs_fixture_id: 2, match_date: '2026-08-30' }),
+    ], { today: TODAY })!;
+    expect(text.match(/Hi Madhu/g)).toHaveLength(1);
+    expect(text).not.toContain('Hi Madhu and Madhu');
+  });
+
+  it('excludes open slots — those belong in the volunteer ask', () => {
+    const text = buildAssignedReminderText([
+      claimed(),
+      duty({ status: 'open', cricclubs_fixture_id: 999 }),
+    ], { today: TODAY })!;
+    expect(text).not.toContain('needed');
+    expect(text).not.toContain('can anyone');
+  });
+
+  it('excludes past, cancelled and deleted duties', () => {
+    expect(buildAssignedReminderText([
+      claimed({ match_date: '2026-08-01' }),
+    ], { today: TODAY })).toBeNull();
+
+    expect(buildAssignedReminderText([
+      claimed({ status: 'cancelled', cancelled_reason: 'admin' }),
+    ], { today: TODAY })).toBeNull();
+
+    expect(buildAssignedReminderText([
+      claimed({ deleted_at: '2026-08-20T00:00:00Z' }),
+    ], { today: TODAY })).toBeNull();
+  });
+
+  it('returns null when nobody is assigned, so the button can hide', () => {
+    expect(buildAssignedReminderText([], { today: TODAY })).toBeNull();
+    expect(buildAssignedReminderText([duty({ status: 'open' })], { today: TODAY })).toBeNull();
+  });
+
+  it('strips the MTCA prefix', () => {
+    const text = buildAssignedReminderText([claimed()], { today: TODAY })!;
+    expect(text).not.toContain('MTCA');
+  });
+});
+
+describe('buildThanksText', () => {
+  const match = { date: '2026-08-23', teamA: 'MTCA Sky Risers', teamB: 'MTCA Valley Risers', venue: 'Woodward Park 2' };
+
+  it('thanks one person', () => {
+    const text = buildThanksText(['Madhu'], match)!;
+    expect(text).toContain('Thank you, Madhu!');
+    expect(text).toContain('You stood as umpire');
+    expect(text).toContain('Sky Risers v Valley Risers');
+    expect(text).not.toContain('MTCA');
+  });
+
+  it('thanks two with "and", and switches to "You both"', () => {
+    const text = buildThanksText(['Madhu', 'Mani'], match)!;
+    expect(text).toContain('Thank you, Madhu and Mani!');
+    expect(text).toContain('You both stood as umpire');
+  });
+
+  it('includes the venue only when there is one', () => {
+    expect(buildThanksText(['Madhu'], match)!).toContain('📍 Woodward Park 2');
+    expect(buildThanksText(['Madhu'], { ...match, venue: null })!).not.toContain('📍');
+  });
+
+  it('returns null with nobody to thank', () => {
+    expect(buildThanksText([], match)).toBeNull();
+    expect(buildThanksText(['  '], match)).toBeNull();
   });
 });
 

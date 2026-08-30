@@ -180,6 +180,115 @@ export function buildRosterSummaryText(
 }
 
 /**
+ * "A", "A and B", "A, B and C" — never a bare comma-list.
+ *
+ * The final "and" matters more than it looks: these messages open by naming
+ * real people in front of their team-mates, and "Madhu, Mani" reads like a
+ * roster printout while "Madhu and Mani" reads like someone talking to them.
+ */
+function joinNames(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0]!;
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!}`;
+}
+
+/** First name only — "Madhu", not "Madhu Gundapaneni (Madz)". */
+function firstName(full: string): string {
+  return full.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/)[0] ?? full;
+}
+
+export interface AssignedReminderOptions {
+  /** Today in Pacific, YYYY-MM-DD. Duties before this are excluded. */
+  today: string;
+  teamName?: string;
+}
+
+/**
+ * Reminder for the people already assigned to upcoming duties, for the group.
+ *
+ * Distinct from `buildDutyShareText`, which asks for VOLUNTEERS to fill open
+ * slots. This one is aimed at the people who have already said yes, so it
+ * names them, states only what they need on the day, and asks for nothing.
+ * Mixing the two would bury a reminder inside a recruitment post.
+ *
+ * Handles one person, two, or a whole weekend's worth across several matches —
+ * the greeting names everyone once at the top, then each match lists who is on
+ * it, so nobody has to scan for their own name twice.
+ *
+ * Returns null when nobody is assigned to anything upcoming, so the caller can
+ * hide the button rather than posting an empty reminder.
+ */
+export function buildAssignedReminderText(
+  duties: CricketUmpiringDuty[],
+  opts: AssignedReminderOptions,
+): string | null {
+  const { today, teamName = 'Sunrisers' } = opts;
+
+  const upcoming = duties
+    .filter((d) => d.deleted_at === null)
+    // Only people who have actually committed. An open slot belongs in the
+    // volunteer ask, and a cancelled one is a match we are no longer covering.
+    .filter((d) => d.status === 'claimed')
+    .filter((d) => d.match_date >= today)
+    .filter((d) => Boolean(d.assigned_player_name))
+    .sort((a, b) =>
+      a.match_date.localeCompare(b.match_date)
+      || (a.match_time ?? '').localeCompare(b.match_time ?? ''));
+
+  if (upcoming.length === 0) return null;
+
+  // One block per MATCH — two umpires on one fixture is one commitment, and
+  // printing the match twice reads as two separate duties.
+  const matches = new Map<string, CricketUmpiringDuty[]>();
+  for (const d of upcoming) {
+    const key = d.cricclubs_fixture_id !== null
+      ? `f:${d.cricclubs_fixture_id}`
+      : `m:${d.match_date}|${[d.team_a, d.team_b].sort().join('|')}|${d.match_time ?? ''}`;
+    const list = matches.get(key) ?? [];
+    list.push(d);
+    matches.set(key, list);
+  }
+
+  // Everyone named once, in the order their duty falls.
+  const everyone: string[] = [];
+  for (const d of upcoming) {
+    const n = firstName(d.assigned_player_name!);
+    if (!everyone.includes(n)) everyone.push(n);
+  }
+
+  const single = matches.size === 1;
+  const lines: string[] = [
+    single ? '⏰ *Umpiring reminder*' : '⏰ *Umpiring — coming up*',
+    '',
+    `Hi ${joinNames(everyone)} 🙏`,
+  ];
+
+  for (const slots of matches.values()) {
+    const head = slots[0]!;
+    const who = joinNames(
+      slots.map((d) => firstName(d.assigned_player_name!))
+        .filter((n, i, all) => all.indexOf(n) === i),
+    );
+    lines.push('');
+    lines.push(`*${formatDateHeading(head.match_date)} · ${formatTime(head.match_time)}*`);
+    lines.push(`${shortTeam(head.team_a)} v ${shortTeam(head.team_b)}`);
+    if (head.venue) lines.push(`📍 ${head.venue}`);
+    // Repeated per match even when there is only one, so a weekend with two
+    // fixtures never leaves anyone guessing which one is theirs.
+    lines.push(`🧢 ${who}`);
+  }
+
+  lines.push(
+    '',
+    'Please try to reach a few minutes early. Thank you for standing! 🧡',
+    '',
+    `🏏 *${teamName}*`,
+  );
+
+  return lines.join('\n');
+}
+
+/**
  * A thank-you for a match that has just been stood, ready to paste in the group.
  *
  * Written for ONE or TWO names, because that is what a match produces — MTCA
@@ -204,10 +313,7 @@ export function buildThanksText(
   const clean = names.map((n) => n.trim()).filter(Boolean);
   if (clean.length === 0) return null;
 
-  // "A and B", not "A, B" — two people are a pair, not a list.
-  const who = clean.length === 1
-    ? clean[0]!
-    : `${clean.slice(0, -1).join(', ')} and ${clean[clean.length - 1]!}`;
+  const who = joinNames(clean);
 
   const lines = [
     `🙏 *Thank you, ${who}!*`,

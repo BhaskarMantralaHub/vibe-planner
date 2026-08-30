@@ -12,7 +12,10 @@ import {
 } from 'lucide-react';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { FaWhatsapp } from 'react-icons/fa';
-import { buildDutyShareText, buildRosterSummaryText, buildThanksText, whatsappShareUrl } from '@/lib/duty-share';
+import {
+  buildAssignedReminderText, buildDutyShareText, buildRosterSummaryText,
+  buildThanksText, whatsappShareUrl,
+} from '@/lib/duty-share';
 import { getTeamName } from '../lib/constants';
 import { playerLabels, type PlayerLabel } from '../lib/player-labels';
 import PlayerAvatar from './PlayerAvatar';
@@ -302,7 +305,7 @@ export default function UmpiringBoard() {
   const matchMenu = (g: DutyGroup): CardMenuItem[] => {
     const items: CardMenuItem[] = [];
 
-    // Thanking people is not an admin privilege.
+    // Neither thanking nor reminding is an admin privilege.
     const thanks = thanksFor(g);
     if (thanks) {
       items.push({
@@ -316,6 +319,23 @@ export default function UmpiringBoard() {
         icon: <Copy size={14} />,
         color: 'var(--muted)',
         onClick: () => copy(thanks, 'Thank-you copied'),
+      });
+    }
+
+    // Reminder for just THIS match's umpires — the same builder as the
+    // weekend-wide button, handed a single match's duties.
+    const remind = buildAssignedReminderText(g.duties, { today, teamName: getTeamName() });
+    if (remind) {
+      const who = g.duties
+        .filter((d) => d.status === 'claimed' && d.assigned_player_name)
+        .map((d) => d.assigned_player_name!.replace(/\([^)]*\)/g, ' ').trim().split(' ')[0])
+        .filter((n, i, all) => all.indexOf(n) === i);
+      items.push({
+        label: who.length === 1 ? `Remind ${who[0]}` : `Remind ${who.join(' & ')}`,
+        icon: <FaWhatsapp size={14} />,
+        color: '#25D366',
+        onClick: () => { window.open(whatsappShareUrl(remind), '_blank', 'noopener'); },
+        dividerBefore: items.length > 0,
       });
     }
 
@@ -354,6 +374,19 @@ export default function UmpiringBoard() {
 
     return items;
   };
+
+  /** Reminder for everyone with an upcoming duty — one tap, whole weekend. */
+  const reminderText = useMemo(
+    () => buildAssignedReminderText(duties, { today, teamName: getTeamName() }),
+    [duties, today],
+  );
+  /** Distinct people named in it, for the button's label. */
+  const assignedCount = useMemo(() => new Set(
+    duties
+      .filter((d) => d.deleted_at === null && d.status === 'claimed' && d.match_date >= today)
+      .map((d) => d.assigned_player_id)
+      .filter(Boolean),
+  ).size, [duties, today]);
 
   const shareText = useMemo(
     () => buildDutyShareText(duties, { teamName: getTeamName(), today }),
@@ -444,6 +477,22 @@ export default function UmpiringBoard() {
                   </Text>
                 </div>
               </div>
+              {/* Two different jobs, so two buttons rather than one message
+                  trying to do both: the ask recruits for OPEN slots, the
+                  reminder is for people who already said yes. Burying a
+                  reminder inside a recruitment post is how it gets ignored. */}
+              {reminderText && (
+                <ShareFooter
+                  text={reminderText}
+                  label={
+                    assignedCount === 1
+                      ? 'Remind the umpire on WhatsApp'
+                      : `Remind ${assignedCount} umpires on WhatsApp`
+                  }
+                  caption="Names everyone with an upcoming duty"
+                  onCopy={() => copy(reminderText, 'Reminder copied')}
+                />
+              )}
               {shareText && (
                 <ShareFooter
                   text={shareText}
