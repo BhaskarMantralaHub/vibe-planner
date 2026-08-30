@@ -31,6 +31,7 @@ import {
 import type { CricketPlayer, CricketUmpiringDuty } from '@/types/cricket';
 import type { DutyPlayerStat } from '@/stores/umpiring-store';
 import DutyForm from './DutyForm';
+import CricketFab from './CricketFab';
 
 type Tab = 'upcoming' | 'completed' | 'roster';
 
@@ -729,20 +730,9 @@ export default function UmpiringBoard() {
 
       {isAdmin && selectedSeasonId && (
         <>
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            aria-label="Add duty"
-            className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:scale-95"
-            style={{
-              // Clears the bottom nav pill, which is ~60px tall including its
-              // own safe-area padding. Same offset MatchSchedule's FAB uses.
-              bottom: 'calc(60px + env(safe-area-inset-bottom) + 16px)',
-              background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-            }}
-          >
+          <CricketFab onClick={() => setShowForm(true)} label="Add duty">
             <Plus size={24} />
-          </button>
+          </CricketFab>
           <DutyForm open={showForm} onClose={() => setShowForm(false)} seasonId={selectedSeasonId} />
           <DutyForm
             open={editTarget !== null}

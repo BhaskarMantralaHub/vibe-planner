@@ -100,6 +100,28 @@
   --table-header-bg: color-mix(in srgb, var(--cricket) 8%, var(--surface));
   --highlight-bg: color-mix(in srgb, var(--cricket) 8%, var(--card));
 
+  /* ── Cricket bottom-nav geometry — SINGLE SOURCE OF TRUTH ──
+     Every floating element that must clear the nav pill (the FABs, and
+     anything added later) reads --cricket-fab-bottom instead of re-deriving
+     the pill's size. CricketSectionNav itself is positioned from
+     --cricket-nav-inset, so the nav and the things above it cannot drift
+     apart: change the pill here and everything follows.
+
+     --cricket-nav-height mirrors the pill's box in CricketSectionNav:
+       10px padding-top + 44px min-height tab + 8px padding-bottom = 62px,
+     plus the slice of safe-area the pill absorbs internally (× 0.35).
+     Geometry, not colour — one definition serves both themes.
+
+     The 0px fallbacks matter: a bare env() that a browser does not understand
+     makes the whole declaration invalid, which would drop `bottom` to auto and
+     fling the FAB to the top of the screen. */
+  --cricket-nav-inset: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  --cricket-nav-height: calc(62px + env(safe-area-inset-bottom, 0px) * 0.35);
+  --cricket-fab-gap: 16px;
+  --cricket-fab-bottom: calc(
+    var(--cricket-nav-inset) + var(--cricket-nav-height) + var(--cricket-fab-gap)
+  );
+
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
   --toolkit: #4DBBEB;
   --toolkit-accent: #5B9BD5;

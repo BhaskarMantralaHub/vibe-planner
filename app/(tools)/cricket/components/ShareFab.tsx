@@ -3,31 +3,26 @@
 import { useState } from 'react';
 import { Share2 } from 'lucide-react';
 import ShareButton from './ShareButton';
+import CricketFab from './CricketFab';
 
 /**
  * Floating action button for sharing season stats / standings.
  * Replaces the previous "Share" tab in the bottom-pill nav — Share is an
  * action (opens a sheet), not a navigation tab, so it belongs as a FAB
  * anchored above the pill.
+ *
+ * Placement/size/colour all come from CricketFab so this matches the Add
+ * buttons on Matches, Umpiring and Moments. It used to sit at z-50, which put
+ * it on top of open modal overlays.
  */
 export default function ShareFab() {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Share"
-        onClick={() => setOpen(true)}
-        className="fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-95"
-        style={{
-          bottom: 'calc(max(1.5rem, env(safe-area-inset-bottom)) + 5rem)',
-          background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-          boxShadow: '0 10px 28px color-mix(in srgb, var(--cricket) 40%, transparent), 0 4px 10px rgba(0,0,0,0.15)',
-        }}
-      >
-        <Share2 size={22} strokeWidth={2.25} />
-      </button>
+      <CricketFab onClick={() => setOpen(true)} label="Share">
+        <Share2 size={24} strokeWidth={2.25} />
+      </CricketFab>
 
       {open && (
         <>

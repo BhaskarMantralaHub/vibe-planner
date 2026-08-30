@@ -189,6 +189,8 @@ export default function CricketSectionNav({
       // Internal padding includes a slice of safe-area-inset-bottom so
       // the pill visually extends to absorb the iOS home indicator
       // without us double-counting the outer offset.
+      // KEEP IN SYNC with --cricket-nav-height in globals.css (10 + 44 + 8),
+      // which is what CricketFab uses to sit clear of this pill.
       padding: '10px 6px',
       paddingBottom: 'calc(8px + env(safe-area-inset-bottom) * 0.35)',
     }),
@@ -213,7 +215,10 @@ export default function CricketSectionNav({
   return (
     <div
       className="fixed left-1/2 -translate-x-1/2 z-40"
-      style={{ bottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      // Read from the token so the pill and everything that must clear it
+      // (CricketFab) are positioned from one number. See --cricket-nav-inset
+      // in globals.css; --cricket-nav-height there mirrors the padding below.
+      style={{ bottom: 'var(--cricket-nav-inset)' }}
     >
       {/* Gradient fade above the nav — content scrolling past gently
           dissolves into the page background just before reaching the

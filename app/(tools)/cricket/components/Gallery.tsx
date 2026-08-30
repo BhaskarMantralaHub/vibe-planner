@@ -5,6 +5,7 @@ import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
 import GalleryUpload from './GalleryUpload';
+import CricketFab from './CricketFab';
 import { Camera, CircleCheck, LoaderCircle, Plus } from 'lucide-react';
 
 function EmptyState({ onUpload }: { onUpload: () => void }) {
@@ -90,19 +91,11 @@ export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
         </>
       )}
 
-      {/* FAB — new post */}
+      {/* FAB — new post. Shared placement/colour, see CricketFab. */}
       {posts.length > 0 && (
-        <button
-          onClick={() => setShowUpload(true)}
-          className="fixed right-4 z-40 flex items-center justify-center w-12 h-12 rounded-full cursor-pointer active:scale-90 transition-transform shadow-lg"
-          style={{
-            bottom: 'calc(max(1.5rem, env(safe-area-inset-bottom)) + 5rem)',
-            background: 'var(--text)',
-            color: 'var(--bg)',
-          }}
-        >
-          <Plus size={22} strokeWidth={2.5} />
-        </button>
+        <CricketFab onClick={() => setShowUpload(true)} label="New post">
+          <Plus size={24} strokeWidth={2.5} />
+        </CricketFab>
       )}
 
       <GalleryUpload open={showUpload} onClose={() => setShowUpload(false)} />

@@ -6,12 +6,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera, Trophy, ArrowDown, Shield } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
+import CricketFab from './CricketFab';
 import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
 import CricketSectionNav, { type CricketSectionNavItem } from './CricketSectionNav';
 
@@ -1648,18 +1649,14 @@ export default function MatchSchedule() {
       </Dialog>
 
 
-      {/* FAB for admin — positioned above bottom tab bar */}
+      {/* FAB for admin — shared placement, see CricketFab */}
       {isAdmin && (
-        <button
+        <CricketFab
           onClick={() => { setEditingMatch(null); setShowForm(true); }}
-          className="fixed right-5 z-40 h-14 w-14 flex items-center justify-center rounded-full text-white cursor-pointer active:scale-95 transition-transform"
-          style={{
-            bottom: 'calc(60px + env(safe-area-inset-bottom, 0px) + 16px)',
-            background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-            boxShadow: '0 4px 20px var(--cricket-glow)',
-          }}>
-          <span className="text-[24px] font-light leading-none">+</span>
-        </button>
+          label="Add match"
+        >
+          <Plus size={24} />
+        </CricketFab>
       )}
 
       {/* Match Form Drawer */}
