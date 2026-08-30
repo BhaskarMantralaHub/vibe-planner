@@ -352,16 +352,34 @@ export const useUmpiringStore = create<UmpiringState>((set, get) => ({
    */
   assignDuty: async (dutyId, playerId, adminName) => {
     const current = get().duties.find((d) => d.id === dutyId);
-    const isClosedOut = current?.status === 'completed' || current?.status === 'no_show';
+    /**
+     * Every status that must SURVIVE an assignment.
+     *
+     * `cancelled` belongs here and was missing, which made assigning an umpire
+     * to a handed-over duty fail outright: the patch set status='claimed' while
+     * `cancelled_reason` stayed populated, and
+     * `chk_umpiring_cancelled_reason` requires
+     * `(status = 'cancelled') = (cancelled_reason IS NOT NULL)`.
+     * PostgREST surfaced it as an empty error object, so the toast just said
+     * "Could not update the duty" with nothing in the console to explain it.
+     *
+     * Un-cancelling is a separate, deliberate act — `undoSwap` — because it
+     * means "we ARE going after all", which is a decision, not a side effect of
+     * naming somebody.
+     */
+    const isTerminal = current?.status === 'completed'
+      || current?.status === 'no_show'
+      || current?.status === 'cancelled';
 
     await patchDuty(get, dutyId, {
       assigned_player_id: playerId,
       assigned_by: adminName,
       assigned_at: current?.assigned_at ?? new Date().toISOString(),
-      // Only promote an open slot to 'claimed'. Leave completed / no_show alone,
-      // which also leaves completed_at intact — the schema ties the two together.
-      ...(isClosedOut ? {} : { status: 'claimed', completed_at: null, completed_by: null }),
-    }, isClosedOut ? 'Umpire updated' : 'Duty assigned');
+      // Only promote an OPEN slot to 'claimed'. Leaving a terminal status alone
+      // also leaves completed_at / cancelled_reason intact, both of which the
+      // schema ties to the status.
+      ...(isTerminal ? {} : { status: 'claimed', completed_at: null, completed_by: null }),
+    }, isTerminal ? 'Umpire updated' : 'Duty assigned');
   },
 
   clearAssignment: async (dutyId) => {

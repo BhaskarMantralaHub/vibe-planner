@@ -479,6 +479,53 @@ describe('admin duty actions', () => {
     expect(patch.completed_by).toBe('Admin');
   });
 
+  describe('assignDuty preserves a terminal status', () => {
+    /**
+     * Regression: assigning an umpire to a HANDED-OVER duty used to fail
+     * outright. The patch set status='claimed' while cancelled_reason stayed
+     * populated, and chk_umpiring_cancelled_reason requires
+     * `(status = 'cancelled') = (cancelled_reason IS NOT NULL)`.
+     * PostgREST reported it as an empty error object, so all the user saw was
+     * "Could not update the duty".
+     */
+    it('does NOT reopen a cancelled duty when naming somebody', async () => {
+      const d = duty({ status: 'cancelled', cancelled_reason: 'admin', swap_team: 'MTCA Chargers' });
+      useUmpiringStore.setState({ duties: [d] });
+
+      await useUmpiringStore.getState().assignDuty(d.id, 'p1', 'Admin');
+
+      const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+      expect(patch.assigned_player_id).toBe('p1');
+      // The three keys that would break the constraint.
+      expect(patch).not.toHaveProperty('status');
+      expect(patch).not.toHaveProperty('completed_at');
+      expect(patch).not.toHaveProperty('completed_by');
+    });
+
+    it('still does not reopen a completed or no-show duty', async () => {
+      for (const status of ['completed', 'no_show'] as const) {
+        const d = duty({ status, completed_at: '2026-08-23T00:00:00Z' });
+        useUmpiringStore.setState({ duties: [d] });
+
+        await useUmpiringStore.getState().assignDuty(d.id, 'p1', 'Admin');
+
+        const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+        expect(patch).not.toHaveProperty('status');
+      }
+    });
+
+    it('DOES promote an open slot to claimed', async () => {
+      const d = duty({ status: 'open' });
+      useUmpiringStore.setState({ duties: [d] });
+
+      await useUmpiringStore.getState().assignDuty(d.id, 'p1', 'Admin');
+
+      const patch = mockQuery.update.mock.calls.at(-1)?.[0];
+      expect(patch.status).toBe('claimed');
+      expect(patch.completed_at).toBeNull();
+    });
+  });
+
   describe('markMatchCompleted', () => {
     it('marks every claimed slot on the match in ONE update', async () => {
       // A loop of markCompleted would fire a success toast and a season reload

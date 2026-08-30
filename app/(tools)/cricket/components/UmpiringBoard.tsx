@@ -223,14 +223,22 @@ export default function UmpiringBoard() {
 
   const adminMenu = (d: CricketUmpiringDuty): CardMenuItem[] => {
     const items: CardMenuItem[] = [];
-    // Always first: correcting who stood is the most common admin action,
-    // especially on historical duties where the record was never captured.
-    items.push({
-      label: d.assigned_player_id ? 'Change umpire' : 'Set umpire',
-      icon: <UserCog size={14} />,
-      color: 'var(--cricket)',
-      onClick: () => setAssignTarget(d),
-    });
+    // Correcting who stood is the most common admin action, especially on
+    // historical duties where the record was never captured — so it goes first.
+    //
+    // NOT offered on a handed-over duty. We are not attending that match, so
+    // there is nobody to name; "Undo swap" below is the step that means "we ARE
+    // going after all", and assignment follows from there. Offering it here was
+    // a dead end — the write was rejected by chk_umpiring_cancelled_reason and
+    // surfaced only as "Could not update the duty".
+    if (d.status !== 'cancelled') {
+      items.push({
+        label: d.assigned_player_id ? 'Change umpire' : 'Set umpire',
+        icon: <UserCog size={14} />,
+        color: 'var(--cricket)',
+        onClick: () => setAssignTarget(d),
+      });
+    }
     if (d.status === 'claimed') {
       // "Mark done" deliberately lives on the MATCH menu in the card header,
       // not here — if the match was played, everyone who stood is done, and
