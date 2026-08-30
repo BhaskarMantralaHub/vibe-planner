@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ComposerModal, Input, Label, Button, Text, SegmentedControl, Alert } from '@/components/ui';
+import { ComposerModal, Input, Label, Button, Text, Alert } from '@/components/ui';
 import { Check } from 'lucide-react';
 import { useUmpiringStore, todayPT } from '@/stores/umpiring-store';
 import type { CricketUmpiringDuty } from '@/types/cricket';
@@ -13,7 +13,7 @@ import type { CricketUmpiringDuty } from '@/types/cricket';
  * ComposerModal, NOT vaul Drawer: this form has text inputs, and vaul's
  * repositionInputs is broken (CLAUDE.md). Text inputs are placed FIRST so they
  * sit in the visible upper half when the iOS keyboard rises; the tap-only
- * widgets (slot, kind, date/time) sit below.
+ * widgets (positions, date/time) sit below.
  */
 interface DutyFormProps {
   open: boolean;
@@ -23,7 +23,6 @@ interface DutyFormProps {
   editing?: CricketUmpiringDuty | null;
 }
 
-type DutyKind = 'swap_in' | 'manual';
 
 export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormProps) {
   const { addManualDuty, updateDuty } = useUmpiringStore();
@@ -38,7 +37,6 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
   /** One duty row per selected position. Kept sorted so slot 1 is created
    *  before slot 2, matching the order the board renders them. */
   const [roleSlots, setRoleSlots] = useState<string[]>(['1']);
-  const [kind, setKind] = useState<DutyKind>('swap_in');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,7 +50,6 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
       setMatchDate(editing.match_date);
       setMatchTime(editing.match_time ?? '10:45');
       setRoleSlots([String(editing.role_slot)]);
-      setKind(editing.source === 'swap_in' ? 'swap_in' : 'manual');
     } else {
       setTeamA('');
       setTeamB('');
@@ -62,7 +59,6 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
       setMatchDate(todayPT());
       setMatchTime('10:45');
       setRoleSlots(['1']);
-      setKind('swap_in');
     }
   }, [open, editing]);
 
@@ -89,7 +85,7 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
           team_a: teamA.trim(),
           team_b: teamB.trim(),
           match_type: editing.match_type,
-          swap_team: kind === 'swap_in' ? (swapTeam.trim() || null) : null,
+          swap_team: swapTeam.trim() || null,
           notes: notes.trim() || null,
         });
         onClose();
@@ -108,7 +104,7 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
           role_slot: Number(slot),
           // A named other club marks this as a swap we took on, which the board
           // badges differently from an admin-invented duty.
-          swap_team: kind === 'swap_in' ? (swapTeam.trim() || null) : null,
+          swap_team: swapTeam.trim() || null,
           notes: notes.trim() || null,
           match_type: 'league',
         });
@@ -175,18 +171,26 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
           />
         </div>
 
-        {kind === 'swap_in' && (
-          <div className="space-y-1.5">
-            <Label htmlFor="duty-swap">Taken over from</Label>
-            <Input
-              id="duty-swap"
-              value={swapTeam}
-              onChange={(e) => setSwapTeam(e.target.value)}
-              placeholder="e.g. MTCA Power Stars"
-              autoComplete="off"
-            />
-          </div>
-        )}
+        {/* This field alone decides whether the duty is a swap. The store does
+            `source: swap_team ? 'swap_in' : 'manual'`, so a separate
+            "Swapped in / Added by hand" toggle expressed the same fact twice —
+            and picking "Swapped in" while leaving this blank produced a
+            'manual' duty regardless, which made the toggle look broken. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="duty-swap">Taken over from</Label>
+          <Input
+            id="duty-swap"
+            value={swapTeam}
+            onChange={(e) => setSwapTeam(e.target.value)}
+            placeholder="e.g. MTCA Power Stars"
+            autoComplete="off"
+          />
+          <Text as="p" size="2xs" color="dim">
+            {swapTeam.trim()
+              ? `Recorded as a duty swapped in from ${swapTeam.trim()}.`
+              : 'Leave blank unless another club handed this duty to us.'}
+          </Text>
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="duty-notes">Note</Label>
@@ -201,21 +205,6 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
 
         {/* Tap-only controls BELOW the text inputs. Hidden for MTCA duties:
             their source is owned by the sync, not the admin. */}
-        {editing?.source !== 'mtca' && (
-        <div className="space-y-1.5">
-          <Label>Where this duty came from</Label>
-          <SegmentedControl
-            ariaLabel="Duty source"
-            options={[
-              { key: 'swap_in', label: 'Swapped in' },
-              { key: 'manual', label: 'Added by hand' },
-            ]}
-            active={kind}
-            onChange={(k) => setKind(k as DutyKind)}
-          />
-        </div>
-        )}
-
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="duty-date">Date</Label>
@@ -248,10 +237,14 @@ export default function DutyForm({ open, onClose, seasonId, editing }: DutyFormP
               board and the fairness count need; the form just stops making you
               say it twice. */}
           <div className="flex gap-2">
+            {/* Umpire 1 and 2 only. A match has exactly two umpire positions —
+                there is no third one to assign, and offering an "Extra" invited
+                creating a duty that corresponds to nothing on MTCA's fixture.
+                The column still permits slots 3-4 for any historical row, so
+                nothing existing breaks; they are just not offerable. */}
             {([
               { slot: '1', label: 'Umpire 1' },
               { slot: '2', label: 'Umpire 2' },
-              { slot: '3', label: 'Extra' },
             ] as const).map(({ slot, label }) => {
               const on = roleSlots.includes(slot);
               return (
