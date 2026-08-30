@@ -25,12 +25,13 @@ import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import ShareFab from './components/ShareFab';
-import CategoryDonut from './components/CategoryDonut';
-import MonthlyBar from './components/MonthlyBar';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
 import SplitsDashboard from './components/SplitsDashboard';
-type View = 'players' | 'expenses' | 'fees' | 'charts' | 'sponsors' | 'splits';
+// 'charts' was removed (unused in practice). A stale '#charts' hash or a
+// sessionStorage entry from before the change simply fails the VALID_VIEWS
+// check and falls back to 'players', so old bookmarks degrade quietly.
+type View = 'players' | 'expenses' | 'fees' | 'sponsors' | 'splits';
 
 /* ── Animated counter hook ── */
 function useAnimatedValue(target: number, duration = 600) {
@@ -175,7 +176,9 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
 }
 
 function viewToTab(view: View): Tab {
-  if (view === 'players' || view === 'fees') return 'players';
+  // Season fees live under Finances, not Players: they are money in, the other
+  // half of the pool alongside expenses. Players is now a single view (Roster).
+  if (view === 'players') return 'players';
   return 'finances';
 }
 
@@ -208,7 +211,7 @@ function CricketDashboard() {
   // who is actually playing the selected season. Falls back to the team-wide
   // list for a season with no roster rows. See ./lib/season-roster.
   const activePlayers = billableRoster(seasonRoster(players, seasonPlayers, selectedSeasonId));
-  const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'charts', 'sponsors', 'splits'];
+  const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'sponsors', 'splits'];
   const SS_KEY = 'cricket:activeView';
   const [activeView, setActiveView] = useState<View>(() => {
     if (typeof window === 'undefined') return 'players';
@@ -278,7 +281,9 @@ function CricketDashboard() {
       // Skip if user is typing in an input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const viewKeys: Record<string, View> = { '1': 'players', '2': 'fees', '3': 'expenses', '4': 'splits', '5': 'charts', '6': 'sponsors' };
+      // Numbered in the order the views appear on screen: Roster, then the
+      // four Finances sub-views left to right.
+      const viewKeys: Record<string, View> = { '1': 'players', '2': 'expenses', '3': 'fees', '4': 'splits', '5': 'sponsors' };
       const view = viewKeys[e.key];
       if (view) handleViewChange(view);
     };
@@ -468,25 +473,26 @@ function CricketDashboard() {
           {/* Share — extracted from the pill into a standalone FAB */}
           <ShareFab />
 
-          {/* Segmented controls for tabs with sub-views */}
-          {activeTab === 'players' && (
-            <SegmentedControl
-              options={[{ key: 'players', label: 'Roster' }, { key: 'fees', label: 'Season Fees' }]}
-              active={activeView}
-              onChange={(key) => handleViewChange(key as View)}
-              className="mb-4"
-            />
-          )}
+          {/* Segmented control for Finances, which is the only tab with
+              sub-views now. Players is a single view (Roster) — a one-option
+              segmented control is just a label that looks tappable.
+
+              Labelled "Fees", not "Season Fees": SegmentedControl lays its
+              buttons out flex-1 with overflow-hidden and no horizontal
+              padding, so with four options a 320px phone gives each ~69px and
+              "Season Fees" (~78px at 13px semibold) would clip mid-word. The
+              season is already named in the pill above, so the word is
+              redundant here anyway. */}
           {activeTab === 'finances' && (
             <SegmentedControl
-              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'splits', label: 'Splits' }, { key: 'charts', label: 'Charts' }, { key: 'sponsors', label: 'Sponsors' }]}
+              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'fees', label: 'Fees' }, { key: 'splits', label: 'Splits' }, { key: 'sponsors', label: 'Sponsors' }]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
               className="mb-4"
             />
           )}
-          {/* Summary Stats — show only on players, fees, charts */}
-          {(activeView === 'players' || activeView === 'fees' || activeView === 'charts' || activeView === 'sponsors') && (
+          {/* Summary Stats — show only on players, fees, sponsors */}
+          {(activeView === 'players' || activeView === 'fees' || activeView === 'sponsors') && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -527,12 +533,6 @@ function CricketDashboard() {
               </div>
             )}
             {activeView === 'splits' && <SplitsDashboard />}
-            {activeView === 'charts' && (
-              <div className="space-y-5">
-                <CategoryDonut />
-                <MonthlyBar />
-              </div>
-            )}
             {activeView === 'fees' && <FeeTracker />}
             {activeView === 'sponsors' && <SponsorshipSection />}
           </div>
