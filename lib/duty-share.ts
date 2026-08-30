@@ -12,6 +12,26 @@ import type { CricketUmpiringDuty } from '@/types/cricket';
  * It does NOT use tables, code blocks or wide lines — phone screens wrap at
  * roughly 35 characters, so every line is kept short and indentation is done
  * with spaces rather than columns.
+ *
+ * ── HOUSE VOICE: NO EMOJI, PLAIN SENTENCES ──
+ * These messages are pasted into the team group under a real person's name, so
+ * they have to read like that person typed them. Every template used to open
+ * with an emoji and decorate each line with another (🏏 ✅ 🙏 📍 🧢 👉 🙌);
+ * together with title-case headings and an em-dash in every other sentence,
+ * that is the exact texture people now recognise as machine-written, and it
+ * quietly undercuts a message whose whole job is to sound like a teammate
+ * asking a favour.
+ *
+ * The rules, when adding or editing a template here:
+ *   • No emoji. Where one carried meaning ("🧢 Madhu"), use the word
+ *     ("Umpire: Madhu") — that is clearer anyway, and it survives clients that
+ *     render emoji differently.
+ *   • Bold is for the heading and the one ask, not for emphasis mid-sentence.
+ *   • Sentence case in headings. Title Case reads like a newsletter.
+ *   • Prefer commas and full stops to em-dashes.
+ *   • Contractions are fine. People use them.
+ * Pinned by tests/unit/duty-share.test.ts, which asserts no template contains
+ * an emoji.
  */
 
 /** Every team on this league is prefixed "MTCA ", which is pure noise in chat. */
@@ -118,7 +138,7 @@ export function buildRosterSummaryText(
   const yetTo = rows.filter((r) => !stood.includes(r) && !booked.includes(r)).sort(byName);
 
   const lines: string[] = [
-    `🏏 *${teamName} — Umpiring Summary*`,
+    `*${teamName} umpiring update*`,
     `_${stood.length} of ${rows.length} have stood at least once_`,
   ];
 
@@ -140,17 +160,17 @@ export function buildRosterSummaryText(
   if (stood.length > 0) {
     // showUpcoming: these people are already counted as done, so a further
     // booking is extra and needs saying out loud.
-    lines.push('', `✅ *Stood (${stood.length})*`, list(stood, true));
+    lines.push('', `*Stood (${stood.length})*`, list(stood, true));
   }
   if (booked.length > 0) {
     // "Upcoming" here, but "Signed up" in the app's roster legend. Not an
     // inconsistency: the app has a TAB called Upcoming, so reusing the word for
     // a group of people would make it mean two things on one screen. A chat
     // message has no such collision, and "Upcoming" reads better there.
-    lines.push('', `🕐 *Upcoming (${booked.length})*`, list(booked, false));
+    lines.push('', `*Upcoming (${booked.length})*`, list(booked, false));
   }
   if (yetTo.length > 0) {
-    lines.push('', `⏳ *Yet to umpire (${yetTo.length})*`, list(yetTo, false));
+    lines.push('', `*Yet to umpire (${yetTo.length})*`, list(yetTo, false));
   }
 
   lines.push('');
@@ -161,19 +181,20 @@ export function buildRosterSummaryText(
     //    that already has one umpire, and two spots can be on one match.
     // "Spot" is also the word the team already uses for these.
     lines.push(
-      `🙏 *${openSlots} umpiring ${openSlots === 1 ? 'spot' : 'spots'} still open — please help.*`,
+      `*${openSlots} umpiring ${openSlots === 1 ? 'spot is' : 'spots are'} still open. `
+      + 'Please help if you can.*',
     );
-    lines.push(`Add your name 👉 ${url}`);
+    lines.push(`Add your name here: ${url}`);
     lines.push(REPLY_FALLBACK);
   } else if (yetTo.length > 0) {
     // Nothing to claim right now, so an ask would be pointless. Worded as
     // "every duty is covered" rather than "no duties open", because the latter
     // sits directly under "Yet to umpire (7)" and reads as a contradiction —
     // seven people still owe one, but there is nothing available to take.
-    lines.push('*Every duty is covered for now — thank you!* 🙌');
+    lines.push('*Everything is covered for now, thanks.*');
     lines.push('_More will come up as MTCA publishes fixtures._');
   } else {
-    lines.push('*Everyone has stood — thank you all!* 🙌');
+    lines.push('*Everyone has stood at least once. Thanks all.*');
   }
 
   return lines.join('\n');
@@ -258,9 +279,9 @@ export function buildAssignedReminderText(
 
   const single = matches.size === 1;
   const lines: string[] = [
-    single ? '⏰ *Umpiring reminder*' : '⏰ *Umpiring — coming up*',
+    single ? '*Umpiring reminder*' : '*Umpiring coming up*',
     '',
-    `Hi ${joinNames(everyone)} 🙏`,
+    `Hi ${joinNames(everyone)}`,
   ];
 
   for (const slots of matches.values()) {
@@ -270,19 +291,21 @@ export function buildAssignedReminderText(
         .filter((n, i, all) => all.indexOf(n) === i),
     );
     lines.push('');
-    lines.push(`*${formatDateHeading(head.match_date)} · ${formatTime(head.match_time)}*`);
+    lines.push(`*${formatDateHeading(head.match_date)}, ${formatTime(head.match_time)}*`);
     lines.push(`${shortTeam(head.team_a)} v ${shortTeam(head.team_b)}`);
-    if (head.venue) lines.push(`📍 ${head.venue}`);
+    if (head.venue) lines.push(`At ${head.venue}`);
     // Repeated per match even when there is only one, so a weekend with two
-    // fixtures never leaves anyone guessing which one is theirs.
-    lines.push(`🧢 ${who}`);
+    // fixtures never leaves anyone guessing which one is theirs. "Umpire:"
+    // rather than a cap emoji — the label says what the name means, which the
+    // picture only implied.
+    lines.push(`Umpire: ${who}`);
   }
 
   lines.push(
     '',
-    'Please try to reach a few minutes early. Thank you for standing! 🧡',
+    'Please try to get there a few minutes early. Thanks for standing.',
     '',
-    `🏏 *${teamName}*`,
+    teamName,
   );
 
   return lines.join('\n');
@@ -316,20 +339,26 @@ export function buildThanksText(
   const who = joinNames(clean);
 
   const lines = [
-    `🙏 *Thank you, ${who}!*`,
+    `*Thanks ${who}*`,
     '',
     `${clean.length === 1 ? 'You' : 'You both'} stood as umpire for us at`,
-    `${shortTeam(match.teamA)} v ${shortTeam(match.teamB)} · ${formatDateHeading(match.date)}`,
+    `${shortTeam(match.teamA)} v ${shortTeam(match.teamB)}, ${formatDateHeading(match.date)}`,
   ];
-  if (match.venue) lines.push(`📍 ${match.venue}`);
+  if (match.venue) lines.push(`At ${match.venue}`);
 
   lines.push(
     '',
-    // Names the specific cost, because a bare "thanks" reads as a formality.
-    // Umpiring means giving up a day for a match you are not even playing in.
-    'Giving up your day for a match you were not even playing in is exactly the sort of thing that keeps this team going. 🧡',
+    // Framed as a RESPONSIBILITY the squad shares, not a favour this person did
+    // us — the same reason buildDutyShareText says "cover" rather than "help".
+    // "A big ask" quietly casts the umpire as a volunteer doing charity, which
+    // makes everyone who hasn't stood yet a bystander rather than someone with
+    // a turn coming.
+    // Do NOT write anything implying the team is playing while they umpire: an
+    // MTCA duty is at a match we are NOT in, and nobody standing alone at
+    // someone else's ground will miss that.
+    'Covering our umpiring duty is a responsibility we all share. Thanks for taking it on.',
     '',
-    `🏏 *${opts.teamName ?? 'Sunrisers'}*`,
+    opts.teamName ?? 'Sunrisers',
   );
 
   return lines.join('\n');
@@ -397,14 +426,14 @@ export function buildPlayerMessageText(
   const next = upcoming[0];
   if (next) {
     const lines = [
-      `🏏 *Umpiring reminder — ${name}*`,
+      `*Umpiring reminder, ${name}*`,
       ...seasonLine,
       '',
-      `${formatDateHeading(next.match_date)} · ${formatTime(next.match_time)}`,
+      `${formatDateHeading(next.match_date)}, ${formatTime(next.match_time)}`,
       `${shortTeam(next.team_a)} v ${shortTeam(next.team_b)}`,
     ];
-    if (next.venue) lines.push(`📍 ${next.venue}`);
-    lines.push('', "You're our umpire for this one. Thank you! 🙏");
+    if (next.venue) lines.push(`At ${next.venue}`);
+    lines.push('', "You're our umpire for this one. Thanks!");
     // Only worth saying when there IS a second one — otherwise it reads as if
     // we are hinting at more work.
     if (upcoming.length > 1) {
@@ -416,25 +445,25 @@ export function buildPlayerMessageText(
   if (completed === 0) {
     if (openSlots === 0) return null;
     return [
-      `🏏 Hi ${name}`,
+      `Hi ${name}`,
       ...seasonLine,
       '',
       `Every player stands as umpire at least once${thisSeason}, and ${openSlots} `
         + `${openSlots === 1 ? 'spot is' : 'spots are'} still open.`,
       '',
-      'Could you take one? 🙏',
-      `Pick a match 👉 ${url}`,
+      'Could you take one?',
+      `Pick a match here: ${url}`,
       REPLY_FALLBACK,
     ].join('\n');
   }
 
   return [
-    `🏏 Hi ${name}`,
+    `Hi ${name}`,
     ...seasonLine,
     '',
     completed === 1
-      ? `Thanks for standing as umpire${thisSeason} — much appreciated! 🙌`
-      : `Thanks for standing as umpire ${completed} times${thisSeason} — much appreciated! 🙌`,
+      ? `Thanks for standing as umpire${thisSeason}, much appreciated.`
+      : `Thanks for standing as umpire ${completed} times${thisSeason}, much appreciated.`,
   ].join('\n');
 }
 
@@ -471,7 +500,7 @@ export function buildDutyShareText(
   const openCount = upcoming.filter((d) => d.status === 'open').length;
   let matchesNeedingUmpires = 0;
 
-  const lines: string[] = [`🏏 *${teamName} — Umpiring Duties*`];
+  const lines: string[] = [`*${teamName} umpiring duties*`];
 
   // Group by date so a weekend with several duties reads as one block.
   const byDate = new Map<string, CricketUmpiringDuty[]>();
@@ -502,14 +531,15 @@ export function buildDutyShareText(
       const open = slots.length - taken.length;
 
       lines.push('');
-      lines.push(`⏰ ${formatTime(head.match_time)}${head.venue ? ` · ${head.venue}` : ''}`);
+      lines.push(`${formatTime(head.match_time)}${head.venue ? `, ${head.venue}` : ''}`);
       lines.push(`   ${shortTeam(head.team_a)} v ${shortTeam(head.team_b)}`);
 
       // Thank-you goes INLINE with the name rather than as a separate summary
       // line. It credits the specific person, and it removes a closing line
       // that only restated a count already visible above.
       for (const d of taken) {
-        lines.push(`   ✅ ${d.assigned_player_name ?? 'Covered'} — thank you!`);
+        const n = d.assigned_player_name;
+        lines.push(n ? `   ${n} is standing, thanks` : '   Covered, thanks');
       }
 
       if (open > 0) {
@@ -519,12 +549,12 @@ export function buildDutyShareText(
         // "help" from the closing ask. "N more" once somebody is already on it.
         if (taken.length === 0) {
           lines.push(open === 1
-            ? '   🙏 *Umpire needed — can anyone cover this?*'
-            : `   🙏 *${open} umpires needed — can anyone cover?*`);
+            ? '   *Need an umpire here, can anyone cover?*'
+            : `   *Need ${open} umpires here, can anyone cover?*`);
         } else {
           lines.push(open === 1
-            ? '   🙏 *1 more umpire needed*'
-            : `   🙏 *${open} more umpires needed*`);
+            ? '   *1 more umpire needed*'
+            : `   *${open} more umpires needed*`);
         }
       }
     }
@@ -543,14 +573,15 @@ export function buildDutyShareText(
       if (keys.size < 2) continue;
       lines.push('');
       lines.push(
-        `⚠️ ${keys.size} matches at ${formatTime(time === 'TBD' ? null : time)} — needs ${keys.size} different people`,
+        `Note: ${keys.size} matches at ${formatTime(time === 'TBD' ? null : time)}, `
+        + `so we need ${keys.size} different people.`,
       );
     }
   }
 
   lines.push('');
   if (openCount === 0) {
-    lines.push('*All duties covered — thank you all!* 🙌');
+    lines.push('*All duties covered. Thanks everyone.*');
   } else {
     // A grand total only earns a line when it is not already obvious. With a
     // single match needing umpires, its own "1 more umpire needed" line has
@@ -558,13 +589,13 @@ export function buildDutyShareText(
     // Across several matches the total IS new information, so it stays.
     if (matchesNeedingUmpires > 1) {
       lines.push(
-        `🙏 *${openCount} umpire${openCount === 1 ? '' : 's'} still needed — please help.*`,
+        `*Still need ${openCount} umpire${openCount === 1 ? '' : 's'}. Please help if you can.*`,
       );
     }
     // NOT "Sign up here" — everyone already has an account, so that reads as
     // "register", which is both wrong and a reason to hesitate. This names the
     // actual action: you put your name against a match.
-    lines.push(`Add your name 👉 ${url}`);
+    lines.push(`Add your name here: ${url}`);
     lines.push(REPLY_FALLBACK);
   }
 

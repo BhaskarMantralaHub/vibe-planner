@@ -66,12 +66,11 @@ describe('buildDutyShareText', () => {
       ],
       { today: TODAY },
     )!;
-    expect(text).toContain('🙏 *Umpire needed — can anyone cover this?*');
-    expect(text).toContain('✅ Bhaskar Baachi');
-    expect(text).toContain('✅ Bhaskar Baachi — thank you!');
+    expect(text).toContain('*Need an umpire here, can anyone cover?*');
+    expect(text).toContain('Bhaskar Baachi is standing, thanks');
     // One match needs an umpire, so no aggregate total — it would restate
     // the line directly above it.
-    expect(text).not.toContain('still needed');
+    expect(text).not.toContain('Still need');
   });
 
   it('keeps the ground name verbatim — the number distinguishes two pitches', () => {
@@ -92,7 +91,7 @@ describe('buildDutyShareText', () => {
       ],
       { today: TODAY },
     )!;
-    expect(text).toContain('⚠️ 3 matches at 7:15 AM — needs 3 different people');
+    expect(text).toContain('Note: 3 matches at 7:15 AM, so we need 3 different people.');
   });
 
   it('never prints the same match twice when we owe two umpires on it', () => {
@@ -107,8 +106,8 @@ describe('buildDutyShareText', () => {
     )!;
     const occurrences = text.split('Vintage Warriors v Hillview Eagles').length - 1;
     expect(occurrences).toBe(1);
-    expect(text).toContain('✅ Bhaskar Baachi — thank you!');
-    expect(text).toContain('🙏 *1 more umpire needed*');
+    expect(text).toContain('Bhaskar Baachi is standing, thanks');
+    expect(text).toContain('*1 more umpire needed*');
     // Two slots on ONE match is not a clash.
     expect(text).not.toContain('different people');
   });
@@ -121,9 +120,9 @@ describe('buildDutyShareText', () => {
       ],
       { today: TODAY },
     )!;
-    expect(text).toContain('🙏 *2 umpires needed — can anyone cover?*');
+    expect(text).toContain('*Need 2 umpires here, can anyone cover?*');
     // Both open slots are on ONE match, so no aggregate line.
-    expect(text).not.toContain('still needed');
+    expect(text).not.toContain('Still need');
   });
 
   it('excludes duties in the past, handed away, and already closed out', () => {
@@ -155,10 +154,10 @@ describe('buildDutyShareText', () => {
       ],
       { today: TODAY },
     )!;
-    expect(two).toContain('🙏 *2 umpires still needed — please help.*');
+    expect(two).toContain('*Still need 2 umpires. Please help if you can.*');
 
     const one = buildDutyShareText([duty({ status: 'open' })], { today: TODAY })!;
-    expect(one).not.toContain('still needed');
+    expect(one).not.toContain('Still need');
   });
 
   it('offers a reply-in-chat path alongside the link', () => {
@@ -172,7 +171,7 @@ describe('buildDutyShareText', () => {
       [duty({ status: 'claimed', assigned_player_name: 'Ashok' })],
       { today: TODAY },
     )!;
-    expect(text).toContain('*All duties covered — thank you all!* 🙌');
+    expect(text).toContain('*All duties covered. Thanks everyone.*');
     expect(text).not.toContain('Add your name');
   });
 
@@ -241,7 +240,7 @@ describe('buildDutyShareText', () => {
       '/private/tmp/claude-502/-Users-bmantrala-vibe-planner-repo/c3368503-ab6c-4ca7-a228-2e04af1def1f/scratchpad/sample.txt',
       text,
     );
-    expect(text.split('\n')[0]).toBe('🏏 *Sunrisers — Umpiring Duties*');
+    expect(text.split('\n')[0]).toBe('*Sunrisers umpiring duties*');
   });
 });
 
@@ -269,9 +268,9 @@ describe('buildRosterSummaryText', () => {
 
   it('splits the roster into stood / booked / yet to umpire', () => {
     const t = buildRosterSummaryText(rows, { openSlots: 1 })!;
-    expect(t).toContain('✅ *Stood (2)*');
-    expect(t).toContain('🕐 *Upcoming (1)*');
-    expect(t).toContain('⏳ *Yet to umpire (1)*');
+    expect(t).toContain('*Stood (2)*');
+    expect(t).toContain('*Upcoming (1)*');
+    expect(t).toContain('*Yet to umpire (1)*');
     expect(t).toContain('2 of 4 have stood at least once');
   });
 
@@ -292,12 +291,12 @@ describe('buildRosterSummaryText', () => {
 
   it('asks for help only when there is something to claim', () => {
     const withOpen = buildRosterSummaryText(rows, { openSlots: 2 })!;
-    expect(withOpen).toContain('🙏 *2 umpiring spots still open — please help.*');
+    expect(withOpen).toContain('*2 umpiring spots are still open. Please help if you can.*');
     expect(withOpen).toContain('Add your name');
 
     // Nagging about duties that do not exist yet is pure noise.
     const noOpen = buildRosterSummaryText(rows, { openSlots: 0 })!;
-    expect(noOpen).toContain('*Every duty is covered for now — thank you!* 🙌');
+    expect(noOpen).toContain('*Everything is covered for now, thanks.*');
     expect(noOpen).not.toContain('Add your name');
   });
 
@@ -305,11 +304,11 @@ describe('buildRosterSummaryText', () => {
     // "1 duty needs an umpire" is circular; "1 match needs someone" is wrong
     // when a match already has one umpire or needs two.
     const one = buildRosterSummaryText(rows, { openSlots: 1 })!;
-    expect(one).toContain('🙏 *1 umpiring spot still open — please help.*');
+    expect(one).toContain('*1 umpiring spot is still open. Please help if you can.*');
     expect(one).not.toContain('needs an umpire');
 
     const many = buildRosterSummaryText(rows, { openSlots: 3 })!;
-    expect(many).toContain('🙏 *3 umpiring spots still open — please help.*');
+    expect(many).toContain('*3 umpiring spots are still open. Please help if you can.*');
   });
 
   it('offers a reply-in-chat path for people who avoid the app', () => {
@@ -356,7 +355,7 @@ describe('buildRosterSummaryText', () => {
       { openSlots: 0 },
     )!;
     expect(t).toContain('Yet to umpire (1)');
-    expect(t).toContain('Every duty is covered for now');
+    expect(t).toContain('Everything is covered for now');
     expect(t).not.toContain('No duties open');
   });
 
@@ -365,7 +364,7 @@ describe('buildRosterSummaryText', () => {
       [{ name: 'A', completed: 1, booked: 0 }, { name: 'B', completed: 1, booked: 0 }],
       { openSlots: 0 },
     )!;
-    expect(t).toContain('*Everyone has stood — thank you all!* 🙌');
+    expect(t).toContain('*Everyone has stood at least once. Thanks all.*');
     expect(t).not.toContain('Yet to umpire');
   });
 
@@ -375,8 +374,8 @@ describe('buildRosterSummaryText', () => {
       { target: 2, openSlots: 0 },
     )!;
     // Only the player with 2 counts as done when the target is 2.
-    expect(t).toContain('✅ *Stood (1)*');
-    expect(t).toContain('⏳ *Yet to umpire (1)*');
+    expect(t).toContain('*Stood (1)*');
+    expect(t).toContain('*Yet to umpire (1)*');
   });
 
   it('sorts names alphabetically within each group', () => {
@@ -495,7 +494,7 @@ describe('buildPlayerMessageText', () => {
       expect(text.split('\n')[1]).toBe(`_${SEASON}_`);
       // Not both — "as umpire this season, 2026 MTCA Spring League" says it twice.
       expect(text).not.toContain('this season');
-      expect(text).toContain('Thanks for standing as umpire — much appreciated!');
+      expect(text).toContain('Thanks for standing as umpire, much appreciated.');
     });
 
     it('names it in the ask too', () => {
@@ -535,7 +534,7 @@ describe('buildPlayerMessageText', () => {
         ],
         { today: TODAY, seasonName: SEASON },
       )!;
-      expect(text).toContain('as umpire 2 times — much appreciated!');
+      expect(text).toContain('as umpire 2 times, much appreciated.');
     });
   });
 
@@ -559,9 +558,9 @@ describe('buildAssignedReminderText', () => {
 
   it('names one person and their match', () => {
     const text = buildAssignedReminderText([claimed()], { today: TODAY })!;
-    expect(text).toContain('Hi Madhu 🙏');
+    expect(text).toContain('Hi Madhu');
     expect(text).toContain('California Super Kings v Oakwood Mavericks');
-    expect(text).toContain('🧢 Madhu');
+    expect(text).toContain('Umpire: Madhu');
     expect(text).toContain('10:45 AM');
     expect(text).toContain('Hansen Park');
   });
@@ -578,7 +577,7 @@ describe('buildAssignedReminderText', () => {
       claimed({ role_slot: 1, assigned_player_name: 'Madhu G' }),
       claimed({ role_slot: 2, assigned_player_name: 'Mani V', cricclubs_fixture_id: 6000 }),
     ], { today: TODAY })!;
-    expect(greeting(text)).toBe('Hi Madhu and Mani 🙏');
+    expect(greeting(text)).toBe('Hi Madhu and Mani');
   });
 
   it('uses "A, B and C" beyond two', () => {
@@ -587,7 +586,7 @@ describe('buildAssignedReminderText', () => {
       claimed({ assigned_player_name: 'Mani V', cricclubs_fixture_id: 2, match_date: '2026-08-30' }),
       claimed({ assigned_player_name: 'Naresh Muthaluru', cricclubs_fixture_id: 3, match_date: '2026-08-31' }),
     ], { today: TODAY })!;
-    expect(greeting(text)).toBe('Hi Madhu, Mani and Naresh 🙏');
+    expect(greeting(text)).toBe('Hi Madhu, Mani and Naresh');
   });
 
   it('uses first names only', () => {
@@ -607,7 +606,7 @@ describe('buildAssignedReminderText', () => {
     ], { today: TODAY })!;
     const occurrences = text.split('California Super Kings v Oakwood Mavericks').length - 1;
     expect(occurrences).toBe(1);
-    expect(text.split('\n')).toContain('🧢 Madhu and Mani');
+    expect(text.split('\n')).toContain('Umpire: Madhu and Mani');
   });
 
   it('lists each match separately across a weekend', () => {
@@ -668,7 +667,7 @@ describe('buildThanksText', () => {
 
   it('thanks one person', () => {
     const text = buildThanksText(['Madhu'], match)!;
-    expect(text).toContain('Thank you, Madhu!');
+    expect(text).toContain('*Thanks Madhu*');
     expect(text).toContain('You stood as umpire');
     expect(text).toContain('Sky Risers v Valley Risers');
     expect(text).not.toContain('MTCA');
@@ -676,13 +675,13 @@ describe('buildThanksText', () => {
 
   it('thanks two with "and", and switches to "You both"', () => {
     const text = buildThanksText(['Madhu', 'Mani'], match)!;
-    expect(text).toContain('Thank you, Madhu and Mani!');
+    expect(text).toContain('*Thanks Madhu and Mani*');
     expect(text).toContain('You both stood as umpire');
   });
 
   it('includes the venue only when there is one', () => {
-    expect(buildThanksText(['Madhu'], match)!).toContain('📍 Woodward Park 2');
-    expect(buildThanksText(['Madhu'], { ...match, venue: null })!).not.toContain('📍');
+    expect(buildThanksText(['Madhu'], match)!).toContain('At Woodward Park 2');
+    expect(buildThanksText(['Madhu'], { ...match, venue: null })!).not.toContain('Woodward');
   });
 
   it('returns null with nobody to thank', () => {
@@ -717,4 +716,103 @@ describe('whatsappShareUrl', () => {
     const decoded = decodeURIComponent(whatsappShareUrl(text).replace('https://wa.me/?text=', ''));
     expect(decoded).toBe(text);
   });
+});
+
+/**
+ * These messages go out under a real person's name, so they have to read like
+ * that person typed them. Emoji-per-line is the single loudest tell that a
+ * machine wrote it, and it creeps back one line at a time — somebody adds a
+ * "🙏" to soften an ask and nothing objects. This is the thing that objects.
+ *
+ * Every branch of every template is exercised, not one sample of each: the
+ * old emoji lived in the closings and the ask lines, which are exactly the
+ * branches a single happy-path call never reaches.
+ */
+describe('house voice', () => {
+  const EMOJI = /\p{Extended_Pictographic}/u;
+
+  const claimedDuty = (over: Partial<CricketUmpiringDuty> = {}) =>
+    duty({ status: 'claimed', assigned_player_name: 'Madhu G', ...over });
+
+  const everyMessage = (): Array<[string, string]> => {
+    const out: Array<[string, string]> = [];
+    const push = (label: string, text: string | null) => {
+      if (text !== null) out.push([label, text]);
+    };
+
+    // buildDutyShareText — open, partly covered, fully covered, and a clash.
+    push('share/open', buildDutyShareText([duty({ status: 'open' })], { today: TODAY }));
+    push('share/two-open', buildDutyShareText([
+      duty({ cricclubs_fixture_id: 401, status: 'open', team_a: 'MTCA A', team_b: 'MTCA B' }),
+      duty({ cricclubs_fixture_id: 402, status: 'open', team_a: 'MTCA C', team_b: 'MTCA D' }),
+    ], { today: TODAY }));
+    push('share/partial', buildDutyShareText([
+      claimedDuty({ cricclubs_fixture_id: 403, role_slot: 1 }),
+      duty({ cricclubs_fixture_id: 403, role_slot: 2, status: 'open' }),
+    ], { today: TODAY }));
+    push('share/covered', buildDutyShareText([claimedDuty()], { today: TODAY }));
+    push('share/clash', buildDutyShareText([
+      duty({ cricclubs_fixture_id: 404, match_time: '07:15', venue: 'A', team_a: 'MTCA A', team_b: 'MTCA B' }),
+      duty({ cricclubs_fixture_id: 405, match_time: '07:15', venue: 'B', team_a: 'MTCA C', team_b: 'MTCA D' }),
+    ], { today: TODAY }));
+
+    // buildRosterSummaryText — all three closings.
+    const roster = [
+      { name: 'Ashok', completed: 1, booked: 0 },
+      { name: 'Bhaskar', completed: 0, booked: 1 },
+      { name: 'Naresh', completed: 0, booked: 0 },
+    ];
+    push('roster/open', buildRosterSummaryText(roster, { openSlots: 2 }));
+    push('roster/one-open', buildRosterSummaryText(roster, { openSlots: 1 }));
+    push('roster/nothing-claimable', buildRosterSummaryText(roster, { openSlots: 0 }));
+    push('roster/all-stood', buildRosterSummaryText(
+      [{ name: 'Ashok', completed: 1, booked: 0 }], { openSlots: 0 },
+    ));
+
+    // buildAssignedReminderText — one match and a weekend of them.
+    push('reminder/one', buildAssignedReminderText([claimedDuty()], { today: TODAY }));
+    push('reminder/many', buildAssignedReminderText([
+      claimedDuty({ cricclubs_fixture_id: 501 }),
+      claimedDuty({ cricclubs_fixture_id: 502, match_date: '2026-08-30', assigned_player_name: 'Mani V' }),
+    ], { today: TODAY }));
+
+    // buildThanksText — one name, two names, and no venue.
+    const match = { date: '2026-08-23', teamA: 'MTCA Sky Risers', teamB: 'MTCA Valley Risers', venue: 'Woodward Park 2' };
+    push('thanks/one', buildThanksText(['Madhu'], match));
+    push('thanks/two', buildThanksText(['Madhu', 'Mani'], match));
+    push('thanks/no-venue', buildThanksText(['Madhu'], { ...match, venue: null }));
+
+    // buildPlayerMessageText — reminder, ask, thanks, and the named-season forms.
+    push('player/reminder', buildPlayerMessageText('Madhu', [claimedDuty()], { today: TODAY }));
+    push('player/ask', buildPlayerMessageText('Madhu', [], { today: TODAY, openSlots: 2 }));
+    push('player/thanks', buildPlayerMessageText(
+      'Madhu', [claimedDuty({ status: 'completed', match_date: '2026-08-01' })], { today: TODAY },
+    ));
+    push('player/season', buildPlayerMessageText(
+      'Madhu', [], { today: TODAY, openSlots: 1, seasonName: '2026 MTCA Fall League' },
+    ));
+
+    return out;
+  };
+
+  it('covers every template and branch', () => {
+    // Guards the guard: if a builder starts returning null for these fixtures,
+    // the emoji check below would silently stop testing it.
+    expect(everyMessage().length).toBe(18);
+  });
+
+  it('never uses an emoji', () => {
+    for (const [label, text] of everyMessage()) {
+      const offending = text.split('\n').filter((l) => EMOJI.test(l));
+      expect(offending, `${label} should be emoji-free`).toEqual([]);
+    }
+  });
+
+  // NOTE: there is deliberately no "headings must be sentence case" test.
+  // Headings legitimately contain proper nouns — the team name, a player's
+  // first name, a ground — so any rule that flags a capital letter mid-heading
+  // fires on "Umpiring reminder, Madhu" and on every new venue MTCA adds. It
+  // would fail more often for being right than for being wrong, and a test
+  // people learn to edit around is worse than no test. Sentence case is stated
+  // as a rule in lib/duty-share.ts and left to review.
 });
