@@ -388,18 +388,48 @@ export default function UmpiringBoard() {
     () => buildAssignedReminderText(duties, { today, teamName: getTeamName() }),
     [duties, today],
   );
-  /** Distinct people named in it, for the button's label. */
-  const assignedCount = useMemo(() => new Set(
-    duties
-      .filter((d) => d.deleted_at === null && d.status === 'claimed' && d.match_date >= today)
-      .map((d) => d.assigned_player_id)
-      .filter(Boolean),
-  ).size, [duties, today]);
+  /** First names of everyone with an upcoming duty, for the button's label. */
+  const assignedNames = useMemo(() => {
+    const out: string[] = [];
+    for (const d of duties) {
+      if (d.deleted_at !== null || d.status !== 'claimed' || d.match_date < today) continue;
+      const n = d.assigned_player_name?.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/)[0];
+      if (n && !out.includes(n)) out.push(n);
+    }
+    return out;
+  }, [duties, today]);
 
   const shareText = useMemo(
     () => buildDutyShareText(duties, { teamName: getTeamName(), today }),
     [duties, today],
   );
+
+  /**
+   * The one share the weekend actually needs, with a label that says so.
+   *
+   * Open slots → the ask, which already lists who IS covered, so it reminds
+   * them in the same breath. Everything covered → the reminder, because the
+   * ask would just say "all duties covered" at people who already know.
+   */
+  const primaryShare = useMemo<{ text: string; label: string } | null>(() => {
+    if (openCount > 0 && shareText) {
+      return {
+        text: shareText,
+        label: openCount === 1
+          ? 'Ask the group to cover 1 open spot'
+          : `Ask the group to cover ${openCount} open spots`,
+      };
+    }
+    if (reminderText && assignedNames.length > 0) {
+      const who = assignedNames.length <= 3
+        ? assignedNames.slice(0, -1).join(', ')
+          + (assignedNames.length > 1 ? ' and ' : '')
+          + assignedNames[assignedNames.length - 1]!
+        : `${assignedNames.length} umpires`;
+      return { text: reminderText, label: `Remind ${who}` };
+    }
+    return null;
+  }, [openCount, shareText, reminderText, assignedNames]);
 
   const summaryText = useMemo(
     () => buildRosterSummaryText(
@@ -485,28 +515,20 @@ export default function UmpiringBoard() {
                   </Text>
                 </div>
               </div>
-              {/* Two different jobs, so two buttons rather than one message
-                  trying to do both: the ask recruits for OPEN slots, the
-                  reminder is for people who already said yes. Burying a
-                  reminder inside a recruitment post is how it gets ignored. */}
-              {reminderText && (
+              {/* ONE button, and the caption names exactly what it will post.
+                  Two stacked share rows were near-identical green icons over
+                  captions that described neither message.
+                  Which message depends on what the weekend needs: with open
+                  slots the ask is the useful post (and it already lists who is
+                  covered, so it reminds them too); with everything covered the
+                  ask would say "all duties covered" and the reminder is what
+                  people actually want. */}
+              {primaryShare && (
                 <ShareFooter
-                  text={reminderText}
-                  label={
-                    assignedCount === 1
-                      ? 'Remind the umpire on WhatsApp'
-                      : `Remind ${assignedCount} umpires on WhatsApp`
-                  }
-                  caption="Names everyone with an upcoming duty"
-                  onCopy={() => copy(reminderText, 'Reminder copied')}
-                />
-              )}
-              {shareText && (
-                <ShareFooter
-                  text={shareText}
-                  label="Share duties on WhatsApp"
-                  caption="Send to the group"
-                  onCopy={() => copy(shareText, 'Copied to clipboard')}
+                  text={primaryShare.text}
+                  label={primaryShare.label}
+                  caption={primaryShare.label}
+                  onCopy={() => copy(primaryShare.text, 'Copied — paste in the group')}
                 />
               )}
             </div>
@@ -825,7 +847,9 @@ function ShareFooter({ text, label, caption, onCopy }: {
       className="mt-3 flex items-center justify-between gap-3 border-t pt-3"
       style={{ borderColor: 'color-mix(in srgb, var(--border) 65%, transparent)' }}
     >
-      <Text size="2xs" color="muted">{caption}</Text>
+      {/* This IS the button's label, not a footnote — the icons beside it are
+          unlabelled, so if this whispers the control has no name. */}
+      <Text as="p" size="xs" weight="semibold" className="min-w-0 flex-1">{caption}</Text>
       <div className="flex shrink-0 items-center gap-2">
         <a
           href={whatsappShareUrl(text)}
