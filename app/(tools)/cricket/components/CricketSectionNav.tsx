@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import type { ComponentType, CSSProperties } from 'react';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 type NavIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 
@@ -77,18 +78,8 @@ const FONT_WEIGHT_TRANSITION = 'font-weight 200ms ease-out';
 // Reduced-motion: collapse expressive transitions to a near-instant swap.
 // We don't kill them entirely (which would feel jumpy on slower devices) —
 // 1ms still lets the GPU compositor handle paint without easing curves.
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
-}
+// The hook itself now lives in hooks/use-reduced-motion.ts — the stat tiles on
+// the cricket dashboard needed it too, and two copies would drift.
 
 export default function CricketSectionNav({
   items,

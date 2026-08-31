@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Text } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { PageFooter } from '@/components/PageFooter';
 import InviteHandler from '@/components/InviteHandler';
 import { formatCurrency, computeSeasonPool, type CarriedForward } from './lib/utils';
@@ -37,30 +39,97 @@ type View = 'players' | 'expenses' | 'fees' | 'sponsors' | 'splits';
 function useAnimatedValue(target: number, duration = 600) {
   const [value, setValue] = useState(0);
   const prev = useRef(0);
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
+    // Counting up from 0 is decorative. Somebody who has asked the OS to reduce
+    // motion gets the figure immediately — and so does the ref, or the next
+    // change would animate from a stale start.
+    if (reducedMotion) {
+      prev.current = target;
+      setValue(target);
+      return;
+    }
     const start = prev.current;
     const diff = target - start;
     if (diff === 0) return;
     const startTime = performance.now();
     let raf: number;
+    // Tracks what is actually ON SCREEN, so an animation interrupted mid-flight
+    // resumes from there. `prev.current` used to be written only on completion,
+    // which meant a target change partway through restarted from the last
+    // COMPLETED figure — and the number visibly jumped backwards before running
+    // forwards again. Harmless when the tiles were inert; much easier to trigger
+    // now they re-render on every view change.
+    let onScreen = start;
     const tick = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
       // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(start + diff * eased));
+      onScreen = Math.round(start + diff * eased);
+      setValue(onScreen);
       if (progress < 1) raf = requestAnimationFrame(tick);
       else prev.current = target;
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
+    return () => {
+      cancelAnimationFrame(raf);
+      prev.current = onScreen;
+    };
+  }, [target, duration, reducedMotion]);
   return value;
 }
 
-/* ── Summary Stats Bar ── */
-function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTotal }: {
-  totalSpent: number; poolBalance: number; playerCount: number; feesPaid: number; feesTotal: number;
+/* ── Summary Stats Bar ──
+ *
+ * Each tile is a button that jumps to the view its number comes from, so a
+ * figure you are looking at is one tap from the detail behind it.
+ *
+ * TWO DESIGN CALLS WORTH KNOWING BEFORE EDITING THIS:
+ *
+ * 1. ALL FOUR ARE ALWAYS BUTTONS — never a button on one view and a plain div
+ *    on another. The tiles render on the Players, Fees and Sponsors views, and
+ *    only two of the four have a destination among those, so a
+ *    "disable-the-current-one" rule would make the number of live tiles change
+ *    from 3 to 3 to 4 as you move around. That is exactly the shifting-target
+ *    problem that got the bottom nav rebuilt. A control that is sometimes a
+ *    control is worse than one that always is.
+ *
+ * 2. TAPPING THE TILE YOU ARE ALREADY ON SCROLLS TO TOP rather than doing
+ *    nothing. That is the same thing CricketSectionNav does when you tap the
+ *    active tab (`onActiveTap`), so the gesture already means something here,
+ *    and no tap is ever dead. The tile is marked `aria-current="page"` and
+ *    tinted so it is clear which one you are on.
+ */
+interface StatTile {
+  label: string;
+  /** Animated, for display only. */
+  value: string;
+  /**
+   * Settled value as it should be SPOKEN — see the aria-label note below.
+   * Not always the same string as `value`: a leading minus sign is read as
+   * "hyphen" by some screen readers and silently dropped by others, so a
+   * negative pool balance says "short" in words instead.
+   */
+  exactValue: string;
+  color: string;
+  icon: React.ReactNode;
+  /** View this tile drills into. */
+  target: View;
+  /** Plain-language destination, e.g. "expenses". Used in the accessible name. */
+  destination: string;
+}
+
+// Exported for tests/unit/summary-stats.test.tsx. Nothing else imports it —
+// these tiles only make sense on this page, so it stays here rather than moving
+// to components/ for the sake of the test.
+export function SummaryStats({
+  totalSpent, poolBalance, playerCount, feesPaid, feesTotal, activeView, onNavigate,
+}: {
+  totalSpent: number; poolBalance: number; playerCount: number;
+  feesPaid: number; feesTotal: number;
+  activeView: View;
+  onNavigate: (view: View) => void;
 }) {
   const animSpent = useAnimatedValue(Math.round(totalSpent));
   const animPool = useAnimatedValue(Math.round(poolBalance));
@@ -68,27 +137,132 @@ function SummaryStats({ totalSpent, poolBalance, playerCount, feesPaid, feesTota
   const animPaid = useAnimatedValue(feesPaid);
 
   const feeColor = feesTotal > 0 && feesPaid === feesTotal ? 'var(--green)' : 'var(--blue)';
+  const poolSign = poolBalance < 0 ? '-' : '';
 
-  const stats = [
-    { label: 'Total Spent', value: formatCurrency(animSpent), color: 'var(--red)', icon: <Receipt size={16} /> },
-    { label: 'Fees Paid', value: `${animPaid} of ${feesTotal}`, color: feeColor, icon: <Banknote size={16} /> },
-    { label: 'Pool Balance', value: `${poolBalance < 0 ? '-' : ''}${formatCurrency(animPool)}`, color: poolBalance < 0 ? 'var(--red)' : 'var(--green)', icon: <PiggyBank size={16} /> },
-    { label: 'Players', value: String(animPlayers), color: 'var(--cricket)', icon: <CricketPlayerIcon size={18} /> },
+  const stats: StatTile[] = [
+    {
+      label: 'Total Spent',
+      value: formatCurrency(animSpent),
+      exactValue: formatCurrency(totalSpent),
+      color: 'var(--red)',
+      icon: <Receipt size={16} />,
+      target: 'expenses',
+      destination: 'expenses',
+    },
+    {
+      label: 'Fees Paid',
+      value: `${animPaid} of ${feesTotal}`,
+      exactValue: `${feesPaid} of ${feesTotal}`,
+      color: feeColor,
+      icon: <Banknote size={16} />,
+      target: 'fees',
+      destination: 'season fees',
+    },
+    {
+      // Pool balance is fees + sponsorships − expenses, and the Expenses view is
+      // where that sum is shown adding up, carried-forward entry included. Same
+      // destination as Total Spent on purpose: it is the same ledger.
+      label: 'Pool Balance',
+      // formatCurrency() already applies Math.abs, which is why the sign is
+      // prefixed by hand here rather than left to the formatter.
+      value: `${poolSign}${formatCurrency(animPool)}`,
+      exactValue: poolBalance < 0
+        ? `${formatCurrency(poolBalance)} short`
+        : formatCurrency(poolBalance),
+      color: poolBalance < 0 ? 'var(--red)' : 'var(--green)',
+      icon: <PiggyBank size={16} />,
+      target: 'expenses',
+      destination: 'expenses',
+    },
+    {
+      label: 'Players',
+      value: String(animPlayers),
+      exactValue: String(playerCount),
+      color: 'var(--cricket)',
+      icon: <CricketPlayerIcon size={18} />,
+      target: 'players',
+      destination: 'the roster',
+    },
   ];
 
   return (
     <div className="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-      {stats.map((s) => (
-        <div key={s.label} className="rounded-xl border border-[var(--border)]/60 bg-gradient-to-br from-[var(--card)] to-[var(--card-end)] p-3 sm:p-4 min-w-0 shadow-[inset_0_1px_0_0_var(--inner-glow)]">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span style={{ color: s.color }}>{s.icon}</span>
-            <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">{s.label}</Text>
-          </div>
-          <Text as="p" size="2xl" weight="bold" tabular className="sm:text-[26px] leading-none" style={{ color: s.color }}>
-            {s.value}
-          </Text>
-        </div>
-      ))}
+      {stats.map((s) => {
+        const isCurrent = s.target === activeView;
+        return (
+          <button
+            key={s.label}
+            type="button"
+            // aria-current="true", not "page": this switches an in-page view,
+            // it does not navigate to a page. SeasonSelector.tsx uses "true" for
+            // the same kind of in-page selection; CricketSectionNav uses "page"
+            // because its items are real routes. Not role="tab" either — these
+            // tiles don't own the panel below them.
+            aria-current={isCurrent ? 'true' : undefined}
+            // The accessible name uses exactValue, NOT the animated one. The
+            // counter re-renders ~60 times over 600ms, and an aria-label bound
+            // to it would make a screen reader announce a number that is still
+            // counting — or announce nothing coherent at all.
+            aria-label={isCurrent
+              ? `${s.label}, ${s.exactValue}. Currently showing.`
+              : `${s.label}, ${s.exactValue}. Go to ${s.destination}.`}
+            onClick={() => {
+              if (isCurrent) {
+                // Same gesture as tapping the active bottom-nav tab.
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+              }
+              onNavigate(s.target);
+            }}
+            className={cn(
+              'rounded-xl border p-3 sm:p-4 min-w-0 text-left cursor-pointer',
+              'bg-gradient-to-br from-[var(--card)] to-[var(--card-end)]',
+              'shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+              'transition-all duration-150 ease-out',
+              // 0.98, not the 0.95 used on pills: at 171x70 a 5% shrink is 8.5px
+              // of travel and reads as a lurch. Same value as the tappable stat
+              // cards in TopPerformersCarousel.
+              'active:scale-[0.98]',
+              // Copied from SplitsDashboard's SummaryCard — the closest twin in
+              // the repo (a tappable summary card that jumps to another view).
+              // NO ring-offset: button.tsx has it, but nothing overrides
+              // Tailwind v4's default white --tw-ring-offset-color, so it draws
+              // a white halo in dark mode. SplitsDashboard omits it too.
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60',
+              isCurrent ? 'border-transparent' : 'border-[var(--border)]/60',
+            )}
+            style={
+              // The current tile is tinted in its own colour rather than given a
+              // left rail or a chevron — both were rejected as clutter on a tile
+              // this small, and a rail on a rounded card is a tired pattern.
+              isCurrent
+                ? {
+                  boxShadow: `inset 0 1px 0 0 var(--inner-glow), inset 0 0 0 1.5px color-mix(in srgb, ${s.color} 45%, transparent)`,
+                  background: `color-mix(in srgb, ${s.color} 7%, var(--card))`,
+                }
+                : undefined
+            }
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <span style={{ color: s.color }}>{s.icon}</span>
+              <Text size="2xs" weight="semibold" color="muted" uppercase tracking="wider">{s.label}</Text>
+            </div>
+            {/* aria-hidden: the settled figure is already in the button's
+                aria-label, so exposing the counting one would read it twice. */}
+            <Text
+              as="p"
+              size="2xl"
+              weight="bold"
+              tabular
+              aria-hidden
+              className="sm:text-[26px] leading-none"
+              style={{ color: s.color }}
+            >
+              {s.value}
+            </Text>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -499,6 +673,8 @@ function CricketDashboard() {
               playerCount={activePlayers.length}
               feesPaid={feesPaid}
               feesTotal={activePlayers.length}
+              activeView={activeView}
+              onNavigate={handleViewChange}
             />
           )}
 
@@ -529,7 +705,7 @@ function CricketDashboard() {
                     }}
                   />
                 )}
-                <ExpenseList />
+                <ExpenseList onNavigate={handleViewChange} />
               </div>
             )}
             {activeView === 'splits' && <SplitsDashboard />}

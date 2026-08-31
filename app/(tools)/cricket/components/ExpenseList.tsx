@@ -11,6 +11,7 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
   FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
 };
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
+import { cn } from '@/lib/utils';
 import { EmptyState, Text, CardMenu, Badge, Spinner, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ function PoolHealthBadge({ pct, isLow }: { pct: number; isLow: boolean }) {
 /* ── Pool Fund Hero — refined: one focal number + integrated bar + stat strip ── */
 function PoolFundHero({
   totalFees, totalSponsorship, totalSpent, poolBalance, isLow, perPerson, hasPlayers,
-  carriedForward = 0,
+  carriedForward = 0, onNavigate, onJumpToList,
 }: {
   totalFees: number; totalSponsorship: number; totalSpent: number;
   poolBalance: number; isLow: boolean; perPerson: number; hasPlayers: boolean;
@@ -126,6 +127,15 @@ function PoolFundHero({
    *  so it belongs in "collected" — otherwise the card showed $60.00 while the
    *  carried-forward entry immediately above it showed +$233.21. */
   carriedForward?: number;
+  /**
+   * Switch the dashboard to another view. Narrowed to the two views the strip
+   * can reach rather than taking the page's whole `View` union — this component
+   * has no business knowing the others exist, and importing the union from
+   * page.tsx would make a component depend on the page that renders it.
+   */
+  onNavigate?: (view: 'fees' | 'sponsors') => void;
+  /** Scroll down to the expense list, for the Spent cell. */
+  onJumpToList?: () => void;
 }) {
   const totalCollected = carriedForward + totalFees + totalSponsorship;
   const spentPct = totalCollected > 0 ? Math.min((totalSpent / totalCollected) * 100, 100) : 0;
@@ -211,48 +221,104 @@ function PoolFundHero({
           </div>
         )}
 
-        {/* Stat strip — internal dividers, no individual cards.
-            Gains a fourth column only when money actually carried over, so the
+        {/* Stat strip — each cell is a button that opens the view its number
+            comes from, so a figure here is one tap from the detail behind it.
+            Same rules as the dashboard's SummaryStats tiles: all cells stay
+            buttons, the cell for the view you are on is marked and scrolls
+            instead of navigating, and the accessible name says where it goes.
+
+            Gains a fourth cell only when money actually carried over, so the
             three-way split stays the common case. Without it the numbers do not
             add up on screen: fees + sponsors − spent would not reach the
-            headline balance. */}
+            headline balance.
+
+            LAYOUT: four cells go 2x2 on mobile, not 1x4. One row of four gave
+            each cell ~60px of content and "SPONSORS" was rendering as
+            "SPONSO…" — the previous fix (hiding the icon below sm:) bought 17px
+            and still was not enough. 2x2 gives ~150px, so nothing clips, and it
+            doubles the touch target now that these are controls rather than
+            captions. Three cells fit one row comfortably and stay there.
+
+            DIVIDERS: a 1px grid gap over a --border background, rather than a
+            borderLeft on every cell but the first. The index trick only works
+            for a single row — at 2x2 it puts a stray border down the middle of
+            the second row and none along the top of it. */}
         <div
-          className="grid rounded-xl overflow-hidden"
-          style={{
-            gridTemplateColumns: `repeat(${carriedForward !== 0 ? 4 : 3}, minmax(0, 1fr))`,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-          }}
+          className={cn(
+            'grid gap-px rounded-xl overflow-hidden',
+            carriedForward !== 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3',
+          )}
+          style={{ background: 'var(--border)', border: '1px solid var(--border)' }}
         >
           {([
             ...(carriedForward !== 0
-              ? [{ icon: ArrowDownToLine, label: 'Carried', value: carriedForward, color: 'var(--split-credit)' } as const]
+              ? [{
+                icon: ArrowDownToLine,
+                label: 'Carried',
+                value: carriedForward,
+                color: 'var(--split-credit)',
+                // The carried-forward entry sits at the top of this same view
+                // and carries the lock control, so this scrolls rather than
+                // navigating.
+                action: 'scroll-top',
+                spoken: 'Show the carried forward entry above',
+              } as const]
               : []),
-            { icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)' },
-            { icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB' },
-            { icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)' },
-          ] as const).map(({ icon: Icon, label, value, color }, i) => (
-            <div key={label}
-              /* Tighter padding at four columns. At 390px each cell has ~61px of
-                 content, and "SPONSORS" plus its icon overflowed that. */
-              className={`${carriedForward !== 0 ? 'px-2' : 'px-3'} py-3 sm:py-3.5`}
-              style={{ borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+            {
+              icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)',
+              action: 'fees', spoken: 'Go to season fees',
+            },
+            {
+              icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB',
+              action: 'sponsors', spoken: 'Go to sponsors',
+            },
+            {
+              // Already on the Expenses view — the list below IS the breakdown
+              // of this number, so this scrolls to it.
+              icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)',
+              action: 'scroll-list', spoken: 'Currently showing. Jump to the expense list',
+            },
+          ] as const).map(({ icon: Icon, label, value, color, action, spoken }) => (
+            <button
+              key={label}
+              type="button"
+              aria-current={action === 'scroll-list' ? 'true' : undefined}
+              // Built from the real figures, not animated ones — this card has
+              // no counter, but keeping the name explicit means a reader hears
+              // the amount and the destination in one go.
+              aria-label={`${label}: ${formatCurrency(value)}. ${spoken}.`}
+              onClick={() => {
+                if (action === 'scroll-top') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else if (action === 'scroll-list') {
+                  onJumpToList?.();
+                } else {
+                  onNavigate?.(action);
+                }
+              }}
+              className={cn(
+                carriedForward !== 0 ? 'px-3' : 'px-3',
+                'py-3 sm:py-3.5 text-left cursor-pointer min-w-0',
+                'transition-all duration-150 ease-out active:scale-[0.98]',
+                // Matches SplitsDashboard's SummaryCard. No ring-offset: nothing
+                // overrides Tailwind v4's white --tw-ring-offset-color, so it
+                // would draw a white halo in dark mode.
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                'focus-visible:ring-[var(--cricket)]/60',
+              )}
+              style={{ background: 'var(--surface)' }}
+            >
               <div className="flex items-center gap-1.5 mb-1 min-w-0">
-                {/* The icon is decoration; the label carries the meaning. At
-                    four columns it costs 17px the longest label needs, so it
-                    goes rather than clipping the word. Returns on wider
-                    screens, where there is room for both. */}
-                <Icon
-                  size={11}
-                  style={{ color }}
-                  className={carriedForward !== 0 ? 'hidden flex-shrink-0 sm:block' : 'flex-shrink-0'}
-                />
+                {/* The icon can stay at every size now the cells are wide
+                    enough for it — 2x2 removed the 17px squeeze that forced it
+                    to hide below sm:. */}
+                <Icon size={11} style={{ color }} className="flex-shrink-0" />
                 <Text
                   as="p"
                   size="2xs"
                   weight="bold"
                   uppercase
-                  tracking={carriedForward !== 0 ? 'normal' : 'wider'}
+                  tracking="wider"
                   style={{ color }}
                   className="min-w-0 truncate"
                 >
@@ -262,7 +328,7 @@ function PoolFundHero({
               <Text size="md" weight="bold" tabular className="leading-none">
                 {formatCurrency(value)}
               </Text>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -727,7 +793,11 @@ function EditExpenseDrawer({ expense, open, onSave, onClose }: {
 /* ═══════════════════════════════════════════════════
    Main Expense List
    ═══════════════════════════════════════════════════ */
-export default function ExpenseList() {
+export default function ExpenseList({ onNavigate }: {
+  /** Switch the dashboard to another view — used by the pool card's stat strip. */
+  onNavigate?: (view: 'fees' | 'sponsors') => void;
+} = {}) {
+  const listRef = useRef<HTMLDivElement>(null);
   const { userAccess, user } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const { expenses, fees, sponsorships, players, seasons, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
@@ -874,12 +944,19 @@ export default function ExpenseList() {
               perPerson={perPerson}
               hasPlayers={activePlayers.length > 0}
               carriedForward={carriedForward}
+              onNavigate={onNavigate}
+              onJumpToList={() => listRef.current?.scrollIntoView({
+                behavior: 'smooth', block: 'start',
+              })}
             />
           </div>
         )}
 
-        {/* RIGHT: Filters + grouped expense list */}
-        <div className="space-y-4">
+        {/* RIGHT: Filters + grouped expense list.
+            ref is the scroll target for the pool card's Spent cell — that cell
+            cannot navigate anywhere (we are already on Expenses), so it jumps to
+            the breakdown of its own number instead of doing nothing. */}
+        <div className="space-y-4" ref={listRef}>
           {seasonExpenses.length > 1 && (
             <CategoryFilters
               active={categoryFilter}
