@@ -5,13 +5,13 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import {
-  EmptyState, Text, ActionSheet, Badge, Input,
+  EmptyState, Text, ActionSheet, Input,
   Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose,
   ComposerModal,
 } from '@/components/ui';
 import {
   Handshake, Pencil, Trash2, Plus,
-  Calendar, StickyNote, ChevronDown, RotateCcw,
+  ChevronDown, RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -92,45 +92,43 @@ function SponsorCard({
   const [openMenu, setOpenMenu] = useState(false);
 
   return (
-    <div
-      className="group relative rounded-xl overflow-hidden transition-all duration-200"
-      style={{
-        background: 'var(--card)',
-        boxShadow: 'var(--card-shadow)',
-      }}
-    >
-      <div className="p-3 sm:p-4">
-        {/* Main row: avatar + info + amount */}
-        <div className="flex items-start gap-3">
-          <SponsorAvatar name={sponsor.sponsor_name} />
+    // Continuous ledger row — the section surface provides the grouping.
+    // Two sponsorships from the same sponsor ("Himalayan Kitchen" twice) are
+    // SEPARATE transactions by design; the purpose · date line is what tells
+    // them apart, so it sits directly under the name.
+    <div className="animate-view-in px-3 py-3 sm:px-4">
+      <div className="flex items-start gap-3">
+        <SponsorAvatar name={sponsor.sponsor_name} />
 
-          <div className="flex-1 min-w-0">
-            <Text as="p" size="md" weight="semibold" truncate>
-              {sponsor.sponsor_name}
+        <div className="flex-1 min-w-0">
+          {/* Full sponsor name — wraps rather than truncating */}
+          <Text as="p" size="md" weight="semibold" className="leading-snug break-words">
+            {sponsor.sponsor_name}
+          </Text>
+          <Text as="p" size="2xs" color="muted" className="mt-0.5">
+            {sponsor.notes ? `${sponsor.notes} · ` : ''}{formatDate(sponsor.sponsored_date)}
+          </Text>
+          {/* Audit trail — one quiet dim line, discoverable but never
+              competing with sponsor + amount. The badge-chip footer read
+              as an audit log. */}
+          {(sponsor.created_by || sponsor.updated_by) && (
+            <Text as="p" size="2xs" color="dim" className="mt-1">
+              {sponsor.created_by && `Added ${formatDate(sponsor.created_at?.split('T')[0] || sponsor.sponsored_date)} by ${sponsor.created_by}`}
+              {sponsor.updated_by && `${sponsor.created_by ? ' · ' : ''}Updated${sponsor.updated_at ? ` ${formatDate(sponsor.updated_at.split('T')[0])}` : ''} by ${sponsor.updated_by}`}
             </Text>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <div className="flex items-center gap-1">
-                <Calendar size={11} style={{ color: 'var(--muted)' }} />
-                <Text size="2xs" color="muted">{formatDate(sponsor.sponsored_date)}</Text>
-              </div>
-              {sponsor.notes && (
-                <>
-                  <Text size="2xs" color="dim">&middot;</Text>
-                  <div className="flex items-center gap-1 min-w-0">
-                    <StickyNote size={11} style={{ color: 'var(--muted)' }} />
-                    <Text size="2xs" color="muted" truncate>{sponsor.notes}</Text>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          )}
+        </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Badge variant="green" size="md" className="font-bold tabular-nums">
-              +{formatCurrency(Number(sponsor.amount))}
-            </Badge>
+        <div className="flex items-start gap-1 flex-shrink-0">
+          {/* Financial value, not a pill — restrained semantic green */}
+          <span
+            className="pt-0.5 text-[14px] font-bold tabular-nums"
+            style={{ color: 'var(--split-credit)' }}
+          >
+            +{formatCurrency(Number(sponsor.amount))}
+          </span>
 
-            {isAdmin && (
+          {isAdmin && (
               <>
                 <button
                   onClick={() => setOpenMenu(true)}
@@ -153,29 +151,6 @@ function SponsorCard({
               </>
             )}
           </div>
-        </div>
-
-        {/* Audit footer */}
-        <div className="mt-3 pt-2.5 flex items-center gap-3 flex-wrap" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 50%, transparent)' }}>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="muted" size="sm">Added</Badge>
-            <Text size="2xs" weight="medium">{formatDate(sponsor.created_at?.split('T')[0] || sponsor.sponsored_date)}</Text>
-            {sponsor.created_by && (
-              <Text size="2xs" color="muted">
-                by <Text weight="semibold">{sponsor.created_by}</Text>
-              </Text>
-            )}
-          </div>
-          {sponsor.updated_by && (
-            <div className="flex items-center gap-1.5">
-              <Badge variant="blue" size="sm">Updated</Badge>
-              <Text size="2xs" weight="medium">{sponsor.updated_at ? formatDate(sponsor.updated_at.split('T')[0]) : ''}</Text>
-              <Text size="2xs" color="muted">
-                by <Text weight="semibold">{sponsor.updated_by}</Text>
-              </Text>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -184,7 +159,7 @@ function SponsorCard({
 // ── Deleted sponsor row ──
 function DeletedSponsorRow({ sponsor, onRestore }: { sponsor: CricketSponsorship; onRestore: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'var(--surface)', border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)' }}>
+    <div className="flex items-center gap-3 rounded-xl p-2.5" style={{ background: 'var(--surface)' }}>
       <SponsorAvatar name={sponsor.sponsor_name} size="sm" />
       <div className="flex-1 min-w-0">
         <Text as="p" size="sm" weight="semibold" truncate className="line-through opacity-60">{sponsor.sponsor_name}</Text>
@@ -279,20 +254,12 @@ export default function SponsorshipSection() {
 
   return (
     <div className="space-y-4">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="h-8 w-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'color-mix(in srgb, var(--cricket) 15%, transparent)' }}
-          >
-            <Handshake size={16} style={{ color: 'var(--cricket)' }} />
-          </div>
-          <Text as="h3" size="lg" weight="bold">Sponsorships</Text>
-        </div>
+      {/* ── Header — editorial, type-led; no icon chip ── */}
+      <div className="flex items-center justify-between gap-2">
+        <Text as="h3" size="lg" weight="bold">Sponsorships</Text>
         {isAdmin && (
-          <Button onClick={openAddDrawer} variant="primary" brand="cricket" size="sm" className="gap-1.5">
-            <Plus size={15} />
+          <Button onClick={openAddDrawer} variant="primary" brand="cricket" size="md" className="gap-1.5">
+            <Plus size={16} />
             Add Sponsor
           </Button>
         )}
@@ -313,7 +280,12 @@ export default function SponsorshipSection() {
           action={isAdmin ? { label: 'Add First Sponsor', onClick: openAddDrawer } : undefined}
         />
       ) : (
-        <div className="space-y-3">
+        // ONE ledger surface — sponsorship transactions separated by
+        // hairlines, not a stack of cards.
+        <div
+          className="rounded-2xl overflow-hidden divide-y divide-[var(--border)]/55"
+          style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+        >
           {activeSponsors.map((s) => (
             <SponsorCard
               key={s.id}
@@ -326,17 +298,16 @@ export default function SponsorshipSection() {
         </div>
       )}
 
-      {/* ── Deleted section ── */}
+      {/* ── Deleted — collapsible section under a hairline, matching the
+             Guests/Past Players treatment. The red-tinted border box shouted
+             about routine soft-deletes. ── */}
       {isAdmin && deletedSponsors.length > 0 && (
-        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--red) 20%, var(--border))' }}>
+        <div className="pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
           <button
             onClick={() => setShowDeleted(!showDeleted)}
-            className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+            className="w-full flex min-h-11 items-center justify-between py-2 px-1 rounded-lg cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <Text size="sm" weight="semibold" color="danger">Deleted</Text>
-              <Badge variant="red" size="sm">{deletedSponsors.length}</Badge>
-            </div>
+            <Text size="sm" weight="semibold" color="muted">Deleted ({deletedSponsors.length})</Text>
             <ChevronDown
               size={16}
               className="transition-transform duration-200"
@@ -344,7 +315,7 @@ export default function SponsorshipSection() {
             />
           </button>
           {showDeleted && (
-            <div className="px-3 pb-3 space-y-2">
+            <div className="pt-1 space-y-1.5">
               {deletedSponsors.map((s) => (
                 <DeletedSponsorRow key={s.id} sponsor={s} onRestore={() => restoreSponsorship(s.id)} />
               ))}
@@ -412,11 +383,11 @@ export default function SponsorshipSection() {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary" size="sm">Cancel</Button>
+              <Button variant="secondary" brand="cricket" size="md">Cancel</Button>
             </DialogClose>
             <Button
               variant="danger"
-              size="sm"
+              size="md"
               onClick={() => {
                 if (!deletingSponsor) return;
                 deleteSponsorship(deletingSponsor.id, adminName);

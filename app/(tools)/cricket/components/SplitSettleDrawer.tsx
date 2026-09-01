@@ -182,8 +182,8 @@ export default function SplitSettleDrawer() {
             <Text as="p" size="md" color="muted" style={{ animation: 'slideIn 0.3s ease-out 0.4s both' }}>${numAmount.toFixed(2)} payment recorded</Text>
             {newBalance === 0 && (
               <div className="mt-4 rounded-full px-5 py-2"
-                style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))', animation: 'slideIn 0.3s ease-out 0.5s both', boxShadow: '0 0 20px var(--cricket-glow)' }}>
-                <Text size="sm" weight="bold" className="text-white">All squared up!</Text>
+                style={{ background: 'var(--cricket)', animation: 'slideIn 0.3s ease-out 0.5s both', boxShadow: '0 2px 12px var(--cricket-glow)' }}>
+                <Text size="sm" weight="bold" style={{ color: 'var(--cricket-on)' }}>All squared up!</Text>
               </div>
             )}
           </div>

@@ -673,8 +673,12 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {/* Summary Stats — show only on players, fees, sponsors */}
-          {(activeView === 'players' || activeView === 'fees' || activeView === 'sponsors') && (
+          {/* Summary Stats — players and fees only. Deliberately NOT on
+              sponsors: none of its tiles is "current" there, and the four
+              generic KPIs competed with the Total Sponsorships hero, which is
+              that view's primary financial content. The same numbers remain
+              one tab away. */}
+          {(activeView === 'players' || activeView === 'fees') && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
