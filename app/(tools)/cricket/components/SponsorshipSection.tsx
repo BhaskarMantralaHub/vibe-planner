@@ -45,36 +45,30 @@ function SponsorAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
 // ── Hero stat card ──
 function HeroStats({ total, count }: { total: number; count: number }) {
   return (
+    // Quiet hero — same surface language as the pool hero: tone + elevation,
+    // brand only in the icon tint. (Replaced a brand-soaked gradient card
+    // with a glow orb and white-on-orange text.)
     <div
-      className="relative rounded-2xl p-4 sm:p-5 overflow-hidden"
-      style={{
-        background: 'linear-gradient(135deg, var(--cricket-deep), color-mix(in srgb, var(--cricket) 25%, var(--card)))',
-        border: '1px solid color-mix(in srgb, var(--cricket) 30%, transparent)',
-        boxShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.06), 0 4px 24px var(--cricket-glow)',
-      }}
+      className="rounded-2xl p-4 sm:p-5"
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
     >
-      {/* Decorative glow orb */}
-      <div
-        className="absolute -top-12 -right-12 h-32 w-32 rounded-full pointer-events-none"
-        style={{ background: 'var(--cricket)', opacity: 0.08, filter: 'blur(40px)' }}
-      />
-      <div className="relative flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <Text as="p" size="2xs" weight="medium" uppercase tracking="wider" className="mb-1 opacity-60" color="white">
+          <Text as="p" size="2xs" weight="medium" color="muted" uppercase tracking="wider" className="mb-1">
             Total Sponsorships
           </Text>
-          <Text as="p" size="2xl" weight="bold" color="white" tabular tracking="tight">
+          <Text as="p" size="2xl" weight="bold" tabular tracking="tight">
             {formatCurrency(total)}
           </Text>
         </div>
         <div className="flex flex-col items-end gap-1">
           <div
             className="h-10 w-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}
+            style={{ background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}
           >
-            <Handshake size={20} color="white" />
+            <Handshake size={20} />
           </div>
-          <Text size="2xs" weight="medium" color="white" className="opacity-60">
+          <Text size="2xs" weight="medium" color="muted">
             {count} sponsor{count !== 1 ? 's' : ''}
           </Text>
         </div>
@@ -101,17 +95,10 @@ function SponsorCard({
     <div
       className="group relative rounded-xl overflow-hidden transition-all duration-200"
       style={{
-        background: 'var(--elevated)',
-        border: '1px solid var(--border)',
-        boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+        background: 'var(--card)',
+        boxShadow: 'var(--card-shadow)',
       }}
     >
-      {/* Top accent bar */}
-      <div
-        className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))' }}
-      />
-
       <div className="p-3 sm:p-4">
         {/* Main row: avatar + info + amount */}
         <div className="flex items-start gap-3">

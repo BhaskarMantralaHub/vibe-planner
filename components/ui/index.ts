@@ -45,9 +45,6 @@ export { ComposerModal } from './composer-modal';
 
 export { FilterDropdown } from './filter-dropdown';
 
-export { CapsuleTabs } from './capsule-tabs';
-export type { CapsuleTab, CapsuleTabsProps } from './capsule-tabs';
-
 export { SegmentedControl } from './segmented-control';
 export type { SegmentOption, SegmentedControlProps } from './segmented-control';
 

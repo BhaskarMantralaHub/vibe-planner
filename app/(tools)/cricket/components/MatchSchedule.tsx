@@ -627,16 +627,17 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
       {/* Card content */}
       <div
         className="flex-1 rounded-2xl p-3.5 relative min-w-0"
-        style={{ background: 'var(--card)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)' }}
+        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
       >
 
         {isAdmin && (
           <button
             ref={openMenuId === match.id ? menuBtnRef : null}
             onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-            className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+            className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
+            aria-label="Match actions"
           >
-            <EllipsisVertical size={11} />
+            <EllipsisVertical size={15} />
           </button>
         )}
 

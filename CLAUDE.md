@@ -167,7 +167,7 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
 
 Before writing ANY UI code, check `components/ui/`. NEVER duplicate what exists.
 
-**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `ComposerModal`, `ActionSheet`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `CapsuleTabs`, `SegmentedControl`, `toast` (sonner).
+**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `ComposerModal`, `ActionSheet`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `SegmentedControl`, `toast` (sonner).
 
 **⋮ menus on mobile:** prefer `ActionSheet` (bottom sheet, same `CardMenuItem[]` shape as `CardMenu`) for new or migrated row-action menus; `CardMenu` remains for screens not yet migrated (it now flips above the anchor near the viewport bottom).
 

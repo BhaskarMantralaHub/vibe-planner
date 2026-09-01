@@ -231,10 +231,10 @@ export default function FeeTracker() {
       {/* ── TEAM POOL — first, for everyone. Players want the who-has-paid
              picture too, so this is not an admin-only concern. ── */}
       <div
-        className="rounded-2xl border border-[var(--border)] p-4 sm:p-5 min-w-0"
+        className="rounded-2xl p-4 sm:p-5 min-w-0"
         style={{
-          background: 'linear-gradient(160deg, var(--card), var(--card-end))',
-          boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+          background: 'var(--card)',
+          boxShadow: 'var(--card-shadow)',
         }}
       >
         <div className="flex items-baseline justify-between gap-3">

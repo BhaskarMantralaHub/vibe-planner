@@ -362,17 +362,10 @@ function tabToView(tab: Tab): View {
 }
 
 
-/* ── Tab config using shared CapsuleTabs ── */
-import { CapsuleTabs, SegmentedControl } from '@/components/ui';
-import type { CapsuleTab } from '@/components/ui';
+import { SegmentedControl } from '@/components/ui';
 import CricketSectionNav, {
   type CricketSectionNavItem,
 } from './components/CricketSectionNav';
-
-const CAPSULE_TABS: CapsuleTab[] = [
-  { key: 'players', label: 'Players', icon: <CricketPlayerIcon size={16} /> },
-  { key: 'finances', label: 'Finances', icon: <Receipt size={16} /> },
-];
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
