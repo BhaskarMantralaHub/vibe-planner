@@ -211,8 +211,8 @@ function PostActionsDrawer({ open, onOpenChange, onEdit, onDelete, showEdit }: {
               onClick={() => { onEdit(); onOpenChange(false); }}
               className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
             >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                <Pencil size={18} style={{ color: 'var(--blue)' }} />
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
+                <Pencil size={18} style={{ color: 'var(--text)' }} />
               </div>
               <div className="text-left">
                 <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit caption</p>
@@ -261,8 +261,8 @@ function CommentActionsDrawer({ open, onOpenChange, onEdit, onDelete, showEdit }
               onClick={() => { onEdit(); onOpenChange(false); }}
               className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer hover:bg-[var(--hover-bg)]"
             >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                <Pencil size={18} style={{ color: 'var(--blue)' }} />
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
+                <Pencil size={18} style={{ color: 'var(--text)' }} />
               </div>
               <div className="text-left">
                 <p className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>Edit comment</p>
@@ -792,9 +792,12 @@ export default function GalleryPostCard({
               )}
               {!isWelcome && (
                 <div className="mb-3">
+                  {/* Solid brand fill — the blue→indigo gradient predated the
+                      no-gradient rule, and a team announcement IS a brand
+                      moment. --cricket-on, never text-white, on brand fills. */}
                   <span
-                    className="inline-block rounded-full text-[11px] font-semibold uppercase tracking-wider px-3 py-1 text-white"
-                    style={{ background: 'linear-gradient(135deg, var(--blue), #6366f1)' }}
+                    className="inline-block rounded-full text-[11px] font-semibold uppercase tracking-wider px-3 py-1"
+                    style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}
                   >
                     Announcement
                   </span>
@@ -947,10 +950,11 @@ export default function GalleryPostCard({
               {commentText.trim() && (
                 <button
                   onClick={handleComment}
+                  aria-label="Post comment"
                   className="p-1 rounded-full cursor-pointer shrink-0 transition-transform active:scale-85 animate-fade-in"
-                  style={{ background: 'var(--blue)' }}
+                  style={{ background: 'var(--cricket)' }}
                 >
-                  <Send size={14} className="text-white" />
+                  <Send size={14} style={{ color: 'var(--cricket-on)' }} />
                 </button>
               )}
             </div>

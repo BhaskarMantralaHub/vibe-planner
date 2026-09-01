@@ -808,7 +808,9 @@ export default function PlayerManager() {
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => applySuggestion(s)}
                       className="w-full flex items-center gap-3 px-3 py-3 text-left cursor-pointer active:bg-[var(--surface)] hover:bg-[var(--surface)] transition-colors border-l-[3px]"
-                      style={{ borderLeftColor: s.source === 'member' ? 'var(--green)' : 'var(--blue)' }}
+                      // Green = already a signed-up member; dim = cross-team
+                      // profile suggestion. (Was blue — legacy accent.)
+                      style={{ borderLeftColor: s.source === 'member' ? 'var(--green)' : 'var(--dim)' }}
                     >
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-[14px] shrink-0"
                         style={{ background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}>
@@ -1108,12 +1110,15 @@ export default function PlayerManager() {
                       bottom-sheet ActionSheet, same as every other ⋮ */}
                   {isAdmin && (
                     <>
+                      {/* Vertically centered and quiet — "more actions" is
+                          tertiary; the row itself (expand) and the name
+                          (profile) are the primary affordances. */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenMenu(p.id); }}
                         aria-label={`Actions for ${p.name}`}
-                        className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
+                        className="absolute top-1/2 -translate-y-1/2 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--dim)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
                       >
-                        <EllipsisVertical size={15} />
+                        <EllipsisVertical size={14} />
                       </button>
 
                       <ActionSheet
@@ -1142,7 +1147,9 @@ export default function PlayerManager() {
                                 dividerBefore: true,
                               }] : []),
                               ...(!isMe ? [
-                                { label: 'Admin Access', icon: <Crown size={13} />, color: 'var(--toolkit)', onClick: () => handleAdminAccess(p) },
+                                // var(--text), not the toolkit purple — the
+                                // roster screen carries no blue/purple accents.
+                                { label: 'Admin Access', icon: <Crown size={13} />, color: 'var(--text)', onClick: () => handleAdminAccess(p) },
                                 { label: 'Move to Guest', icon: <BadgeIcon size={15} />, color: 'var(--muted)', onClick: () => setMovingToGuest(p) },
                                 { label: 'Remove', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingPlayer(p), dividerBefore: true },
                                 ...(p.user_id ? [{ label: 'Delete Permanently', icon: <UserX size={15} />, color: 'var(--red)', onClick: () => setPermanentDeleting(p) }] : []),
@@ -1159,9 +1166,9 @@ export default function PlayerManager() {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEdit(p); }}
                       aria-label="Edit your details"
-                      className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
+                      className="absolute top-1/2 -translate-y-1/2 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
                     >
-                      <Pencil size={16} />
+                      <Pencil size={15} />
                     </button>
                   )}
 
@@ -1205,7 +1212,8 @@ export default function PlayerManager() {
                           composite loop. */}
                       {isAdmin && (
                         <span
-                          className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--card)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
+                          className="absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--card)]"
+                          style={{ background: isSignedUp ? 'var(--green)' : 'var(--dim)' }}
                           title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
                         />
                       )}
@@ -1214,7 +1222,7 @@ export default function PlayerManager() {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <Text
                           size="md" weight="bold" truncate
-                          className="sm:text-[16px] hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                          className="text-[15px] sm:text-[16px] hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); setProfilePlayer(p); }}
                         >{p.name}</Text>
                         {isCaptain && (
@@ -1233,21 +1241,22 @@ export default function PlayerManager() {
                           role PILL competed with the player's name. */}
                       <div className="flex items-center gap-1.5 mt-1">
                         {rc && (
-                          <span className="text-[11px] font-semibold" style={{ color: roleColor }}>
+                          <span className="text-[12px] font-medium" style={{ color: roleColor }}>
                             {rc.label}
                           </span>
                         )}
                         {p.batting_style && (
-                          <span className="text-[11px] text-[var(--muted)]">· {p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
+                          <span className="text-[12px] text-[var(--muted)]">· {p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
                         )}
                         {isPlayerAdmin && (
-                          <span className="text-[11px] text-[var(--muted)]">· Admin</span>
+                          <span className="text-[12px] text-[var(--muted)]">· Admin</span>
                         )}
-                        {/* Chevron */}
+                        {/* Chevron — tertiary "this row expands" hint; dim so
+                            it never competes with the ⋮ beside it. */}
                         {hasDetails && (
                           <ChevronRight
-                            size={16}
-                            className="flex-shrink-0 text-[var(--muted)] transition-transform duration-300 ml-auto"
+                            size={15}
+                            className="flex-shrink-0 text-[var(--dim)] transition-transform duration-300 ml-auto"
                             style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
                           />
                         )}
@@ -1754,8 +1763,10 @@ export default function PlayerManager() {
         <Dialog open onOpenChange={(o) => { if (!o) setAdminModal(null); }}>
           <DialogContent className="max-w-sm" showClose={false}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.1)' }}>
-                <Crown size={18} style={{ color: 'var(--toolkit)' }} />
+              {/* Brand tint, not the toolkit purple — this dialog lives in
+                  the cricket app's color system. */}
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)' }}>
+                <Crown size={18} style={{ color: 'var(--cricket)' }} />
               </div>
               <div>
                 <p className="text-[15px] font-semibold text-[var(--text)]">Admin Access</p>
@@ -1806,7 +1817,7 @@ export default function PlayerManager() {
                   <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">
                     Cancel
                   </Button>
-                  <Button onClick={grantAdmin} size="md" className="bg-[var(--toolkit)] text-white hover:opacity-90">
+                  <Button onClick={grantAdmin} variant="primary" brand="cricket" size="md">
                     Grant Admin
                   </Button>
                 </div>

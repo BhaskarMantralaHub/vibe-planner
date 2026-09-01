@@ -219,7 +219,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
         label: uploading ? 'Posting...' : 'Share',
         onClick: handlePost,
         disabled: files.length === 0 || uploading,
-        color: 'var(--blue)',
+        color: 'var(--cricket)',
         icon: <Send size={14} />,
       }}
       footer={

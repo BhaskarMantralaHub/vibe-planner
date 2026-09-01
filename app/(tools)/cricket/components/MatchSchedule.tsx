@@ -659,7 +659,9 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
                 style={match.is_home
                   ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }
-                  : { background: 'color-mix(in srgb, var(--blue) 15%, transparent)', color: 'var(--blue)' }
+                  // Neutral, not blue — Away is ordinary metadata, and blue
+                  // is reserved for the umpiring "signed up" state.
+                  : { background: 'color-mix(in srgb, var(--text) 8%, transparent)', color: 'var(--muted)' }
                 }>
                 {match.is_home ? 'Home' : 'Away'}
               </span>
