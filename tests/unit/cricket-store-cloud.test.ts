@@ -628,7 +628,7 @@ describe('Seasons (cloud)', () => {
 describe('Season rosters (cloud)', () => {
   const ROW = {
     season_id: 'season-spring-2026', player_id: 'p1', team_id: 'team-1',
-    is_guest: false, left_at: null,
+    is_guest: false, left_at: null, designation: null,
     joined_at: '2026-08-28T00:00:00Z', created_at: '2026-08-28T00:00:00Z',
   };
 
@@ -730,6 +730,58 @@ describe('Season rosters (cloud)', () => {
     await useCricketStore.getState().loadAll(ADMIN_USER.id);
 
     expect(useCricketStore.getState().seasonPlayers).toEqual([ROW]);
+  });
+
+  it('setSeasonDesignation calls the atomic RPC and moves the armband locally', async () => {
+    mockClient.rpc = vi.fn().mockResolvedValue({ data: 'ok', error: null });
+    useCricketStore.setState({
+      seasonPlayers: [ROW, { ...ROW, player_id: 'p2', designation: 'captain' as const }],
+    });
+
+    const ok = await useCricketStore.getState().setSeasonDesignation('season-spring-2026', 'p1', 'captain');
+
+    expect(ok).toBe(true);
+    expect(mockClient.rpc).toHaveBeenCalledWith('set_season_designation', {
+      p_season_id: 'season-spring-2026', p_player_id: 'p1', p_designation: 'captain',
+    });
+    const rows = useCricketStore.getState().seasonPlayers;
+    // The target takes the armband and the incumbent loses it — one captain.
+    expect(rows.find((r) => r.player_id === 'p1')?.designation).toBe('captain');
+    expect(rows.find((r) => r.player_id === 'p2')?.designation).toBeNull();
+    // season-spring-2026 is the fixtures' active season, so the record-level
+    // "current" mirror follows.
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.designation).toBe('captain');
+  });
+
+  it('setSeasonDesignation returns false and changes nothing on a reason code', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockClient.rpc = vi.fn().mockResolvedValue({ data: 'not_on_roster', error: null });
+    useCricketStore.setState({
+      seasonPlayers: [{ ...ROW, player_id: 'p2', designation: 'captain' as const }],
+    });
+
+    const ok = await useCricketStore.getState().setSeasonDesignation('season-spring-2026', 'p1', 'captain');
+
+    expect(ok).toBe(false);
+    // The incumbent keeps the armband — the UI must not show a swap the
+    // database refused.
+    expect(useCricketStore.getState().seasonPlayers[0]!.designation).toBe('captain');
+    consoleSpy.mockRestore();
+  });
+
+  it('setSeasonDesignation falls back to the record-level field when the season has no roster', async () => {
+    // An un-seeded season reads designation from cricket_players (see
+    // lib/season-roster fallback), so the write must land there too — the RPC
+    // would refuse with not_on_roster.
+    mockClient.rpc = vi.fn();
+    configureFromSingle('cricket_players');
+    useCricketStore.setState({ seasonPlayers: [] });
+
+    const ok = await useCricketStore.getState().setSeasonDesignation('season-spring-2026', 'p1', 'captain');
+
+    expect(ok).toBe(true);
+    expect(mockClient.rpc).not.toHaveBeenCalled();
+    expect(useCricketStore.getState().players.find((p) => p.id === 'p1')?.designation).toBe('captain');
   });
 });
 

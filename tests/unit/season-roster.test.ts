@@ -13,7 +13,7 @@ const player = (id: string, over: Partial<CricketPlayer> = {}): CricketPlayer =>
 
 const row = (seasonId: string, playerId: string, over: Partial<CricketSeasonPlayer> = {}): CricketSeasonPlayer => ({
   season_id: seasonId, player_id: playerId, team_id: 'team-1',
-  is_guest: false, left_at: null,
+  is_guest: false, left_at: null, designation: null,
   joined_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z',
   ...over,
 });
@@ -70,6 +70,46 @@ describe('seasonRoster', () => {
 
       expect(seasonRoster(squad, rows, SPRING).isGuest('a')).toBe(true);
       expect(seasonRoster(squad, rows, FALL).isGuest('a')).toBe(false);
+    });
+  });
+
+  describe('season-level designation (captain / vice-captain)', () => {
+    it('reads the JOIN row, not the player record — the whole point', () => {
+      // The record says Bob is the CURRENT captain (Fall). Spring's roster
+      // says Alice captained Spring. Viewing Spring must show Alice — the
+      // old record-only field rewrote history on every succession.
+      const squad = [player('alice'), player('bob', { designation: 'captain' })];
+      const rows = [
+        row(SPRING, 'alice', { designation: 'captain' }), row(SPRING, 'bob'),
+        row(FALL, 'alice'), row(FALL, 'bob', { designation: 'captain' }),
+      ];
+
+      expect(seasonRoster(squad, rows, SPRING).designationOf('alice')).toBe('captain');
+      expect(seasonRoster(squad, rows, SPRING).designationOf('bob')).toBeNull();
+      expect(seasonRoster(squad, rows, FALL).designationOf('bob')).toBe('captain');
+      expect(seasonRoster(squad, rows, FALL).designationOf('alice')).toBeNull();
+    });
+
+    it('covers the vice-captain the same way', () => {
+      const squad = [player('a')];
+      const rows = [row(SPRING, 'a', { designation: 'vice-captain' })];
+      expect(seasonRoster(squad, rows, SPRING).designationOf('a')).toBe('vice-captain');
+    });
+
+    it('a departed captain keeps history but is not the current holder', () => {
+      // left_at set → off the current roster, so designationOf reports null;
+      // the row itself keeps designation='captain' for the record.
+      const squad = [player('a'), player('b')];
+      const rows = [
+        row(SPRING, 'a', { designation: 'captain', left_at: '2026-06-01T00:00:00Z' }),
+        row(SPRING, 'b'),
+      ];
+      expect(seasonRoster(squad, rows, SPRING).designationOf('a')).toBeNull();
+    });
+
+    it('falls back to the record-level designation when the season has no roster', () => {
+      const squad = [player('a', { designation: 'captain' })];
+      expect(seasonRoster(squad, [], SPRING).designationOf('a')).toBe('captain');
     });
   });
 

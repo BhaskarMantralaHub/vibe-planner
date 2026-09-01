@@ -103,7 +103,7 @@ export default function PlayerManager() {
   const { userAccess } = useAuthStore();
   const isAdmin = userAccess.includes('admin');
   const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer,
-    seasonPlayers, seasons, selectedSeasonId, enrollInSeason, removeFromSeason } = useCricketStore();
+    seasonPlayers, seasons, selectedSeasonId, enrollInSeason, removeFromSeason, setSeasonDesignation } = useCricketStore();
 
   /**
    * Season-roster membership for the season currently selected.
@@ -294,7 +294,9 @@ export default function PlayerManager() {
 
   const handleDesignation = (value: string) => {
     if (designation === value) { setDesignation(''); setDesignationConflict(null); return; }
-    const existing = activePlayers.find((p) => p.designation === value && p.id !== editingPlayer);
+    // Season-scoped: the incumbent is whoever holds the armband in the
+    // SELECTED season (record-level fallback when the season has no roster).
+    const existing = activePlayers.find((p) => selectedRoster.designationOf(p.id) === value && p.id !== editingPlayer);
     if (existing) {
       setDesignationConflict({ value, existingName: existing.name, existingId: existing.id });
     } else {
@@ -305,7 +307,9 @@ export default function PlayerManager() {
 
   const confirmDesignationSwap = () => {
     if (!designationConflict) return;
-    updatePlayer(designationConflict.existingId, { designation: null });
+    // No write here — the save routes through setSeasonDesignation, which
+    // displaces the incumbent atomically. (The old immediate updatePlayer
+    // stripped the incumbent even if the admin then cancelled the form.)
     setDesignation(designationConflict.value);
     setDesignationConflict(null);
   };
@@ -407,13 +411,16 @@ export default function PlayerManager() {
     setFormError('');
     setSubmitting(true);
 
+    // Designation deliberately does NOT ride in the player payload: it is a
+    // SEASON fact now, written through setSeasonDesignation (which also keeps
+    // the record-level "current" mirror in sync for the active season).
+    const desiredDesignation = (isGuestPlayer ? null : (designation || null)) as 'captain' | 'vice-captain' | null;
     const data: Record<string, unknown> = {
       name: name.trim(), jersey_number: jersey ? Number(jersey) : null, phone: null,
       email: email.trim() || null, cricclub_id: cricclubId.trim() || null, shirt_size: shirtSize || null,
       player_role: (isGuestPlayer ? null : (playerRole || null)) as PlayerRole | null,
       batting_style: (isGuestPlayer ? null : (showBatting ? battingStyle || null : null)) as BattingStyle | null,
       bowling_style: (isGuestPlayer ? null : (showBowling ? bowlingStyle || null : null)) as BowlingStyle | null,
-      designation: (isGuestPlayer ? null : (designation || null)) as 'captain' | 'vice-captain' | null,
       is_guest: isGuestPlayer,
       linked_user_id: linkedUserId,
     };
@@ -430,18 +437,29 @@ export default function PlayerManager() {
         if (url) data.photo_url = url;
       }
       updatePlayer(editingPlayer, data);
+      // Season designation, only when it actually changed for THIS season.
+      if (selectedSeasonId && selectedRoster.designationOf(editingPlayer) !== desiredDesignation) {
+        const ok = await setSeasonDesignation(selectedSeasonId, editingPlayer, desiredDesignation);
+        if (!ok) toast.error(seasonLabel ? `Couldn't update the designation for ${seasonLabel}` : "Couldn't update the designation");
+      }
     } else {
-      // New player: add first, then upload photo with the real ID
-      addPlayer(user.id, data as Parameters<typeof addPlayer>[1]);
-      if (photoFile) {
-        // Wait briefly for the server ID to come back, then upload
+      // New player: add first, then upload photo / set designation with the
+      // real ID (addPlayer also enrols them into the selected season).
+      addPlayer(user.id, { ...data, designation: null } as Parameters<typeof addPlayer>[1]);
+      if (photoFile || desiredDesignation) {
+        // Wait briefly for the server ID (and season enrolment) to come back
         setTimeout(async () => {
           const newPlayer = useCricketStore.getState().players.find(
             (p) => p.name === name.trim() && p.is_active
           );
-          if (newPlayer) {
+          if (!newPlayer) return;
+          if (photoFile) {
             const url = await uploadPlayerPhoto(photoFile, user.id, newPlayer.id);
             if (url) updatePlayer(newPlayer.id, { photo_url: url });
+          }
+          if (desiredDesignation && selectedSeasonId) {
+            const ok = await setSeasonDesignation(selectedSeasonId, newPlayer.id, desiredDesignation);
+            if (!ok) toast.error(seasonLabel ? `Couldn't update the designation for ${seasonLabel}` : "Couldn't update the designation");
           }
         }, 1500);
       }
@@ -523,7 +541,9 @@ export default function PlayerManager() {
     setEditingPlayer(p.id); setName(p.name); setJersey(p.jersey_number?.toString() ?? '');
     setEmail(p.email ?? ''); setCricclubId(p.cricclub_id ?? ''); setShirtSize(p.shirt_size ?? '');
     setPlayerRole(p.player_role ?? ''); setBattingStyle(p.batting_style ?? '');
-    setBowlingStyle(p.bowling_style ?? ''); setDesignation(p.designation ?? '');
+    // Designation is the SELECTED SEASON's, not the record's — editing under
+    // the Spring pill must show (and write) Spring's captain, not Fall's.
+    setBowlingStyle(p.bowling_style ?? ''); setDesignation(selectedRoster.designationOf(p.id) ?? '');
     setIsGuestPlayer(p.is_guest ?? false);
     setPhotoFile(null); setPhotoPreview(p.photo_url ?? null); setPhotoRemoved(false);
     setShowPlayerForm(true);
@@ -1058,8 +1078,10 @@ export default function PlayerManager() {
         <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
           {rosterPlayers.map((p, idx) => {
             const rc = roleConfig[p.player_role ?? ''];
-            const isCaptain = p.designation === 'captain';
-            const isVC = p.designation === 'vice-captain';
+            // Armbands are the SELECTED SEASON's, so the Spring pill shows
+            // Spring's captain even after Fall appoints a new one.
+            const isCaptain = selectedRoster.designationOf(p.id) === 'captain';
+            const isVC = selectedRoster.designationOf(p.id) === 'vice-captain';
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
             const isSignedUp = isAdmin && !!p.email && signedUpEmails.has(p.email.toLowerCase());
             const isSelf = !isAdmin && p.id === myPlayer?.id;

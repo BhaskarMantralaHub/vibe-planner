@@ -34,6 +34,11 @@ export interface SeasonRoster {
    *  record-level "walk-in stub" fact. A person can guest one season and be a
    *  regular the next. */
   isGuest: (playerId: string) => boolean;
+  /** Season-level captaincy — who wore the armband in THIS season. In fallback
+   *  mode (no roster rows / local mode) it reads `CricketPlayer.designation`,
+   *  the CURRENT designation, which is also exactly what every screen showed
+   *  before captaincy was season-scoped. */
+  designationOf: (playerId: string) => 'captain' | 'vice-captain' | null;
   /** True when this came from the team-wide fallback rather than a real roster. */
   isFallback: boolean;
 }
@@ -55,11 +60,13 @@ export function seasonRoster(
     return {
       players: teamWide,
       isGuest: (id) => teamWide.find((p) => p.id === id)?.is_guest ?? false,
+      designationOf: (id) => players.find((p) => p.id === id)?.designation ?? null,
       isFallback: true,
     };
   }
 
   const guestById = new Map(rows.map((sp) => [sp.player_id, sp.is_guest]));
+  const designationById = new Map(rows.map((sp) => [sp.player_id, sp.designation ?? null]));
   const byId = new Map(players.map((p) => [p.id, p]));
   const rostered = rows
     .map((sp) => byId.get(sp.player_id))
@@ -73,6 +80,7 @@ export function seasonRoster(
   return {
     players: rostered,
     isGuest: (id) => guestById.get(id) ?? false,
+    designationOf: (id) => designationById.get(id) ?? null,
     isFallback: false,
   };
 }

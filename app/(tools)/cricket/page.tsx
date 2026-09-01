@@ -379,9 +379,11 @@ function CricketDashboard() {
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
   // This season's roster, not the whole team — so the Players stat card counts
-  // who is actually playing the selected season. Falls back to the team-wide
-  // list for a season with no roster rows. See ./lib/season-roster.
-  const activePlayers = billableRoster(seasonRoster(players, seasonPlayers, selectedSeasonId));
+  // who is actually playing the selected season, and the greeting's skipper
+  // check reads THIS season's armband. Falls back to the team-wide list for a
+  // season with no roster rows. See ./lib/season-roster.
+  const roster = seasonRoster(players, seasonPlayers, selectedSeasonId);
+  const activePlayers = billableRoster(roster);
   const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'sponsors', 'splits'];
   const SS_KEY = 'cricket:activeView';
   const [activeView, setActiveView] = useState<View>(() => {
@@ -581,8 +583,11 @@ function CricketDashboard() {
           || (user?.user_metadata?.full_name as string)?.split(' ')[0]
           || '';
         const role = myPlayer?.player_role ?? '';
-        const isCaptain = myPlayer?.designation === 'captain';
-        const isVC = myPlayer?.designation === 'vice-captain';
+        // Season's armband, not the record's — no skipper greeting while
+        // viewing a season someone else captained.
+        const myDesignation = myPlayer ? roster.designationOf(myPlayer.id) : null;
+        const isCaptain = myDesignation === 'captain';
+        const isVC = myDesignation === 'vice-captain';
 
         // Role-based greetings
         const roleGreetings: Record<string, string[]> = {

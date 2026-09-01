@@ -50,6 +50,14 @@ export type CricketSeasonPlayer = {
    * explain the gap. Cannot express a rejoin within one season.
    */
   left_at: string | null;
+  /**
+   * SEASON-level captaincy — who wore the armband THIS season. Deliberately
+   * distinct from `CricketPlayer.designation`, which is the CURRENT
+   * designation (kept in sync with the active season by the
+   * `set_season_designation` RPC, and the fallback when a season has no
+   * roster rows). See docs/season-designation-migration.sql.
+   */
+  designation: 'captain' | 'vice-captain' | null;
   joined_at: string;
   created_at: string;
 };

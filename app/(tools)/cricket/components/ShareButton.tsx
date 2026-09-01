@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getTeamName, getTeamLogoUrl, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
+import { seasonRoster } from '../lib/season-roster';
 import { FileDown, Share2 } from 'lucide-react';
 import { Text } from '@/components/ui';
 
@@ -13,6 +14,9 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   if (!season) return '';
 
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
+  // (C)/(VC) tags are the SELECTED SEASON's armbands, not the current ones —
+  // a report shared for Spring must not carry Fall's captain.
+  const designationOf = seasonRoster(players, store.seasonPlayers, selectedSeasonId).designationOf;
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId && !e.deleted_at);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
@@ -73,7 +77,8 @@ function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
 
   lines.push(`👥 *SQUAD* (${activePlayers.length})`);
   activePlayers.forEach((p) => {
-    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    const d = designationOf(p.id);
+    const tag = d === 'captain' ? ' (C)' : d === 'vice-captain' ? ' (VC)' : '';
     lines.push(`   ${p.jersey_number ? '#' + p.jersey_number : '•'} ${p.name}${tag}`);
   });
 
@@ -87,6 +92,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   if (!season) return null;
 
   const activePlayers = players.filter((p) => p.is_active && !p.is_guest);
+  // Season's armbands, same as the text report above.
+  const designationOf = seasonRoster(players, storeState.seasonPlayers, selectedSeasonId).designationOf;
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId && !e.deleted_at);
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeAmount = season.fee_amount ?? 60;
@@ -317,7 +324,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
     const isPartial = paidAmt > 0 && paidAmt < feeAmount;
     const status = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid';
     const sColor: RGB = isPaid ? GREEN : isPartial ? CRICKET_BRIGHT : RED;
-    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    const d = designationOf(p.id);
+    const tag = d === 'captain' ? ' (C)' : d === 'vice-captain' ? ' (VC)' : '';
     const dateStr = fee?.paid_date ? formatDate(fee.paid_date) : '—';
     return {
       cells: [p.jersey_number ? `#${p.jersey_number}` : '—', `${p.name}${tag}`, status, dateStr, formatCurrency(paidAmt)],
@@ -394,7 +402,8 @@ async function generatePdf(storeState: ReturnType<typeof useCricketStore.getStat
   // ═══ SQUAD TABLE ═══
   sectionHeader('TEAM SQUAD', `${activePlayers.length} players`, CRICKET);
   const squadRows = activePlayers.map((p) => {
-    const tag = p.designation === 'captain' ? ' (C)' : p.designation === 'vice-captain' ? ' (VC)' : '';
+    const d = designationOf(p.id);
+    const tag = d === 'captain' ? ' (C)' : d === 'vice-captain' ? ' (VC)' : '';
     const role = p.player_role ? p.player_role.charAt(0).toUpperCase() + p.player_role.slice(1).replace('-', ' ') : '—';
     const style = [
       p.batting_style ? (p.batting_style === 'right' ? 'RHB' : 'LHB') : '',

@@ -169,6 +169,14 @@ interface CricketState {
   enrollInSeason: (seasonId: string, playerId: string, isGuest?: boolean) => Promise<boolean>;
   /** Take a player off a season's roster, leaving every other season alone. */
   removeFromSeason: (seasonId: string, playerId: string) => Promise<boolean>;
+  /**
+   * Assign (or clear, with null) captain / vice-captain for ONE season via the
+   * atomic `set_season_designation` RPC — it displaces the current holder and
+   * keeps `cricket_players.designation` (the CURRENT designation) in sync when
+   * the season is the active one. Returns false on any failure so the UI can
+   * never toast success for a write that did not happen.
+   */
+  setSeasonDesignation: (seasonId: string, playerId: string, designation: 'captain' | 'vice-captain' | null) => Promise<boolean>;
 
   // Seasons
   addSeason: (userId: string, data: { name: string; year: number; season_type: string }) => void;
@@ -740,7 +748,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           ...get().seasonPlayers,
           (row as CricketSeasonPlayer | null) ?? {
             season_id: seasonId, player_id: playerId, team_id: teamId,
-            is_guest: isGuest, left_at: null, joined_at: now, created_at: now,
+            is_guest: isGuest, left_at: null, designation: null, joined_at: now, created_at: now,
           },
         ],
       });
@@ -774,6 +782,58 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       seasonPlayers: get().seasonPlayers.filter(
         (sp) => !(sp.season_id === seasonId && sp.player_id === playerId),
       ),
+    });
+    return true;
+  },
+
+  setSeasonDesignation: async (seasonId, playerId, designation) => {
+    // Local mode has no roster table, and a season with no roster rows reads
+    // designation from the record-level fallback (see lib/season-roster) — in
+    // both cases the record field IS the designation, so displace-and-set
+    // happens on it directly, exactly like the pre-season-scoping behavior.
+    const hasRoster = get().seasonPlayers.some(
+      (sp) => sp.season_id === seasonId && sp.left_at === null,
+    );
+    if (!isCloudMode() || !hasRoster) {
+      if (designation) {
+        const holder = get().players.find((p) => p.designation === designation && p.id !== playerId);
+        if (holder) get().updatePlayer(holder.id, { designation: null });
+      }
+      get().updatePlayer(playerId, { designation });
+      return true;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return false;
+
+    const { data, error } = await supabase.rpc('set_season_designation', {
+      p_season_id: seasonId,
+      p_player_id: playerId,
+      p_designation: designation,
+    });
+    if (error || data !== 'ok') {
+      console.error('[cricket] setSeasonDesignation failed:', error ?? data);
+      return false;
+    }
+
+    // Reflect what the RPC just did: the target takes the armband, any other
+    // live holder of the same one in this season loses it, and the CURRENT
+    // mirror on cricket_players follows only when this is the active season.
+    const isActive = get().seasons.find((s) => s.id === seasonId)?.is_active ?? false;
+    set({
+      seasonPlayers: get().seasonPlayers.map((sp) => {
+        if (sp.season_id !== seasonId) return sp;
+        if (sp.player_id === playerId) return { ...sp, designation };
+        if (designation && sp.designation === designation && sp.left_at === null) return { ...sp, designation: null };
+        return sp;
+      }),
+      players: isActive
+        ? get().players.map((p) => {
+          if (p.id === playerId) return { ...p, designation };
+          if (designation && p.designation === designation) return { ...p, designation: null };
+          return p;
+        })
+        : get().players,
     });
     return true;
   },

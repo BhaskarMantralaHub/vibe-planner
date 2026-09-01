@@ -581,7 +581,11 @@ CREATE TABLE IF NOT EXISTS cricket_players (
   cricclub_id   TEXT,
   shirt_size    TEXT,           -- 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL'
   email         TEXT,
-  designation   TEXT,           -- 'captain' | 'vice-captain'
+  designation   TEXT,           -- 'captain' | 'vice-captain' — the CURRENT designation only.
+                                -- Season truth lives on cricket_season_players.designation and is
+                                -- mirrored here from the active season by set_season_designation();
+                                -- see docs/season-designation-migration.sql. Readers use
+                                -- seasonRoster().designationOf(), never this field directly.
   photo_url     TEXT,           -- Supabase Storage public URL (player-photos bucket)
   is_active     BOOLEAN DEFAULT true,
   is_guest      BOOLEAN NOT NULL DEFAULT false,  -- true for guest players auto-created from practice matches

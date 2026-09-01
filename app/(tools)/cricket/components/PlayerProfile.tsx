@@ -16,6 +16,7 @@ import { Text } from '@/components/ui';
 import { toast } from 'sonner';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
+import { seasonRoster } from '../lib/season-roster';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   return (
@@ -51,10 +52,12 @@ type Props = {
 };
 
 export default function PlayerProfile({ player, open, onOpenChange }: Props) {
-  const { gallery, galleryTags, fees, seasons, selectedSeasonId, updatePlayer } = useCricketStore();
+  const { gallery, galleryTags, fees, seasons, selectedSeasonId, players, seasonPlayers, updatePlayer } = useCricketStore();
   const { user } = useAuthStore();
   const rc = roleConfig[player.player_role ?? ''];
   const roleColor = rc?.color ?? 'var(--cricket)';
+  // The armband chips show the SELECTED SEASON's designation, not the record's.
+  const seasonDesignation = seasonRoster(players, seasonPlayers, selectedSeasonId).designationOf(player.id);
 
   const isOwnProfile = user?.id === player.user_id;
   const [editing, setEditing] = useState(false);
@@ -175,18 +178,18 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             </div>
 
             {/* Team-specific fields (read-only) */}
-            {(player.jersey_number != null || player.designation) && (
+            {(player.jersey_number != null || seasonDesignation) && (
               <div className="flex flex-wrap gap-2">
                 {player.jersey_number != null && (
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
                     #{player.jersey_number} <span className="text-[var(--dim)]">· set by admin</span>
                   </span>
                 )}
-                {player.designation && (
+                {seasonDesignation && (
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] capitalize">
-                    {player.designation === 'captain' && <Crown size={9} />}
-                    {player.designation === 'vice-captain' && <ShieldCheck size={9} />}
-                    {player.designation} <span className="text-[var(--dim)]">· set by admin</span>
+                    {seasonDesignation === 'captain' && <Crown size={9} />}
+                    {seasonDesignation === 'vice-captain' && <ShieldCheck size={9} />}
+                    {seasonDesignation} <span className="text-[var(--dim)]">· set by admin</span>
                   </span>
                 )}
               </div>
@@ -395,12 +398,12 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                 {rc.icon} {rc.label}
               </Badge>
             )}
-            {player.designation === 'captain' && (
+            {seasonDesignation === 'captain' && (
               <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 10%, transparent)' }}>
                 <Crown size={9} /> Captain
               </Badge>
             )}
-            {player.designation === 'vice-captain' && (
+            {seasonDesignation === 'vice-captain' && (
               <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: '#6B7280', background: '#6B728015' }}>
                 <ShieldCheck size={9} /> Vice Captain
               </Badge>

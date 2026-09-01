@@ -9,6 +9,8 @@ import PlayerAvatar from './PlayerAvatar';
 import { PLAYER_ROLES } from '../lib/constants';
 import { buildPlayerMessageText, whatsappShareUrl } from '@/lib/duty-share';
 import { dutyStatFor } from '@/stores/umpiring-store';
+import { useCricketStore } from '@/stores/cricket-store';
+import { seasonRoster } from '../lib/season-roster';
 import type { CricketPlayer, CricketUmpiringDuty } from '@/types/cricket';
 
 /**
@@ -124,6 +126,10 @@ function SheetBody({
   }, [player, duties, today, openSlots, seasonName]);
 
   const role = PLAYER_ROLES.find((r) => r.key === player.player_role);
+  // The C/VC badge is the SELECTED SEASON's armband — the umpiring board is
+  // already scoped by the same season pill.
+  const { players, seasonPlayers, selectedSeasonId } = useCricketStore();
+  const seasonDesignation = seasonRoster(players, seasonPlayers, selectedSeasonId).designationOf(player.id);
   const standing = stat.completed >= target
     ? { label: 'Target met', color: 'var(--green)' }
     : stat.booked > 0
@@ -152,12 +158,12 @@ function SheetBody({
               <Badge variant="muted" size="sm">#{player.jersey_number}</Badge>
             )}
             {role && <Badge variant="muted" size="sm">{role.icon} {role.label}</Badge>}
-            {player.designation === 'captain' && (
+            {seasonDesignation === 'captain' && (
               <Badge variant="orange" size="sm" className="gap-1">
                 <Crown size={9} /> Captain
               </Badge>
             )}
-            {player.designation === 'vice-captain' && (
+            {seasonDesignation === 'vice-captain' && (
               <Badge variant="blue" size="sm" className="gap-1">
                 <ShieldCheck size={9} /> Vice-captain
               </Badge>
