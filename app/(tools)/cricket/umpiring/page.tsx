@@ -8,7 +8,6 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
 import { createPortal } from 'react-dom';
-import UmpireIcon from '@/components/icons/UmpireIcon';
 import UmpiringBoard from '../components/UmpiringBoard';
 import SeasonSelector from '../components/SeasonSelector';
 import CricketSectionNav from '../components/CricketSectionNav';
@@ -31,20 +30,18 @@ function UmpiringContent() {
 
   return (
     <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-hidden">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{ background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}
-          >
-            <UmpireIcon size={20} color="currentColor" />
-          </div>
-          <div>
-            <Text as="h1" size="lg" weight="bold">Umpiring</Text>
-            <Text as="p" size="2xs" color="muted">Sign up for duties & track who&apos;s stood</Text>
-          </div>
+      {/* Editorial header — strong title + quiet description; no icon chip,
+          no container. The type is the design. */}
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <Text as="h1" size="2xl" weight="bold" tracking="tight">Umpiring</Text>
+          <Text as="p" size="xs" color="muted" className="mt-0.5">
+            Sign up for duties & track who&apos;s stood
+          </Text>
         </div>
-        <SeasonSelector />
+        <div className="flex-shrink-0">
+          <SeasonSelector />
+        </div>
       </div>
 
       {!ready || !selectedSeasonId ? (
