@@ -761,7 +761,7 @@ function FeeRow({
             <button
               type="button"
               onClick={onMarkPaid}
-              className="flex-shrink-0 rounded-full border px-3 py-1.5 text-[11.5px] font-bold whitespace-nowrap cursor-pointer transition-transform active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+              className="flex-shrink-0 rounded-full border px-3.5 min-h-10 -my-1 flex items-center text-[11.5px] font-bold whitespace-nowrap cursor-pointer transition-transform active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
               style={{
                 background: 'var(--split-credit-bg)',
                 borderColor: 'var(--split-credit-border)',
@@ -776,7 +776,7 @@ function FeeRow({
             ref={(el) => { localRef.current = el; anchorRef(el); }}
             onClick={onMenuToggle}
             aria-label={`More actions for ${player.name}`}
-            className="flex h-8 w-7 flex-shrink-0 items-center justify-center rounded-lg text-[var(--dim)] cursor-pointer transition-transform active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+            className="flex h-11 w-10 -my-1.5 flex-shrink-0 items-center justify-center rounded-lg text-[var(--dim)] cursor-pointer transition-transform active:scale-[0.94] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
           >
             <span className="text-[16px] leading-none tracking-[1.5px]">···</span>
           </button>

@@ -5,6 +5,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { getTeamName, getTeamLogoUrl, getCategoryConfig } from '../lib/constants';
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { FileDown, Share2 } from 'lucide-react';
+import { Text } from '@/components/ui';
 
 function buildTextReport(store: ReturnType<typeof useCricketStore.getState>) {
   const { players, seasons, expenses, fees, selectedSeasonId } = store;
@@ -469,8 +470,8 @@ export default function ShareButton() {
     <div className="space-y-4">
       {/* Share Report */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 overflow-hidden min-w-0">
-        <h3 className="mb-1 text-[16px] font-bold text-[var(--text)]">Share Report</h3>
-        <p className="mb-4 text-[13px] text-[var(--muted)]">Share season summary as PDF or text with your team</p>
+        <Text as="h3" size="lg" weight="bold" className="mb-1">Share Report</Text>
+        <Text as="p" size="sm" color="muted" className="mb-4">Share season summary as PDF or text with your team</Text>
 
         <div className="grid grid-cols-2 gap-2">
           <button onClick={handleSharePdf} disabled={generating}

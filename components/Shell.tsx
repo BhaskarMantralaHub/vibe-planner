@@ -345,12 +345,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TopProgressBar />
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md">
+      {/* safe-area-inset-top is 0 in browser Safari portrait; it only bites in
+          the installed (black-translucent) PWA, where the header would
+          otherwise sit under the status-bar clock. */}
+      <header
+        className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
           {showNav ? (
             <button
               onClick={() => setMenuOpen(true)}
-              className="cursor-pointer rounded-lg p-1.5 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)]"
+              className="cursor-pointer rounded-lg p-2.5 -m-1 min-h-11 min-w-11 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)]"
               aria-label="Open menu"
             >
               &#9776;

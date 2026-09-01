@@ -26,7 +26,7 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
           role="tab"
           aria-selected={active === o.key}
           onClick={() => onChange(o.key)}
-          className={`flex-1 py-2.5 rounded-full text-[13px] font-semibold cursor-pointer select-none overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.92] ${
+          className={`flex-1 py-3 rounded-full text-[13px] font-semibold cursor-pointer select-none overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.92] ${
             active === o.key
               ? 'text-white'
               : 'text-[var(--muted)] hover:text-[var(--text)]'

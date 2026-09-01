@@ -107,8 +107,10 @@ function DrawerBody({ children, className }: { children: ReactNode; className?: 
   return (
     <div
       ref={bodyRef}
-      className={cn('px-5 pb-6 pt-4 space-y-4 overflow-y-auto overscroll-contain', className)}
-      style={{ maxHeight: '70dvh' }}
+      className={cn('px-5 pt-4 space-y-4 overflow-y-auto overscroll-contain', className)}
+      // pb-6 plus the home-indicator inset — with viewport-fit=cover the sheet
+      // reaches the physical screen bottom, so content must clear the bar.
+      style={{ maxHeight: '70dvh', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
     >
       {children}
     </div>

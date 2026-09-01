@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Share2 } from 'lucide-react';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import ShareButton from './ShareButton';
 import CricketFab from './CricketFab';
 
@@ -12,8 +13,8 @@ import CricketFab from './CricketFab';
  * anchored above the pill.
  *
  * Placement/size/colour all come from CricketFab so this matches the Add
- * buttons on Matches, Umpiring and Moments. It used to sit at z-50, which put
- * it on top of open modal overlays.
+ * buttons on Matches, Umpiring and Moments. The sheet is the shared Drawer
+ * (drag-to-dismiss, safe-area padding), not a hand-rolled panel.
  */
 export default function ShareFab() {
   const [open, setOpen] = useState(false);
@@ -24,20 +25,13 @@ export default function ShareFab() {
         <Share2 size={24} strokeWidth={2.25} />
       </CricketFab>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/40 animate-fade-in" onClick={() => setOpen(false)} />
-          <div
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl p-5 pb-8 animate-[slideUp_0.2s]"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex justify-center mb-4">
-              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-            </div>
-            <ShareButton />
-          </div>
-        </>
-      )}
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerHandle />
+        <DrawerTitle>Share season report</DrawerTitle>
+        <DrawerBody>
+          <ShareButton />
+        </DrawerBody>
+      </Drawer>
     </>
   );
 }

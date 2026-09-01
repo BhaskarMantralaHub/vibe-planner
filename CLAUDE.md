@@ -165,7 +165,9 @@ Applies especially to: iOS Safari issues, cross-platform rendering, animation/po
 
 Before writing ANY UI code, check `components/ui/`. NEVER duplicate what exists.
 
-**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `ComposerModal`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `CapsuleTabs`, `SegmentedControl`, `toast` (sonner).
+**Available:** `Text`, `Button`, `Input`, `PasswordInput`, `Alert`, `Card`, `Badge`, `Label`, `Dialog`, `Drawer`, `ComposerModal`, `ActionSheet`, `Spinner`, `Skeleton`, `EmptyState`, `FilterDropdown`, `CardMenu`, `RefreshButton`, `CapsuleTabs`, `SegmentedControl`, `toast` (sonner).
+
+**⋮ menus on mobile:** prefer `ActionSheet` (bottom sheet, same `CardMenuItem[]` shape as `CardMenu`) for new or migrated row-action menus; `CardMenu` remains for screens not yet migrated (it now flips above the anchor near the viewport bottom).
 
 **Rules:** Always use shared components. Use `cn()` for conditional classes. Use CVA for new variants. Use `<Text>` for ALL text (never raw `text-[Xpx]`). Use shared `Drawer` for bottom sheets (never raw `vaul`). Use `toast()` for all user feedback. See `docs/DESIGN_SYSTEM.md` for props/usage.
 

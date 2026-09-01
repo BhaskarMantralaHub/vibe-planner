@@ -121,6 +121,10 @@
   --cricket-fab-bottom: calc(
     var(--cricket-nav-inset) + var(--cricket-nav-height) + var(--cricket-fab-gap)
   );
+  /* Bottom padding for page content so the last item scrolls clear of the
+     nav pill AND the 56px FAB floating above it. Pages use .pb-cricket-nav
+     instead of a hardcoded pb-32. */
+  --cricket-content-bottom: calc(var(--cricket-fab-bottom) + 56px + 16px);
 
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
   --toolkit: #4DBBEB;
@@ -239,11 +243,18 @@ html {
   width: 100%;
 }
 
+/* Kill the grey/blue tap flash on touch — press feedback is provided
+   explicitly via active: styles and .pressable instead. */
+a, button, [role="button"], input, select, textarea, summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for browsers without dvh */
+  min-height: 100dvh;
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
@@ -284,6 +295,32 @@ code, pre, .font-mono {
     --duration-slow: 0ms;
     --duration-slower: 0ms;
   }
+}
+
+/* Shared press feedback for tappable elements. Builds on the duration tokens,
+   so it goes instant (not animated) under prefers-reduced-motion. */
+.pressable {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* View entrance — subtle opacity + 6px rise when switching in-page views. */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-view-in {
+  animation: view-in var(--duration-normal) var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-view-in { animation: none; }
+}
+
+/* Page-bottom clearance for cricket pages — see --cricket-content-bottom. */
+.pb-cricket-nav {
+  padding-bottom: var(--cricket-content-bottom);
 }
 
 /* ── Dialog Animations (Radix data-state driven) ── */
@@ -740,7 +777,9 @@ code, pre, .font-mono {
   transition: color 200ms ease-out;
 }
 
-.menu__item:hover { color: var(--text); }
+@media (hover: hover) {
+  .menu__item:hover { color: var(--text); }
+}
 
 .menu__item.active {
   color: var(--component-active-color, var(--component-active-color-default));

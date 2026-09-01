@@ -20,6 +20,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Without cover, iOS Safari reports every env(safe-area-inset-*) as 0 in
+  // the browser tab, leaving the nav/FAB geometry tokens in fallback mode.
+  viewportFit: 'cover',
 };
 
 export const metadata: Metadata = {

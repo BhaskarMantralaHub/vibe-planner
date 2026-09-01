@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import {
-  EmptyState, Text, CardMenu, Badge, Input,
+  EmptyState, Text, ActionSheet, Badge, Input,
   Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose,
   ComposerModal,
 } from '@/components/ui';
@@ -96,7 +96,6 @@ function SponsorCard({
   onDelete: (s: CricketSponsorship) => void;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div
@@ -147,25 +146,23 @@ function SponsorCard({
             {isAdmin && (
               <>
                 <button
-                  ref={openMenu ? menuBtnRef : null}
-                  onClick={() => setOpenMenu(!openMenu)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                  onClick={() => setOpenMenu(true)}
+                  className="h-11 w-11 -my-1.5 -mr-1.5 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
                   aria-label="Sponsor actions"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                     <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
                   </svg>
                 </button>
-                {openMenu && (
-                  <CardMenu
-                    anchorRef={menuBtnRef}
-                    onClose={() => setOpenMenu(false)}
-                    items={[
-                      { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => onEdit(sponsor) },
-                      { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => onDelete(sponsor), dividerBefore: true },
-                    ]}
-                  />
-                )}
+                <ActionSheet
+                  open={openMenu}
+                  onOpenChange={setOpenMenu}
+                  title={`Actions for ${sponsor.sponsor_name}`}
+                  items={[
+                    { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: () => onEdit(sponsor) },
+                    { label: 'Delete', icon: <Trash2 size={17} />, color: 'var(--red)', onClick: () => onDelete(sponsor), dividerBefore: true },
+                  ]}
+                />
               </>
             )}
           </div>

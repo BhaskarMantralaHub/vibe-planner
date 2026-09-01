@@ -123,7 +123,7 @@ export function ComposerModal({
         <header className="flex-none flex items-center justify-between gap-3 px-5 py-3 border-b border-[var(--border)]">
           <button
             onClick={left.onClick}
-            className="text-[14px] font-medium cursor-pointer min-w-[60px] text-left"
+            className="text-[14px] font-medium cursor-pointer min-w-[60px] min-h-11 text-left"
             style={{ color: left.color ?? 'var(--muted)' }}
           >
             {left.label}
@@ -135,7 +135,7 @@ export function ComposerModal({
             <button
               onClick={rightAction.onClick}
               disabled={rightAction.disabled}
-              className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] justify-end"
+              className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] min-h-11 justify-end"
               style={{ color: rightAction.color ?? 'var(--blue)' }}
             >
               {rightAction.icon}
@@ -155,8 +155,13 @@ export function ComposerModal({
         {/* Sticky footer — translated by keyboard overlap so it stays visible while typing */}
         {footer && (
           <footer
-            className="flex-none px-5 py-3 border-t border-[var(--border)] bg-[var(--card)] transition-transform duration-150 ease-out"
-            style={{ transform: `translateY(${kbOffset}px)` }}
+            className="flex-none px-5 pt-3 border-t border-[var(--border)] bg-[var(--card)] transition-transform duration-150 ease-out"
+            // Bottom padding absorbs the home-indicator inset when the keyboard
+            // is down; while typing the keyboard overlap translate dominates.
+            style={{
+              transform: `translateY(${kbOffset}px)`,
+              paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+            }}
           >
             {footer}
           </footer>
