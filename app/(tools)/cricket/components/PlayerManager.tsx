@@ -11,6 +11,7 @@ import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badg
 import { MdSportsCricket } from 'react-icons/md';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
+import { seasonRoster } from '../lib/season-roster';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -107,10 +108,12 @@ export default function PlayerManager() {
   /**
    * Season-roster membership for the season currently selected.
    *
-   * This is a WRITE-side control only — nothing on this screen filters by it
-   * yet, so the Roster and Guests tabs still show the whole team. Deliberate:
-   * an admin must be able to fix a season's roster BEFORE any screen starts
-   * billing from it. See CLAUDE.md → Season rosters.
+   * The Squad list is now season-scoped: it shows only players on the selected
+   * season's roster, and active club members sitting the season out move to
+   * their own "Not in <Season>" section below. When the season has NO roster
+   * rows at all (un-seeded season, local mode), the shared helper falls back
+   * to the whole team and the section disappears — exactly the pre-roster
+   * behavior. See CLAUDE.md → Season rosters and lib/season-roster.
    */
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
   // Short form ("Fall 2026") — the stored name is "2026 MTCA Fall League",
@@ -138,13 +141,20 @@ export default function PlayerManager() {
   const userEmail = user?.email?.toLowerCase();
   const myPlayer = players.find((p) => p.is_active && p.email?.toLowerCase() === userEmail);
   const isSelfEditing = !isAdmin && editingPlayer === myPlayer?.id;
-  const rosterPlayers = [...players.filter((p) => p.is_active && !p.is_guest)].sort((a, b) => playerSort(a, b, userEmail));
+  const activeSquad = [...players.filter((p) => p.is_active && !p.is_guest)].sort((a, b) => playerSort(a, b, userEmail));
+  const selectedRoster = seasonRoster(players, seasonPlayers, selectedSeasonId);
+  const onRosterIds = new Set(selectedRoster.players.map((p) => p.id));
+  // Squad = on this season's roster. Off-season = active club members without
+  // a roster row; empty in fallback mode so an un-seeded season shows everyone.
+  const rosterPlayers = selectedRoster.isFallback ? activeSquad : activeSquad.filter((p) => onRosterIds.has(p.id));
+  const offSeasonPlayers = selectedRoster.isFallback ? [] : activeSquad.filter((p) => !onRosterIds.has(p.id));
   const guestPlayers = [...players.filter((p) => p.is_active && p.is_guest)].sort((a, b) => a.name.localeCompare(b.name));
   const removedPlayers = players.filter((p) => !p.is_active);
   // Keep activePlayers for backward compat (used in expense splits, etc.)
   const activePlayers = [...players.filter((p) => p.is_active)].sort((a, b) => playerSort(a, b, userEmail));
   const [showRemoved, setShowRemoved] = useState(false);
   const [showGuests, setShowGuests] = useState(false);
+  const [showOffSeason, setShowOffSeason] = useState(false);
   const [promotingGuest, setPromotingGuest] = useState<CricketPlayer | null>(null);
   const [movingToGuest, setMovingToGuest] = useState<CricketPlayer | null>(null);
   const [deletingGuest, setDeletingGuest] = useState<CricketPlayer | null>(null);
@@ -1330,6 +1340,48 @@ export default function PlayerManager() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Not in <Season> — active club members without a roster row for the
+          selected season. They keep their identity and history; they are just
+          sitting this season out, so they leave the Squad list instead of
+          padding its counts. Never rendered in fallback mode. */}
+      {offSeasonPlayers.length > 0 && seasonLabel && (
+        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
+          <button onClick={() => setShowOffSeason(!showOffSeason)}
+            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
+            <Text size="sm" weight="semibold" color="muted">Not in {seasonLabel} ({offSeasonPlayers.length})</Text>
+            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showOffSeason ? 'rotate(90deg)' : 'none' }} />
+          </button>
+          {showOffSeason && (
+            <div className="pt-1 space-y-1.5">
+              {offSeasonPlayers.map((p) => {
+                const rc = roleConfig[p.player_role ?? ''];
+                return (
+                  <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5">
+                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
+                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 8), color: colorAlpha(rc?.color ?? 'var(--cricket)', 45) }}>
+                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Text as="p" size="sm" weight="semibold" color="muted" truncate>{p.name}</Text>
+                      <Text as="p" size="2xs" color="dim">Sitting out this season</Text>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={() => toggleSeasonMembership(p)}
+                        aria-label={`Add ${p.name} to ${seasonLabel}`}
+                        className="flex-shrink-0 min-h-11 px-3 rounded-lg text-[13px] font-semibold text-[var(--cricket)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+                      >
+                        Add back
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
