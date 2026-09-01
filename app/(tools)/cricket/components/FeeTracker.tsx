@@ -246,30 +246,32 @@ export default function FeeTracker() {
           </Text>
         </div>
 
-        <div className="mt-2 flex items-baseline gap-2 flex-wrap">
-          <Text size="2xl" weight="bold" tabular className="sm:text-[26px] leading-none">
+        {/* The collected amount is the page's primary figure — it dominates,
+            the context line stays quiet beneath it. */}
+        <div className="mt-2">
+          <span className="block text-[30px] font-bold leading-none tabular-nums tracking-tight text-[var(--text)]">
             {formatCurrency(totalCollected)}
+          </span>
+          <Text as="p" size="xs" color="muted" tabular className="mt-1">
+            of {formatCurrency(totalExpected)} collected
           </Text>
-          <Text size="xs" color="muted" tabular>of {formatCurrency(totalExpected)} collected</Text>
         </div>
 
         {/* Never red. The old bar painted red below 50%, which in week one of
             collection is every season — an alarm that is always on is ignored. */}
         <div
-          className="mt-3 h-[7px] rounded-full overflow-hidden"
-          style={{ background: 'var(--border)' }}
+          className="mt-3 h-1.5 rounded-full overflow-hidden"
+          style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}
           role="progressbar"
           aria-valuenow={collectedPct}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label={`${collectedPct}% of season fees collected`}
         >
+          {/* One solid brand fill — matches the pool hero's bar language */}
           <div
             className="h-full rounded-full transition-[width] duration-700 ease-out"
-            style={{
-              width: `${collectedPct}%`,
-              background: 'linear-gradient(90deg, var(--cricket-accent), var(--cricket))',
-            }}
+            style={{ width: `${collectedPct}%`, background: 'var(--cricket)' }}
           />
         </div>
 
@@ -318,7 +320,7 @@ export default function FeeTracker() {
                   type="button"
                   onClick={() => { setFeeInput(String(feeAmount)); setEditingFee(true); }}
                   aria-label="Edit the per-player fee amount"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-[12px] font-semibold text-[var(--muted)] cursor-pointer transition-transform active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--surface)] px-3 text-[12px] font-semibold text-[var(--muted)] cursor-pointer transition-transform active:scale-[0.96] active:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
                 >
                   <Pencil size={13} /> Edit
                 </button>

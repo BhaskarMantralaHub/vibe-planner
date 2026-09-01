@@ -112,7 +112,12 @@ interface StatTile {
    * negative pool balance says "short" in words instead.
    */
   exactValue: string;
+  /** Icon tint + current-tile tint. The VALUE stays neutral ink — see below. */
   color: string;
+  /** Semantic exception only (e.g. a negative pool balance reads red).
+   *  Every value in its own bright color made the row four competing
+   *  dashboard widgets; neutral figures read as one team overview. */
+  valueColor?: string;
   icon: React.ReactNode;
   /** View this tile drills into. */
   target: View;
@@ -170,6 +175,7 @@ export function SummaryStats({
         ? `${formatCurrency(poolBalance)} short`
         : formatCurrency(poolBalance),
       color: poolBalance < 0 ? 'var(--red)' : 'var(--green)',
+      valueColor: poolBalance < 0 ? 'var(--red)' : undefined,
       icon: <PiggyBank size={16} />,
       target: 'expenses',
       destination: 'expenses',
@@ -256,7 +262,7 @@ export function SummaryStats({
               tabular
               aria-hidden
               className="sm:text-[26px] leading-none"
-              style={{ color: s.color }}
+              style={s.valueColor ? { color: s.valueColor } : undefined}
             >
               {s.value}
             </Text>

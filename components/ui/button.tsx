@@ -9,7 +9,7 @@ const buttonVariants = cva(
   // Press: small compression + slight dim, returning on the fast token — the
   // tactile "button travels" feel without bounce. 0.97 not 0.9x-something
   // aggressive: these are 40-52px controls.
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer select-none transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] active:brightness-95',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer select-none transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45 disabled:saturate-50 disabled:shadow-none disabled:cursor-not-allowed active:scale-[0.97] active:brightness-95',
   {
     variants: {
       variant: {

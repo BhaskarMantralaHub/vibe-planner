@@ -697,7 +697,10 @@ export default function PlayerManager() {
                       <Text size="2xs" color="dim">Practice / fill-in player</Text>
                     </div>
                     <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
-                      <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                      <div
+                      className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`}
+                      style={{ transition: 'left 220ms var(--ease-spring)' }}
+                    />
                     </div>
                   </button>
                 )}
@@ -738,6 +741,11 @@ export default function PlayerManager() {
             ) : (
 
             <div className="space-y-4">
+              {/* Section: who they are */}
+              <div className="flex items-center gap-2">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Identity</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
+              </div>
               <div className="relative">
               <div className="grid grid-cols-[1fr_72px] gap-2">
                 <div>
@@ -811,12 +819,20 @@ export default function PlayerManager() {
                     <Text size="2xs" color="dim">Practice / fill-in player</Text>
                   </div>
                   <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
-                    <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                    <div
+                      className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`}
+                      style={{ transition: 'left 220ms var(--ease-spring)' }}
+                    />
                   </div>
                 </button>
               )}
 
               {!isGuestPlayer && <>
+              {/* Section: how to reach them */}
+              <div className="flex items-center gap-2 pt-1">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Contact</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
+              </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
                 <input type="email" value={email} onChange={(e) => { if (!isLinkedProfile) setEmail(e.target.value); }}
@@ -834,6 +850,11 @@ export default function PlayerManager() {
                     isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
                   }`}
                   placeholder="Optional" />
+              </div>
+              {/* Section: what they do for the team */}
+              <div className="flex items-center gap-2 pt-1">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Team role</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
               </div>
               {/* Designation (admin only) */}
               {isAdmin && <div>
@@ -1147,15 +1168,14 @@ export default function PlayerManager() {
                           {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                         </div>
                       )}
+                      {/* No ping on the signed-up dot: a roster of continuously
+                          pulsing dots is both visual noise and a needless
+                          composite loop. */}
                       {isAdmin && (
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--card)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
                           title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
-                        >
-                          {isSignedUp && (
-                            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
-                          )}
-                        </span>
+                        />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1176,19 +1196,18 @@ export default function PlayerManager() {
                           </span>
                         )}
                       </div>
+                      {/* ONE quiet metadata line — role (its color, no pill),
+                          then handedness and admin as muted text. The old
+                          role PILL competed with the player's name. */}
                       <div className="flex items-center gap-1.5 mt-1">
-                        {/* Role chip */}
                         {rc && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                            style={{ color: roleColor, background: colorAlpha(roleColor, 7) }}>
-                            {rc.icon} {rc.label}
+                          <span className="text-[11px] font-semibold" style={{ color: roleColor }}>
+                            {rc.label}
                           </span>
                         )}
                         {p.batting_style && (
-                          <span className="text-[11px] text-[var(--muted)]">{p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
+                          <span className="text-[11px] text-[var(--muted)]">· {p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
                         )}
-                        {/* Admin status as quiet metadata TEXT — this used to
-                            be a blue border around the whole row card. */}
                         {isPlayerAdmin && (
                           <span className="text-[11px] text-[var(--muted)]">· Admin</span>
                         )}

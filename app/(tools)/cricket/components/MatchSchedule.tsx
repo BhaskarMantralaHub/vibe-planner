@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
-import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
+import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
 import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, Share2, ExternalLink, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
@@ -1629,15 +1629,13 @@ export default function MatchSchedule() {
 
       </div>
 
-      {/* CardMenu (context menu for any card) */}
-      {openMenu && (
-        <CardMenu
-          anchorRef={menuBtnRef}
-          onClose={() => setOpenMenu(null)}
-          width={180}
-          items={getMenuItems(openMenu)}
-        />
-      )}
+      {/* Match context menu — shared bottom-sheet ActionSheet, same items */}
+      <ActionSheet
+        open={openMenu !== null}
+        onOpenChange={(o) => { if (!o) setOpenMenu(null); }}
+        title="Match actions"
+        items={openMenu ? getMenuItems(openMenu) : []}
+      />
 
       {/* Soft-delete confirmation dialog */}
       <Dialog open={!!deletingMatch} onOpenChange={(open) => { if (!open) setDeletingMatch(null); }}>
