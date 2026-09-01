@@ -10,7 +10,6 @@ import { seasonRoster, billableRoster } from './lib/season-roster';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
 import { toast } from 'sonner';
-import { MdSportsCricket } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import { Button } from '@/components/ui/button';
@@ -605,13 +604,14 @@ function CricketDashboard() {
         const dayIndex = new Date().getDate() % greetPool.length;
         const timeGreeting = greetPool[dayIndex];
         return (
-          // One line on phones: greeting truncates, the season pill never
-          // wraps below it — wrapping cost a full row of the viewport and
-          // pushed the pool balance further down.
-          <div className="mb-4 flex items-center justify-between gap-3">
+          // Team context is the primary element: it wraps to a second line
+          // before it ever truncates (line-clamp only ellipsizes at a line
+          // boundary, so it never cuts mid-word). The season chip keeps its
+          // full width and stays top-right; readability beats one line.
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <Text as="h2" size="xl" weight="bold" tracking="tight" truncate className="sm:text-[24px]">
-                {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--cricket)]" size={22} />
+              <Text as="h2" size="xl" weight="bold" tracking="tight" className="line-clamp-2 break-words leading-tight sm:text-[24px]">
+                {timeGreeting}{firstName ? `, ${firstName}` : ''}
               </Text>
             </div>
             <div className="flex-shrink-0">
@@ -652,8 +652,11 @@ function CricketDashboard() {
             );
           })()}
 
-          {/* Share — extracted from the pill into a standalone FAB */}
-          <ShareFab />
+          {/* Share — extracted from the pill into a standalone FAB. Hidden on
+              the Fees view only: that screen already carries its meaningful
+              share ("Post a fees reminder to the group"), and a floating
+              button over a payment list can obscure amounts and Mark paid. */}
+          {activeView !== 'fees' && <ShareFab />}
 
           {/* Segmented control for Finances, which is the only tab with
               sub-views now. Players is a single view (Roster) — a one-option
@@ -673,12 +676,13 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {/* Summary Stats — players and fees only. Deliberately NOT on
-              sponsors: none of its tiles is "current" there, and the four
-              generic KPIs competed with the Total Sponsorships hero, which is
-              that view's primary financial content. The same numbers remain
-              one tab away. */}
-          {(activeView === 'players' || activeView === 'fees') && (
+          {/* Summary Stats — players view only. Deliberately NOT on fees or
+              sponsors: Fees is a payment-management screen whose first
+              viewport belongs to "who still owes?", and the four generic KPIs
+              duplicated what Team Pool and the section headers already say.
+              On sponsors they competed with the Total Sponsorships hero. The
+              same numbers remain one tab away. */}
+          {activeView === 'players' && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}

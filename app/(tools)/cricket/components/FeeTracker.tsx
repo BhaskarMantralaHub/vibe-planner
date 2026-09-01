@@ -72,10 +72,14 @@ export default function FeeTracker() {
   const [payAmount, setPayAmount] = useState('');
   const [undoPlayer, setUndoPlayer] = useState<{ id: string; name: string } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  // Which list is expanded. Admin lands on the worklist; a player lands on the
-  // settled list, because they have no action to take on the other one and an
-  // open list of who owes money is the board this screen avoids being.
-  const [openList, setOpenList] = useState<'owed' | 'paid'>(isAdmin ? 'owed' : 'paid');
+  // The two lists expand INDEPENDENTLY. They used to share one accordion
+  // state, so opening Paid silently collapsed Still to pay above it — a
+  // screenful of rows vanished and the page appeared to jump-scroll.
+  // Both start COLLAPSED: the two summary cards answer the page's questions
+  // (11 owe $660, 8 paid $480) in two rows, and whoever needs names opens
+  // the section they came for.
+  const [openOwed, setOpenOwed] = useState(false);
+  const [openPaid, setOpenPaid] = useState(false);
 
   const seasonFees = fees.filter((f) => f.season_id === selectedSeasonId);
   const feeMap = useMemo(
@@ -122,7 +126,6 @@ export default function FeeTracker() {
     : 0;
 
   const me = useMemo(() => myCricketPlayer(players, user), [players, user]);
-  const myFee = me ? feeMap.get(me.id) : undefined;
   const myPaid = me ? paidOf(me.id) : 0;
   const myStatus: Status | null = me ? statusOf(me.id) : null;
 
@@ -240,8 +243,82 @@ export default function FeeTracker() {
   return (
     <div className="space-y-3">
 
-      {/* ── TEAM POOL — first, for everyone. Players want the who-has-paid
-             picture too, so this is not an admin-only concern. ── */}
+      {/* ── YOUR OWN FEE — a one-line status, first. It answers the personal
+             question ("am I paid up?") in 48px instead of a card, so the
+             actionable team list is still in the first viewport. This is the
+             ONLY personal fee status on the page. ── */}
+      {me && myStatus && (
+        <YourFeeStatus status={myStatus} feeAmount={feeAmount} paid={myPaid} />
+      )}
+
+      {/* ── THE SQUAD. Fees is a payment-management screen: "who still owes
+             the team?" is the task, so the actionable list outranks every
+             summary. Still to pay leads; Paid is the history right under
+             it. ── */}
+      <SquadSection
+        title="Still to pay"
+        subtotal={outstanding}
+        count={owedList.length}
+        tone="var(--cricket)"
+        feeEach={feeAmount}
+        open={openOwed}
+        onToggle={() => setOpenOwed((v) => !v)}
+      >
+        {owedList.map((p) => (
+          <FeeRow
+            key={p.id}
+            player={p}
+            isMe={p.id === me?.id}
+            status={statusOf(p.id)}
+            paid={paidOf(p.id)}
+            feeAmount={feeAmount}
+            fee={feeMap.get(p.id)}
+            isAdmin={isAdmin}
+            menuOpen={menuFor === p.id}
+            onMenuToggle={() => setMenuFor((v) => (v === p.id ? null : p.id))}
+            onMenuClose={() => setMenuFor(null)}
+            onMarkPaid={() => setConfirmPay(p)}
+            onPartial={() => openPartial(p)}
+            onRevert={() => setUndoPlayer({ id: p.id, name: p.name })}
+          />
+        ))}
+      </SquadSection>
+
+      {/* "Paid", not "Recently paid" — the list holds EVERY paid player, not
+          a recent slice, and the old name implied chronological history. */}
+      <SquadSection
+        title="Paid"
+        subtotal={paidList.reduce((s, p) => s + paidOf(p.id), 0)}
+        count={paidList.length}
+        tone="var(--split-credit)"
+        paid
+        feeEach={feeAmount}
+        open={openPaid}
+        onToggle={() => setOpenPaid((v) => !v)}
+      >
+        {paidList.map((p) => (
+          <FeeRow
+            key={p.id}
+            player={p}
+            isMe={p.id === me?.id}
+            status="paid"
+            paid={paidOf(p.id)}
+            feeAmount={feeAmount}
+            fee={feeMap.get(p.id)}
+            isAdmin={isAdmin}
+            menuOpen={menuFor === p.id}
+            onMenuToggle={() => setMenuFor((v) => (v === p.id ? null : p.id))}
+            onMenuClose={() => setMenuFor(null)}
+            onMarkPaid={() => setConfirmPay(p)}
+            onPartial={() => openPartial(p)}
+            onRevert={() => setUndoPlayer({ id: p.id, name: p.name })}
+          />
+        ))}
+      </SquadSection>
+
+      {/* ── TEAM POOL — the overall collection summary, deliberately BELOW
+             the actionable list. Everyone still gets the who-has-paid
+             picture; it just no longer costs a viewport before the task. ── */}
       <div
         className="rounded-2xl p-4 sm:p-5 min-w-0"
         style={{
@@ -258,13 +335,13 @@ export default function FeeTracker() {
           </Text>
         </div>
 
-        {/* The collected amount is the page's primary figure — it dominates,
+        {/* The collected amount is the card's primary figure — it dominates,
             the context line stays quiet beneath it. */}
-        <div className="mt-2">
+        <div className="mt-1.5">
           <span className="block text-[30px] font-bold leading-none tabular-nums tracking-tight text-[var(--text)]">
             {formatCurrency(totalCollected)}
           </span>
-          <Text as="p" size="xs" color="muted" tabular className="mt-1">
+          <Text as="p" size="xs" color="muted" tabular className="mt-0.5">
             of {formatCurrency(totalExpected)} collected
           </Text>
         </div>
@@ -272,7 +349,7 @@ export default function FeeTracker() {
         {/* Never red. The old bar painted red below 50%, which in week one of
             collection is every season — an alarm that is always on is ignored. */}
         <div
-          className="mt-3 h-1.5 rounded-full overflow-hidden"
+          className="mt-2.5 h-1.5 rounded-full overflow-hidden"
           style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}
           role="progressbar"
           aria-valuenow={collectedPct}
@@ -287,7 +364,7 @@ export default function FeeTracker() {
           />
         </div>
 
-        <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="mt-1.5 flex items-center justify-between gap-3">
           <Text size="2xs" color="dim" tabular>{collectedPct}%</Text>
           {outstanding >= 0.01 ? (
             <Text size="2xs" color="dim" tabular>{formatCurrency(outstanding)} still to come in</Text>
@@ -299,7 +376,7 @@ export default function FeeTracker() {
         </div>
 
         {/* Per-player amount. Read-only text for a player; a button for admin. */}
-        <div className="mt-3 pt-3 border-t border-[var(--border)]/60 flex items-center justify-between gap-3 flex-wrap">
+        <div className="mt-2.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between gap-3 flex-wrap">
           {isAdmin && editingFee ? (
             <div className="flex items-center gap-2 flex-wrap">
               <Label htmlFor="fee-amount" className="mb-0">Per player</Label>
@@ -349,7 +426,7 @@ export default function FeeTracker() {
             href={whatsappShareUrl(reminderText)}
             target="_blank"
             rel="noopener"
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-bold transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+            className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-bold transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
             style={{
               background: 'var(--cricket)',
               color: 'var(--cricket-on)',
@@ -360,75 +437,6 @@ export default function FeeTracker() {
           </a>
         )}
       </div>
-
-      {/* ── YOUR OWN FEE — second, and present for admins too. Absent only for
-             a viewer with no player record, which is a normal state. ── */}
-      {me && myStatus && (
-        <YourFeeCard
-          status={myStatus}
-          feeAmount={feeAmount}
-          paid={myPaid}
-          fee={myFee}
-          seasonName={season?.name ?? null}
-        />
-      )}
-
-      {/* ── THE SQUAD ── */}
-      <SquadSection
-        title="Recently paid"
-        subtotal={paidList.reduce((s, p) => s + paidOf(p.id), 0)}
-        count={paidList.length}
-        tone="var(--split-credit)"
-        open={openList === 'paid'}
-        onToggle={() => setOpenList((v) => (v === 'paid' ? 'owed' : 'paid'))}
-      >
-        {paidList.map((p) => (
-          <FeeRow
-            key={p.id}
-            player={p}
-            isMe={p.id === me?.id}
-            status="paid"
-            paid={paidOf(p.id)}
-            feeAmount={feeAmount}
-            fee={feeMap.get(p.id)}
-            isAdmin={isAdmin}
-            menuOpen={menuFor === p.id}
-            onMenuToggle={() => setMenuFor((v) => (v === p.id ? null : p.id))}
-            onMenuClose={() => setMenuFor(null)}
-            onMarkPaid={() => setConfirmPay(p)}
-            onPartial={() => openPartial(p)}
-            onRevert={() => setUndoPlayer({ id: p.id, name: p.name })}
-          />
-        ))}
-      </SquadSection>
-
-      <SquadSection
-        title="Still to pay"
-        subtotal={outstanding}
-        count={owedList.length}
-        tone="var(--muted)"
-        open={openList === 'owed'}
-        onToggle={() => setOpenList((v) => (v === 'owed' ? 'paid' : 'owed'))}
-      >
-        {owedList.map((p) => (
-          <FeeRow
-            key={p.id}
-            player={p}
-            isMe={p.id === me?.id}
-            status={statusOf(p.id)}
-            paid={paidOf(p.id)}
-            feeAmount={feeAmount}
-            fee={feeMap.get(p.id)}
-            isAdmin={isAdmin}
-            menuOpen={menuFor === p.id}
-            onMenuToggle={() => setMenuFor((v) => (v === p.id ? null : p.id))}
-            onMenuClose={() => setMenuFor(null)}
-            onMarkPaid={() => setConfirmPay(p)}
-            onPartial={() => openPartial(p)}
-            onRevert={() => setUndoPlayer({ id: p.id, name: p.name })}
-          />
-        ))}
-      </SquadSection>
 
       {/* ── Partial payment. ComposerModal, not vaul Drawer: it has a text input
              and vaul's repositionInputs is broken (CLAUDE.md). ── */}
@@ -540,45 +548,42 @@ export default function FeeTracker() {
 }
 
 /* ── Your own fee ──────────────────────────────────────────────────────────
- * The card that did not exist. A player used to open this screen and get a wall
- * of nineteen other people's payment status with their own name buried in it —
- * the one question they came with was the one thing the page never answered.
+ * A one-line status, not a card. A player used to open this screen and get a
+ * wall of nineteen other people's payment status with their own name buried
+ * in it — this answers "am I paid up?" first, in 48px, so the actionable team
+ * list still owns the first viewport. The payment date and who recorded it
+ * live on the player's own row in the Paid list; no need to repeat them here.
  *
  * Carries no payment details on purpose. The WhatsApp group already has them,
  * and a teammate's Zelle number sitting permanently on a shared screen is a
  * different thing from that person choosing to post it once.
  */
-function YourFeeCard({ status, feeAmount, paid, fee, seasonName }: {
+function YourFeeStatus({ status, feeAmount, paid }: {
   status: Status;
   feeAmount: number;
   paid: number;
-  fee: CricketSeasonFee | undefined;
-  seasonName: string | null;
 }) {
   const cfg = {
     paid: {
       tone: 'var(--split-credit)',
       bg: 'var(--split-credit-bg)',
-      br: 'var(--split-credit-border)',
-      head: "You're all paid up",
+      label: 'Your fee is paid',
       figure: paid,
       filled: true,
     },
     partial: {
       tone: 'var(--orange)',
-      bg: 'color-mix(in srgb, var(--orange) 7%, transparent)',
-      br: 'color-mix(in srgb, var(--orange) 22%, transparent)',
-      // The REMAINDER is the headline, not what is already in — that is the
-      // number the player has to act on.
-      head: `${formatCurrency(feeAmount - paid)} still to pay`,
+      bg: 'color-mix(in srgb, var(--orange) 8%, transparent)',
+      // The REMAINDER is the figure — the number the player has to act on.
+      label: 'Your fee is partly paid',
       figure: feeAmount - paid,
       filled: false,
     },
     unpaid: {
-      tone: 'var(--split-owe)',
-      bg: 'var(--split-owe-bg)',
-      br: 'var(--split-owe-border)',
-      head: 'Not paid yet',
+      // Orange, not red: due money is workflow, not an emergency.
+      tone: 'var(--orange)',
+      bg: 'color-mix(in srgb, var(--orange) 8%, transparent)',
+      label: 'Your fee is due',
       figure: feeAmount,
       filled: false,
     },
@@ -586,85 +591,149 @@ function YourFeeCard({ status, feeAmount, paid, fee, seasonName }: {
 
   return (
     <div
-      className="rounded-2xl p-4 sm:p-5 min-w-0"
-      style={{
-        border: `1px solid ${cfg.br}`,
-        background: `linear-gradient(165deg, ${cfg.bg}, var(--surface) 70%)`,
-      }}
+      className="flex min-h-12 items-center gap-2.5 rounded-xl px-3 py-2"
+      style={{ background: cfg.bg }}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full"
-          style={cfg.filled
-            ? { background: cfg.tone, color: '#fff' }
-            : { background: cfg.bg, border: `1px solid ${cfg.br}`, color: cfg.tone }}
-          aria-hidden
-        >
-          {cfg.filled ? <Check size={12} strokeWidth={3.5} /> : <CircleAlert size={12} />}
-        </span>
-        <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">
-          Your season fee
-        </Text>
-      </div>
-
-      <Text as="p" size="lg" weight="bold" tracking="tight" className="mt-3 sm:text-[21px]">
-        {cfg.head}
-      </Text>
-      <Text
-        as="p"
-        weight="bold"
-        tabular
-        className="mt-0.5 text-[34px] sm:text-[40px] leading-none tracking-[-0.03em]"
-        style={{ color: cfg.tone }}
+      <span
+        className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full"
+        style={cfg.filled
+          ? { background: cfg.tone, color: '#fff' }
+          : { border: `1.5px solid ${cfg.tone}`, color: cfg.tone }}
+        aria-hidden
       >
+        {cfg.filled ? <Check size={12} strokeWidth={3.5} /> : <CircleAlert size={12} />}
+      </span>
+      <Text size="sm" weight="semibold" className="min-w-0 flex-1">{cfg.label}</Text>
+      <Text size="sm" weight="bold" tabular style={{ color: cfg.tone }}>
         {formatCurrency(cfg.figure)}
-      </Text>
-
-      <Text as="p" size="xs" color="muted" className="mt-1.5">
-        {status === 'paid' && fee?.paid_date
-          ? `Paid ${new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${fee.marked_by ? ` · marked by ${fee.marked_by}` : ''}`
-          : status === 'partial' && fee?.paid_date
-            ? `${formatCurrency(paid)} of ${formatCurrency(feeAmount)} paid on ${new Date(fee.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-            : seasonName ?? 'This season'}
       </Text>
     </div>
   );
 }
 
-/* ── Collapsible squad section ─────────────────────────────────────────── */
-function SquadSection({ title, subtotal, count, tone, open, onToggle, children }: {
+/* ── Collapsible squad section ─────────────────────────────────────────────
+ * The header states the financial direction, not just a count: "8 players /
+ * $480.00 collected" reads as "8 players have paid $480 into the pool", and
+ * "11 players / $660.00 outstanding" as "11 players still owe $660". The old
+ * "RECENTLY PAID · 8 — $480.00" left both numbers unlabelled.
+ */
+function SquadSection({ title, subtotal, count, tone, paid, feeEach, open, onToggle, children }: {
   title: string;
   subtotal: number;
   count: number;
   tone: string;
+  /** true = money already collected (green ✓, "collected"); false = owed. */
+  paid?: boolean;
+  /** Per-player fee — shown as "· $X each" on the paid section, and only when
+   *  the subtotal really is count × fee (a recorded overpayment would make
+   *  the claim false). */
+  feeEach?: number;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
   if (count === 0) return null;
+
+  // Both payment states are SECTIONS with the same compact elevated summary
+  // card — counterparts, not identical: Paid leads with the green ✓ badge and
+  // keeps its rows inside the card; Still to pay takes the brand-orange
+  // accent (outstanding workflow, never red) with its list on a separate
+  // surface below, since it is the page's primary content and open by default.
+  const showEach = feeEach != null && Math.abs(subtotal - count * feeEach) < 0.01;
+
+  if (paid) {
+    return (
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-h-14 w-full items-center justify-between gap-3 px-3 py-2.5 text-left cursor-pointer transition-colors active:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--cricket)]/60"
+        >
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+              style={{ background: 'var(--split-credit-bg)', color: 'var(--split-credit)' }}
+              aria-hidden
+            >
+              <Check size={14} strokeWidth={3} />
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: tone }}>
+                {title} · {count} {count === 1 ? 'player' : 'players'}
+              </Text>
+              <Text size="xs" color="muted" tabular>
+                {count} {count === 1 ? 'fee' : 'fees'} collected{showEach ? ` · ${formatCurrency(feeEach)} each` : ''}
+              </Text>
+            </span>
+          </span>
+          <span className="flex flex-shrink-0 items-center gap-1.5">
+            <Text size="sm" weight="bold" tabular style={{ color: tone }}>
+              {formatCurrency(subtotal)}
+            </Text>
+            <ChevronDown
+              size={16}
+              className={cn('text-[var(--muted)] transition-transform duration-200 flex-shrink-0', open ? '' : '-rotate-90')}
+              aria-hidden
+            />
+          </span>
+        </button>
+        {open && (
+          <div className="border-t border-[var(--border)]/55 divide-y divide-[var(--border)]/55">
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-1.5 text-left cursor-pointer transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+      {/* Summary card — same geometry as the Paid card; the orange title is
+          the whole accent. The list is deliberately OUTSIDE this card. */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
       >
-        <span className="flex items-center gap-1.5 min-w-0">
-          <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: tone }}>
-            {title} · {count}
-          </Text>
-          <ChevronDown
-            size={14}
-            style={{ color: tone }}
-            className={cn('transition-transform duration-200 flex-shrink-0', open ? '' : '-rotate-90')}
-            aria-hidden
-          />
-        </span>
-        <Text size="xs" weight="bold" tabular style={{ color: tone }}>
-          {formatCurrency(subtotal)}
-        </Text>
-      </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-h-14 w-full items-center justify-between gap-3 px-3 py-2.5 text-left cursor-pointer transition-colors active:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--cricket)]/60"
+        >
+          <span className="flex min-w-0 items-center gap-2.5">
+            {/* ! badge — the outstanding-workflow counterpart of Paid's ✓ */}
+            <span
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+              style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }}
+              aria-hidden
+            >
+              <CircleAlert size={14} strokeWidth={2.5} />
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: tone }}>
+                {title} · {count} {count === 1 ? 'player' : 'players'}
+              </Text>
+              <Text size="xs" color="muted" tabular>
+                {count} {count === 1 ? 'fee' : 'fees'} due{showEach ? ` · ${formatCurrency(feeEach)} each` : ''}
+              </Text>
+            </span>
+          </span>
+          <span className="flex flex-shrink-0 items-center gap-1.5">
+            <Text size="sm" weight="bold" tabular>
+              {formatCurrency(subtotal)}
+            </Text>
+            <ChevronDown
+              size={16}
+              className={cn('text-[var(--muted)] transition-transform duration-200 flex-shrink-0', open ? '' : '-rotate-90')}
+              aria-hidden
+            />
+          </span>
+        </button>
+      </div>
       {/* ONE ledger surface per section — rows are separated by hairlines,
           not wrapped in per-player cards. */}
       {open && (
@@ -763,69 +832,70 @@ export function FeeRow({
         {player.jersey_number ?? player.name.charAt(0).toUpperCase()}
       </span>
 
-      {/* Name owns the full line — the amount lives on the second line
-          (`$60.00 · Not paid`), NOT in its own right-hand column. With avatar
-          + amount column + status circle + Mark paid + ⋯ all competing, names
-          truncated to "Venkat …" and the two Venkats on the roster were
-          indistinguishable at exactly the moment an admin was taking money. */}
+      {/* FULL name, wrapping to two lines before it ever truncates — this
+          list is where money gets marked against a person, and the roster has
+          two Venkats. The amount lives in a stable right-hand column now that
+          every meta line no longer repeats the same season fee. */}
       <div className="min-w-0 flex-1">
-        {/* FULL name, never truncated — this list is where money gets marked
-            against a person, and the roster has two Venkats. A long name is
-            allowed to wrap; ambiguity is not allowed at all. */}
-        <Text size="sm" weight="semibold" className="block leading-snug break-words">
+        <Text size="sm" weight="semibold" className="block leading-snug break-words line-clamp-2">
           {player.name}{isMe && <Text as="span" color="muted" weight="normal"> · you</Text>}
         </Text>
-        <p className="text-[12px] leading-snug">
+        {/* The meta line states the DIRECTION: money flows player → team pool,
+            so unpaid reads "Owes team" and settled reads "Fee paid". Green is
+            reserved for COMPLETED money. Never "Paid by <name>" — that reads
+            as the player paying a person; the recorder is "logged by". */}
+        <p className="text-[12px] leading-snug text-[var(--muted)]">
           {player.jersey_number != null && (
-            <span className="text-[var(--muted)] tabular-nums">#{player.jersey_number} · </span>
+            <span className="tabular-nums">#{player.jersey_number} · </span>
           )}
-          <span className="font-semibold tabular-nums" style={{ color: amountTone }}>
-            {status === 'partial' ? formatCurrency(feeAmount - paid) : formatCurrency(status === 'paid' ? paid : feeAmount)}
-          </span>
-          <span className="text-[var(--muted)]">
-            {status === 'paid' && when
-              // "who marked it" — the marked_by column is already written on
-              // every payment; two people record fees, so the row answers
-              // "who ticked this off" without anyone having to ask.
-              ? ` · ${when}${fee?.marked_by ? ` · by ${fee.marked_by}` : ''}`
-              : status === 'partial'
-                // The remaining figure is the bold one; what's in so far follows.
-                ? ` left · ${formatCurrency(paid)} paid`
-                : ' · Not paid'}
-          </span>
+          {status === 'paid' ? (
+            <>
+              <span className="font-semibold whitespace-nowrap" style={{ color: 'var(--split-credit)' }}>
+                <Check size={11} strokeWidth={3.5} className="inline-block -mt-px mr-0.5" aria-hidden />
+                Fee paid
+              </span>
+              {when ? ` · ${when}` : ''}
+              {fee?.marked_by ? ` · logged by ${fee.marked_by}` : ''}
+            </>
+          ) : status === 'partial' ? (
+            <>
+              <span>Owes team</span> · {formatCurrency(paid)} paid
+            </>
+          ) : (
+            <span>Owes team</span>
+          )}
         </p>
       </div>
 
-      {/* Paid rows keep the tick (they have the space and it scans instantly);
-          unpaid rows say "Not paid" in text — the old dashed placeholder circle
-          duplicated that while stealing name width. */}
-      {status === 'paid' && (
-        <span
-          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
-          style={{ background: 'var(--split-credit)', color: '#fff' }}
-          aria-label="Paid"
-          role="img"
-        >
-          <Check size={11} strokeWidth={3.5} />
-        </span>
-      )}
+      {/* Stable right column: the amount is always top-right (independently
+          scannable down the list), the action sits beneath it. For unpaid and
+          partial rows the figure is what is STILL OWED. */}
+      <div className="flex flex-shrink-0 flex-col items-end gap-1">
+        <Text size="sm" weight="semibold" tabular style={{ color: amountTone }}>
+          {formatCurrency(status === 'paid' ? paid : feeAmount - paid)}
+        </Text>
+        {isAdmin && status !== 'paid' && (
+          <button
+            type="button"
+            onClick={onMarkPaid}
+            aria-label={`Mark ${player.name}${player.jersey_number != null ? `, jersey number ${player.jersey_number},` : ''} as paid`}
+            // Solid brand orange: the row-level ACTION color. Green is the
+            // completed state and grey read as disabled — orange = "do this",
+            // green = "done", grey = secondary.
+            className="rounded-full px-3.5 min-h-10 flex items-center text-[11.5px] font-bold whitespace-nowrap cursor-pointer transition-transform active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+            style={{
+              background: 'var(--cricket)',
+              color: 'var(--cricket-on)',
+              boxShadow: '0 1px 6px var(--cricket-glow)',
+            }}
+          >
+            Mark paid
+          </button>
+        )}
+      </div>
 
       {isAdmin && (
         <>
-          {status !== 'paid' && (
-            <button
-              type="button"
-              onClick={onMarkPaid}
-              aria-label={`Mark ${player.name}${player.jersey_number != null ? `, jersey number ${player.jersey_number},` : ''} as paid`}
-              className="flex-shrink-0 rounded-full px-3.5 min-h-10 -my-1 flex items-center text-[11.5px] font-bold whitespace-nowrap cursor-pointer transition-transform active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
-              style={{
-                background: 'var(--split-credit-bg)',
-                color: 'var(--split-credit)',
-              }}
-            >
-              Mark paid
-            </button>
-          )}
           <button
             type="button"
             onClick={onMenuToggle}

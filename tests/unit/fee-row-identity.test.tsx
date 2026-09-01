@@ -68,6 +68,31 @@ describe('FeeRow identity (two-Venkats regression)', () => {
     ).toBeInTheDocument();
   });
 
+  it('states the payment direction on an unpaid row (Owes team $60.00)', () => {
+    renderRow(venkatP);
+    expect(screen.getByText('Owes team')).toBeInTheDocument();
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+    // The bare status word alone is ambiguous about who pays whom.
+    expect(screen.queryByText(/Not paid/)).not.toBeInTheDocument();
+  });
+
+  it('a paid row says Paid, never "Paid by <person>" (wrong direction)', () => {
+    render(
+      <FeeRow
+        player={venkatP} isMe={false} status="paid" paid={60} feeAmount={60}
+        fee={{ paid_date: '2026-06-05', marked_by: 'Bhaskar' } as never}
+        isAdmin menuOpen={false} onMenuToggle={vi.fn()} onMenuClose={vi.fn()}
+        onMarkPaid={vi.fn()} onPartial={vi.fn()} onRevert={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Fee paid')).toBeInTheDocument();
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+    // The recorder is credited as "logged by", which cannot be read as the
+    // money's destination.
+    expect(screen.getByText(/logged by Bhaskar/)).toBeInTheDocument();
+    expect(screen.queryByText(/Paid by/)).not.toBeInTheDocument();
+  });
+
   it('two same-first-name players produce distinguishable actions', () => {
     const onA = vi.fn();
     const onB = vi.fn();
