@@ -155,7 +155,10 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) cancelEditing(); onOpenChange(o); }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto p-0" showClose>
+      {/* Edit mode brings its own X (cancel editing, back to view mode), so
+          the Dialog's built-in close is view-mode only — two stacked X's in
+          one corner otherwise. */}
+      <DialogContent className="max-h-[85vh] overflow-y-auto p-0" showClose={!editing} closeLabel="Close player profile">
 
         {/* ── EDIT MODE ── */}
         {editing ? (
@@ -340,13 +343,18 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           className="relative flex flex-col items-center pt-6 pb-4 px-6 rounded-t-2xl"
           style={{ background: colorAlpha(roleColor, 6) }}
         >
-          {/* Edit button — own profile only, top-right */}
+          {/* Edit — own profile only. A quiet text action, not a button:
+              the player identity is the hero and Edit is chrome. Visible
+              glyphs are compact but h-11 keeps the 44px hit area, and
+              right-14 keeps it clear of the Dialog's 44px close X. top-1.5
+              vertically centers it against that X. */}
           {isOwnProfile && (
             <button
               onClick={startEditing}
-              className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer transition-colors bg-white/80 dark:bg-black/30 hover:bg-white dark:hover:bg-black/50 text-[var(--text)] border border-[var(--border)] z-10"
+              aria-label="Edit player"
+              className="absolute top-1.5 right-14 z-10 flex h-11 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium text-[var(--cricket)] cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
             >
-              <Pencil size={14} /> Edit
+              <Pencil size={13} aria-hidden /> Edit
             </button>
           )}
 

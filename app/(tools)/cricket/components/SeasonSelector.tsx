@@ -90,18 +90,21 @@ export default function SeasonSelector() {
         disabled={sorted.length === 0}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={selected ? `Season: ${shortLabel(selected)}. Change season` : 'No seasons'}
         // min-h-11 = 44px. Elevated chip, not a bordered pill — the season is
         // a floating contextual control, so it separates by shadow and tone.
-        className="group flex min-h-11 items-center gap-2 rounded-full bg-[var(--elevated)] shadow-[0_1px_2px_rgba(16,24,40,0.06),0_3px_10px_rgba(16,24,40,0.07)] pl-3 pr-2.5 text-[14px] font-semibold text-[var(--text)] transition-all active:scale-[0.98] active:shadow-[0_1px_3px_rgba(16,24,40,0.08)] disabled:opacity-50"
+        // Visually subordinate to the team name beside it: 13px semibold,
+        // tighter padding, restrained shadow, plain dim chevron.
+        className="flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--elevated)] shadow-[0_1px_2px_rgba(16,24,40,0.05),0_2px_8px_rgba(16,24,40,0.06)] pl-2.5 pr-2 text-[var(--text)] transition-all active:scale-[0.98] active:shadow-[0_1px_3px_rgba(16,24,40,0.08)] disabled:opacity-50"
       >
-        <span className="text-[16px] leading-none" aria-hidden>{icon}</span>
-        <Text weight="bold">{shortLabel(selected)}</Text>
-        <span
-          className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--hover-bg)] text-[var(--muted)] transition-colors group-hover:bg-[var(--cricket)]/10"
-          aria-hidden
-        >
-          <ChevronDown size={12} />
+        {/* Remounts when the season changes so the new label plays the
+            standard view-in rise — the transition lives in the chip, never
+            the page. */}
+        <span key={selected?.id ?? 'none'} className="flex items-center gap-1.5 animate-view-in">
+          <span className="text-[15px] leading-none" aria-hidden>{icon}</span>
+          <Text size="sm" weight="semibold">{shortLabel(selected)}</Text>
         </span>
+        <ChevronDown size={14} className="flex-shrink-0 text-[var(--dim)]" aria-hidden />
       </button>
 
       <Drawer open={open} onOpenChange={setOpen}>

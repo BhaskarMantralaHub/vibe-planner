@@ -33,9 +33,10 @@ function DialogContent({
   className,
   children,
   showClose = true,
+  closeLabel = 'Close',
   ref,
   ...props
-}: DialogPrimitive.DialogContentProps & { showClose?: boolean; ref?: React.Ref<HTMLDivElement> }) {
+}: DialogPrimitive.DialogContentProps & { showClose?: boolean; closeLabel?: string; ref?: React.Ref<HTMLDivElement> }) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -57,9 +58,11 @@ function DialogContent({
         >
           {children}
           {showClose && (
+            // p-3.5 + 16px icon = 44px hit target; right/top-1.5 keeps the
+            // visible glyph within 2px of where the old 36px button drew it.
             <DialogPrimitive.Close
-              className="absolute right-3 top-3 rounded-lg p-2.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-              aria-label="Close"
+              className="absolute right-1.5 top-1.5 rounded-lg p-3.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+              aria-label={closeLabel}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
