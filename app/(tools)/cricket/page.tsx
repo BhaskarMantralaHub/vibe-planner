@@ -8,10 +8,9 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { seasonRoster, billableRoster } from './lib/season-roster';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, Receipt, Banknote, PiggyBank, CalendarDays, Camera, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
+import { Users, Receipt, Wallet, Banknote, PiggyBank, CalendarDays, Camera, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import UmpireIcon from '@/components/icons/UmpireIcon';
-import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -180,11 +179,13 @@ export function SummaryStats({
       destination: 'expenses',
     },
     {
-      label: 'Players',
+      // "Roster" + Users icon — one vocabulary with the dock and hamburger.
+      // The tile counts this season's roster, so the name is also accurate.
+      label: 'Roster',
       value: String(animPlayers),
       exactValue: String(playerCount),
       color: 'var(--cricket)',
-      icon: <CricketPlayerIcon size={18} />,
+      icon: <Users size={16} />,
       target: 'players',
       destination: 'the roster',
     },
@@ -639,8 +640,9 @@ function CricketDashboard() {
           {/* Bottom tab bar — Players (view) · Finances (view) · Matches (route) · Moments (route) */}
           {(() => {
             const navItems: CricketSectionNavItem[] = [
-              { kind: 'view', key: 'players', label: 'Players', icon: CricketPlayerIcon },
-              { kind: 'view', key: 'finances', label: 'Finances', icon: Receipt },
+              // "Roster" + Users icon, key 'players' — matches CRICKET_GLOBAL_NAV
+              { kind: 'view', key: 'players', label: 'Roster', icon: Users },
+              { kind: 'view', key: 'finances', label: 'Finances', icon: Wallet },
               { kind: 'route', key: 'matches', label: 'Matches', icon: CalendarDays, href: '/cricket/schedule' },
               { kind: 'route', key: 'umpiring', label: 'Umpiring', icon: UmpireIcon, href: '/cricket/umpiring' },
               { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },

@@ -1,6 +1,5 @@
-import { Receipt, CalendarDays, Camera } from 'lucide-react';
+import { Wallet, CalendarDays, Camera, Users } from 'lucide-react';
 import UmpireIcon from '@/components/icons/UmpireIcon';
-import CricketPlayerIcon from '@/components/icons/CricketPlayerIcon';
 import type { CricketSectionNavItem } from './CricketSectionNav';
 
 /**
@@ -21,8 +20,13 @@ import type { CricketSectionNavItem } from './CricketSectionNav';
  * is part of the Matches section and uses 'matches').
  */
 export const CRICKET_GLOBAL_NAV: CricketSectionNavItem[] = [
-  { kind: 'route', key: 'players', label: 'Players', icon: CricketPlayerIcon, href: '/cricket#players' },
-  { kind: 'route', key: 'finances', label: 'Finances', icon: Receipt, href: '/cricket#expenses' },
+  // Label "Roster", key stays 'players' — one product vocabulary with the
+  // hamburger's Roster entry (same precedent as the Fielding tab keeping the
+  // 'catches' key). Renaming the key would touch routing/state for a label.
+  // Icon matches the hamburger's Roster entry (Users), not the old batsman.
+  { kind: 'route', key: 'players', label: 'Roster', icon: Users, href: '/cricket#players' },
+  // Wallet = the whole financial hub, not just expense receipts
+  { kind: 'route', key: 'finances', label: 'Finances', icon: Wallet, href: '/cricket#expenses' },
   { kind: 'route', key: 'matches', label: 'Matches', icon: CalendarDays, href: '/cricket/schedule' },
   { kind: 'route', key: 'umpiring', label: 'Umpiring', icon: UmpireIcon, href: '/cricket/umpiring' },
   { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },

@@ -33,11 +33,13 @@ describe('lib/nav', () => {
     expect(idTracker!.roles).toContain('toolkit');
   });
 
-  it('contains Cricket tool with cricket role', () => {
-    const cricket = tools.find((t) => t.name === 'Cricket');
-    expect(cricket).toBeDefined();
-    expect(cricket!.href).toBe('/cricket');
-    expect(cricket!.roles).toContain('cricket');
+  it('contains Roster tool (the /cricket hub, renamed from Cricket) with cricket role', () => {
+    const roster = tools.find((t) => t.name === 'Roster');
+    expect(roster).toBeDefined();
+    expect(roster!.href).toBe('/cricket');
+    expect(roster!.roles).toContain('cricket');
+    // The old label must be gone everywhere — one vocabulary.
+    expect(tools.find((t) => t.name === 'Cricket')).toBeUndefined();
   });
 
   it('contains Admin tool with admin role only', () => {
@@ -54,9 +56,9 @@ describe('lib/nav', () => {
     }
   });
 
-  it('cricket tool also has admin role', () => {
-    const cricket = tools.find((t) => t.name === 'Cricket');
-    expect(cricket!.roles).toContain('admin');
+  it('roster tool also has admin role', () => {
+    const roster = tools.find((t) => t.name === 'Roster');
+    expect(roster!.roles).toContain('admin');
   });
 
   it('contains Finances tool deep-linking to the cricket finances tab', () => {
@@ -123,7 +125,7 @@ describe('lib/nav', () => {
       return false;
     });
     const names = visibleForCricket.map((t) => t.name);
-    expect(names).toContain('Cricket');
+    expect(names).toContain('Roster');
     expect(names).toContain('League Schedule');
     expect(names).toContain('League Stats');
     expect(names).not.toContain('Vibe Planner');

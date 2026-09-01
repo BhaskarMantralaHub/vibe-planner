@@ -55,7 +55,7 @@ describe('SummaryStats', () => {
     expect(screen.getByRole('button', { name: 'Total Spent, $500.00. Go to expenses.' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Fees Paid, 8 of 19. Go to season fees.' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Pool Balance, $152.00. Go to expenses.' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Players, 19. Go to the roster.' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Roster, 19. Go to the roster.' })).toBeTruthy();
   });
 
   it('uses the settled figure in the name even while the counter animates', () => {
@@ -138,7 +138,7 @@ describe('SummaryStats', () => {
     // These switch an in-page view; they do not navigate to a page. Matches
     // SeasonSelector. A change to "page" would be a semantic regression.
     render(<SummaryStats {...BASE} activeView="players" onNavigate={vi.fn()} />);
-    const current = screen.getByRole('button', { name: /^Players/ });
+    const current = screen.getByRole('button', { name: /^Roster/ });
     expect(current.getAttribute('aria-current')).toBe('true');
   });
 });
