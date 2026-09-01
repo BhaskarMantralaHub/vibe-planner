@@ -1,6 +1,6 @@
 # Memory Index
 
-- [project_mobile_polish_phases.md](project_mobile_polish_phases.md) — Mobile-first polish phased; Phase 1 (foundation + Expenses) shipped 2026-08-31, Players/Matches/Umpiring/Moments/Splits pending
+- [project_mobile_polish_phases.md](project_mobile_polish_phases.md) — Mobile redesign pushed 2026-08-31 (orange rebrand, --cricket-on, unified CRICKET_GLOBAL_NAV dock, DB color override removed); Players/Splits/Moments interiors pending
 - [project_cricket_separation.md](project_cricket_separation.md) — Cricket app being extracted to standalone multi-tenant repo at cricket.viberstoolkit.com (2026-03-23)
 - [project_future_features.md](project_future_features.md) — Match scheduling + post-match top 3 performers — planned, needs DB + UX design
 - [project_ios_shortcut_sync.md](project_ios_shortcut_sync.md) — cricclubs sync via iOS Shortcut→Edge Function; iOS 26 strips list/fixtures HTML bodies (fix: Base64+JSON); Cloudflare blocks automated browsers; local .html/.mhtml ingest escape hatch
