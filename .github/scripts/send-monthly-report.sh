@@ -65,7 +65,29 @@ PLAYERS=$(curl -s "${SB_HEADERS[@]}" \
   --data-urlencode "team_id=eq.$TEAM_ID" \
   --data-urlencode "is_active=eq.true" \
   --data-urlencode "is_guest=eq.false")
-echo "Players: $(echo "$PLAYERS" | jq length)"
+echo "Players (team-wide): $(echo "$PLAYERS" | jq length)"
+
+# Season-roster filter — the report goes to who is PLAYING this season, not
+# the whole club. A club member sitting the season out must get neither the
+# email nor a line in its fee list. Mirrors lib/season-roster.ts exactly:
+# members = roster rows with left_at null; SEASON guests are excluded (they
+# owe no fee); a season with NO roster rows falls back to the team-wide list,
+# which is also what the app shows for an un-seeded season.
+# Everything downstream (recipient list AND fee stats) derives from $PLAYERS,
+# so this one filter scopes both.
+ROSTER=$(curl -s "${SB_HEADERS[@]}" \
+  -G "$SUPABASE_URL/rest/v1/cricket_season_players" \
+  --data-urlencode "select=player_id,is_guest" \
+  --data-urlencode "season_id=eq.$SEASON_ID" \
+  --data-urlencode "left_at=is.null")
+if [ "$(echo "$ROSTER" | jq length)" -gt 0 ]; then
+  PLAYERS=$(jq -c -n --argjson players "$PLAYERS" --argjson roster "$ROSTER" '
+    ($roster | map(select(.is_guest | not) | .player_id)) as $billable
+    | $players | map(select(.id as $id | $billable | index($id) != null))')
+  echo "Players on this season's roster: $(echo "$PLAYERS" | jq length)"
+else
+  echo "Season has no roster rows — keeping the team-wide list (fallback)"
+fi
 
 # Fetch expenses
 EXPENSES=$(curl -s "${SB_HEADERS[@]}" \
