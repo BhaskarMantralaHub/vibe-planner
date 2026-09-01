@@ -24,10 +24,11 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         navigator.clipboard.writeText(text);
         toast.success(`${label} copied`);
       }}
-      className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+      className="flex-shrink-0 h-11 w-11 -my-1.5 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
       title={`Copy ${label}`}
+      aria-label={`Copy ${label}`}
     >
-      <Copy size={14} />
+      <Copy size={15} />
     </button>
   );
 }
@@ -161,7 +162,11 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <Text as="h3" size="lg" weight="bold">Edit Profile</Text>
-              <button onClick={cancelEditing} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer">
+              <button
+                onClick={cancelEditing}
+                aria-label="Cancel editing"
+                className="h-11 w-11 -my-2 -mr-2 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] cursor-pointer"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -220,14 +225,14 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
               <input value={editName} onChange={(e) => setEditName(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
             </div>
 
             {/* Email */}
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
               <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="player@email.com" />
             </div>
 
@@ -235,7 +240,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
               <input value={editCricclub} onChange={(e) => setEditCricclub(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="Optional" />
             </div>
 
@@ -277,7 +282,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                         borderColor: isSelected ? (rConf?.color ?? 'var(--cricket)') : 'var(--border)',
                       }}>
                       <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: isSelected ? (rConf?.color ?? 'var(--cricket)') : colorAlpha(rConf?.color ?? 'var(--cricket)', 8), color: isSelected ? 'white' : (rConf?.color ?? 'var(--cricket)') }}>
+                        style={{ backgroundColor: colorAlpha(rConf?.color ?? 'var(--cricket)', isSelected ? 16 : 8), color: rConf?.color ?? 'var(--cricket)' }}>
                         {rConf?.icon}
                       </div>
                       <Text size="xs" weight={isSelected ? 'bold' : 'medium'}>{r.label}</Text>
@@ -295,7 +300,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                   {BATTING_STYLES.map((s) => (
                     <button key={s.key} type="button" onClick={() => setEditBatting(editBatting === s.key ? '' : s.key)}
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                      style={{ backgroundColor: editBatting === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: editBatting === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: editBatting === s.key ? 'white' : 'var(--text)' }}>
+                      style={{ backgroundColor: editBatting === s.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: editBatting === s.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: editBatting === s.key ? 'var(--cricket)' : 'var(--text)' }}>
                       <MdSportsCricket size={14} /> {s.label}
                     </button>
                   ))}
@@ -311,7 +316,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                   {BOWLING_STYLES.map((s) => (
                     <button key={s.key} type="button" onClick={() => setEditBowling(editBowling === s.key ? '' : s.key)}
                       className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                      style={{ backgroundColor: editBowling === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: editBowling === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: editBowling === s.key ? 'white' : 'var(--text)' }}>
+                      style={{ backgroundColor: editBowling === s.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: editBowling === s.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: editBowling === s.key ? 'var(--cricket)' : 'var(--text)' }}>
                       <GiTennisBall size={13} /> {s.label}
                     </button>
                   ))}
@@ -365,7 +370,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             </div>
           )}
 
-          <DialogTitle className="mt-3 text-center text-[20px]">
+          <DialogTitle className="mt-3 text-center text-[22px] tracking-tight">
             {player.name}
           </DialogTitle>
 
@@ -406,7 +411,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div className="flex flex-wrap gap-2">
               {player.batting_style && (
                 <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px]"
-                  style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                  style={{ background: colorAlpha(roleColor, 6) }}>
                   <MdSportsCricket size={15} style={{ color: roleColor }} />
                   <span className="text-[var(--muted)]">Bat</span>
                   <span className="font-semibold text-[var(--text)]">{player.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
@@ -414,7 +419,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               )}
               {player.bowling_style && (
                 <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px]"
-                  style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                  style={{ background: colorAlpha(roleColor, 6) }}>
                   <GiTennisBall size={14} style={{ color: roleColor }} />
                   <span className="text-[var(--muted)]">Bowl</span>
                   <span className="font-semibold text-[var(--text)]">{player.bowling_style.charAt(0).toUpperCase() + player.bowling_style.slice(1)}</span>
@@ -422,7 +427,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               )}
               {player.shirt_size && (
                 <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px]"
-                  style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 12)}` }}>
+                  style={{ background: colorAlpha(roleColor, 6) }}>
                   <Shirt size={13} style={{ color: roleColor }} />
                   <span className="text-[var(--muted)]">Size</span>
                   <span className="font-semibold text-[var(--text)]">{player.shirt_size}</span>
@@ -434,7 +439,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           {(player.email || player.cricclub_id) && (
             <div className="space-y-2">
               {player.email && (
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)]">
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
                     <Mail size={16} style={{ color: roleColor }} />
                   </div>
@@ -446,7 +451,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                 </div>
               )}
               {player.cricclub_id && (
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--surface)]">
                   <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 8) }}>
                     <BadgeIcon size={16} style={{ color: roleColor }} />
                   </div>

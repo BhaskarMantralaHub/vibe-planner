@@ -9,6 +9,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
+import { playerLabels } from '../lib/player-labels';
 import { compressReceiptImage } from '../lib/image';
 import { nameToGradient } from '@/lib/avatar';
 import { toast } from 'sonner';
@@ -42,6 +43,11 @@ export default function SplitForm() {
     () => players.filter((p) => p.is_active).sort((a, b) => a.name.localeCompare(b.name)),
     [players],
   );
+
+  // Disambiguated grid labels (shared with the umpiring roster) — computed
+  // over the WHOLE roster, not the filtered list, so a person's label never
+  // changes as the search narrows.
+  const gridLabels = useMemo(() => playerLabels(activePlayers), [activePlayers]);
 
   const myPlayer = useMemo(
     () => {
@@ -297,6 +303,7 @@ export default function SplitForm() {
               type="text" inputMode="decimal" value={amount}
               onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
               placeholder="0.00"
+              aria-label="Total amount in dollars"
               className="bg-transparent text-center outline-none font-bold text-[40px] leading-none max-w-[200px]"
               style={{ color: 'var(--text)', caretColor: 'var(--cricket)', fontVariantNumeric: 'tabular-nums' }}
             />
@@ -313,8 +320,8 @@ export default function SplitForm() {
               const active = category === c.key;
               return (
                 <button key={c.key} onClick={() => setCategory(c.key)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-3 flex-shrink-0 cursor-pointer transition-all border-2 active:scale-95 min-w-[60px]"
-                  style={{ backgroundColor: active ? `${c.color}15` : 'var(--surface)', borderColor: active ? c.color : 'var(--border)', boxShadow: active ? `0 2px 12px ${c.color}20` : 'none' }}>
+                  className="flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-3 min-h-[60px] flex-shrink-0 cursor-pointer transition-all border active:scale-95 min-w-[60px]"
+                  style={{ backgroundColor: active ? `${c.color}15` : 'var(--surface)', borderColor: active ? `${c.color}55` : 'transparent' }}>
                   {c.renderIcon(active ? c.color : 'var(--muted)')}
                   <Text size="2xs" weight="bold" style={{ color: active ? c.color : 'var(--muted)' }}>{c.label}</Text>
                 </button>
@@ -370,7 +377,7 @@ export default function SplitForm() {
                 <input
                   type="text" value={paidBySearch} onChange={(e) => setPaidBySearch(e.target.value)}
                   placeholder="Search players..."
-                  className="flex-1 bg-transparent text-[14px] outline-none"
+                  className="flex-1 bg-transparent text-[16px] outline-none"
                   style={{ color: 'var(--text)' }}
                 />
                 <button onClick={() => { setShowPaidByPicker(false); setPaidBySearch(''); }}
@@ -455,7 +462,7 @@ export default function SplitForm() {
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
                 placeholder="Search players..."
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1.5 pl-8 pr-8 text-[13px] outline-none focus:border-[var(--cricket)] transition-colors"
+                className="w-full rounded-lg bg-[var(--surface)] py-2 pl-8 pr-8 min-h-10 text-[16px] outline-none focus:ring-1 focus:ring-[var(--cricket)]/50 transition-shadow"
                 style={{ color: 'var(--text)' }}
               />
               {playerSearch && (
@@ -465,38 +472,54 @@ export default function SplitForm() {
               )}
             </div>
             <button onClick={selectAll}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer transition-all active:scale-95 border flex-shrink-0"
-              style={{ borderColor: selectedPlayerIds.size === activePlayers.length ? 'var(--cricket)' : 'var(--border)', background: selectedPlayerIds.size === activePlayers.length ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', color: selectedPlayerIds.size === activePlayers.length ? 'var(--cricket)' : 'var(--muted)' }}>
+              aria-pressed={selectedPlayerIds.size === activePlayers.length}
+              className="flex items-center gap-1.5 rounded-lg px-3 min-h-10 cursor-pointer transition-all active:scale-95 flex-shrink-0"
+              style={{ background: selectedPlayerIds.size === activePlayers.length ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'color-mix(in srgb, var(--text) 5%, transparent)', color: selectedPlayerIds.size === activePlayers.length ? 'var(--cricket)' : 'var(--muted)' }}>
               <Users size={12} />
-              <Text size="2xs" weight="bold">All</Text>
+              <Text size="2xs" weight="bold">{selectedPlayerIds.size === activePlayers.length ? 'Clear' : 'All'}</Text>
             </button>
           </div>
 
-          {/* Player avatar grid */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* Player selection grid — 3 columns, not 4: the roster has two
+              Venkats, and first-name-only tiles at 4-up made the two
+              indistinguishable at exactly the moment money is being split.
+              Labels come from the shared playerLabels disambiguator (same as
+              the umpiring roster), so a duplicate first name always carries
+              its surname line. */}
+          <div className="grid grid-cols-3 gap-2">
             {filteredPlayers.map((p) => {
               const selected = selectedPlayerIds.has(p.id);
               const [gFrom, gTo] = nameToGradient(p.name);
               const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
               const isPayer = p.id === effectivePaidBy;
+              const label = gridLabels.get(p.id);
               return (
                 <button key={p.id} onClick={() => togglePlayer(p.id)}
+                  aria-pressed={selected}
+                  aria-label={`${p.name}${p.jersey_number != null ? `, jersey ${p.jersey_number}` : ''}${p.is_guest ? ', guest' : ''}`}
                   className="flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-1 cursor-pointer transition-all active:scale-95"
                   style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 10%, transparent)' : 'transparent', border: selected ? '1.5px solid color-mix(in srgb, var(--cricket) 40%, transparent)' : '1.5px solid transparent' }}>
                   <div className="relative">
                     <div className="h-10 w-10 rounded-full text-[12px] font-bold text-white flex items-center justify-center transition-all"
-                      style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})`, opacity: selected ? 1 : 0.5 }}>{initials}</div>
+                      style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})`, opacity: selected ? 1 : 0.55 }}>{initials}</div>
                     {selected && (
                       <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center"
                         style={{ background: 'var(--cricket)', border: '2px solid var(--card)' }}>
-                        <Check size={9} className="text-white" />
+                        <Check size={9} style={{ color: 'var(--cricket-on)' }} />
                       </div>
                     )}
                   </div>
-                  <Text size="2xs" weight={selected ? 'bold' : 'medium'} truncate className="w-full text-center"
-                    style={{ color: selected ? 'var(--cricket)' : 'var(--muted)' }}>
-                    {p.name.split(' ')[0]}{p.is_guest ? ' (G)' : ''}{isPayer ? ' $' : ''}
-                  </Text>
+                  <span className="flex min-h-[26px] w-full flex-col items-center justify-start leading-tight">
+                    <Text size="2xs" weight={selected ? 'bold' : 'medium'} truncate className="w-full text-center"
+                      style={{ color: selected ? 'var(--cricket)' : 'var(--muted)' }}>
+                      {label?.primary ?? p.name.split(' ')[0]}{p.is_guest ? ' (G)' : ''}{isPayer ? ' $' : ''}
+                    </Text>
+                    {label?.secondary && (
+                      <span className="block w-full truncate text-center text-[9px] text-[var(--dim)]">
+                        {label.secondary}
+                      </span>
+                    )}
+                  </span>
                 </button>
               );
             })}
@@ -616,11 +639,11 @@ export default function SplitForm() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setPendingRemove(null)}
-                  className="flex-1 rounded-lg py-2 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
+                  className="flex-1 rounded-lg py-2 min-h-9 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
                   Cancel
                 </button>
                 <button onClick={confirmRemove}
-                  className="flex-1 rounded-lg py-2 text-[12px] font-bold text-white cursor-pointer active:scale-95"
+                  className="flex-1 rounded-lg py-2 min-h-9 text-[12px] font-bold text-white cursor-pointer active:scale-95"
                   style={{ background: '#EF4444' }}>
                   Remove
                 </button>

@@ -25,7 +25,13 @@ export function CardMenu({ anchorRef, items, onClose, width = 160 }: CardMenuPro
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
       const left = Math.min(rect.right - width, window.innerWidth - width - 8);
-      setPos({ top: rect.bottom + 4, left: Math.max(8, left) });
+      // Estimate the menu height (44px row + divider slack) and flip above the
+      // anchor when opening downward would push it off the bottom of the screen.
+      const estimatedHeight = items.length * 44 + 8;
+      const top = rect.bottom + 4 + estimatedHeight > window.innerHeight - 8
+        ? Math.max(8, rect.top - 4 - estimatedHeight)
+        : rect.bottom + 4;
+      setPos({ top, left: Math.max(8, left) });
     }
     const close = () => onClose();
     window.addEventListener('scroll', close, true);
@@ -34,7 +40,7 @@ export function CardMenu({ anchorRef, items, onClose, width = 160 }: CardMenuPro
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
     };
-  }, [anchorRef, onClose, width]);
+  }, [anchorRef, onClose, width, items.length]);
 
   return createPortal(
     <>
@@ -48,7 +54,7 @@ export function CardMenu({ anchorRef, items, onClose, width = 160 }: CardMenuPro
             {item.dividerBefore && <div className="border-t border-[var(--border)] my-0.5 mx-2" />}
             <button
               onClick={() => { item.onClick(); onClose(); }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] text-left cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-3.5 py-3 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] text-left cursor-pointer"
               style={{ color: item.color }}
             >
               {item.icon}

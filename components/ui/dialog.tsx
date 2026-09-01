@@ -18,7 +18,8 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-50 bg-black/60 backdrop-blur-md',
+        // Dim only, no backdrop blur — see drawer.tsx for the perf rationale.
+        'fixed inset-0 z-50 bg-black/50',
         'data-[state=open]:animate-[dialogOverlayIn_200ms_ease-out]',
         'data-[state=closed]:animate-[dialogOverlayOut_150ms_ease-in]',
         className
@@ -48,7 +49,7 @@ function DialogContent({
         <div
           className={cn(
             'relative w-full max-w-md',
-            'rounded-2xl border border-[var(--border)]/60 bg-gradient-to-b from-[var(--card)] to-[var(--card-end)] p-6 shadow-2xl shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+            'rounded-2xl border border-[var(--border)]/40 bg-[var(--card)] p-6 shadow-2xl',
             'data-[state=open]:animate-[dialogContentIn_200ms_ease-out]',
             'data-[state=closed]:animate-[dialogContentOut_150ms_ease-in]',
             className
@@ -57,7 +58,7 @@ function DialogContent({
           {children}
           {showClose && (
             <DialogPrimitive.Close
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+              className="absolute right-3 top-3 rounded-lg p-2.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

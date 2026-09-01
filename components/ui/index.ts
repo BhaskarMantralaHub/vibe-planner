@@ -45,9 +45,6 @@ export { ComposerModal } from './composer-modal';
 
 export { FilterDropdown } from './filter-dropdown';
 
-export { CapsuleTabs } from './capsule-tabs';
-export type { CapsuleTab, CapsuleTabsProps } from './capsule-tabs';
-
 export { SegmentedControl } from './segmented-control';
 export type { SegmentOption, SegmentedControlProps } from './segmented-control';
 
@@ -56,6 +53,9 @@ export type { TextProps } from './text';
 
 export { CardMenu } from './card-menu';
 export type { CardMenuItem, CardMenuProps } from './card-menu';
+
+export { ActionSheet } from './action-sheet';
+export type { ActionSheetProps } from './action-sheet';
 
 export { RefreshButton } from './refresh-button';
 export type { RefreshButtonProps } from './refresh-button';

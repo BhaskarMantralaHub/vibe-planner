@@ -8,15 +8,19 @@
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
-/* ── Deep Space Dark Theme (default) ── */
+/* ── Charcoal Dark Theme (default) ──
+   Deep NEUTRAL charcoal, not navy: surfaces separate by tone and elevation,
+   borders are quiet, and the Sunrisers orange is the one saturated voice.
+   Elevation ladder: --bg → --surface (inset wells) → --card (content)
+   → --elevated (floating). */
 :root,
 [data-theme="dark"] {
-  --bg: #0F0F1A;
-  --surface: #141428;
-  --card: #1C1F3F;
-  --card-end: #242A57;
-  --border: #3A3F6B;
-  --text: #E5E7EB;
+  --bg: #0E0F12;
+  --surface: #16171C;
+  --card: #1B1C22;
+  --card-end: #20222A;
+  --border: #2C2E36;
+  --text: #E8E9EC;
   --muted: #9CA3AF;
   --dim: #6B7280;
   --purple: #C084FC;
@@ -27,15 +31,15 @@
   --indigo: #818CF8;
   --red: #F87171;
   --accent: #8B5CF6;
-  --today-bg: #1E1E40;
-  --menu-bg: #1C1F3F;
+  --today-bg: #1E2027;
+  --menu-bg: #1B1C22;
   --hover-bg: rgba(255, 255, 255, 0.06);
-  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --card-hover-shadow: 0 12px 30px rgba(77, 187, 235, 0.25);
-  --elevated: #222650;
-  --glass: rgba(28, 31, 63, 0.75);
-  --inner-glow: rgba(255, 255, 255, 0.04);
-  --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.2);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --card-hover-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --elevated: #22242C;
+  --glass: rgba(27, 28, 34, 0.75);
+  --inner-glow: rgba(255, 255, 255, 0.05);
+  --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.3);
   --green-deep: #15803D;
   --red-deep: #B91C1C;
 
@@ -57,16 +61,20 @@
   --done-glow: #22C55E;
 
   /* Filter buttons */
-  --filter-bg: #1A1C2E;
-  --filter-border: #2D2F55;
-  --filter-active: #4DBBEB;
+  --filter-bg: #17181E;
+  --filter-border: #2C2E36;
+  --filter-active: #FB923C;
 
-  /* Cricket team theme — change these to rebrand the entire cricket app */
-  --cricket: #4DBBEB;
-  --cricket-accent: #5B9BD5;
-  --cricket-deep: #1B3A6B;
-  --cricket-hover: #3AAAD9;
-  --cricket-glow: rgba(77, 187, 235, 0.25);
+  /* Cricket team theme — Sunrisers Manteca orange. In dark mode the accent is
+     luminous, so filled controls carry DARK text (--cricket-on): white on
+     bright orange fails contrast, and dark-on-accent is the premium pattern.
+     Change these to rebrand the entire cricket app. */
+  --cricket: #FB923C;
+  --cricket-accent: #F97316;
+  --cricket-deep: #7C2D12;
+  --cricket-hover: #FDA75B;
+  --cricket-glow: rgba(251, 146, 60, 0.22);
+  --cricket-on: #2A1103;
 
   /* ── Cricket league-stats accent tokens (dark mode) ──
      One color per discipline — batting keeps the brand blue; bowling gets
@@ -80,9 +88,11 @@
   --stat-bowling:        #00B48A;
   --stat-bowling-deep:   #075E45;
   --stat-bowling-glow:   rgba(0, 180, 138, 0.25);
-  --stat-allround:       #FBBF24;
-  --stat-allround-deep:  #92400E;
-  --stat-allround-glow:  rgba(251, 191, 36, 0.25);
+  /* All-round is GOLD, not orange — batting now aliases the orange brand,
+     so the two disciplines must stay tellable-apart at a glance. */
+  --stat-allround:       #FACC15;
+  --stat-allround-deep:  #854D0E;
+  --stat-allround-glow:  rgba(250, 204, 21, 0.25);
   --stat-catches:        #C084FC;
   --stat-catches-deep:   #5B21B6;
   --stat-catches-glow:   rgba(192, 132, 252, 0.25);
@@ -96,7 +106,7 @@
   --split-credit-border: rgba(52, 211, 153, 0.20);
 
   /* Leaderboard-specific tokens */
-  --row-alt: #1A1D3B;
+  --row-alt: #181920;
   --table-header-bg: color-mix(in srgb, var(--cricket) 8%, var(--surface));
   --highlight-bg: color-mix(in srgb, var(--cricket) 8%, var(--card));
 
@@ -121,6 +131,10 @@
   --cricket-fab-bottom: calc(
     var(--cricket-nav-inset) + var(--cricket-nav-height) + var(--cricket-fab-gap)
   );
+  /* Bottom padding for page content so the last item scrolls clear of the
+     nav pill AND the 56px FAB floating above it. Pages use .pb-cricket-nav
+     instead of a hardcoded pb-32. */
+  --cricket-content-bottom: calc(var(--cricket-fab-bottom) + 56px + 16px);
 
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
   --toolkit: #4DBBEB;
@@ -130,23 +144,23 @@
   --toolkit-glow: rgba(77, 187, 235, 0.25);
 }
 
-/* ── Soft Light Theme ── */
+/* ── Light Theme — cool neutral foundation ──
+   A flat cool-gray canvas on purpose: a dozen components paint opaque
+   var(--bg) slabs (sticky masks, scoring screens), so any gradient here would
+   show seams wherever those slabs overlap it. Atmosphere comes from the
+   fixed ambient layer on the cricket page, never from --bg itself.
+   White cards separate from the canvas by TONE + soft shadow, not borders —
+   the old mint wash + lavender cards read flat and generic (user feedback
+   2026-08). Orange is the single saturated voice; everything else is quiet. */
 [data-theme="light"] {
-  /* Airy sky tint toward the brand blue — a flat color on purpose: a dozen
-     components paint opaque var(--bg) slabs (sticky masks, scoring screens),
-     so any gradient here would show seams wherever those slabs overlap it.
-     The hue is what separates white cards from the canvas; the old #F5F6FA
-     was so close to --card that the page read flat. Hue chosen per user:
-     a cricbuzz-style green wash (their canvas #ECF0F1 + wash #EDF7F2),
-     deepened slightly so white cards still pop. */
-  --bg: #E6F0EA;
-  --surface: #FFFFFF;
-  --card: #F6F7FF;
-  --card-end: #EEF1FF;
-  --border: #D8DBFF;
-  --text: #1E1E2F;
-  --muted: #6B7280;
-  --dim: #9CA3AF;
+  --bg: #EEF0F3;
+  --surface: #F5F6F8;
+  --card: #FFFFFF;
+  --card-end: #FAFBFC;
+  --border: #E2E5EA;
+  --text: #1B1D22;
+  --muted: #646B76;
+  --dim: #9AA1AB;
   --purple: #7C3AED;
   --blue: #3B82F6;
   --orange: #D97706;
@@ -155,24 +169,27 @@
   --indigo: #6C63FF;
   --red: #EF4444;
   --accent: #6C63FF;
-  --today-bg: #EEF1FF;
+  --today-bg: #EEF1F6;
   --menu-bg: #FFFFFF;
-  --hover-bg: rgba(0, 0, 0, 0.04);
-  --card-shadow: 0 2px 8px rgba(108, 99, 255, 0.08);
-  --card-hover-shadow: 0 12px 30px rgba(26, 117, 168, 0.15);
+  --hover-bg: rgba(15, 20, 30, 0.045);
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.06);
+  --card-hover-shadow: 0 10px 28px rgba(16, 24, 40, 0.10);
   --elevated: #FFFFFF;
-  --glass: rgba(255, 255, 255, 0.75);
-  --inner-glow: rgba(255, 255, 255, 0.5);
-  --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --cricket-deep: #0C3D66;
+  --glass: rgba(255, 255, 255, 0.78);
+  --inner-glow: rgba(255, 255, 255, 0.6);
+  --header-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent), 0 4px 16px rgba(16, 24, 40, 0.04);
+  --cricket-deep: #7C2D12;
   --green-deep: #15803D;
   --red-deep: #B91C1C;
 
-  /* Cricket team theme — change these to rebrand the entire cricket app */
-  --cricket: #1A75A8;
-  --cricket-accent: #0E5B86;
-  --cricket-hover: #156490;
-  --cricket-glow: rgba(26, 117, 168, 0.20);
+  /* Cricket team theme — Sunrisers Manteca orange, burnt-deep so 11px bold
+     labels on white still pass AA (#C2410C ≈ 5.1:1). Filled controls keep
+     white text in light mode. Change these to rebrand the cricket app. */
+  --cricket: #C2410C;
+  --cricket-accent: #EA580C;
+  --cricket-hover: #A83A0B;
+  --cricket-glow: rgba(194, 65, 12, 0.20);
+  --cricket-on: #FFFFFF;
 
   /* Cricket league-stats accent tokens (light mode) — one color per
      discipline; see the dark-mode block above for rationale. Values are
@@ -184,9 +201,11 @@
   --stat-bowling:        #009270;
   --stat-bowling-deep:   #07794C;
   --stat-bowling-glow:   rgba(0, 146, 112, 0.20);
-  --stat-allround:       #B45309;
-  --stat-allround-deep:  #92400E;
-  --stat-allround-glow:  rgba(180, 83, 9, 0.20);
+  /* All-round is GOLD — batting aliases the orange brand, so the two must
+     not collapse into the same hue (see dark block). */
+  --stat-allround:       #A16207;
+  --stat-allround-deep:  #854D0E;
+  --stat-allround-glow:  rgba(161, 98, 7, 0.20);
   --stat-catches:        #7C3AED;
   --stat-catches-deep:   #5B21B6;
   --stat-catches-glow:   rgba(124, 58, 237, 0.20);
@@ -223,14 +242,14 @@
   --done-glow: #16A34A;
 
   /* Leaderboard-specific tokens */
-  --row-alt: #ECEFFE;
-  --table-header-bg: #E8F2F8;
-  --highlight-bg: color-mix(in srgb, var(--cricket) 13%, var(--surface));
+  --row-alt: #F3F4F7;
+  --table-header-bg: color-mix(in srgb, var(--cricket) 6%, var(--surface));
+  --highlight-bg: color-mix(in srgb, var(--cricket) 10%, var(--surface));
 
   /* Filter buttons */
-  --filter-bg: #F1F3F9;
-  --filter-border: #E5E7EB;
-  --filter-active: #1A75A8;
+  --filter-bg: #EFF1F4;
+  --filter-border: #E2E5EA;
+  --filter-active: #C2410C;
 }
 
 /* ── Base ── */
@@ -239,11 +258,18 @@ html {
   width: 100%;
 }
 
+/* Kill the grey/blue tap flash on touch — press feedback is provided
+   explicitly via active: styles and .pressable instead. */
+a, button, [role="button"], input, select, textarea, summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for browsers without dvh */
+  min-height: 100dvh;
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
@@ -284,6 +310,32 @@ code, pre, .font-mono {
     --duration-slow: 0ms;
     --duration-slower: 0ms;
   }
+}
+
+/* Shared press feedback for tappable elements. Builds on the duration tokens,
+   so it goes instant (not animated) under prefers-reduced-motion. */
+.pressable {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* View entrance — subtle opacity + 6px rise when switching in-page views. */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-view-in {
+  animation: view-in var(--duration-normal) var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-view-in { animation: none; }
+}
+
+/* Page-bottom clearance for cricket pages — see --cricket-content-bottom. */
+.pb-cricket-nav {
+  padding-bottom: var(--cricket-content-bottom);
 }
 
 /* ── Dialog Animations (Radix data-state driven) ── */
@@ -687,126 +739,6 @@ code, pre, .font-mono {
 /* ── Selection ── */
 ::selection { background: var(--toolkit); color: white; }
 
-/* ── Modern Mobile Menu (components/ui/modern-mobile-menu.tsx) ──
-   Theme tokens — map shadcn-flavored names from the upstream snippet
-   onto this codebase's actual CSS vars. */
-:root {
-  --component-inactive-color: var(--muted);
-  --component-bg: var(--card);
-  --component-shadow: var(--border);
-  --component-active-bg: var(--hover-bg);
-  --component-line-inactive-color: var(--border);
-  --component-active-color-default: var(--text);
-}
-
-@keyframes iconBounce {
-  0%, 100% { transform: translateY(0); }
-  20% { transform: translateY(-0.3em); }
-  40% { transform: translateY(0); }
-  60% { transform: translateY(-0.1em); }
-  80% { transform: translateY(0); }
-}
-
-.menu {
-  display: inline-flex;
-  align-items: stretch;
-  gap: 0.125rem;
-  padding: 0.375rem 0.625rem;
-  background: color-mix(in srgb, var(--component-bg) 94%, transparent);
-  border: 1px solid color-mix(in srgb, var(--component-shadow) 70%, transparent);
-  border-radius: 9999px;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.24),
-    0 2px 8px rgba(0, 0, 0, 0.14),
-    0 1px 0 0 color-mix(in srgb, var(--component-shadow) 50%, transparent) inset;
-  backdrop-filter: blur(14px) saturate(170%);
-  -webkit-backdrop-filter: blur(14px) saturate(170%);
-}
-
-.menu__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.1875rem;
-  padding: 0.4375rem 0.75rem;
-  border: none;
-  background: transparent;
-  color: var(--component-inactive-color);
-  cursor: pointer;
-  position: relative;
-  min-width: 60px;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 200ms ease-out;
-}
-
-.menu__item:hover { color: var(--text); }
-
-.menu__item.active {
-  color: var(--component-active-color, var(--component-active-color-default));
-}
-
-.menu__icon {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.menu__icon .icon {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.menu__item.active .menu__icon {
-  animation: iconBounce 600ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.menu__count {
-  position: absolute;
-  top: -6px;
-  right: -10px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 9999px;
-  background: var(--component-inactive-color);
-  color: var(--card);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 16px;
-  text-align: center;
-  white-space: nowrap;
-  transition: background 200ms ease, transform 200ms ease;
-}
-
-.menu__item.active .menu__count {
-  background: var(--component-active-color, var(--component-active-color-default));
-  transform: scale(1.05);
-}
-
-.menu__text {
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  position: relative;
-  white-space: nowrap;
-  transition: font-weight 200ms ease;
-}
-
-.menu__text.active { font-weight: 700; }
-
-.menu__text.active::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -4px;
-  transform: translateX(-50%);
-  height: 2px;
-  width: var(--lineWidth, 0px);
-  background: currentColor;
-  border-radius: 2px;
-  box-shadow: 0 0 6px currentColor;
-  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* (The Modern Mobile Menu block that lived here was ~120 lines of CSS for a
+   component nothing imported — removed 2026-08-31 along with
+   components/ui/modern-mobile-menu.tsx. CricketSectionNav is the bottom nav.) */

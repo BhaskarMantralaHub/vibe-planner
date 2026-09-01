@@ -90,8 +90,9 @@ export default function SeasonSelector() {
         disabled={sorted.length === 0}
         aria-haspopup="dialog"
         aria-expanded={open}
-        // min-h-11 = 44px. The old pill was 38px.
-        className="group flex min-h-11 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] pl-3 pr-2.5 text-[14px] font-semibold text-[var(--text)] transition-all hover:border-[var(--cricket)]/40 hover:shadow-sm active:scale-[0.98] disabled:opacity-50"
+        // min-h-11 = 44px. Elevated chip, not a bordered pill — the season is
+        // a floating contextual control, so it separates by shadow and tone.
+        className="group flex min-h-11 items-center gap-2 rounded-full bg-[var(--elevated)] shadow-[0_1px_2px_rgba(16,24,40,0.06),0_3px_10px_rgba(16,24,40,0.07)] pl-3 pr-2.5 text-[14px] font-semibold text-[var(--text)] transition-all active:scale-[0.98] active:shadow-[0_1px_3px_rgba(16,24,40,0.08)] disabled:opacity-50"
       >
         <span className="text-[16px] leading-none" aria-hidden>{icon}</span>
         <Text weight="bold">{shortLabel(selected)}</Text>

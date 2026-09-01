@@ -330,27 +330,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const showNav = (!isCloud || !!user) && !needsPasswordReset;
 
-  // Apply team color as CSS variable override
-  const { userTeams, currentTeamId } = useAuthStore();
-  const currentTeam = userTeams.find(t => t.team_id === currentTeamId);
-  useEffect(() => {
-    if (isCricketContext && currentTeam?.primary_color) {
-      document.documentElement.style.setProperty('--cricket', currentTeam.primary_color);
-    }
-    return () => {
-      document.documentElement.style.removeProperty('--cricket');
-    };
-  }, [isCricketContext, currentTeam?.primary_color]);
+  // NOTE: the runtime `--cricket` override from cricket_teams.primary_color
+  // was removed (2026-08-31, per user decision): the Sunrisers orange lives in
+  // the theme tokens (globals.css) as the single source of truth, and a DB
+  // color could not supply the paired --cricket-accent/-hover/-glow/-on
+  // values, so an override desynced fills from their text/glow companions.
 
   return (
     <>
       <TopProgressBar />
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md">
+      {/* safe-area-inset-top is 0 in browser Safari portrait; it only bites in
+          the installed (black-translucent) PWA, where the header would
+          otherwise sit under the status-bar clock. */}
+      <header
+        className="sticky top-0 z-40 border-b border-[var(--border)]/50 bg-[var(--surface)]/85 backdrop-blur-md"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
           {showNav ? (
             <button
               onClick={() => setMenuOpen(true)}
-              className="cursor-pointer rounded-lg p-1.5 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)]"
+              className="cursor-pointer rounded-lg p-2.5 -m-1 min-h-11 min-w-11 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)]"
               aria-label="Open menu"
             >
               &#9776;

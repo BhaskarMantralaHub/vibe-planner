@@ -188,8 +188,9 @@ export default function ExpenseForm() {
           />
         </div>
 
-        {/* Amount + Date */}
-        <div className="grid grid-cols-[1fr_140px] gap-3">
+        {/* Amount + Date — two fluid columns; a fixed 140px date column left
+            the amount cramped at 375px */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <Label uppercase className="mb-1.5 block">Amount ($)</Label>
             <input

@@ -16,7 +16,8 @@
 | `EmptyState` | `empty-state.tsx` | `icon`, `title`, `description`, `action` |
 | `Drawer` | `drawer.tsx` | `Drawer`, `DrawerHandle`, `DrawerTitle`, `DrawerHeader`, `DrawerBody`, `DrawerClose` — iOS keyboard-safe vaul wrapper |
 | `FilterDropdown` | `filter-dropdown.tsx` | Category filter with counts, brand-aware (toolkit/cricket) |
-| `CardMenu` | `card-menu.tsx` | Portal-based three-dot dropdown menu. `items` array with `label`, `icon`, `color`, `onClick`, `dividerBefore`. Auto-closes on click + scroll + resize. `anchorRef` for positioning, `width` prop. |
+| `CardMenu` | `card-menu.tsx` | Portal-based three-dot dropdown menu. `items` array with `label`, `icon`, `color`, `onClick`, `dividerBefore`. Auto-closes on click + scroll + resize. `anchorRef` for positioning, `width` prop. Flips above the anchor near the viewport bottom. Prefer `ActionSheet` for new mobile ⋮ menus. |
+| `ActionSheet` | `action-sheet.tsx` | Bottom-sheet action menu (mobile-first CardMenu replacement). Same `CardMenuItem[]` shape, so migration is a component swap. `open`, `onOpenChange`, `title` (sr-only unless `showTitle`), rows ≥52px, destructive rows via `color: 'var(--red)'`. Built on the shared `Drawer`. |
 | `RefreshButton` | `refresh-button.tsx` | `onRefresh` (async callback), `variant` (bordered/glass), `size`, `title`. Self-managed spinner + disabled state. |
 | `Text` | `text.tsx` | `size` (2xs/xs/sm/md/lg/xl/2xl), `weight`, `color`, `tracking`, `uppercase`, `truncate`, `tabular`, `as` (span/p/h1-h4/label) |
 | `Toaster` | `toast.tsx` | Added to `providers.tsx`, use `toast()` from sonner anywhere |

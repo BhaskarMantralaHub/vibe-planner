@@ -112,7 +112,12 @@ interface StatTile {
    * negative pool balance says "short" in words instead.
    */
   exactValue: string;
+  /** Icon tint + current-tile tint. The VALUE stays neutral ink — see below. */
   color: string;
+  /** Semantic exception only (e.g. a negative pool balance reads red).
+   *  Every value in its own bright color made the row four competing
+   *  dashboard widgets; neutral figures read as one team overview. */
+  valueColor?: string;
   icon: React.ReactNode;
   /** View this tile drills into. */
   target: View;
@@ -170,6 +175,7 @@ export function SummaryStats({
         ? `${formatCurrency(poolBalance)} short`
         : formatCurrency(poolBalance),
       color: poolBalance < 0 ? 'var(--red)' : 'var(--green)',
+      valueColor: poolBalance < 0 ? 'var(--red)' : undefined,
       icon: <PiggyBank size={16} />,
       target: 'expenses',
       destination: 'expenses',
@@ -215,9 +221,10 @@ export function SummaryStats({
               onNavigate(s.target);
             }}
             className={cn(
-              'rounded-xl border p-3 sm:p-4 min-w-0 text-left cursor-pointer',
-              'bg-gradient-to-br from-[var(--card)] to-[var(--card-end)]',
-              'shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+              // Tone + soft elevation, no outline — matches the border-free
+              // surface system introduced with the pool hero.
+              'rounded-xl p-3 sm:p-4 min-w-0 text-left cursor-pointer',
+              'bg-[var(--card)] shadow-[var(--card-shadow)]',
               'transition-all duration-150 ease-out',
               // 0.98, not the 0.95 used on pills: at 171x70 a 5% shrink is 8.5px
               // of travel and reads as a lurch. Same value as the tappable stat
@@ -229,7 +236,6 @@ export function SummaryStats({
               // Tailwind v4's default white --tw-ring-offset-color, so it draws
               // a white halo in dark mode. SplitsDashboard omits it too.
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60',
-              isCurrent ? 'border-transparent' : 'border-[var(--border)]/60',
             )}
             style={
               // The current tile is tinted in its own colour rather than given a
@@ -237,7 +243,7 @@ export function SummaryStats({
               // this small, and a rail on a rounded card is a tired pattern.
               isCurrent
                 ? {
-                  boxShadow: `inset 0 1px 0 0 var(--inner-glow), inset 0 0 0 1.5px color-mix(in srgb, ${s.color} 45%, transparent)`,
+                  boxShadow: `var(--card-shadow), inset 0 0 0 1.5px color-mix(in srgb, ${s.color} 45%, transparent)`,
                   background: `color-mix(in srgb, ${s.color} 7%, var(--card))`,
                 }
                 : undefined
@@ -256,7 +262,7 @@ export function SummaryStats({
               tabular
               aria-hidden
               className="sm:text-[26px] leading-none"
-              style={{ color: s.color }}
+              style={s.valueColor ? { color: s.valueColor } : undefined}
             >
               {s.value}
             </Text>
@@ -294,23 +300,22 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
   const tone = isDeficit ? 'var(--red)' : 'var(--green)';
 
   return (
+    // Compact contextual info row — tonal surface, no border, no card chrome.
+    // The green lives in the icon and the amount, never the whole row.
     <div
-      className="flex items-center gap-3 rounded-2xl px-3.5 py-3"
-      style={{
-        background: `color-mix(in srgb, ${tone} 7%, var(--card))`,
-        border: `1px solid color-mix(in srgb, ${tone} 24%, var(--border))`,
-      }}
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+      style={{ background: 'var(--surface)' }}
     >
       <span
-        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-        style={{ background: `color-mix(in srgb, ${tone} 15%, transparent)`, color: tone }}
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
         aria-hidden
       >
-        <ArrowDownToLine size={16} />
+        <ArrowDownToLine size={15} />
       </span>
 
       <div className="min-w-0 flex-1">
-        <Text as="p" size="sm" weight="bold" truncate>
+        <Text as="p" size="sm" weight="semibold" truncate>
           {isDeficit ? 'Deficit carried forward' : 'Carried forward'}
         </Text>
         <Text as="p" size="2xs" color="muted" truncate>
@@ -320,7 +325,7 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
       </div>
 
       <span
-        className="flex-shrink-0 text-[16px] font-extrabold tabular-nums"
+        className="flex-shrink-0 text-[15px] font-bold tabular-nums"
         style={{ color: tone }}
       >
         {isDeficit ? '−' : '+'}{formatCurrency(Math.abs(carried.amount))}
@@ -340,9 +345,9 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
           title={carried.live
             ? 'Lock this figure — do it once the previous season is finished'
             : 'Unlock to track the previous season again'}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition-transform active:scale-95"
+          className="pressable flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-[var(--muted)] active:bg-[var(--hover-bg)]"
         >
-          {carried.live ? <LockOpen size={14} /> : <Lock size={14} />}
+          {carried.live ? <LockOpen size={15} /> : <Lock size={15} />}
         </button>
       )}
     </div>
@@ -363,17 +368,10 @@ function tabToView(tab: Tab): View {
 }
 
 
-/* ── Tab config using shared CapsuleTabs ── */
-import { CapsuleTabs, SegmentedControl } from '@/components/ui';
-import type { CapsuleTab } from '@/components/ui';
+import { SegmentedControl } from '@/components/ui';
 import CricketSectionNav, {
   type CricketSectionNavItem,
 } from './components/CricketSectionNav';
-
-const CAPSULE_TABS: CapsuleTab[] = [
-  { key: 'players', label: 'Players', icon: <CricketPlayerIcon size={16} /> },
-  { key: 'finances', label: 'Finances', icon: <Receipt size={16} /> },
-];
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
@@ -558,15 +556,20 @@ function CricketDashboard() {
   }
 
   return (
-    <div className="relative min-h-screen w-full px-3 pt-5 pb-32 sm:px-4 lg:px-8 overflow-hidden">
-      {/* Ambient background blobs — cricket warm tones */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className="absolute -top-[20%] -right-[10%] h-[500px] w-[500px] rounded-full opacity-[0.07] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket), transparent 70%)' }} />
-        <div className="absolute top-[30%] -left-[15%] h-[400px] w-[400px] rounded-full opacity-[0.05] blur-[90px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
-        <div className="absolute -bottom-[10%] right-[20%] h-[450px] w-[450px] rounded-full opacity-[0.06] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
+    <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-hidden">
+      {/* Ambient depth — two near-imperceptible washes, not blobs: a faint
+          brand warmth bleeding down from the header, and a neutral tonal
+          shift toward the bottom so the floating nav has ground to sit on.
+          Static gradients, no blur filters — free to composite. */}
+      <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
+        <div
+          className="absolute inset-x-0 top-0 h-[45vh]"
+          style={{ background: 'radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 70%)' }}
+        />
+        <div
+          className="absolute inset-x-0 bottom-0 h-[30vh]"
+          style={{ background: 'linear-gradient(to top, color-mix(in srgb, var(--text) 3%, transparent), transparent)' }}
+        />
       </div>
 
       {/* Header — greeting + pulse */}
@@ -602,13 +605,18 @@ function CricketDashboard() {
         const dayIndex = new Date().getDate() % greetPool.length;
         const timeGreeting = greetPool[dayIndex];
         return (
-          <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <Text as="h2" size="xl" weight="bold" tracking="tight" className="sm:text-[24px]">
+          // One line on phones: greeting truncates, the season pill never
+          // wraps below it — wrapping cost a full row of the viewport and
+          // pushed the pool balance further down.
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <Text as="h2" size="xl" weight="bold" tracking="tight" truncate className="sm:text-[24px]">
                 {timeGreeting}{firstName ? `, ${firstName}` : ''} <MdSportsCricket className="inline-block ml-1 text-[var(--cricket)]" size={22} />
               </Text>
             </div>
-            <SeasonSelector />
+            <div className="flex-shrink-0">
+              <SeasonSelector />
+            </div>
           </div>
         );
       })()}
@@ -665,8 +673,12 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
-          {/* Summary Stats — show only on players, fees, sponsors */}
-          {(activeView === 'players' || activeView === 'fees' || activeView === 'sponsors') && (
+          {/* Summary Stats — players and fees only. Deliberately NOT on
+              sponsors: none of its tiles is "current" there, and the four
+              generic KPIs competed with the Total Sponsorships hero, which is
+              that view's primary financial content. The same numbers remain
+              one tab away. */}
+          {(activeView === 'players' || activeView === 'fees') && (
             <SummaryStats
               totalSpent={totalSpent}
               poolBalance={poolBalance}
@@ -678,18 +690,20 @@ function CricketDashboard() {
             />
           )}
 
-          {/* Content */}
-          <div key={activeView} className="min-w-0 animate-fade-in">
+          {/* Content — remounts per view; view-in is the brief's subtle
+              opacity + 6px rise, replacing the plain fade */}
+          <div key={activeView} className="min-w-0 animate-view-in">
             {activeView === 'players' && <PlayerManager />}
             {activeView === 'expenses' && (
-              <div className="space-y-3">
-                {/* Carried-forward money as a visible ENTRY, not a hidden
-                    column. It belongs in the list people scan when asking
-                    "where did the money come from", and stating it as a line
-                    item makes the pool balance add up on screen.
-                    Hidden at exactly zero — a "$0.00 carried forward" row is
-                    noise, and the first season legitimately has none. */}
-                {Math.abs(pool.carried.amount) >= 0.01 && (
+              /* Carried-forward money as a visible ENTRY, not a hidden column.
+                 It renders directly UNDER the pool hero (via carriedSlot) so
+                 the balance is the first thing on screen and the entry that
+                 explains it sits right beneath — the numbers still add up on
+                 screen. Hidden at exactly zero — a "$0.00 carried forward" row
+                 is noise, and the first season legitimately has none. */
+              <ExpenseList
+                onNavigate={handleViewChange}
+                carriedSlot={Math.abs(pool.carried.amount) >= 0.01 ? (
                   <CarriedForwardEntry
                     carried={pool.carried}
                     isAdmin={isAdmin}
@@ -704,9 +718,8 @@ function CricketDashboard() {
                       toast.success('Now tracking the previous season again');
                     }}
                   />
-                )}
-                <ExpenseList onNavigate={handleViewChange} />
-              </div>
+                ) : undefined}
+              />
             )}
             {activeView === 'splits' && <SplitsDashboard />}
             {activeView === 'fees' && <FeeTracker />}

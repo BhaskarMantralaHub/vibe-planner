@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
-import { EmptyState, Text, CardMenu, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, CalendarDays, CircleCheckBig, MapPin, Clock, Calendar, Share2, ExternalLink, BarChart3, LayoutGrid, Camera, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
+import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, Share2, ExternalLink, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -14,7 +14,10 @@ import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
 import CricketFab from './CricketFab';
 import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
-import CricketSectionNav, { type CricketSectionNavItem } from './CricketSectionNav';
+import { useRouter } from 'next/navigation';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { CRICKET_GLOBAL_NAV } from './cricket-global-nav';
+import CricketSectionNav from './CricketSectionNav';
 
 /* ── Types ── */
 interface Performer {
@@ -624,16 +627,17 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
       {/* Card content */}
       <div
         className="flex-1 rounded-2xl p-3.5 relative min-w-0"
-        style={{ background: 'var(--card)', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent)' }}
+        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
       >
 
         {isAdmin && (
           <button
             ref={openMenuId === match.id ? menuBtnRef : null}
             onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-            className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+            className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
+            aria-label="Match actions"
           >
-            <EllipsisVertical size={11} />
+            <EllipsisVertical size={15} />
           </button>
         )}
 
@@ -767,11 +771,10 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
 
   return (
     <div
-      className="relative rounded-2xl border overflow-hidden"
+      className="relative rounded-2xl overflow-hidden"
       style={{
         background: 'var(--card)',
-        borderColor: 'var(--border)',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        boxShadow: 'var(--card-shadow)',
       }}
     >
       {/* ── Left accent bar (status color) ── */}
@@ -782,10 +785,10 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-2.5 right-2.5 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-20"
+          className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-20"
           aria-label="Match actions"
         >
-          <EllipsisVertical size={12} />
+          <EllipsisVertical size={15} />
         </button>
       )}
 
@@ -800,7 +803,10 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
           </span>
           {isWin && <Trophy size={14} style={{ color: statusColor }} aria-hidden />}
         </div>
-        <div className="text-[30px] sm:text-[32px] font-black leading-[1.05] tracking-tight tabular-nums" style={{ color: 'var(--cricket)' }}>
+        {/* Margin headline is neutral ink — the semantic story is already told
+            by the status pill and accent bar, and a brand-orange "5 wickets"
+            would read the same for a win and a loss. */}
+        <div className="text-[30px] sm:text-[32px] font-black leading-[1.05] tracking-tight tabular-nums" style={{ color: 'var(--text)' }}>
           {margin}
         </div>
         <div className="text-[14px] font-semibold mt-1" style={{ color: 'var(--muted)' }}>
@@ -887,7 +893,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         );
 
         return (
-          <div className="mx-3 mb-3 rounded-xl p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="mx-3 mb-3 rounded-xl p-3" style={{ background: 'var(--surface)' }}>
             {renderRow(topRow, showOrdinals ? '1st' : null)}
 
             {/* Innings connector — divider with chased/defended pill */}
@@ -937,12 +943,13 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
           (by date + opponent) to a cricclubs_matches row. */}
       {scorecardUrl && (
         <div className="grid grid-cols-2 gap-2 mx-3 mb-3">
+          {/* Primary contextual action — tonal brand fill; Share stays quiet */}
           <a
             href={scorecardUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors"
+            style={{ background: 'color-mix(in srgb, var(--cricket) 11%, transparent)' }}
           >
             <ExternalLink size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
             <Text size="sm" weight="semibold" color="cricket">
@@ -969,12 +976,12 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
                 if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
               }
             }}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors active:bg-[var(--hover-bg)]"
+            style={{ background: 'var(--surface)' }}
             aria-label="Share scorecard link"
           >
-            <Share2 size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
-            <Text size="sm" weight="semibold" color="cricket">
+            <Share2 size={14} className="flex-shrink-0" style={{ color: 'var(--muted)' }} />
+            <Text size="sm" weight="semibold" color="muted">
               Share
             </Text>
           </button>
@@ -1069,6 +1076,7 @@ export default function MatchSchedule() {
   // Tab state is hash-driven so external links (e.g. League Stats summary
   // tiles → `/cricket/schedule#completed`) can deep-link a specific tab.
   // Mirrors the pattern used in app/(tools)/cricket/page.tsx.
+  const router = useRouter();
   const [activeTab, _setActiveTab] = useState<ScheduleTab>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as ScheduleTab;
@@ -1417,40 +1425,52 @@ export default function MatchSchedule() {
   };
 
   /**
-   * Bottom tab bar — floating pill, portaled to body (workaround for iOS Safari
-   * fixed-positioning bugs inside transformed/filtered ancestors).
+   * GLOBAL bottom dock — floating pill, portaled to body (workaround for iOS
+   * Safari fixed-positioning bugs inside transformed/filtered ancestors).
    *
-   * Declared HERE, above the early returns, and rendered by all three branches.
-   * It used to live only in the main return, so a season with no matches — or
-   * any moment while loading — lost the tab bar completely, stranding the user
-   * on the schedule page with no way to reach Stats, Moments or Home. That is
-   * exactly the state a brand-new season starts in.
+   * Carries the app-wide five (Players/Finances/Matches/Umpiring/Moments) —
+   * see cricket-global-nav.ts. The Upcoming/Completed/Stats switching that
+   * used to live down here is CONTEXTUAL navigation and now renders at the
+   * top of the page content (scheduleTabs below), so the dock never changes
+   * vocabulary between sections.
+   *
+   * Declared HERE, above the early returns, and rendered by all three
+   * branches, so a loading or empty season never strands the user without
+   * navigation. That is exactly the state a brand-new season starts in.
    */
   const bottomNav = typeof document !== 'undefined'
     ? createPortal(
-        (() => {
-          const navItems: CricketSectionNavItem[] = [
-            { kind: 'view', key: 'upcoming', label: 'Upcoming', icon: CalendarDays, count: upcoming.length },
-            { kind: 'view', key: 'completed', label: 'Completed', icon: CircleCheckBig, count: completed.length },
-            { kind: 'route', key: 'stats', label: 'Stats', icon: BarChart3, href: '/cricket/league-stats' },
-            { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
-            { kind: 'route', key: 'home', label: 'Home', icon: LayoutGrid, href: '/cricket' },
-          ];
-          return (
-            <CricketSectionNav
-              items={navItems}
-              activeKey={activeTab === 'completed' ? 'completed' : 'upcoming'}
-              onViewChange={(key) => {
-                setActiveTab(key as 'upcoming' | 'completed');
-                setOpenMenu(null);
-              }}
-              onActiveTap={() => setOpenMenu(null)}
-            />
-          );
-        })(),
+        <CricketSectionNav
+          items={CRICKET_GLOBAL_NAV}
+          activeKey="matches"
+          onActiveTap={() => setOpenMenu(null)}
+        />,
         document.body,
       )
     : null;
+
+  /* Contextual navigation — belongs to the League Schedule content, directly
+     under the section header. Stats is a sibling view that lives on its own
+     route; the control routes there while Upcoming/Completed switch in-page. */
+  const scheduleTabs = (
+    <SegmentedControl
+      ariaLabel="Schedule view"
+      options={[
+        { key: 'upcoming', label: 'Upcoming' },
+        { key: 'completed', label: 'Completed' },
+        { key: 'stats', label: 'Stats' },
+      ]}
+      active={activeTab}
+      onChange={(key) => {
+        if (key === 'stats') {
+          router.push('/cricket/league-stats');
+          return;
+        }
+        setActiveTab(key as ScheduleTab);
+        setOpenMenu(null);
+      }}
+    />
+  );
 
   /* ── Loading state ── */
   if (loading) {
@@ -1487,6 +1507,9 @@ export default function MatchSchedule() {
 
   return (
     <div className="space-y-3">
+      {/* Contextual view switcher — part of the page, not the dock */}
+      {scheduleTabs}
+
       {/* Season record summary — visible on completed tab */}
       {activeTab === 'completed' && completed.length > 0 && (
         <SeasonRecord completed={completed} />
@@ -1606,15 +1629,13 @@ export default function MatchSchedule() {
 
       </div>
 
-      {/* CardMenu (context menu for any card) */}
-      {openMenu && (
-        <CardMenu
-          anchorRef={menuBtnRef}
-          onClose={() => setOpenMenu(null)}
-          width={180}
-          items={getMenuItems(openMenu)}
-        />
-      )}
+      {/* Match context menu — shared bottom-sheet ActionSheet, same items */}
+      <ActionSheet
+        open={openMenu !== null}
+        onOpenChange={(o) => { if (!o) setOpenMenu(null); }}
+        title="Match actions"
+        items={openMenu ? getMenuItems(openMenu) : []}
+      />
 
       {/* Soft-delete confirmation dialog */}
       <Dialog open={!!deletingMatch} onOpenChange={(open) => { if (!open) setDeletingMatch(null); }}>

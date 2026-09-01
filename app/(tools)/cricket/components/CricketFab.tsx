@@ -46,12 +46,15 @@ export default function CricketFab({ onClick, label, children }: CricketFabProps
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-95"
+      className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95"
       style={{
         bottom: 'var(--cricket-fab-bottom)',
-        background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+        // Solid brand fill; --cricket-on keeps the glyph readable in both
+        // themes (dark mode uses a luminous orange that needs dark ink).
+        background: 'var(--cricket)',
+        color: 'var(--cricket-on)',
         boxShadow:
-          '0 10px 28px color-mix(in srgb, var(--cricket) 40%, transparent), 0 4px 10px rgba(0,0,0,0.15)',
+          '0 8px 24px color-mix(in srgb, var(--cricket) 35%, transparent), 0 3px 8px rgba(0,0,0,0.12)',
       }}
     >
       {children}

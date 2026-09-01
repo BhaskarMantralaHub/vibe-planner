@@ -38,7 +38,9 @@ function Input({
         id={inputId}
         ref={ref}
         className={cn(
-          'w-full rounded-xl border bg-[var(--surface)] px-4 py-3 text-[15px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] transition-all',
+          // 16px, not 15 — anything below 16px makes iOS Safari zoom the page
+          // when the input gains focus.
+          'w-full rounded-xl border bg-[var(--surface)] px-4 py-3 text-[16px] text-[var(--text)] outline-none placeholder:text-[var(--dim)] transition-all',
           error
             ? 'border-[var(--red)] focus:border-[var(--red)] focus:ring-1 focus:ring-[var(--red)]/30'
             : `border-[var(--border)] ${brandFocus[brand]}`,

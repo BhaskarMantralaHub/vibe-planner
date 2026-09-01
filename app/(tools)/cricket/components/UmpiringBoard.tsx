@@ -483,24 +483,24 @@ export default function UmpiringBoard() {
               </Alert>
             )}
 
-            {/* Headline: the number that matters, and the one tap that fills it. */}
+            {/* Headline: the number that matters, and the one tap that fills it.
+                Calm elevated module — the semantic color lives in the icon
+                tint, never across the whole panel. */}
             <div
               className="rounded-3xl p-4"
-              style={{
-                background: openCount > 0
-                  ? 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 14%, transparent), color-mix(in srgb, var(--cricket-accent) 8%, transparent))'
-                  : 'color-mix(in srgb, var(--green) 12%, transparent)',
-                border: `1px solid color-mix(in srgb, ${openCount > 0 ? 'var(--cricket)' : 'var(--green)'} 28%, transparent)`,
-              }}
+              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
             >
               <div className="flex items-center gap-3">
                 <div
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-                  style={{ background: openCount > 0 ? 'var(--cricket)' : 'var(--green)' }}
+                  style={{
+                    background: `color-mix(in srgb, ${openCount > 0 ? 'var(--cricket)' : 'var(--green)'} 14%, transparent)`,
+                    color: openCount > 0 ? 'var(--cricket)' : 'var(--green)',
+                  }}
                 >
                   {openCount > 0
-                    ? <UmpireIcon size={22} color="#ffffff" />
-                    : <CircleCheck size={22} color="#ffffff" />}
+                    ? <UmpireIcon size={22} color="currentColor" />
+                    : <CircleCheck size={22} />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <Text size="md" weight="bold">
@@ -569,7 +569,7 @@ export default function UmpiringBoard() {
                     {removedDuties.map((d) => (
                       <div
                         key={d.id}
-                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 opacity-60"
+                        className="rounded-xl bg-[var(--surface)] p-3 opacity-60"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -660,8 +660,10 @@ export default function UmpiringBoard() {
             ) : null}
           />
 
-          {/* Filter instead of three stacked boxes: one grid, one mental model,
-              and the counts double as the control. */}
+          {/* Quiet filter rail — inactive chips are tonal texture with plain
+              tabular counts; only the ACTIVE filter earns its semantic tint.
+              The old rail put a filled colored counter on every chip at once,
+              which was four competing color signals before anyone tapped. */}
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
             {([
               { key: 'all', label: 'Everyone', n: stats.perPlayer.length, color: 'var(--cricket)' },
@@ -675,28 +677,33 @@ export default function UmpiringBoard() {
                   key={f.key}
                   type="button"
                   onClick={() => setRosterFilter(f.key)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 transition-all active:scale-95"
+                  className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 transition-all duration-200 active:scale-[0.96]"
                   style={{
-                    background: active ? `color-mix(in srgb, ${f.color} 16%, transparent)` : 'var(--surface)',
-                    border: `1.5px solid ${active ? `color-mix(in srgb, ${f.color} 50%, transparent)` : 'var(--border)'}`,
+                    background: active
+                      ? `color-mix(in srgb, ${f.color} 15%, transparent)`
+                      : 'color-mix(in srgb, var(--text) 5%, transparent)',
+                    color: active ? f.color : 'var(--muted)',
                   }}
                 >
-                  <span
-                    className="flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-extrabold text-white tabular-nums"
-                    style={{ background: f.color }}
-                  >
-                    {f.n}
-                  </span>
-                  <Text size="xs" weight={active ? 'bold' : 'medium'}>{f.label}</Text>
+                  <Text size="xs" weight={active ? 'bold' : 'medium'} style={{ color: 'inherit' }}>{f.label}</Text>
+                  <span className="text-[11px] font-bold tabular-nums opacity-70">{f.n}</span>
                 </button>
               );
             })}
           </div>
 
           {rosterFilter === 'open' && openCount > 0 && (
-            <Button variant="primary" brand="cricket" size="md" fullWidth onClick={() => setTab('upcoming')}>
+            // Navigation shortcut, not the screen's primary action — tonal,
+            // not a solid brand button.
+            <button
+              type="button"
+              onClick={() => setTab('upcoming')}
+              className="pressable flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold cursor-pointer"
+              style={{ background: 'color-mix(in srgb, var(--cricket) 11%, transparent)', color: 'var(--cricket)' }}
+            >
               {openCount} {openCount === 1 ? 'duty' : 'duties'} still need an umpire
-            </Button>
+              <ChevronRight size={15} />
+            </button>
           )}
 
           <PlayerGrid
@@ -712,9 +719,11 @@ export default function UmpiringBoard() {
 
 
           {stats.guests.length > 0 && (
-            <div className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-3">
+            // Section, not a card — a hairline and a heading are all the
+            // separation "guests" needs.
+            <div className="pt-3" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
               <Text size="sm" weight="bold">Guests</Text>
-              <Text as="p" size="2xs" color="dim" className="mb-2">
+              <Text as="p" size="2xs" color="dim" className="mb-3">
                 Not counted toward the target
               </Text>
               <PlayerGrid
@@ -859,8 +868,8 @@ function ShareFooter({ text, label, caption, onCopy }: {
           title="Copy to clipboard"
           className={cn(
             iconButton,
-            'border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]',
-            'hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
+            'bg-[var(--surface)] text-[var(--muted)]',
+            'hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)]',
           )}
         >
           <Copy size={17} />
@@ -881,7 +890,7 @@ function DutyMenu({ items }: { items: CardMenuItem[] }) {
         type="button"
         aria-label="Duty options"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--muted)] active:scale-95"
+        className="flex h-11 w-11 -my-1.5 -mr-1 shrink-0 items-center justify-center rounded-full text-[var(--muted)] active:scale-95 active:bg-[var(--hover-bg)]"
       >
         <EllipsisVertical size={15} />
       </button>
@@ -911,12 +920,11 @@ function RosterHero({ stats, target, share }: {
   const bookedPct = stats.eligible ? stats.booked / stats.eligible : 0;
 
   return (
+    // Season-status module — neutral elevated surface; the donut and legend
+    // carry the semantic color, the panel itself stays quiet.
     <div
       className="rounded-3xl p-4"
-      style={{
-        background: 'linear-gradient(135deg, color-mix(in srgb, var(--cricket) 12%, transparent), color-mix(in srgb, var(--cricket-accent) 6%, transparent))',
-        border: '1px solid color-mix(in srgb, var(--cricket) 24%, transparent)',
-      }}
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
     >
       <div className="flex items-center gap-4">
         <div className="relative shrink-0" style={{ height: size, width: size }}>
@@ -1139,18 +1147,15 @@ function MatchDutyCard({
   const hasMine = myPlayerId !== null && group.duties.some((d) => d.assigned_player_id === myPlayerId);
   const hasOpen = group.duties.some((d) => d.status === 'open');
 
-  // A card containing my duty gets a cricket-tinted edge; one still needing an
-  // umpire gets a dashed edge so open work is visible while scrolling.
+  // The status whisper lives in the date rail's tinted day-name (and the
+  // open-slot rows carry their own dashed treatment) — the old 4px colored
+  // left edge on EVERY card made the accent the loudest thing on screen.
   const accent = hasMine ? 'var(--cricket)' : hasOpen ? 'var(--orange)' : 'var(--green)';
 
   return (
     <div
-      className="overflow-hidden rounded-3xl bg-[var(--card)]"
-      style={{
-        border: '1px solid var(--border)',
-        borderLeft: `4px solid color-mix(in srgb, ${accent} 70%, transparent)`,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-      }}
+      className="overflow-hidden rounded-2xl bg-[var(--card)]"
+      style={{ boxShadow: 'var(--card-shadow)' }}
     >
       <div className="flex gap-3 p-3">
         {/* Date rail */}
@@ -1319,12 +1324,15 @@ function DutySlotRow({
   );
 
   return (
+    // Only an OPEN slot earns a surface (dashed, semantic — it's the screen's
+    // call to action). Filled rows sit directly on the card: avatar +
+    // typography carry them without another box.
     <div
-      className="flex items-center gap-2.5 rounded-2xl px-2 py-1.5"
+      className="flex items-center gap-2.5 rounded-xl px-2 py-1.5"
       style={{
         background: duty.status === 'open'
           ? 'color-mix(in srgb, var(--orange) 8%, transparent)'
-          : 'var(--surface)',
+          : 'transparent',
         border: duty.status === 'open'
           ? '1px dashed color-mix(in srgb, var(--orange) 45%, transparent)'
           : '1px solid transparent',
@@ -1344,12 +1352,23 @@ function DutySlotRow({
         avatarAndName
       )}
 
-      {duty.status === 'completed' && <Badge variant="green" size="sm" className="shrink-0">Stood</Badge>}
-      {duty.status === 'no_show' && isAdmin && <Badge variant="orange" size="sm" className="shrink-0">No-show</Badge>}
+      {/* Status as quiet text + small semantic mark, not a filled pill */}
+      {duty.status === 'completed' && (
+        <span className="flex shrink-0 items-center gap-1" style={{ color: 'var(--green)' }}>
+          <CircleCheck size={13} />
+          <Text size="2xs" weight="semibold" style={{ color: 'var(--green)' }}>Stood</Text>
+        </span>
+      )}
+      {duty.status === 'no_show' && isAdmin && (
+        <span className="flex shrink-0 items-center gap-1" style={{ color: 'var(--orange)' }}>
+          <UserX size={13} />
+          <Text size="2xs" weight="semibold" style={{ color: 'var(--orange)' }}>No-show</Text>
+        </span>
+      )}
 
       {duty.status === 'open' && canClaim && !isSwappedAway && (
         <Button
-          variant="primary" brand="cricket" size="sm" className="shrink-0"
+          variant="primary" brand="cricket" size="md" className="shrink-0"
           loading={pending}
           onClick={() => onClaim(duty.id)}
         >
@@ -1357,7 +1376,7 @@ function DutySlotRow({
         </Button>
       )}
       {isMine && duty.status === 'claimed' && (
-        <Button variant="secondary" size="sm" className="shrink-0" loading={pending} onClick={() => onRelease(duty.id)}>
+        <Button variant="secondary" size="md" className="shrink-0" loading={pending} onClick={() => onRelease(duty.id)}>
           Give up
         </Button>
       )}

@@ -1,5 +1,4 @@
 import type { JSX, ReactNode } from 'react';
-import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Text } from '@/components/ui';
 import PlayerAvatar from './PlayerAvatar';
@@ -54,7 +53,6 @@ export default function LeaderboardCard({
   showChevron = true,
   revealIndex = 0,
 }: LeaderboardCardProps): JSX.Element {
-  const [hovered, setHovered] = useState(false);
   const tappable = Boolean(onTap);
   // Stagger entrance: each card waits a few ms longer than the previous so
   // the leaderboard cascades into view. Cap at 8 so a 20-row roster
@@ -76,8 +74,6 @@ export default function LeaderboardCard({
             }
           : undefined
       }
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       aria-label={tappable ? `Rank ${rank}, ${playerName}. Open detailed stats.` : undefined}
       className={[
         'relative w-full rounded-[20px] text-left transition-all overflow-hidden animate-card-rise',
@@ -122,12 +118,10 @@ export default function LeaderboardCard({
             <Text size="md" weight="bold" className="truncate flex-1 min-w-0 leading-tight">
               {playerName}
             </Text>
+            {/* Static muted chevron — the old mouseenter-driven tint never
+                fired on touch, which is the only input this app targets. */}
             {showChevron && (
-              <ChevronDown
-                size={18}
-                className="flex-shrink-0 transition-colors"
-                style={{ color: hovered ? accentColor : 'var(--muted)' }}
-              />
+              <ChevronDown size={18} className="flex-shrink-0" style={{ color: 'var(--muted)' }} />
             )}
           </div>
 

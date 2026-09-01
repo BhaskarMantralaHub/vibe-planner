@@ -14,7 +14,7 @@ import { compressPlayerImage } from '../lib/image';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { EmptyState, Text, CardMenu, Badge } from '@/components/ui';
+import { EmptyState, Text, ActionSheet, Badge, ComposerModal } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
 import PlayerProfile from './PlayerProfile';
@@ -30,39 +30,30 @@ function playerSort(a: CricketPlayer, b: CricketPlayer, currentUserEmail?: strin
   return a.name.localeCompare(b.name);
 }
 
-/* ── Delete Confirmation (portal) ── */
+/* ── Delete Confirmation — shared Dialog, sized for a 375px screen ── */
 function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer; onConfirm: () => void; onCancel: () => void }) {
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
-      onClick={onCancel}
-    >
-      <div
-        className="w-[340px] rounded-2xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent className="max-w-xs" showClose={false}>
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(248,113,113,0.1)' }}>
             <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
-          <div>
-            <p className="text-[15px] font-semibold text-[var(--text)]">Remove Player</p>
-            <p className="text-[13px] text-[var(--muted)]">Remove <b>{player.name}</b> from the team?</p>
+          <div className="min-w-0">
+            <DialogTitle className="text-[15px]">Remove Player</DialogTitle>
+            <DialogDescription className="text-[13px] mt-0.5">Remove <b>{player.name}</b> from the team?</DialogDescription>
           </div>
         </div>
-        <div className="flex gap-2 justify-end">
-          <Button onClick={onCancel} variant="secondary" size="sm">
+        <div className="flex gap-2">
+          <Button onClick={onCancel} variant="secondary" brand="cricket" size="lg" className="flex-1">
             Cancel
           </Button>
-          <Button onClick={onConfirm} variant="danger" size="sm">
+          <Button onClick={onConfirm} variant="danger" size="lg" className="flex-1">
             Remove
           </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -182,8 +173,6 @@ export default function PlayerManager() {
     ));
     setSignedUpEmails(new Set(storeSignedUpEmails.map((e: string) => e.toLowerCase())));
   }, [isAdmin, storeAdminUserIds, storeSignedUpEmails, activePlayers.length]);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
-  const guestMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [designationConflict, setDesignationConflict] = useState<{ value: string; existingName: string; existingId: string } | null>(null);
 
   const FORM_STORAGE_KEY = 'cricket_player_form_draft';
@@ -323,22 +312,9 @@ export default function PlayerManager() {
 
   const [formError, setFormError] = useState('');
 
-  // Lock body scroll when player form modal is open (position:fixed is the only reliable method on iOS Safari)
-  useEffect(() => {
-    if (!showPlayerForm) return;
-    const scrollY = window.scrollY;
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      window.scrollTo(0, scrollY);
-    };
-  }, [showPlayerForm]);
+  // NOTE: the manual body scroll-lock effect that lived here was only needed
+  // by the old hand-rolled portal; ComposerModal (full-screen on mobile, own
+  // scroll region) replaced it.
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -552,33 +528,33 @@ export default function PlayerManager() {
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 sm:p-5 min-w-0 overflow-hidden">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <Text as="h3" size="md" weight="semibold" truncate className="sm:text-[16px] min-w-0">
-          Squad <Text color="muted" weight="normal">({rosterPlayers.length})</Text>
-        </Text>
+    // Section, not a card — the roster surface below provides the grouping.
+    <div className="min-w-0">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <Text as="h3" size="lg" weight="bold" truncate>Squad</Text>
+          <Text size="sm" color="muted" weight="normal">({rosterPlayers.length})</Text>
+        </div>
         {isAdmin && (
-          <Button onClick={() => { resetForm(); setShowPlayerForm(!showPlayerForm); }}
-            variant="primary" brand="cricket" size="sm" className="flex-shrink-0 whitespace-nowrap">
-            {showPlayerForm ? '✕ Close' : '＋ Add Player'}
+          <Button onClick={() => { resetForm(); setShowPlayerForm(true); }}
+            variant="primary" brand="cricket" size="md" className="flex-shrink-0 whitespace-nowrap gap-1.5">
+            <UserPlus size={16} />
+            Add Player
           </Button>
         )}
       </div>
 
-      {/* ── Form Modal (admin or self-edit) ── */}
-      {(isAdmin || isSelfEditing) && showPlayerForm && createPortal(
+      {/* ── Form Modal (admin or self-edit) — shared ComposerModal: full-screen
+             on mobile with correct iOS keyboard behavior, the same shell Add
+             Expense and Gallery uploads use. Submit buttons stay in the BODY
+             because the two branches (linked profile vs full form) have
+             different validity rules. ── */}
+      <ComposerModal
+        open={(isAdmin || isSelfEditing) && showPlayerForm}
+        onClose={() => { resetForm(); setShowPlayerForm(false); }}
+        title={editingPlayer ? 'Edit Player' : 'Add Player'}
+      >
         <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { resetForm(); setShowPlayerForm(false); }} />
-
-          {/* Modal — use top/bottom instead of max-h-[90vh] because vh units include iOS Safari chrome */}
-          <div className="fixed inset-x-3 top-[3%] bottom-[3%] z-50 mx-auto max-w-md overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-slide-in"
-            style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
-            <div className="mb-5 flex items-center justify-between">
-              <Text as="h3" size="lg" weight="bold" className="text-[18px]">{editingPlayer ? 'Edit Player' : 'Add Player'}</Text>
-              <button onClick={() => { resetForm(); setShowPlayerForm(false); }} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer text-lg">✕</button>
-            </div>
-
             {/* Linked profile banner */}
             {isLinkedProfile && !editingPlayer && (
               <div className="mb-4 rounded-xl overflow-hidden border"
@@ -677,7 +653,7 @@ export default function PlayerManager() {
                                 <Text size="xs" weight="medium" className="block truncate">{email}</Text>
                               </div>
                               <button onClick={() => { navigator.clipboard.writeText(email); toast.success('Email copied'); }}
-                                className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                                className="flex-shrink-0 h-10 w-10 -my-1.5 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
                                 title="Copy email">
                                 <Copy size={13} />
                               </button>
@@ -693,7 +669,7 @@ export default function PlayerManager() {
                                 <Text size="xs" weight="semibold" className="block">{cricclubId}</Text>
                               </div>
                               <button onClick={() => { navigator.clipboard.writeText(cricclubId); toast.success('CricClub ID copied'); }}
-                                className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                                className="flex-shrink-0 h-10 w-10 -my-1.5 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
                                 title="Copy CricClub ID">
                                 <Copy size={13} />
                               </button>
@@ -721,7 +697,10 @@ export default function PlayerManager() {
                       <Text size="2xs" color="dim">Practice / fill-in player</Text>
                     </div>
                     <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
-                      <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                      <div
+                      className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`}
+                      style={{ transition: 'left 220ms var(--ease-spring)' }}
+                    />
                     </div>
                   </button>
                 )}
@@ -730,7 +709,7 @@ export default function PlayerManager() {
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey Number</label>
                   <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                     placeholder="e.g. 7" />
                 </div>
 
@@ -741,11 +720,11 @@ export default function PlayerManager() {
                     <div className="flex gap-2">
                       {[{ key: 'captain', label: 'Captain', icon: <Crown size={12} /> }, { key: 'vice-captain', label: 'Vice Captain', icon: <ShieldCheck size={12} /> }].map((d) => (
                         <button key={d.key} type="button" onClick={() => setDesignation(designation === d.key ? '' : d.key)}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
+                          className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border active:scale-[0.97]"
                           style={{
-                            backgroundColor: designation === d.key ? 'var(--cricket-accent)' : 'transparent',
-                            borderColor: designation === d.key ? 'var(--cricket-accent)' : 'var(--border)',
-                            color: designation === d.key ? 'white' : 'var(--muted)',
+                            backgroundColor: designation === d.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent',
+                            borderColor: designation === d.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)',
+                            color: designation === d.key ? 'var(--cricket)' : 'var(--muted)',
                           }}>
                           {d.icon} {d.label}
                         </button>
@@ -755,68 +734,18 @@ export default function PlayerManager() {
                 )}
 
                 {/* Submit */}
-                <button
-                  disabled={submitting}
-                  onClick={handleSubmit}
-                  className="w-full rounded-xl py-3 text-[15px] font-semibold text-white cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-                  {submitting ? 'Adding...' : '+ Add to Team'}
-                </button>
+                <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth loading={submitting}>
+                  {submitting ? 'Adding...' : 'Add to Team'}
+                </Button>
               </div>
             ) : (
 
             <div className="space-y-4">
-              {/* Photo upload — only for self-edit (signed-up player editing own card) */}
-              {(isSelfEditing || (isAdmin && editingPlayer)) && (
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className="relative h-20 w-20 rounded-full overflow-hidden cursor-pointer group"
-                    onClick={() => photoInputRef.current?.click()}
-                    style={{
-                      background: photoPreview ? 'transparent' : 'var(--surface)',
-                      border: `2px dashed ${photoPreview ? 'transparent' : 'var(--border)'}`,
-                    }}
-                  >
-                    {photoPreview ? (
-                      <img src={photoPreview} alt="Player" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="h-full w-full flex flex-col items-center justify-center text-[var(--muted)]">
-                        <Camera size={24} />
-                        <span className="text-[9px] font-semibold mt-0.5">Add Photo</span>
-                      </div>
-                    )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                      <Camera size={20} className="text-white" />
-                    </div>
-                  </div>
-                  {photoPreview && (
-                    <button
-                      type="button"
-                      onClick={() => { setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(true); }}
-                      className="text-[11px] text-[var(--red)] font-medium cursor-pointer hover:underline flex items-center gap-0.5"
-                    >
-                      <X size={14} /> Remove photo
-                    </button>
-                  )}
-                  <input
-                    ref={photoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setPhotoFile(file);
-                        setPhotoPreview(URL.createObjectURL(file));
-                        setPhotoRemoved(false);
-                      }
-                      e.target.value = '';
-                    }}
-                  />
-                </div>
-              )}
-
+              {/* Section: who they are */}
+              <div className="flex items-center gap-2">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Identity</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
+              </div>
               <div className="relative">
               <div className="grid grid-cols-[1fr_72px] gap-2">
                 <div>
@@ -826,7 +755,7 @@ export default function PlayerManager() {
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     readOnly={isLinkedProfile}
                     autoComplete="off"
-                    className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                    className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none transition-colors ${
                       isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
                     }`}
                     placeholder="Player name" />
@@ -834,7 +763,7 @@ export default function PlayerManager() {
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Jersey</label>
                   <input type="number" value={jersey} onChange={(e) => setJersey(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors text-center"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors text-center"
                     placeholder="#" />
                 </div>
               </div>
@@ -851,8 +780,8 @@ export default function PlayerManager() {
                       className="w-full flex items-center gap-3 px-3 py-3 text-left cursor-pointer active:bg-[var(--surface)] hover:bg-[var(--surface)] transition-colors border-l-[3px]"
                       style={{ borderLeftColor: s.source === 'member' ? 'var(--green)' : 'var(--blue)' }}
                     >
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-[14px] shrink-0"
-                        style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-[14px] shrink-0"
+                        style={{ background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}>
                         {s.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -890,17 +819,25 @@ export default function PlayerManager() {
                     <Text size="2xs" color="dim">Practice / fill-in player</Text>
                   </div>
                   <div className={`w-10 h-5.5 rounded-full transition-all relative ${isGuestPlayer ? 'bg-[var(--cricket)]' : 'bg-[var(--border)]'}`}>
-                    <div className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`} />
+                    <div
+                      className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow ${isGuestPlayer ? 'left-[22px]' : 'left-0.5'}`}
+                      style={{ transition: 'left 220ms var(--ease-spring)' }}
+                    />
                   </div>
                 </button>
               )}
 
               {!isGuestPlayer && <>
+              {/* Section: how to reach them */}
+              <div className="flex items-center gap-2 pt-1">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Contact</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
+              </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
                 <input type="email" value={email} onChange={(e) => { if (!isLinkedProfile) setEmail(e.target.value); }}
                   readOnly={isLinkedProfile}
-                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none transition-colors ${
                     isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
                   }`}
                   placeholder="player@email.com" />
@@ -909,31 +846,36 @@ export default function PlayerManager() {
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
                 <input value={cricclubId} onChange={(e) => { if (!isLinkedProfile) setCricclubId(e.target.value); }}
                   readOnly={isLinkedProfile}
-                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none transition-colors ${
+                  className={`w-full rounded-lg border border-[var(--border)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none transition-colors ${
                     isLinkedProfile ? 'bg-[var(--surface)]/60 opacity-70 cursor-not-allowed' : 'bg-[var(--surface)] focus:border-[var(--cricket)]'
                   }`}
                   placeholder="Optional" />
+              </div>
+              {/* Section: what they do for the team */}
+              <div className="flex items-center gap-2 pt-1">
+                <Text size="2xs" weight="bold" color="dim" uppercase tracking="wider">Team role</Text>
+                <div className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--border) 60%, transparent)' }} />
               </div>
               {/* Designation (admin only) */}
               {isAdmin && <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Designation</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleDesignation('captain')}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                    style={{ backgroundColor: designation === 'captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'captain' ? 'white' : 'var(--text)' }}>
+                    className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border active:scale-[0.97]"
+                    style={{ backgroundColor: designation === 'captain' ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: designation === 'captain' ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: designation === 'captain' ? 'var(--cricket)' : 'var(--text)' }}>
                     <Crown size={13} /> Captain
                   </button>
                   <button type="button" onClick={() => handleDesignation('vice-captain')}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border"
-                    style={{ backgroundColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'transparent', borderColor: designation === 'vice-captain' ? 'var(--cricket-accent)' : 'var(--border)', color: designation === 'vice-captain' ? 'white' : 'var(--text)' }}>
+                    className="flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium cursor-pointer transition-all border active:scale-[0.97]"
+                    style={{ backgroundColor: designation === 'vice-captain' ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: designation === 'vice-captain' ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: designation === 'vice-captain' ? 'var(--cricket)' : 'var(--text)' }}>
                     <ShieldCheck size={12} /> Vice Captain
                   </button>
                 </div>
                 {designationConflict && (
                   <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--cricket)]/5 border border-[var(--cricket)]/20">
                     <span className="text-[12px] text-[var(--text)] flex-1"><b>{designationConflict.existingName}</b> is currently {designationConflict.value === 'captain' ? 'Captain' : 'Vice Captain'}. Reassign?</span>
-                    <button onClick={() => setDesignationConflict(null)} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)]">No</button>
-                    <button onClick={confirmDesignationSwap} className="rounded-lg px-2.5 py-1 text-[12px] font-medium text-white bg-[var(--cricket)] cursor-pointer hover:opacity-90">Yes</button>
+                    <button onClick={() => setDesignationConflict(null)} className="min-h-9 rounded-lg px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]">No</button>
+                    <button onClick={confirmDesignationSwap} className="min-h-9 rounded-lg px-3 py-1.5 text-[12px] font-semibold cursor-pointer hover:opacity-90 active:scale-[0.97]" style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>Yes</button>
                   </div>
                 )}
               </div>}
@@ -944,8 +886,8 @@ export default function PlayerManager() {
                   {SHIRT_SIZES.map((s) => (
                     <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setShirtSize(shirtSize === s.key ? '' : s.key); }}
                       disabled={isLinkedProfile}
-                      className={`h-8 w-10 rounded-lg text-[12px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                      style={{ backgroundColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: shirtSize === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: shirtSize === s.key ? 'white' : 'var(--muted)' }}>
+                      className={`h-10 w-12 rounded-lg text-[13px] font-medium transition-all border active:scale-[0.96] ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                      style={{ backgroundColor: shirtSize === s.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: shirtSize === s.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: shirtSize === s.key ? 'var(--cricket)' : 'var(--muted)' }}>
                       {s.label}
                     </button>
                   ))}
@@ -964,17 +906,17 @@ export default function PlayerManager() {
                         className={`flex items-center gap-2.5 rounded-xl p-2.5 transition-all border-2 text-left ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                         style={{
                           backgroundColor: isSelected ? 'color-mix(in srgb, var(--cricket-accent) 8%, transparent)' : 'var(--surface)',
-                          borderColor: isSelected ? 'var(--cricket-accent)' : 'var(--border)',
+                          borderColor: isSelected ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)',
                         }}>
                         <div className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center transition-all"
                           style={{
-                            backgroundColor: isSelected ? 'var(--cricket-accent)' : colorAlpha(rc?.color ?? 'var(--cricket)', 8),
-                            color: isSelected ? 'white' : rc?.color,
+                            backgroundColor: isSelected ? 'var(--cricket)' : colorAlpha(rc?.color ?? 'var(--cricket)', 8),
+                            color: isSelected ? 'var(--cricket-on)' : rc?.color,
                           }}>
                           {rc?.icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? 'var(--cricket-accent)' : 'var(--text)' }}>{r.label}</p>
+                          <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? 'var(--cricket)' : 'var(--text)' }}>{r.label}</p>
                           <p className="text-[10px] text-[var(--muted)] leading-tight mt-0.5">{rc?.desc}</p>
                         </div>
                       </button>
@@ -992,8 +934,8 @@ export default function PlayerManager() {
                         {BATTING_STYLES.map((s) => (
                           <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setBattingStyle(battingStyle === s.key ? '' : s.key); }}
                             disabled={isLinkedProfile}
-                            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                            style={{ backgroundColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: battingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: battingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            className={`flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border active:scale-[0.97] ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                            style={{ backgroundColor: battingStyle === s.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: battingStyle === s.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: battingStyle === s.key ? 'var(--cricket)' : 'var(--text)' }}>
                             {battingIcon()} {s.label}
                           </button>
                         ))}
@@ -1007,8 +949,8 @@ export default function PlayerManager() {
                         {BOWLING_STYLES.map((s) => (
                           <button key={s.key} type="button" onClick={() => { if (!isLinkedProfile) setBowlingStyle(bowlingStyle === s.key ? '' : s.key); }}
                             disabled={isLinkedProfile}
-                            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                            style={{ backgroundColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'transparent', borderColor: bowlingStyle === s.key ? 'var(--cricket-accent)' : 'var(--border)', color: bowlingStyle === s.key ? 'white' : 'var(--text)' }}>
+                            className={`flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all border active:scale-[0.97] ${isLinkedProfile ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                            style={{ backgroundColor: bowlingStyle === s.key ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'transparent', borderColor: bowlingStyle === s.key ? 'color-mix(in srgb, var(--cricket) 45%, transparent)' : 'var(--border)', color: bowlingStyle === s.key ? 'var(--cricket)' : 'var(--text)' }}>
                             {bowlingIcon()} {s.label}
                           </button>
                         ))}
@@ -1018,17 +960,77 @@ export default function PlayerManager() {
                 </div>
               )}
               </>}
+
+              {/* Photo — tap-to-select widget, so it sits BELOW the text
+                  inputs (iOS keyboard covers the bottom half of the screen).
+                  Affordance is an always-visible camera badge — the old
+                  hover-only overlay was invisible on touch. */}
+              {(isSelfEditing || (isAdmin && editingPlayer)) && (
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={photoPreview ? 'Change photo' : 'Add photo'}
+                    className="relative h-20 w-20 rounded-full cursor-pointer pressable"
+                    onClick={() => photoInputRef.current?.click()}
+                    style={{
+                      background: photoPreview ? 'transparent' : 'var(--surface)',
+                      border: `2px dashed ${photoPreview ? 'transparent' : 'var(--border)'}`,
+                    }}
+                  >
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Player" className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      <span className="h-full w-full flex flex-col items-center justify-center text-[var(--muted)]">
+                        <Camera size={24} />
+                        <span className="text-[9px] font-semibold mt-0.5">Add Photo</span>
+                      </span>
+                    )}
+                    {photoPreview && (
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full"
+                        style={{ background: 'var(--cricket)', color: 'var(--cricket-on)', border: '2px solid var(--card)' }}
+                        aria-hidden
+                      >
+                        <Camera size={13} />
+                      </span>
+                    )}
+                  </button>
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoFile(null); setPhotoPreview(null); setPhotoRemoved(true); }}
+                      className="min-h-9 text-[11px] text-[var(--red)] font-medium cursor-pointer hover:underline flex items-center gap-0.5"
+                    >
+                      <X size={14} /> Remove photo
+                    </button>
+                  )}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(file));
+                        setPhotoRemoved(false);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+
               <Alert variant="error">{formError}</Alert>
               <Button onClick={handleSubmit} disabled={!isFormValid() || !!designationConflict}
                 variant="primary" brand="cricket" size="lg" fullWidth loading={submitting}>
-                {editingPlayer ? '✓ Update Player' : '＋ Add Player'}
+                {editingPlayer ? 'Update Player' : 'Add Player'}
               </Button>
             </div>
             )}
-          </div>
-        </>,
-        document.body,
-      )}
+        </>
+      </ComposerModal>
 
       {/* ── Player List ── */}
       {rosterPlayers.length === 0 ? (
@@ -1040,8 +1042,11 @@ export default function PlayerManager() {
           action={isAdmin ? { label: '+ Add Player', onClick: () => setShowPlayerForm(true) } : undefined}
         />
       ) : (
-        <div className="space-y-2">
-          {rosterPlayers.map((p) => {
+        // ONE continuous roster surface — rows separated by hairlines, not a
+        // stack of bordered cards. Captain/VC/admin status is carried by the
+        // chips and metadata TEXT, not by border-color coding an outline.
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+          {rosterPlayers.map((p, idx) => {
             const rc = roleConfig[p.player_role ?? ''];
             const isCaptain = p.designation === 'captain';
             const isVC = p.designation === 'vice-captain';
@@ -1054,42 +1059,36 @@ export default function PlayerManager() {
             const hasContact = p.email || p.cricclub_id;
             const hasDetails = hasSkills || hasContact;
             const roleColor = rc?.color ?? 'var(--cricket)';
-            const borderColor = isExpanded ? colorAlpha(roleColor, 25) : isCaptain ? 'var(--cricket-accent)' : isVC ? '#6B7280' : isPlayerAdmin ? '#3B82F6' : 'var(--border)';
-            const hasThickLeft = isCaptain || isVC || isPlayerAdmin;
 
             return (
               <div key={p.id}
-                className="rounded-2xl overflow-hidden transition-all duration-300"
+                className="transition-colors duration-300"
                 style={{
-                  background: 'var(--surface)',
-                  borderTop: `1.5px solid ${borderColor}`,
-                  borderRight: `1.5px solid ${borderColor}`,
-                  borderBottom: `1.5px solid ${borderColor}`,
-                  borderLeft: `${hasThickLeft ? '4px' : '1.5px'} solid ${borderColor}`,
-                  boxShadow: isExpanded ? `0 8px 32px ${colorAlpha(roleColor, 8)}, 0 2px 8px rgba(0,0,0,0.08)` : 'none',
+                  borderTop: idx > 0 ? '1px solid color-mix(in srgb, var(--border) 55%, transparent)' : 'none',
+                  background: isExpanded ? 'var(--surface)' : 'transparent',
                 }}>
                 {/* Clickable header area */}
                 <div
-                  className="relative p-3 sm:p-3.5 cursor-pointer transition-colors hover:bg-[var(--hover-bg)]"
+                  className="relative px-3 py-3 sm:px-4 cursor-pointer transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]"
                   onClick={() => hasDetails && setExpandedPlayer(isExpanded ? null : p.id)}
                 >
-                  {/* Three-dot menu trigger (admin only) */}
+                  {/* Three-dot menu trigger (admin only) — opens the shared
+                      bottom-sheet ActionSheet, same as every other ⋮ */}
                   {isAdmin && (
                     <>
                       <button
-                        ref={openMenu === p.id ? menuBtnRef : null}
-                        data-menu-id={p.id}
-                        onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === p.id ? null : p.id); }}
-                        className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenu(p.id); }}
+                        aria-label={`Actions for ${p.name}`}
+                        className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
                       >
-                        <EllipsisVertical size={14} />
+                        <EllipsisVertical size={15} />
                       </button>
 
-                      {openMenu === p.id && (
-                        <CardMenu
-                          anchorRef={menuBtnRef}
-                          onClose={() => setOpenMenu(null)}
-                          items={(() => {
+                      <ActionSheet
+                        open={openMenu === p.id}
+                        onOpenChange={(o) => setOpenMenu(o ? p.id : null)}
+                        title={`Actions for ${p.name}`}
+                        items={(() => {
                             const isMe = p.id === myPlayer?.id;
                             const items = [
                               { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
@@ -1119,8 +1118,7 @@ export default function PlayerManager() {
                             ];
                             return items;
                           })()}
-                        />
-                      )}
+                      />
                     </>
                   )}
 
@@ -1128,7 +1126,8 @@ export default function PlayerManager() {
                   {isSelf && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEdit(p); }}
-                      className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors z-10"
+                      aria-label="Edit your details"
+                      className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
                     >
                       <Pencil size={16} />
                     </button>
@@ -1152,7 +1151,7 @@ export default function PlayerManager() {
                           {p.jersey_number && (
                             <span
                               className="absolute -bottom-1 -left-1 flex items-center justify-center rounded-full text-[9px] font-bold text-white"
-                              style={{ width: 22, height: 22, background: roleColor, border: '2px solid var(--surface)' }}
+                              style={{ width: 22, height: 22, background: roleColor, border: '2px solid var(--card)' }}
                             >
                               #{p.jersey_number}
                             </span>
@@ -1169,15 +1168,14 @@ export default function PlayerManager() {
                           {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                         </div>
                       )}
+                      {/* No ping on the signed-up dot: a roster of continuously
+                          pulsing dots is both visual noise and a needless
+                          composite loop. */}
                       {isAdmin && (
                         <span
-                          className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--surface)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
+                          className={`absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--card)] ${isSignedUp ? 'bg-emerald-500' : 'bg-gray-400'}`}
                           title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
-                        >
-                          {isSignedUp && (
-                            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-40" />
-                          )}
-                        </span>
+                        />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1198,16 +1196,20 @@ export default function PlayerManager() {
                           </span>
                         )}
                       </div>
+                      {/* ONE quiet metadata line — role (its color, no pill),
+                          then handedness and admin as muted text. The old
+                          role PILL competed with the player's name. */}
                       <div className="flex items-center gap-1.5 mt-1">
-                        {/* Role chip */}
                         {rc && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                            style={{ color: roleColor, background: colorAlpha(roleColor, 7) }}>
-                            {rc.icon} {rc.label}
+                          <span className="text-[11px] font-semibold" style={{ color: roleColor }}>
+                            {rc.label}
                           </span>
                         )}
                         {p.batting_style && (
-                          <span className="text-[11px] text-[var(--muted)]">{p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
+                          <span className="text-[11px] text-[var(--muted)]">· {p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
+                        )}
+                        {isPlayerAdmin && (
+                          <span className="text-[11px] text-[var(--muted)]">· Admin</span>
                         )}
                         {/* Chevron */}
                         {hasDetails && (
@@ -1225,7 +1227,9 @@ export default function PlayerManager() {
                 {/* ── Expanded Details ── */}
                 <div
                   className="overflow-hidden transition-all duration-300 ease-out"
-                  style={{ maxHeight: isExpanded ? '300px' : '0px', opacity: isExpanded ? 1 : 0 }}
+                  // 480px, not 300 — email + cricclub + three skill chips can
+                  // exceed 300px on a narrow screen and silently clipped.
+                  style={{ maxHeight: isExpanded ? '480px' : '0px', opacity: isExpanded ? 1 : 0 }}
                 >
                   <div className="px-3 sm:px-4 pb-3.5">
                     {/* Divider with role-colored accent */}
@@ -1239,7 +1243,7 @@ export default function PlayerManager() {
                       <div className="flex flex-wrap gap-2 mb-3">
                         {p.batting_style && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
+                            style={{ background: colorAlpha(roleColor, 6) }}>
                             <MdSportsCricket size={14} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Bat</span>
                             <span className="font-semibold text-[var(--text)]">{p.batting_style === 'right' ? 'Right' : 'Left'}</span>
@@ -1247,7 +1251,7 @@ export default function PlayerManager() {
                         )}
                         {p.bowling_style && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
+                            style={{ background: colorAlpha(roleColor, 6) }}>
                             <GiTennisBall size={13} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Bowl</span>
                             <span className="font-semibold text-[var(--text)]">{p.bowling_style.charAt(0).toUpperCase() + p.bowling_style.slice(1)}</span>
@@ -1255,7 +1259,7 @@ export default function PlayerManager() {
                         )}
                         {p.shirt_size && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px]"
-                            style={{ background: colorAlpha(roleColor, 5), border: `1px solid ${colorAlpha(roleColor, 10)}` }}>
+                            style={{ background: colorAlpha(roleColor, 6) }}>
                             <Shirt size={12} style={{ color: roleColor }} />
                             <span className="text-[var(--muted)]">Size</span>
                             <span className="font-semibold text-[var(--text)]">{p.shirt_size}</span>
@@ -1272,8 +1276,10 @@ export default function PlayerManager() {
                             onClick={(e) => { e.stopPropagation(); handleCopy(p.email!, `email-${p.id}`); }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
                             style={{
-                              background: copiedField === `email-${p.id}` ? 'var(--green)' + '10' : 'var(--card)',
-                              border: `1.5px solid ${copiedField === `email-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
+                              background: copiedField === `email-${p.id}`
+                                ? 'color-mix(in srgb, var(--green) 10%, transparent)'
+                                : 'var(--card)',
+                              boxShadow: copiedField === `email-${p.id}` ? 'inset 0 0 0 1.5px var(--green)' : 'none',
                             }}
                           >
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
@@ -1296,8 +1302,10 @@ export default function PlayerManager() {
                             onClick={(e) => { e.stopPropagation(); handleCopy(p.cricclub_id!, `cc-${p.id}`); }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
                             style={{
-                              background: copiedField === `cc-${p.id}` ? 'var(--green)' + '10' : 'var(--card)',
-                              border: `1.5px solid ${copiedField === `cc-${p.id}` ? 'var(--green)' : 'var(--border)'}`,
+                              background: copiedField === `cc-${p.id}`
+                                ? 'color-mix(in srgb, var(--green) 10%, transparent)'
+                                : 'var(--card)',
+                              boxShadow: copiedField === `cc-${p.id}` ? 'inset 0 0 0 1.5px var(--green)' : 'none',
                             }}
                           >
                             <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: colorAlpha(roleColor, 6) }}>
@@ -1325,20 +1333,21 @@ export default function PlayerManager() {
         </div>
       )}
 
-      {/* Guest Players (Net Players — from practice matches) */}
+      {/* Guest Players (Net Players — from practice matches) — a collapsible
+          SECTION under a hairline, not another bordered box. */}
       {isAdmin && guestPlayers.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
+        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
           <button onClick={() => setShowGuests(!showGuests)}
-            className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
             <Text size="sm" weight="semibold" color="muted">Guest Players ({guestPlayers.length})</Text>
-            <Text size="xs" color="muted">{showGuests ? '▲' : '▼'}</Text>
+            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showGuests ? 'rotate(90deg)' : 'none' }} />
           </button>
           {showGuests && (
-            <div className="px-3 pb-3 space-y-2">
+            <div className="pt-1 space-y-1.5">
               {guestPlayers.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5 relative">
+                <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5 relative">
                   <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                    style={{ backgroundColor: 'color-mix(in srgb, var(--cricket) 6%, transparent)', color: 'color-mix(in srgb, var(--cricket-accent) 35%, transparent)', border: '1.5px solid color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--cricket) 8%, transparent)', color: 'color-mix(in srgb, var(--cricket) 55%, transparent)' }}>
                     {p.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1346,23 +1355,22 @@ export default function PlayerManager() {
                     <Text as="p" size="2xs" color="dim">Guest player</Text>
                   </div>
                   <button
-                    ref={openGuestMenu === p.id ? guestMenuBtnRef : null}
-                    onClick={(e) => { e.stopPropagation(); setOpenGuestMenu(openGuestMenu === p.id ? null : p.id); }}
-                    className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setOpenGuestMenu(p.id); }}
+                    aria-label={`Actions for ${p.name}`}
+                    className="flex-shrink-0 h-11 w-11 -my-1 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
                   >
-                    <EllipsisVertical size={13} />
+                    <EllipsisVertical size={15} />
                   </button>
-                  {openGuestMenu === p.id && (
-                    <CardMenu
-                      anchorRef={guestMenuBtnRef}
-                      onClose={() => setOpenGuestMenu(null)}
-                      items={[
-                        { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
-                        { label: 'Add to Squad', icon: <UserPlus size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
-                        { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
-                      ]}
-                    />
-                  )}
+                  <ActionSheet
+                    open={openGuestMenu === p.id}
+                    onOpenChange={(o) => setOpenGuestMenu(o ? p.id : null)}
+                    title={`Actions for ${p.name}`}
+                    items={[
+                      { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                      { label: 'Add to Squad', icon: <UserPlus size={17} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
+                      { label: 'Delete', icon: <Trash2 size={17} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
+                    ]}
+                  />
                 </div>
               ))}
             </div>
@@ -1370,22 +1378,22 @@ export default function PlayerManager() {
         </div>
       )}
 
-      {/* Past Players */}
+      {/* Past Players — collapsible section under a hairline */}
       {isAdmin && removedPlayers.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-[var(--border)]/50 overflow-hidden">
+        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
           <button onClick={() => setShowRemoved(!showRemoved)}
-            className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors">
+            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
             <Text size="sm" weight="semibold" color="muted">Past Players ({removedPlayers.length})</Text>
-            <Text size="xs" color="muted">{showRemoved ? '▲' : '▼'}</Text>
+            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showRemoved ? 'rotate(90deg)' : 'none' }} />
           </button>
           {showRemoved && (
-            <div className="px-3 pb-3 space-y-2">
+            <div className="pt-1 space-y-1.5">
               {removedPlayers.map((p) => {
                 const rc = roleConfig[p.player_role ?? ''];
                 return (
-                  <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)]/50 bg-[var(--surface)] p-2.5">
+                  <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5">
                     <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 6), color: colorAlpha(rc?.color ?? 'var(--cricket-accent)', 35), border: `1.5px solid ${colorAlpha(rc?.color ?? 'var(--cricket)', 12)}` }}>
+                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 8), color: colorAlpha(rc?.color ?? 'var(--cricket)', 45) }}>
                       {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1397,8 +1405,8 @@ export default function PlayerManager() {
                       )}
                     </div>
                     <button onClick={() => restorePlayer(p.id)}
-                      className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all"
-                      style={{ background: 'var(--surface)', color: 'var(--green)', border: '1.5px solid var(--border)' }}>
+                      className="flex-shrink-0 min-h-9 rounded-lg px-3.5 py-2 text-[12px] font-semibold cursor-pointer active:scale-95 transition-all"
+                      style={{ background: 'color-mix(in srgb, var(--green) 10%, transparent)', color: 'var(--green)' }}>
                       Restore
                     </button>
                   </div>
@@ -1420,12 +1428,12 @@ export default function PlayerManager() {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary" size="sm">Cancel</Button>
+              <Button variant="secondary" brand="cricket" size="md">Cancel</Button>
             </DialogClose>
             <Button
               variant="primary"
               brand="cricket"
-              size="sm"
+              size="md"
               onClick={async () => {
                 if (!promotingGuest) return;
                 const player = promotingGuest;
@@ -1456,12 +1464,12 @@ export default function PlayerManager() {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary" size="sm">Cancel</Button>
+              <Button variant="secondary" brand="cricket" size="md">Cancel</Button>
             </DialogClose>
             <Button
               variant="primary"
               brand="cricket"
-              size="sm"
+              size="md"
               onClick={() => {
                 if (!movingToGuest) return;
                 const player = movingToGuest;
@@ -1487,11 +1495,11 @@ export default function PlayerManager() {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary" size="sm">Cancel</Button>
+              <Button variant="secondary" brand="cricket" size="md">Cancel</Button>
             </DialogClose>
             <Button
               variant="danger"
-              size="sm"
+              size="md"
               onClick={async () => {
                 if (!deletingGuest) return;
                 const player = deletingGuest;
@@ -1545,17 +1553,9 @@ export default function PlayerManager() {
       )}
 
       {/* Permanent delete confirmation — soft-deletes player record + hard-deletes auth/profile/team_members */}
-      {permanentDeleting && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setPermanentDeleting(null)}
-        >
-          <div
-            className="w-[340px] rounded-2xl p-5"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {permanentDeleting && (
+        <Dialog open onOpenChange={(o) => { if (!o) setPermanentDeleting(null); }}>
+          <DialogContent className="max-w-xs" showClose={false}>
             {(() => {
               const isLeavingSelf = permanentDeleting.id === myPlayer?.id;
               return (
@@ -1581,13 +1581,14 @@ export default function PlayerManager() {
                 </>
               );
             })()}
-            <div className="flex gap-2 justify-end">
-              <Button onClick={() => setPermanentDeleting(null)} variant="secondary" size="sm">
+            <div className="flex gap-2">
+              <Button onClick={() => setPermanentDeleting(null)} variant="secondary" brand="cricket" size="lg" className="flex-1">
                 Cancel
               </Button>
               <Button
                 variant="danger"
-                size="sm"
+                size="lg"
+                className="flex-1"
                 onClick={async () => {
                   const p = permanentDeleting;
                   const supabase = getSupabaseClient();
@@ -1641,12 +1642,11 @@ export default function PlayerManager() {
                   toast.success(`${p.name} removed from this team`);
                 }}
               >
-                {permanentDeleting.id === myPlayer?.id ? 'Leave Team' : 'Delete Permanently'}
+                {permanentDeleting.id === myPlayer?.id ? 'Leave Team' : 'Delete'}
               </Button>
             </div>
-          </div>
-        </div>,
-        document.body,
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Admin access modal */}
@@ -1658,10 +1658,12 @@ export default function PlayerManager() {
           onClick={() => setLightboxPhoto(null)}
         >
           <button
-            className="absolute top-4 right-4 text-white/80 hover:text-white cursor-pointer"
+            className="absolute right-3 h-11 w-11 flex items-center justify-center rounded-full text-white/80 hover:text-white active:bg-white/10 cursor-pointer"
+            style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+            aria-label="Close photo"
             onClick={() => setLightboxPhoto(null)}
           >
-            <X size={28} />
+            <X size={26} />
           </button>
           <img
             src={lightboxPhoto.url}
@@ -1674,17 +1676,9 @@ export default function PlayerManager() {
         document.body,
       )}
 
-      {adminModal && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setAdminModal(null)}
-        >
-          <div
-            className="w-[360px] rounded-2xl p-5"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {adminModal && (
+        <Dialog open onOpenChange={(o) => { if (!o) setAdminModal(null); }}>
+          <DialogContent className="max-w-sm" showClose={false}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.1)' }}>
                 <Crown size={18} style={{ color: 'var(--toolkit)' }} />
@@ -1719,10 +1713,10 @@ export default function PlayerManager() {
                   <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.name}</b> already has admin access.</p>
                 </Alert>
                 <div className="flex gap-2 justify-end">
-                  <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
+                  <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">
                     Close
                   </Button>
-                  <Button onClick={revokeAdmin} variant="danger" size="sm">
+                  <Button onClick={revokeAdmin} variant="danger" size="md">
                     Revoke Admin
                   </Button>
                 </div>
@@ -1735,10 +1729,10 @@ export default function PlayerManager() {
                   <p className="text-[13px] text-[var(--text)]">Grant admin access to <b>{adminModal.player.name}</b>? They will be able to manage players, expenses, and seasons.</p>
                 </Alert>
                 <div className="flex gap-2 justify-end">
-                  <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
+                  <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">
                     Cancel
                   </Button>
-                  <Button onClick={grantAdmin} size="sm" className="bg-[var(--toolkit)] text-white hover:opacity-90">
+                  <Button onClick={grantAdmin} size="md" className="bg-[var(--toolkit)] text-white hover:opacity-90">
                     Grant Admin
                   </Button>
                 </div>
@@ -1747,14 +1741,13 @@ export default function PlayerManager() {
 
             {(adminModal.status === 'no-email' || adminModal.status === 'no-account') && (
               <div className="flex justify-end">
-                <Button onClick={() => setAdminModal(null)} variant="secondary" size="sm">
+                <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">
                   Close
                 </Button>
               </div>
             )}
-          </div>
-        </div>,
-        document.body,
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Player profile dialog */}

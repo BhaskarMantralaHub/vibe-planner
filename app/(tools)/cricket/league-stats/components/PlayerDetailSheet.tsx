@@ -383,13 +383,11 @@ function Timeline({ context, entries }: { context: Context; entries: Entry[] }):
   const hidden = filtered.length - shown.length;
 
   return (
+    // Quiet tonal surface + hairline dividers — the old accent-tinted
+    // gradient frame made completed match history read as a bordered table.
     <div
-      className="rounded-xl divide-y overflow-hidden"
-      style={{
-        background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 6%, var(--card)) 0%, var(--card) 100%)`,
-        border: `1px solid color-mix(in srgb, ${accent} 14%, var(--border))`,
-        borderColor: `color-mix(in srgb, ${accent} 14%, var(--border))`,
-      }}
+      className="rounded-xl divide-y divide-[var(--border)]/50 overflow-hidden"
+      style={{ background: 'var(--surface)' }}
     >
       {shown.map((e) => <TimelineRow key={e.match_row_id} entry={e} context={context} />)}
       {hidden > 0 && (

@@ -12,11 +12,10 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
 };
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { cn } from '@/lib/utils';
-import { EmptyState, Text, CardMenu, Badge, Spinner, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui';
+import { EmptyState, Text, Badge, Spinner, ActionSheet, ComposerModal, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, TrendingUp, Heart, ArrowDownRight, ArrowDownToLine, Wallet, Paperclip, ReceiptText, Plus } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, ArrowDownRight, ReceiptText, Plus } from 'lucide-react';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressReceiptImage } from '../lib/image';
 import { toast } from 'sonner';
@@ -25,94 +24,32 @@ import type { CategoryConfig } from '../lib/constants';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 
-/* ── Delete Confirm ── */
+/* ── Delete Confirm — shared Dialog, sized for a 375px screen ── */
 function DeleteConfirm({ description, permanent, onConfirm, onCancel }: { description: string; permanent?: boolean; onConfirm: () => void; onCancel: () => void }) {
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
-      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onCancel}>
-      <div className="w-[340px] rounded-2xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}
-        onClick={(e) => e.stopPropagation()}>
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent className="max-w-xs" showClose={false}>
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.1)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(248,113,113,0.1)' }}>
             <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
-          <div>
-            <p className="text-[15px] font-semibold text-[var(--text)]">{permanent ? 'Delete Permanently' : 'Delete Expense'}</p>
-            <p className="text-[13px] text-[var(--muted)]">
+          <div className="min-w-0">
+            <DialogTitle className="text-[15px]">{permanent ? 'Delete Permanently' : 'Delete Expense'}</DialogTitle>
+            <DialogDescription className="text-[13px] mt-0.5">
               {permanent ? <>Permanently delete <b>{description}</b>? This cannot be undone.</> : <>Remove <b>{description}</b>?</>}
-            </p>
+            </DialogDescription>
           </div>
         </div>
-        <div className="flex gap-2 justify-end">
-          <button onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-[13px] font-medium border border-[var(--border)] text-[var(--muted)] cursor-pointer hover:bg-[var(--hover-bg)]">
+        <div className="flex gap-2">
+          <Button onClick={onCancel} variant="secondary" brand="cricket" size="lg" className="flex-1">
             Cancel
-          </button>
-          <button onClick={onConfirm}
-            className="px-4 py-2 rounded-xl text-[13px] font-medium bg-[var(--red)] text-white cursor-pointer hover:opacity-90">
+          </Button>
+          <Button onClick={onConfirm} variant="danger" size="lg" className="flex-1">
             {permanent ? 'Delete Forever' : 'Delete'}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/* ── Category Icon Avatar ── */
-function CategoryAvatar({ config, size = 'md' }: { config: CategoryConfig; size?: 'sm' | 'md' }) {
-  const Icon = CATEGORY_ICONS[config.iconName];
-  const dim = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
-  const iconSize = size === 'sm' ? 14 : 17;
-  return (
-    <div
-      className={`${dim} flex-shrink-0 rounded-xl flex items-center justify-center`}
-      style={{ background: `${config.color}18`, border: `1px solid ${config.color}25` }}
-    >
-      {Icon && <Icon size={iconSize} style={{ color: config.color }} />}
-    </div>
-  );
-}
-
-/* ── Radial Gauge (SVG ring) ── */
-function SpendingGauge({ pct, isLow }: { pct: number; isLow: boolean }) {
-  const r = 28;
-  const circ = 2 * Math.PI * r;
-  const filled = (Math.min(pct, 100) / 100) * circ;
-  const strokeColor = pct > 90
-    ? '#EF4444'
-    : pct > 70 ? '#F59E0B' : isLow ? '#FCA5A5' : '#4DBBEB';
-
-  return (
-    <div className="relative flex-shrink-0" style={{ width: 68, height: 68 }}>
-      <svg width="68" height="68" viewBox="0 0 68 68" className="block">
-        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--border)" strokeWidth="5" />
-        <circle cx="34" cy="34" r={r} fill="none" stroke={strokeColor}
-          strokeWidth="5" strokeLinecap="round"
-          strokeDasharray={`${filled} ${circ - filled}`}
-          strokeDashoffset={circ * 0.25}
-          style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 0 6px ${strokeColor}60)` }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[15px] font-bold leading-none" style={{ color: strokeColor }}>{Math.round(pct)}%</span>
-        <span className="text-[9px] font-semibold leading-none mt-0.5" style={{ color: 'var(--muted)' }}>spent</span>
-      </div>
-    </div>
-  );
-}
-
-/* ── Pool Health Badge ── */
-function PoolHealthBadge({ pct, isLow }: { pct: number; isLow: boolean }) {
-  const label = isLow ? 'Shortfall' : pct > 90 ? 'Critical' : pct > 70 ? 'Caution' : 'Healthy';
-  const color = isLow || pct > 90 ? '#EF4444' : pct > 70 ? '#F59E0B' : '#34D399';
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
-      style={{ background: `${color}18`, border: `1px solid ${color}30` }}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
-      <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color }}>{label}</span>
-    </span>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -143,20 +80,25 @@ function PoolFundHero({
   const status = isLow
     ? { label: 'Shortfall', color: 'var(--split-owe)', bg: 'var(--split-owe-bg)' }
     : spentPct > 85
-      ? { label: 'Caution', color: '#EA580C', bg: 'rgba(234,88,12,0.10)' }
+      // Amber, not orange — the brand IS orange now, and a status that
+      // matches the brand color stops reading as a warning.
+      ? { label: 'Caution', color: '#D97706', bg: 'rgba(217,119,6,0.10)' }
       : spentPct > 60
         ? { label: 'Healthy', color: '#0891B2', bg: 'rgba(8,145,178,0.10)' }
         : { label: 'Strong', color: 'var(--split-credit)', bg: 'var(--split-credit-bg)' };
 
   return (
+    // Hero surface: elevation and tone, no outline — the one border-free
+    // rounded-3xl object on the page, which is exactly what makes it read
+    // as the hero rather than another card in the stack.
     <div className="relative rounded-3xl overflow-hidden"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-      {/* Atmospheric gradient mesh */}
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+      {/* Atmospheric mesh — barely-there warmth, not a gradient statement */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden
         style={{
           background: isLow
-            ? 'radial-gradient(ellipse at 0% 0%, rgba(239,68,68,0.08), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(239,68,68,0.05), transparent 50%)'
-            : 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 10%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 50%)',
+            ? 'radial-gradient(ellipse at 0% 0%, rgba(239,68,68,0.07), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(239,68,68,0.04), transparent 50%)'
+            : 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 7%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 4%, transparent), transparent 50%)',
         }} />
 
       <div className="relative p-5 sm:p-7">
@@ -182,7 +124,8 @@ function PoolFundHero({
         <div className="flex items-baseline gap-2.5 mb-1">
           <span className="font-bold leading-[0.95] tracking-tight tabular-nums"
             style={{
-              fontSize: 'clamp(40px, 7vw, 56px)',
+              fontSize: 'clamp(44px, 12vw, 60px)',
+              letterSpacing: '-0.025em',
               color: isLow ? 'var(--split-owe)' : 'var(--text)',
               fontFeatureSettings: '"tnum"',
             }}>
@@ -198,24 +141,19 @@ function PoolFundHero({
           </Text>
         )}
 
-        {/* Integrated bar — replaces the standalone gauge entirely */}
+        {/* Integrated bar — one refined semantic fill, no gradient, no glow */}
         {totalCollected > 0 && (
           <div className="mb-5">
-            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface)' }}>
+            <div className="relative h-1.5 rounded-full overflow-hidden"
+              style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
               <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out"
                 style={{
                   width: `${spentPct}%`,
-                  background: spentPct > 90
-                    ? 'linear-gradient(90deg, #F97316, #DC2626)'
-                    : spentPct > 70
-                      ? 'linear-gradient(90deg, var(--cricket), #F59E0B)'
-                      : 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))',
-                  boxShadow: `0 0 10px ${spentPct > 90 ? 'rgba(239,68,68,0.5)' : 'color-mix(in srgb, var(--cricket) 50%, transparent)'}`,
+                  background: spentPct > 90 ? 'var(--red)' : spentPct > 70 ? '#F59E0B' : 'var(--cricket)',
                 }} />
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <Text size="2xs" color="dim" tabular>{Math.round(spentPct)}% spent</Text>
-              <Text size="2xs" color="dim">·</Text>
               <Text size="2xs" color="dim" tabular>{formatCurrency(remaining)} left</Text>
             </div>
           </div>
@@ -233,103 +171,91 @@ function PoolFundHero({
             headline balance.
 
             LAYOUT: four cells go 2x2 on mobile, not 1x4. One row of four gave
-            each cell ~60px of content and "SPONSORS" was rendering as
-            "SPONSO…" — the previous fix (hiding the icon below sm:) bought 17px
-            and still was not enough. 2x2 gives ~150px, so nothing clips, and it
-            doubles the touch target now that these are controls rather than
-            captions. Three cells fit one row comfortably and stay there.
+            each cell ~60px of content and the Sponsors label clipped mid-word;
+            2x2 gives ~150px and doubles the touch target now that these are
+            controls rather than captions. Three cells fit one row and stay.
 
-            DIVIDERS: a 1px grid gap over a --border background, rather than a
-            borderLeft on every cell but the first. The index trick only works
-            for a single row — at 2x2 it puts a stray border down the middle of
-            the second row and none along the top of it. */}
+            STYLE: ONE integrated ledger, not tiles — cells share the hero
+            surface and are separated only by hairlines (drawn per-index:
+            left-edge on every cell that isn't first in its row, top-edge on
+            the second row). Labels are quiet sentence case; each amount
+            carries a signed prefix (+ money in, − money out) so the four
+            figures read as a story that sums to the headline above. */}
         <div
           className={cn(
-            'grid gap-px rounded-xl overflow-hidden',
+            'grid -mx-5 sm:-mx-7 mt-1',
             carriedForward !== 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3',
+            // The ledger is the card's base — bleed to the bottom edge unless
+            // the shortfall alert still needs the padding below it.
+            !(isLow && hasPlayers) && '-mb-5 sm:-mb-7',
           )}
-          style={{ background: 'var(--border)', border: '1px solid var(--border)' }}
+          style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' }}
         >
           {([
             ...(carriedForward !== 0
               ? [{
-                icon: ArrowDownToLine,
                 label: 'Carried',
                 value: carriedForward,
-                color: 'var(--split-credit)',
-                // The carried-forward entry sits at the top of this same view
-                // and carries the lock control, so this scrolls rather than
+                sign: '+',
+                // The carried-forward entry sits right below this hero and
+                // carries the lock control, so this scrolls rather than
                 // navigating.
                 action: 'scroll-top',
-                spoken: 'Show the carried forward entry above',
+                spoken: 'Show the carried forward entry below',
               } as const]
               : []),
-            {
-              icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)',
-              action: 'fees', spoken: 'Go to season fees',
-            },
-            {
-              icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB',
-              action: 'sponsors', spoken: 'Go to sponsors',
-            },
+            { label: 'Fees', value: totalFees, sign: '+', action: 'fees', spoken: 'Go to season fees' } as const,
+            { label: 'Sponsors', value: totalSponsorship, sign: '+', action: 'sponsors', spoken: 'Go to sponsors' } as const,
             {
               // Already on the Expenses view — the list below IS the breakdown
               // of this number, so this scrolls to it.
-              icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)',
-              action: 'scroll-list', spoken: 'Currently showing. Jump to the expense list',
-            },
-          ] as const).map(({ icon: Icon, label, value, color, action, spoken }) => (
-            <button
-              key={label}
-              type="button"
-              aria-current={action === 'scroll-list' ? 'true' : undefined}
-              // Built from the real figures, not animated ones — this card has
-              // no counter, but keeping the name explicit means a reader hears
-              // the amount and the destination in one go.
-              aria-label={`${label}: ${formatCurrency(value)}. ${spoken}.`}
-              onClick={() => {
-                if (action === 'scroll-top') {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else if (action === 'scroll-list') {
-                  onJumpToList?.();
-                } else {
-                  onNavigate?.(action);
-                }
-              }}
-              className={cn(
-                carriedForward !== 0 ? 'px-3' : 'px-3',
-                'py-3 sm:py-3.5 text-left cursor-pointer min-w-0',
-                'transition-all duration-150 ease-out active:scale-[0.98]',
-                // Matches SplitsDashboard's SummaryCard. No ring-offset: nothing
-                // overrides Tailwind v4's white --tw-ring-offset-color, so it
-                // would draw a white halo in dark mode.
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
-                'focus-visible:ring-[var(--cricket)]/60',
-              )}
-              style={{ background: 'var(--surface)' }}
-            >
-              <div className="flex items-center gap-1.5 mb-1 min-w-0">
-                {/* The icon can stay at every size now the cells are wide
-                    enough for it — 2x2 removed the 17px squeeze that forced it
-                    to hide below sm:. */}
-                <Icon size={11} style={{ color }} className="flex-shrink-0" />
-                <Text
-                  as="p"
-                  size="2xs"
-                  weight="bold"
-                  uppercase
-                  tracking="wider"
-                  style={{ color }}
-                  className="min-w-0 truncate"
-                >
+              label: 'Spent', value: totalSpent, sign: '−', action: 'scroll-list',
+              spoken: 'Currently showing. Jump to the expense list',
+            } as const,
+          ]).map(({ label, value, sign, action, spoken }, idx, cells) => {
+            const four = cells.length === 4;
+            // Hairline separators by grid position (mobile 2×2 / desktop 1×4;
+            // the 3-cell case is a single row in both).
+            const seps = four
+              ? ['', 'border-l', 'border-t sm:border-t-0 sm:border-l', 'border-l border-t sm:border-t-0'][idx]
+              : idx > 0 ? 'border-l' : '';
+            return (
+              <button
+                key={label}
+                type="button"
+                aria-current={action === 'scroll-list' ? 'true' : undefined}
+                aria-label={`${label}: ${sign === '−' ? 'minus ' : ''}${formatCurrency(value)}. ${spoken}.`}
+                onClick={() => {
+                  if (action === 'scroll-top') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else if (action === 'scroll-list') {
+                    onJumpToList?.();
+                  } else {
+                    onNavigate?.(action);
+                  }
+                }}
+                className={cn(
+                  'px-5 sm:px-6 py-3.5 min-h-[56px] text-left cursor-pointer min-w-0',
+                  'active:bg-[var(--hover-bg)] transition-colors duration-150',
+                  seps, 'border-[var(--border)]/55',
+                  // No ring-offset: nothing overrides Tailwind v4's white
+                  // --tw-ring-offset-color, so it would halo in dark mode.
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                  'focus-visible:ring-[var(--cricket)]/60',
+                )}
+              >
+                <Text as="p" size="2xs" color="muted" weight="medium" className="mb-1 min-w-0 truncate">
                   {label}
                 </Text>
-              </div>
-              <Text size="md" weight="bold" tabular className="leading-none">
-                {formatCurrency(value)}
-              </Text>
-            </button>
-          ))}
+                <Text size="md" weight="semibold" tabular className="leading-none">
+                  <span aria-hidden style={{ color: sign === '+' ? 'var(--split-credit)' : 'var(--muted)' }}>
+                    {sign}
+                  </span>
+                  {formatCurrency(value)}
+                </Text>
+              </button>
+            );
+          })}
         </div>
 
         {/* Shortfall alert — only when truly negative */}
@@ -382,11 +308,13 @@ function CategoryFilters({ active, onChange, expenses }: {
           <button
             key={cat.key}
             onClick={() => onChange(isActive ? '' : cat.key)}
-            className="flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold cursor-pointer transition-all active:scale-95"
+            className="flex-shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 min-h-9 text-[12px] font-semibold cursor-pointer transition-all duration-200 active:scale-[0.96]"
             style={{
-              background: isActive ? `${cat.color}18` : 'transparent',
+              // Quiet tonal chips; only the ACTIVE filter earns a border and
+              // its category tint — inactive chips are texture, not chrome.
+              background: isActive ? `${cat.color}16` : 'color-mix(in srgb, var(--text) 5%, transparent)',
               color: isActive ? cat.color : 'var(--muted)',
-              border: `1px solid ${isActive ? `${cat.color}35` : 'var(--border)'}`,
+              border: `1px solid ${isActive ? `${cat.color}38` : 'transparent'}`,
             }}
           >
             {Icon && <Icon size={13} style={{ color: isActive ? cat.color : 'var(--dim)' }} />}
@@ -408,17 +336,16 @@ function ExpenseRow({
   onEdit: () => void; onDetails: () => void; onDelete: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState(false);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasReceipts = expense.receipt_urls && expense.receipt_urls.length > 0;
   const pctOfTotal = totalSpent > 0 ? (Number(expense.amount) / totalSpent) * 100 : 0;
   const Icon = CATEGORY_ICONS[config.iconName];
 
   return (
     <div>
-      <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)]">
-        {/* Category icon — colored badge instead of dot */}
+      <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]">
+        {/* Category icon — tonal tint only, no outline */}
         <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
-          style={{ background: `${config.color}15`, border: `1px solid ${config.color}25` }}
+          style={{ background: `${config.color}16` }}
           title={config.label}
         >
           {Icon && <Icon size={18} style={{ color: config.color }} />}
@@ -482,30 +409,28 @@ function ExpenseRow({
           </div>
         </div>
 
-        {/* Menu — h-9 w-9 hit area */}
+        {/* Menu — 44px hit area, -my-1 so the row height doesn't grow */}
         {isAdmin && (
           <div className="flex-shrink-0 self-center">
             <button
-              ref={openMenu ? menuBtnRef : null}
-              onClick={() => setOpenMenu(!openMenu)}
-              className="h-9 w-9 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
+              onClick={() => setOpenMenu(true)}
+              className="h-11 w-11 -my-1 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] active:bg-[var(--surface)] transition-colors"
               aria-label="Expense actions"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
               </svg>
             </button>
-            {openMenu && (
-              <CardMenu
-                anchorRef={menuBtnRef}
-                onClose={() => setOpenMenu(false)}
-                items={[
-                  { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: onEdit },
-                  { label: 'Details', icon: <Info size={15} />, color: 'var(--muted)', onClick: onDetails },
-                  { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: onDelete, dividerBefore: true },
-                ]}
-              />
-            )}
+            <ActionSheet
+              open={openMenu}
+              onOpenChange={setOpenMenu}
+              title={`Actions for ${expense.description || config.label}`}
+              items={[
+                { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: onEdit },
+                { label: 'Details', icon: <Info size={17} />, color: 'var(--muted)', onClick: onDetails },
+                { label: 'Delete', icon: <Trash2 size={17} />, color: 'var(--red)', onClick: onDelete, dividerBefore: true },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -634,20 +559,43 @@ function EditExpenseDrawer({ expense, open, onSave, onClose }: {
   };
 
   return (
-    <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DrawerHandle />
-      <DrawerTitle>Edit Expense</DrawerTitle>
-      <DrawerHeader>
-        <div className="flex items-center gap-3">
-          <CategoryAvatar config={getCategoryConfig(cat)} />
+    <ComposerModal
+      open={open}
+      onClose={onClose}
+      title="Edit Expense"
+      footer={
+        <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth disabled={!amt || compressing}>
+          {compressing ? 'Compressing...' : 'Save Changes'}
+        </Button>
+      }
+    >
+        {/* Text inputs FIRST — the iOS keyboard covers the bottom half of the
+            screen, so these must sit in the visible upper half. 16px text so
+            focusing never zooms the page. */}
+        <div>
+          <Label uppercase className="mb-1.5 block">Description</Label>
+          <input value={desc} onChange={(e) => setDesc(e.target.value)}
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+            placeholder="Ground booking, balls, etc." />
+        </div>
+
+        {/* Amount + Date — two fluid columns; a fixed 140px date column left
+            the amount cramped at 375px */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <Text as="p" size="lg" weight="bold">Edit Expense</Text>
-            <Text as="p" size="2xs" color="muted">Update details and receipts</Text>
+            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
+            <input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" value={amt} onChange={(e) => setAmt(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+              placeholder="0.00" />
+          </div>
+          <div>
+            <Label uppercase className="mb-1.5 block">Date</Label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
           </div>
         </div>
-      </DrawerHeader>
-      <DrawerBody>
-        {/* Category */}
+
+        {/* Category — tap-to-select, so it lives below the inputs */}
         <div>
           <Label uppercase className="mb-2 block">Category</Label>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -667,29 +615,6 @@ function EditExpenseDrawer({ expense, open, onSave, onClose }: {
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* Description */}
-        <div>
-          <Label uppercase className="mb-1.5 block">Description</Label>
-          <input value={desc} onChange={(e) => setDesc(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-            placeholder="Ground booking, balls, etc." />
-        </div>
-
-        {/* Amount + Date */}
-        <div className="grid grid-cols-[1fr_140px] gap-3">
-          <div>
-            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
-            <input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" value={amt} onChange={(e) => setAmt(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-              placeholder="0.00" />
-          </div>
-          <div>
-            <Label uppercase className="mb-1.5 block">Date</Label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
           </div>
         </div>
 
@@ -780,22 +705,21 @@ function EditExpenseDrawer({ expense, open, onSave, onClose }: {
             )}
           </button>
         </div>
-
-        {/* Save */}
-        <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth disabled={!amt || compressing}>
-          {compressing ? 'Compressing...' : 'Save Changes'}
-        </Button>
-      </DrawerBody>
-    </Drawer>
+    </ComposerModal>
   );
 }
 
 /* ═══════════════════════════════════════════════════
    Main Expense List
    ═══════════════════════════════════════════════════ */
-export default function ExpenseList({ onNavigate }: {
+export default function ExpenseList({ onNavigate, carriedSlot }: {
   /** Switch the dashboard to another view — used by the pool card's stat strip. */
   onNavigate?: (view: 'fees' | 'sponsors') => void;
+  /** The carried-forward entry, rendered directly under the pool hero so the
+   *  headline balance stays the first thing on screen and the entry that
+   *  explains it sits right beneath. Owned by the page (it wires the
+   *  freeze/unfreeze actions); undefined when nothing carried over. */
+  carriedSlot?: React.ReactNode;
 } = {}) {
   const listRef = useRef<HTMLDivElement>(null);
   const { userAccess, user } = useAuthStore();
@@ -898,65 +822,64 @@ export default function ExpenseList({ onNavigate }: {
 
   return (
     <div className="space-y-4">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="h-8 w-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'color-mix(in srgb, var(--cricket) 15%, transparent)' }}
-          >
-            <ReceiptText size={16} style={{ color: 'var(--cricket)' }} />
-          </div>
-          <Text as="h3" size="lg" weight="bold">Expenses</Text>
-          <Text size="sm" color="muted" weight="normal">({seasonExpenses.length})</Text>
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            {activePlayers.length === 0 && (
-              <Text size="2xs" color="muted">Add players first</Text>
-            )}
-            <Button
-              onClick={() => setShowExpenseForm(true)}
-              disabled={activePlayers.length === 0}
-              variant="primary"
-              brand="cricket"
-              size="sm"
-              className="gap-1.5"
-            >
-              <Plus size={15} />
-              Add Expense
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Hero + List: side-by-side at lg, stacked below ── */}
+      {/* ── Hero + List: side-by-side at lg, stacked below.
+          The balance is the FIRST thing on the screen — the greeting, tabs,
+          and this number should all be visible without scrolling on a 390px
+          phone. Everything that used to sit above it (section header, carried
+          entry) now follows it. ── */}
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-6 lg:items-start lg:space-y-0 space-y-4">
-        {/* LEFT: Hero (sticky on desktop) */}
-        {totalCollected > 0 && (
-          <div className="lg:sticky lg:top-20">
-            <PoolFundHero
-              totalFees={totalFees}
-              totalSponsorship={totalSponsorship}
-              totalSpent={totalSpent}
-              poolBalance={poolBalance}
-              isLow={isLow}
-              perPerson={perPerson}
-              hasPlayers={activePlayers.length > 0}
-              carriedForward={carriedForward}
-              onNavigate={onNavigate}
-              onJumpToList={() => listRef.current?.scrollIntoView({
-                behavior: 'smooth', block: 'start',
-              })}
-            />
+        {/* LEFT: Hero + carried entry (sticky together on desktop) */}
+        {(totalCollected > 0 || carriedSlot) && (
+          <div className="lg:sticky lg:top-20 space-y-3">
+            {totalCollected > 0 && (
+              <PoolFundHero
+                totalFees={totalFees}
+                totalSponsorship={totalSponsorship}
+                totalSpent={totalSpent}
+                poolBalance={poolBalance}
+                isLow={isLow}
+                perPerson={perPerson}
+                hasPlayers={activePlayers.length > 0}
+                carriedForward={carriedForward}
+                onNavigate={onNavigate}
+                onJumpToList={() => listRef.current?.scrollIntoView({
+                  behavior: 'smooth', block: 'start',
+                })}
+              />
+            )}
+            {carriedSlot}
           </div>
         )}
 
-        {/* RIGHT: Filters + grouped expense list.
+        {/* RIGHT: Section header + filters + grouped expense list.
             ref is the scroll target for the pool card's Spent cell — that cell
             cannot navigate anywhere (we are already on Expenses), so it jumps to
             the breakdown of its own number instead of doing nothing. */}
         <div className="space-y-4" ref={listRef}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <Text as="h3" size="lg" weight="bold">Expenses</Text>
+              <Text size="sm" color="muted" weight="normal">({seasonExpenses.length})</Text>
+            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                {activePlayers.length === 0 && (
+                  <Text size="2xs" color="muted">Add players first</Text>
+                )}
+                <Button
+                  onClick={() => setShowExpenseForm(true)}
+                  disabled={activePlayers.length === 0}
+                  variant="primary"
+                  brand="cricket"
+                  size="md"
+                  className="gap-1.5"
+                >
+                  <Plus size={16} />
+                  Add Expense
+                </Button>
+              </div>
+            )}
+          </div>
           {seasonExpenses.length > 1 && (
             <CategoryFilters
               active={categoryFilter}
@@ -978,8 +901,7 @@ export default function ExpenseList({ onNavigate }: {
               className="rounded-2xl overflow-hidden"
               style={{
                 background: 'var(--card)',
-                border: '1px solid var(--border)',
-                boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+                boxShadow: 'var(--card-shadow)',
               }}
             >
               {groupedExpenses.map((group, gIdx) => (

@@ -1535,7 +1535,7 @@ function BattingHeroStats({
           Runs
         </span>
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
         <MatchesChip matchesPlayed={matchesPlayed} />
         <StatChip label="Inn" value={innings} title="Innings batted (excludes did-not-bat)" />
         <StatChip label="Avg" value={average == null ? '—' : average.toFixed(1)} />
@@ -1549,9 +1549,10 @@ function DotSeparator() {
   return <span aria-hidden className="text-[var(--dim)]">·</span>;
 }
 
-/* Subtle tinted pill — compact "data badge" for supporting stats. Replaces
-   the dot-separated text row. Background is a faint surface tint so the
-   chip reads as a discrete unit without competing with the primary numeral. */
+/* Supporting stat as quiet metadata TEXT — label muted, value strong.
+   These were tinted, bordered pills; four of them per card read as a row of
+   dashboard tags competing with the primary numeral (Phase 3.3B). Typography
+   alone carries the pair now. */
 function StatChip({
   label, value, dotColor, title,
 }: {
@@ -1563,15 +1564,8 @@ function StatChip({
   title?: string;
 }) {
   return (
-    <span
-      title={title}
-      className="inline-flex items-baseline gap-1 px-2 py-[3px] rounded-full text-[11px] tabular-nums"
-      style={{
-        background: 'color-mix(in srgb, var(--muted) 9%, var(--card))',
-        border: '1px solid color-mix(in srgb, var(--muted) 14%, transparent)',
-      }}
-    >
-      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+    <span title={title} className="inline-flex items-baseline gap-1 text-[11px] tabular-nums">
+      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--dim)]">
         {label}
       </span>
       {dotColor && (
@@ -1581,7 +1575,7 @@ function StatChip({
           style={{ background: dotColor }}
         />
       )}
-      <span className="font-bold text-[var(--text)]">{value}</span>
+      <span className="font-semibold text-[var(--muted)]">{value}</span>
     </span>
   );
 }
@@ -1794,7 +1788,7 @@ function BowlingHeroStats({
           Wickets
         </span>
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
         <MatchesChip matchesPlayed={matchesPlayed} />
         <StatChip label="Overs" value={overs} />
         {/* Econ carries its heat-tier swatch here — it used to be repeated as a
@@ -1968,7 +1962,7 @@ function AllRoundHeroStats({
           Score
         </span>
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
         <MatchesChip matchesPlayed={matchesPlayed} />
         <StatChip label="Runs" value={runs} />
         <StatChip label="W" value={wickets} />
@@ -2146,7 +2140,7 @@ function CatchesHeroStats({
           Catches
         </span>
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
         <MatchesChip matchesPlayed={matchesPlayed} />
         <StatChip
           label="RO"

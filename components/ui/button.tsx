@@ -6,15 +6,18 @@ import { cn } from '@/lib/utils';
 import { useBrand } from '@/lib/brand';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer select-none transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.96] active:brightness-95',
+  // Press: small compression + slight dim, returning on the fast token — the
+  // tactile "button travels" feel without bounce. 0.97 not 0.9x-something
+  // aggressive: these are 40-52px controls.
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium cursor-pointer select-none transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45 disabled:saturate-50 disabled:shadow-none disabled:cursor-not-allowed active:scale-[0.97] active:brightness-95',
   {
     variants: {
       variant: {
         primary: '',
-        secondary: 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--hover-bg)] hover:border-[var(--muted)]/30',
-        danger: 'bg-[var(--red)] text-white hover:brightness-110 hover:-translate-y-[1px] shadow-md hover:shadow-lg',
+        secondary: 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)]/70 shadow-[0_1px_2px_rgba(16,24,40,0.05)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]',
+        danger: 'bg-[var(--red)] text-white hover:brightness-110 shadow-[0_1px_2px_rgba(0,0,0,0.1),0_4px_12px_rgba(239,68,68,0.25)] active:shadow-[0_1px_3px_rgba(239,68,68,0.2)]',
         'danger-outline': 'border border-[var(--red)]/30 text-[var(--red)] hover:bg-[var(--red)]/10 hover:border-[var(--red)]/50',
-        ghost: 'text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)]',
+        ghost: 'text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)]',
         link: 'text-[var(--toolkit)] underline-offset-4 hover:underline p-0 h-auto',
       },
       size: {
@@ -34,10 +37,13 @@ const buttonVariants = cva(
       },
     },
     compoundVariants: [
-      // Primary + toolkit = purple gradient
-      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-r from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
-      // Primary + cricket = orange gradient
-      { variant: 'primary', brand: 'cricket', class: 'bg-gradient-to-r from-[var(--cricket)] to-[var(--cricket-accent)] text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] hover:brightness-110' },
+      // Primary + toolkit = brand-blue gradient
+      { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-br from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08),0_4px_14px_var(--toolkit-glow)] active:shadow-[0_1px_4px_var(--toolkit-glow)] hover:brightness-110' },
+      // Primary + cricket = SOLID Sunrisers orange — a confident single fill,
+      // not a gradient-for-gradient's-sake. Text is --cricket-on, NOT white:
+      // dark mode uses a luminous orange fill that needs dark text for contrast.
+      // The shadow drops on press — the button visually settles into the page.
+      { variant: 'primary', brand: 'cricket', class: 'bg-[var(--cricket)] text-[var(--cricket-on)] shadow-[0_1px_2px_rgba(0,0,0,0.08),0_4px_14px_var(--cricket-glow)] active:shadow-[0_1px_4px_var(--cricket-glow)] hover:brightness-110' },
       // Link + cricket = orange
       { variant: 'link', brand: 'cricket', class: 'text-[var(--cricket)]' },
       // Ghost + icon = round
