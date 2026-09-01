@@ -193,7 +193,9 @@ export default function CricketSectionNav({
       width: indicator.width,
       top: indicator.top + 3,
       height: Math.max(indicator.height - 6, 0),
-      background: 'color-mix(in srgb, var(--cricket) 13%, transparent)',
+      // 11%, deliberately faint — the orange icon + label carry the active
+      // emphasis; the pill is only the seat under them.
+      background: 'color-mix(in srgb, var(--cricket) 11%, transparent)',
       borderRadius: 16,
       transition: reducedMotion ? INDICATOR_TRANSITION_REDUCED : INDICATOR_TRANSITION,
       opacity: indicator.width > 0 ? 1 : 0,

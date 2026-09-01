@@ -44,6 +44,22 @@ function TeamLogo({ team, size }: { team: UserTeam; size: 'sm' | 'md' | 'lg' }) 
 
 export { TeamLogo };
 
+/**
+ * Header wordmark: first word in the brand orange, the rest in primary text —
+ * a cohesive charcoal/orange identity. Replaces the old orange→blue gradient
+ * text; blue/purple has no place in the cricket header, and the logo beside
+ * it already carries the color.
+ */
+function TeamWordmark({ name }: { name: string }) {
+  const [first, ...rest] = name.split(' ');
+  return (
+    <Text size="sm" weight="semibold" className="max-w-[140px] sm:max-w-[200px] truncate">
+      <span className="text-[var(--cricket)]">{first}</span>
+      {rest.length > 0 && <span className="text-[var(--text)]"> {rest.join(' ')}</span>}
+    </Text>
+  );
+}
+
 export default function TeamSwitcher() {
   const { userTeams, currentTeamId, setCurrentTeam } = useAuthStore();
   const [open, setOpen] = useState(false);
@@ -79,9 +95,7 @@ export default function TeamSwitcher() {
     return (
       <div className="flex items-center gap-2">
         {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
-        <Text size="sm" weight="semibold" className="max-w-[140px] sm:max-w-[200px] truncate bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-transparent">
-          {teamName}
-        </Text>
+        <TeamWordmark name={teamName} />
       </div>
     );
   }
@@ -94,9 +108,7 @@ export default function TeamSwitcher() {
         className="flex items-center gap-2 cursor-pointer transition-all active:opacity-80 active:scale-[0.96]"
       >
         {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
-        <Text size="sm" weight="semibold" className="max-w-[140px] sm:max-w-[200px] truncate bg-gradient-to-r from-[var(--cricket)] to-[var(--blue)] bg-clip-text text-transparent">
-          {teamName}
-        </Text>
+        <TeamWordmark name={teamName} />
         <span
           className="flex items-center transition-transform duration-200 ease-out"
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
