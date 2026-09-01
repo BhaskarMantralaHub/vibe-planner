@@ -476,7 +476,7 @@ export default function ShareButton() {
         <div className="grid grid-cols-2 gap-2">
           <button onClick={handleSharePdf} disabled={generating}
             className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold cursor-pointer active:scale-95 transition-all disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))', color: '#fff', border: '1.5px solid var(--cricket-accent)' }}>
+            style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
             <Share2 size={16} /> {generating ? 'Generating...' : 'Share PDF'}
           </button>
           <button onClick={handleDownloadPdf} disabled={generating}

@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { EmptyState, Text, Badge, Spinner, ActionSheet, ComposerModal, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, TrendingUp, Heart, ArrowDownRight, ArrowDownToLine, Wallet, Paperclip, ReceiptText, Plus } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, ArrowDownRight, ReceiptText, Plus } from 'lucide-react';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressReceiptImage } from '../lib/image';
 import { toast } from 'sonner';
@@ -80,20 +80,25 @@ function PoolFundHero({
   const status = isLow
     ? { label: 'Shortfall', color: 'var(--split-owe)', bg: 'var(--split-owe-bg)' }
     : spentPct > 85
-      ? { label: 'Caution', color: '#EA580C', bg: 'rgba(234,88,12,0.10)' }
+      // Amber, not orange — the brand IS orange now, and a status that
+      // matches the brand color stops reading as a warning.
+      ? { label: 'Caution', color: '#D97706', bg: 'rgba(217,119,6,0.10)' }
       : spentPct > 60
         ? { label: 'Healthy', color: '#0891B2', bg: 'rgba(8,145,178,0.10)' }
         : { label: 'Strong', color: 'var(--split-credit)', bg: 'var(--split-credit-bg)' };
 
   return (
+    // Hero surface: elevation and tone, no outline — the one border-free
+    // rounded-3xl object on the page, which is exactly what makes it read
+    // as the hero rather than another card in the stack.
     <div className="relative rounded-3xl overflow-hidden"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-      {/* Atmospheric gradient mesh */}
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+      {/* Atmospheric mesh — barely-there warmth, not a gradient statement */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden
         style={{
           background: isLow
-            ? 'radial-gradient(ellipse at 0% 0%, rgba(239,68,68,0.08), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(239,68,68,0.05), transparent 50%)'
-            : 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 10%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 50%)',
+            ? 'radial-gradient(ellipse at 0% 0%, rgba(239,68,68,0.07), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(239,68,68,0.04), transparent 50%)'
+            : 'radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cricket) 7%, transparent), transparent 55%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--cricket) 4%, transparent), transparent 50%)',
         }} />
 
       <div className="relative p-5 sm:p-7">
@@ -119,7 +124,8 @@ function PoolFundHero({
         <div className="flex items-baseline gap-2.5 mb-1">
           <span className="font-bold leading-[0.95] tracking-tight tabular-nums"
             style={{
-              fontSize: 'clamp(40px, 7vw, 56px)',
+              fontSize: 'clamp(44px, 12vw, 60px)',
+              letterSpacing: '-0.025em',
               color: isLow ? 'var(--split-owe)' : 'var(--text)',
               fontFeatureSettings: '"tnum"',
             }}>
@@ -135,24 +141,19 @@ function PoolFundHero({
           </Text>
         )}
 
-        {/* Integrated bar — replaces the standalone gauge entirely */}
+        {/* Integrated bar — one refined semantic fill, no gradient, no glow */}
         {totalCollected > 0 && (
           <div className="mb-5">
-            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface)' }}>
+            <div className="relative h-1.5 rounded-full overflow-hidden"
+              style={{ background: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
               <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out"
                 style={{
                   width: `${spentPct}%`,
-                  background: spentPct > 90
-                    ? 'linear-gradient(90deg, #F97316, #DC2626)'
-                    : spentPct > 70
-                      ? 'linear-gradient(90deg, var(--cricket), #F59E0B)'
-                      : 'linear-gradient(90deg, var(--cricket), var(--cricket-accent))',
-                  boxShadow: `0 0 10px ${spentPct > 90 ? 'rgba(239,68,68,0.5)' : 'color-mix(in srgb, var(--cricket) 50%, transparent)'}`,
+                  background: spentPct > 90 ? 'var(--red)' : spentPct > 70 ? '#F59E0B' : 'var(--cricket)',
                 }} />
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <Text size="2xs" color="dim" tabular>{Math.round(spentPct)}% spent</Text>
-              <Text size="2xs" color="dim">·</Text>
               <Text size="2xs" color="dim" tabular>{formatCurrency(remaining)} left</Text>
             </div>
           </div>
@@ -170,102 +171,91 @@ function PoolFundHero({
             headline balance.
 
             LAYOUT: four cells go 2x2 on mobile, not 1x4. One row of four gave
-            each cell ~60px of content and "SPONSORS" was rendering as
-            "SPONSO…" — the previous fix (hiding the icon below sm:) bought 17px
-            and still was not enough. 2x2 gives ~150px, so nothing clips, and it
-            doubles the touch target now that these are controls rather than
-            captions. Three cells fit one row comfortably and stay there.
+            each cell ~60px of content and the Sponsors label clipped mid-word;
+            2x2 gives ~150px and doubles the touch target now that these are
+            controls rather than captions. Three cells fit one row and stay.
 
-            STYLE: separate soft tiles (gap + per-cell radius), not a hairline
-            table — the 1px-gap grid read as a spreadsheet, and these are
-            buttons, so they should look individually pressable. */}
+            STYLE: ONE integrated ledger, not tiles — cells share the hero
+            surface and are separated only by hairlines (drawn per-index:
+            left-edge on every cell that isn't first in its row, top-edge on
+            the second row). Labels are quiet sentence case; each amount
+            carries a signed prefix (+ money in, − money out) so the four
+            figures read as a story that sums to the headline above. */}
         <div
           className={cn(
-            'grid gap-2',
+            'grid -mx-5 sm:-mx-7 mt-1',
             carriedForward !== 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3',
+            // The ledger is the card's base — bleed to the bottom edge unless
+            // the shortfall alert still needs the padding below it.
+            !(isLow && hasPlayers) && '-mb-5 sm:-mb-7',
           )}
+          style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' }}
         >
           {([
             ...(carriedForward !== 0
               ? [{
-                icon: ArrowDownToLine,
                 label: 'Carried',
                 value: carriedForward,
-                color: 'var(--split-credit)',
-                // The carried-forward entry sits at the top of this same view
-                // and carries the lock control, so this scrolls rather than
+                sign: '+',
+                // The carried-forward entry sits right below this hero and
+                // carries the lock control, so this scrolls rather than
                 // navigating.
                 action: 'scroll-top',
-                spoken: 'Show the carried forward entry above',
+                spoken: 'Show the carried forward entry below',
               } as const]
               : []),
-            {
-              icon: TrendingUp, label: 'Fees', value: totalFees, color: 'var(--split-credit)',
-              action: 'fees', spoken: 'Go to season fees',
-            },
-            {
-              icon: Heart, label: 'Sponsors', value: totalSponsorship, color: '#2563EB',
-              action: 'sponsors', spoken: 'Go to sponsors',
-            },
+            { label: 'Fees', value: totalFees, sign: '+', action: 'fees', spoken: 'Go to season fees' } as const,
+            { label: 'Sponsors', value: totalSponsorship, sign: '+', action: 'sponsors', spoken: 'Go to sponsors' } as const,
             {
               // Already on the Expenses view — the list below IS the breakdown
               // of this number, so this scrolls to it.
-              icon: ArrowDownRight, label: 'Spent', value: totalSpent, color: 'var(--cricket)',
-              action: 'scroll-list', spoken: 'Currently showing. Jump to the expense list',
-            },
-          ] as const).map(({ icon: Icon, label, value, color, action, spoken }) => (
-            <button
-              key={label}
-              type="button"
-              aria-current={action === 'scroll-list' ? 'true' : undefined}
-              // Built from the real figures, not animated ones — this card has
-              // no counter, but keeping the name explicit means a reader hears
-              // the amount and the destination in one go.
-              aria-label={`${label}: ${formatCurrency(value)}. ${spoken}.`}
-              onClick={() => {
-                if (action === 'scroll-top') {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else if (action === 'scroll-list') {
-                  onJumpToList?.();
-                } else {
-                  onNavigate?.(action);
-                }
-              }}
-              className={cn(
-                'pressable rounded-xl px-3 py-3 sm:py-3.5 min-h-[56px] text-left cursor-pointer min-w-0',
-                // Matches SplitsDashboard's SummaryCard. No ring-offset: nothing
-                // overrides Tailwind v4's white --tw-ring-offset-color, so it
-                // would draw a white halo in dark mode.
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
-                'focus-visible:ring-[var(--cricket)]/60',
-              )}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
-              }}
-            >
-              <div className="flex items-center gap-1.5 mb-1 min-w-0">
-                {/* The icon can stay at every size now the cells are wide
-                    enough for it — 2x2 removed the 17px squeeze that forced it
-                    to hide below sm:. */}
-                <Icon size={13} style={{ color }} className="flex-shrink-0" />
-                <Text
-                  as="p"
-                  size="2xs"
-                  weight="bold"
-                  uppercase
-                  tracking="wider"
-                  style={{ color }}
-                  className="min-w-0 truncate"
-                >
+              label: 'Spent', value: totalSpent, sign: '−', action: 'scroll-list',
+              spoken: 'Currently showing. Jump to the expense list',
+            } as const,
+          ]).map(({ label, value, sign, action, spoken }, idx, cells) => {
+            const four = cells.length === 4;
+            // Hairline separators by grid position (mobile 2×2 / desktop 1×4;
+            // the 3-cell case is a single row in both).
+            const seps = four
+              ? ['', 'border-l', 'border-t sm:border-t-0 sm:border-l', 'border-l border-t sm:border-t-0'][idx]
+              : idx > 0 ? 'border-l' : '';
+            return (
+              <button
+                key={label}
+                type="button"
+                aria-current={action === 'scroll-list' ? 'true' : undefined}
+                aria-label={`${label}: ${sign === '−' ? 'minus ' : ''}${formatCurrency(value)}. ${spoken}.`}
+                onClick={() => {
+                  if (action === 'scroll-top') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else if (action === 'scroll-list') {
+                    onJumpToList?.();
+                  } else {
+                    onNavigate?.(action);
+                  }
+                }}
+                className={cn(
+                  'px-5 sm:px-6 py-3.5 min-h-[56px] text-left cursor-pointer min-w-0',
+                  'active:bg-[var(--hover-bg)] transition-colors duration-150',
+                  seps, 'border-[var(--border)]/55',
+                  // No ring-offset: nothing overrides Tailwind v4's white
+                  // --tw-ring-offset-color, so it would halo in dark mode.
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                  'focus-visible:ring-[var(--cricket)]/60',
+                )}
+              >
+                <Text as="p" size="2xs" color="muted" weight="medium" className="mb-1 min-w-0 truncate">
                   {label}
                 </Text>
-              </div>
-              <Text size="md" weight="bold" tabular className="leading-none">
-                {formatCurrency(value)}
-              </Text>
-            </button>
-          ))}
+                <Text size="md" weight="semibold" tabular className="leading-none">
+                  <span aria-hidden style={{ color: sign === '+' ? 'var(--split-credit)' : 'var(--muted)' }}>
+                    {sign}
+                  </span>
+                  {formatCurrency(value)}
+                </Text>
+              </button>
+            );
+          })}
         </div>
 
         {/* Shortfall alert — only when truly negative */}
@@ -318,11 +308,13 @@ function CategoryFilters({ active, onChange, expenses }: {
           <button
             key={cat.key}
             onClick={() => onChange(isActive ? '' : cat.key)}
-            className="flex-shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold cursor-pointer transition-all active:scale-95"
+            className="flex-shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 min-h-9 text-[12px] font-semibold cursor-pointer transition-all duration-200 active:scale-[0.96]"
             style={{
-              background: isActive ? `${cat.color}18` : 'transparent',
+              // Quiet tonal chips; only the ACTIVE filter earns a border and
+              // its category tint — inactive chips are texture, not chrome.
+              background: isActive ? `${cat.color}16` : 'color-mix(in srgb, var(--text) 5%, transparent)',
               color: isActive ? cat.color : 'var(--muted)',
-              border: `1px solid ${isActive ? `${cat.color}35` : 'var(--border)'}`,
+              border: `1px solid ${isActive ? `${cat.color}38` : 'transparent'}`,
             }}
           >
             {Icon && <Icon size={13} style={{ color: isActive ? cat.color : 'var(--dim)' }} />}
@@ -351,9 +343,9 @@ function ExpenseRow({
   return (
     <div>
       <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]">
-        {/* Category icon — colored badge instead of dot */}
+        {/* Category icon — tonal tint only, no outline */}
         <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
-          style={{ background: `${config.color}15`, border: `1px solid ${config.color}25` }}
+          style={{ background: `${config.color}16` }}
           title={config.label}
         >
           {Icon && <Icon size={18} style={{ color: config.color }} />}
@@ -909,8 +901,7 @@ export default function ExpenseList({ onNavigate, carriedSlot }: {
               className="rounded-2xl overflow-hidden"
               style={{
                 background: 'var(--card)',
-                border: '1px solid var(--border)',
-                boxShadow: 'inset 0 1px 0 0 var(--inner-glow)',
+                boxShadow: 'var(--card-shadow)',
               }}
             >
               {groupedExpenses.map((group, gIdx) => (

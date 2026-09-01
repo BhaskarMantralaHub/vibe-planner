@@ -215,9 +215,10 @@ export function SummaryStats({
               onNavigate(s.target);
             }}
             className={cn(
-              'rounded-xl border p-3 sm:p-4 min-w-0 text-left cursor-pointer',
-              'bg-gradient-to-br from-[var(--card)] to-[var(--card-end)]',
-              'shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+              // Tone + soft elevation, no outline — matches the border-free
+              // surface system introduced with the pool hero.
+              'rounded-xl p-3 sm:p-4 min-w-0 text-left cursor-pointer',
+              'bg-[var(--card)] shadow-[var(--card-shadow)]',
               'transition-all duration-150 ease-out',
               // 0.98, not the 0.95 used on pills: at 171x70 a 5% shrink is 8.5px
               // of travel and reads as a lurch. Same value as the tappable stat
@@ -229,7 +230,6 @@ export function SummaryStats({
               // Tailwind v4's default white --tw-ring-offset-color, so it draws
               // a white halo in dark mode. SplitsDashboard omits it too.
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60',
-              isCurrent ? 'border-transparent' : 'border-[var(--border)]/60',
             )}
             style={
               // The current tile is tinted in its own colour rather than given a
@@ -237,7 +237,7 @@ export function SummaryStats({
               // this small, and a rail on a rounded card is a tired pattern.
               isCurrent
                 ? {
-                  boxShadow: `inset 0 1px 0 0 var(--inner-glow), inset 0 0 0 1.5px color-mix(in srgb, ${s.color} 45%, transparent)`,
+                  boxShadow: `var(--card-shadow), inset 0 0 0 1.5px color-mix(in srgb, ${s.color} 45%, transparent)`,
                   background: `color-mix(in srgb, ${s.color} 7%, var(--card))`,
                 }
                 : undefined
@@ -294,23 +294,22 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
   const tone = isDeficit ? 'var(--red)' : 'var(--green)';
 
   return (
+    // Compact contextual info row — tonal surface, no border, no card chrome.
+    // The green lives in the icon and the amount, never the whole row.
     <div
-      className="flex items-center gap-3 rounded-2xl px-3.5 py-3"
-      style={{
-        background: `color-mix(in srgb, ${tone} 7%, var(--card))`,
-        border: `1px solid color-mix(in srgb, ${tone} 24%, var(--border))`,
-      }}
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+      style={{ background: 'var(--surface)' }}
     >
       <span
-        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
-        style={{ background: `color-mix(in srgb, ${tone} 15%, transparent)`, color: tone }}
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
         aria-hidden
       >
-        <ArrowDownToLine size={16} />
+        <ArrowDownToLine size={15} />
       </span>
 
       <div className="min-w-0 flex-1">
-        <Text as="p" size="sm" weight="bold" truncate>
+        <Text as="p" size="sm" weight="semibold" truncate>
           {isDeficit ? 'Deficit carried forward' : 'Carried forward'}
         </Text>
         <Text as="p" size="2xs" color="muted" truncate>
@@ -320,7 +319,7 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
       </div>
 
       <span
-        className="flex-shrink-0 text-[16px] font-extrabold tabular-nums"
+        className="flex-shrink-0 text-[15px] font-bold tabular-nums"
         style={{ color: tone }}
       >
         {isDeficit ? '−' : '+'}{formatCurrency(Math.abs(carried.amount))}
@@ -340,7 +339,7 @@ function CarriedForwardEntry({ carried, isAdmin, onFreeze, onUnfreeze }: {
           title={carried.live
             ? 'Lock this figure — do it once the previous season is finished'
             : 'Unlock to track the previous season again'}
-          className="pressable flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"
+          className="pressable flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-[var(--muted)] active:bg-[var(--hover-bg)]"
         >
           {carried.live ? <LockOpen size={15} /> : <Lock size={15} />}
         </button>
@@ -559,14 +558,19 @@ function CricketDashboard() {
 
   return (
     <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-hidden">
-      {/* Ambient background blobs — cricket warm tones */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className="absolute -top-[20%] -right-[10%] h-[500px] w-[500px] rounded-full opacity-[0.07] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket), transparent 70%)' }} />
-        <div className="absolute top-[30%] -left-[15%] h-[400px] w-[400px] rounded-full opacity-[0.05] blur-[90px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
-        <div className="absolute -bottom-[10%] right-[20%] h-[450px] w-[450px] rounded-full opacity-[0.06] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, var(--cricket-accent), transparent 70%)' }} />
+      {/* Ambient depth — two near-imperceptible washes, not blobs: a faint
+          brand warmth bleeding down from the header, and a neutral tonal
+          shift toward the bottom so the floating nav has ground to sit on.
+          Static gradients, no blur filters — free to composite. */}
+      <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
+        <div
+          className="absolute inset-x-0 top-0 h-[45vh]"
+          style={{ background: 'radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 70%)' }}
+        />
+        <div
+          className="absolute inset-x-0 bottom-0 h-[30vh]"
+          style={{ background: 'linear-gradient(to top, color-mix(in srgb, var(--text) 3%, transparent), transparent)' }}
+        />
       </div>
 
       {/* Header — greeting + pulse */}

@@ -18,7 +18,8 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-50 bg-black/60 backdrop-blur-md',
+        // Dim only, no backdrop blur — see drawer.tsx for the perf rationale.
+        'fixed inset-0 z-50 bg-black/50',
         'data-[state=open]:animate-[dialogOverlayIn_200ms_ease-out]',
         'data-[state=closed]:animate-[dialogOverlayOut_150ms_ease-in]',
         className
@@ -48,7 +49,7 @@ function DialogContent({
         <div
           className={cn(
             'relative w-full max-w-md',
-            'rounded-2xl border border-[var(--border)]/60 bg-gradient-to-b from-[var(--card)] to-[var(--card-end)] p-6 shadow-2xl shadow-[inset_0_1px_0_0_var(--inner-glow)]',
+            'rounded-2xl border border-[var(--border)]/40 bg-[var(--card)] p-6 shadow-2xl',
             'data-[state=open]:animate-[dialogContentIn_200ms_ease-out]',
             'data-[state=closed]:animate-[dialogContentOut_150ms_ease-in]',
             className

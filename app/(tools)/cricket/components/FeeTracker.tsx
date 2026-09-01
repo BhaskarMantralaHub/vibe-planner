@@ -335,9 +335,10 @@ export default function FeeTracker() {
             href={whatsappShareUrl(reminderText)}
             target="_blank"
             rel="noopener"
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-bold text-white transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
+            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-bold transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60"
             style={{
-              background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
+              background: 'var(--cricket)',
+              color: 'var(--cricket-on)',
               boxShadow: '0 2px 10px var(--cricket-glow)',
             }}
           >

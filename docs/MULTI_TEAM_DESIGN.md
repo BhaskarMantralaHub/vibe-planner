@@ -318,11 +318,14 @@ Priority order:
 
 ### Brand Theming
 
-Each team stores `primary_color` (hex). `BrandProvider` sets CSS variables dynamically:
-```typescript
-document.documentElement.style.setProperty('--cricket', team.primary_color);
-```
-Offer 6-8 preset palettes (no full color picker — prevents accessibility issues).
+`cricket_teams.primary_color` still exists in the schema but is **no longer
+applied at runtime** (removed 2026-08-31). The brand color lives in the theme
+tokens in `app/globals.css` (`--cricket` plus its paired
+`--cricket-accent/-hover/-glow/-deep/-on` values) — a single DB hex could not
+supply those companions, so an override desynced fills from their text and
+glow colors. If per-team theming returns, it must set the WHOLE token family
+from 6-8 preset palettes (no full color picker — prevents accessibility
+issues), never `--cricket` alone.
 
 ---
 

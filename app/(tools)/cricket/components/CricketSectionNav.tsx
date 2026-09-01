@@ -15,15 +15,16 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 type NavIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 
 /**
- * Cricket bottom navigation — glass-pill bar inspired by Apple Sports /
- * Sofascore / FotMob. Active tab is signalled by tinted icon + label +
- * sliding underline (matching the active label's width). Inactive items
- * stay muted with thinner stroke weight so the active tab clearly wins.
+ * Cricket bottom navigation — floating translucent bar inspired by Apple
+ * Sports / Sofascore / FotMob. The active tab is signalled by a soft
+ * brand-tinted pill that SLIDES between tabs (plus tinted icon + label);
+ * inactive items stay muted with thinner stroke weight.
  *
  * Engineering notes:
- *  • Underline width is measured from the active label's DOMRect — single
- *    `measureUnderline()` function shared by initial layout, ResizeObserver,
- *    and post-font-load remeasure.
+ *  • Indicator geometry is measured from the active BUTTON's DOMRect —
+ *    single `measureIndicator()` shared by initial layout, ResizeObserver,
+ *    and post-font-load remeasure. Tabs have variable widths (labels), so
+ *    this cannot be index math like SegmentedControl.
  *  • Motion respects `prefers-reduced-motion`.
  *  • Surfaces have rgba fallbacks for browsers that don't parse `color-mix`.
  *  • Style objects are memoized so they don't churn on every render.
@@ -62,16 +63,14 @@ interface CricketSectionNavProps {
 // tweaks live in one place.
 
 const SURFACE_SHADOW =
-  '0 10px 32px rgba(0,0,0,0.16), 0 3px 8px rgba(0,0,0,0.08), inset 0 1px 0 color-mix(in srgb, white 55%, transparent)';
+  '0 8px 28px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 color-mix(in srgb, white 40%, transparent)';
 
-const UNDERLINE_TRANSITION =
-  'left 340ms cubic-bezier(0.16, 1, 0.3, 1), width 340ms cubic-bezier(0.16, 1, 0.3, 1)';
-const UNDERLINE_TRANSITION_REDUCED = 'left 1ms linear, width 1ms linear';
-const UNDERLINE_GLOW =
-  '0 0 12px color-mix(in srgb, var(--cricket) 55%, transparent), 0 0 2px color-mix(in srgb, var(--cricket) 80%, transparent)';
+const INDICATOR_TRANSITION =
+  'left 320ms cubic-bezier(0.16, 1, 0.3, 1), width 320ms cubic-bezier(0.16, 1, 0.3, 1)';
+const INDICATOR_TRANSITION_REDUCED = 'left 1ms linear, width 1ms linear';
 
 const ICON_TRANSITION =
-  'transform 280ms cubic-bezier(0.22, 1.2, 0.36, 1), filter 220ms ease-out';
+  'transform 280ms cubic-bezier(0.22, 1.2, 0.36, 1)';
 
 const FONT_WEIGHT_TRANSITION = 'font-weight 200ms ease-out';
 
@@ -89,32 +88,32 @@ export default function CricketSectionNav({
 }: CricketSectionNavProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  const labelRefs = useRef<Array<HTMLSpanElement | null>>([]);
-  const [underline, setUnderline] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [indicator, setIndicator] = useState<{ left: number; width: number; top: number; height: number }>({ left: 0, width: 0, top: 0, height: 0 });
   const reducedMotion = useReducedMotion();
 
   const activeIdx = items.findIndex((item) => item.key === activeKey);
 
-  // ── Underline measurement (single source of truth) ─────────────────
+  // ── Indicator measurement (single source of truth) ─────────────────
   // Called by:
   //  • initial useLayoutEffect (sync with first paint, no flicker)
   //  • ResizeObserver (pill width changes, e.g. orientation rotate)
   //  • document.fonts.ready (web fonts load late — label width can shift)
-  const measureUnderline = useCallback(() => {
+  const measureIndicator = useCallback(() => {
     if (activeIdx < 0) return;
-    const label = labelRefs.current[activeIdx];
+    const btn = buttonRefs.current[activeIdx];
     const container = containerRef.current;
-    if (!label || !container) return;
-    const lr = label.getBoundingClientRect();
+    if (!btn || !container) return;
+    const br = btn.getBoundingClientRect();
     const cr = container.getBoundingClientRect();
-    setUnderline({ left: lr.left - cr.left, width: lr.width });
+    setIndicator({ left: br.left - cr.left, width: br.width, top: br.top - cr.top, height: br.height });
   }, [activeIdx]);
 
   // Initial + active-tab-change measurement. useLayoutEffect runs sync
-  // before paint so we don't see an "underline at 0" frame.
+  // before paint so we don't see an "indicator at 0" frame.
   useLayoutEffect(() => {
-    measureUnderline();
-  }, [measureUnderline, items.length]);
+    measureIndicator();
+  }, [measureIndicator, items.length]);
 
   // ResizeObserver — fires precisely when the container's box changes
   // (orientation, dynamic viewport, font swap). Falls back to a window
@@ -123,26 +122,26 @@ export default function CricketSectionNav({
     const container = containerRef.current;
     if (!container) return;
     if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', measureUnderline);
-      return () => window.removeEventListener('resize', measureUnderline);
+      window.addEventListener('resize', measureIndicator);
+      return () => window.removeEventListener('resize', measureIndicator);
     }
-    const ro = new ResizeObserver(() => measureUnderline());
+    const ro = new ResizeObserver(() => measureIndicator());
     ro.observe(container);
     return () => ro.disconnect();
-  }, [measureUnderline]);
+  }, [measureIndicator]);
 
-  // Re-measure after web fonts finish loading. Without this, label widths
-  // measured pre-font-load will be slightly off and the underline jitters
+  // Re-measure after web fonts finish loading. Without this, widths
+  // measured pre-font-load will be slightly off and the indicator jitters
   // when the font swaps in. The .catch is defensive — font loading
-  // failure is non-fatal; underline just keeps its last good measurement.
+  // failure is non-fatal; the indicator just keeps its last good measurement.
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const ready = document.fonts?.ready;
     if (!ready) return;
-    ready.then(measureUnderline).catch(() => {
+    ready.then(measureIndicator).catch(() => {
       /* no-op — font loading failure is non-fatal */
     });
-  }, [measureUnderline]);
+  }, [measureIndicator]);
 
   const handleClick = useCallback(
     (i: number) => {
@@ -171,11 +170,11 @@ export default function CricketSectionNav({
       // line below overrides it in browsers that understand color-mix.
       // Browsers without color-mix discard the shorthand and use the
       // backgroundColor fallback, so the bar never renders transparent.
-      backgroundColor: 'rgba(255,255,255,0.86)',
-      background: 'color-mix(in srgb, var(--card) 86%, transparent)',
-      backdropFilter: 'blur(22px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(22px) saturate(180%)',
-      border: '1px solid color-mix(in srgb, var(--border) 55%, transparent)',
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      background: 'color-mix(in srgb, var(--card) 88%, transparent)',
+      backdropFilter: 'blur(16px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+      border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
       boxShadow: SURFACE_SHADOW,
       // Internal padding includes a slice of safe-area-inset-bottom so
       // the pill visually extends to absorb the iOS home indicator
@@ -188,19 +187,21 @@ export default function CricketSectionNav({
     [],
   );
 
-  const underlineStyle = useMemo<CSSProperties>(
+  const indicatorStyle = useMemo<CSSProperties>(
     () => ({
-      left: underline.left,
-      width: underline.width,
-      background: 'var(--cricket)',
-      boxShadow: UNDERLINE_GLOW,
-      transition: reducedMotion ? UNDERLINE_TRANSITION_REDUCED : UNDERLINE_TRANSITION,
-      opacity: underline.width > 0 ? 1 : 0,
-      // Promote the underline to its own compositing layer — keeps the
+      left: indicator.left,
+      width: indicator.width,
+      top: indicator.top + 3,
+      height: Math.max(indicator.height - 6, 0),
+      background: 'color-mix(in srgb, var(--cricket) 13%, transparent)',
+      borderRadius: 16,
+      transition: reducedMotion ? INDICATOR_TRANSITION_REDUCED : INDICATOR_TRANSITION,
+      opacity: indicator.width > 0 ? 1 : 0,
+      // Promote the indicator to its own compositing layer — keeps the
       // left/width transitions on the GPU instead of repainting the bar.
       willChange: 'left, width',
     }),
-    [underline.left, underline.width, reducedMotion],
+    [indicator.left, indicator.width, indicator.top, indicator.height, reducedMotion],
   );
 
   return (
@@ -228,13 +229,12 @@ export default function CricketSectionNav({
         className="relative flex items-stretch rounded-full"
         style={surfaceStyle}
       >
-        {/* Subtle texture dash — toned WAY down from the previous drag
-            handle so users don't expect drag-to-dismiss behaviour. Stays
-            only as a soft "this is a sheet" cue. */}
+        {/* Sliding active surface — a soft brand-tinted pill that travels
+            between tabs so a section change reads as "the selection moved". */}
         <div
           aria-hidden
-          className="absolute top-[3px] left-1/2 -translate-x-1/2 h-[1.5px] w-6 rounded-full opacity-50"
-          style={{ background: 'color-mix(in srgb, var(--muted) 22%, transparent)' }}
+          className="absolute pointer-events-none"
+          style={indicatorStyle}
         />
 
         {items.map((item, idx) => {
@@ -244,10 +244,7 @@ export default function CricketSectionNav({
           // active state, but `transition` is hoisted to a constant so the
           // string identity is stable.
           const iconStyle: CSSProperties = {
-            transform: isActive ? 'scale(1.08)' : 'scale(1)',
-            filter: isActive
-              ? 'drop-shadow(0 2px 6px color-mix(in srgb, var(--cricket) 40%, transparent))'
-              : 'none',
+            transform: isActive ? 'scale(1.06)' : 'scale(1)',
             transition: reducedMotion ? 'none' : ICON_TRANSITION,
             // Hint the compositor that transform changes on this element.
             willChange: 'transform',
@@ -256,6 +253,9 @@ export default function CricketSectionNav({
             <button
               key={item.key}
               type="button"
+              ref={(el) => {
+                buttonRefs.current[idx] = el;
+              }}
               onClick={() => handleClick(idx)}
               aria-current={isActive ? 'page' : undefined}
               aria-label={item.label}
@@ -289,9 +289,6 @@ export default function CricketSectionNav({
               )}
 
               <span
-                ref={(el) => {
-                  labelRefs.current[idx] = el;
-                }}
                 className="text-[10.5px] leading-none tracking-tight"
                 style={{
                   fontWeight: isActive ? 700 : 500,
@@ -303,13 +300,6 @@ export default function CricketSectionNav({
             </button>
           );
         })}
-
-        {/* Sliding underline — animates to track the active label's width. */}
-        <div
-          aria-hidden
-          className="absolute bottom-1 h-[2.5px] rounded-full pointer-events-none"
-          style={underlineStyle}
-        />
       </div>
     </div>
   );

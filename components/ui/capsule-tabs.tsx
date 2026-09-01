@@ -30,13 +30,13 @@ function CapsuleTabs({ tabs, active, onChange, className }: CapsuleTabsProps) {
             onClick={() => onChange(t.key)}
             className={`relative flex items-center justify-center rounded-full overflow-hidden select-none cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.92] ${
               isActive
-                ? 'gap-2 px-4 py-2.5 max-w-[160px] text-white'
+                ? 'gap-2 px-4 py-2.5 max-w-[160px] text-[var(--cricket-on)]'
                 : 'w-11 max-w-[44px] py-2.5 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--hover-bg)]'
             }`}
             style={isActive ? {
-              background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-              boxShadow: '0 0 16px var(--cricket-glow)',
-              border: '1.5px solid color-mix(in srgb, var(--cricket) 60%, white)',
+              background: 'var(--cricket)',
+              boxShadow: '0 2px 10px var(--cricket-glow)',
+              border: '1.5px solid transparent',
             } : {
               background: 'transparent',
               boxShadow: '0 0 0px transparent',

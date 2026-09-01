@@ -32,8 +32,8 @@ function SponsorAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
     <div
       className={`${dim} flex-shrink-0 rounded-xl flex items-center justify-center font-bold ${textSize}`}
       style={{
-        background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))',
-        color: 'white',
+        background: 'var(--cricket)',
+        color: 'var(--cricket-on)',
         boxShadow: '0 2px 8px var(--cricket-glow)',
       }}
     >

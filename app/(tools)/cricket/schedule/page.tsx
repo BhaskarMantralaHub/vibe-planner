@@ -25,13 +25,13 @@ function ScheduleContent() {
   }, [user, loadSeasons]);
 
   return (
-    <div className="relative min-h-screen w-full px-3 pt-5 pb-32 sm:px-4 lg:px-8 overflow-hidden">
+    <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-hidden">
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{ background: 'linear-gradient(135deg, var(--cricket), var(--cricket-accent))' }}>
-            <CalendarRange size={20} className="text-white" />
+            style={{ background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' }}>
+            <CalendarRange size={20} />
           </div>
           <div>
             <Text as="h1" size="lg" weight="bold">League Schedule</Text>

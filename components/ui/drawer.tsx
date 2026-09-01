@@ -44,14 +44,17 @@ function Drawer({ open, onOpenChange, children, dismissible = true }: DrawerProp
       dismissible={dismissible}
     >
       <VaulDrawer.Portal>
-        <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md" />
+        {/* Dim only — a full-screen backdrop blur is one of the most expensive
+            effects a mid-range phone can composite, and the sheet's own
+            elevation already separates it from the page. */}
+        <VaulDrawer.Overlay className="fixed inset-0 z-50 bg-black/45" />
         <VaulDrawer.Content
-          className="fixed bottom-0 left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-2xl outline-none"
+          className="fixed bottom-0 left-0 right-0 z-50 sm:max-w-md sm:mx-auto rounded-t-3xl outline-none"
           style={{
             background: 'var(--card)',
-            border: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
             borderBottom: 'none',
-            boxShadow: 'inset 0 1px 0 0 var(--inner-glow), 0 -4px 24px rgba(0,0,0,0.15)',
+            boxShadow: 'inset 0 1px 0 0 var(--inner-glow), 0 -8px 32px rgba(0,0,0,0.18)',
           }}
           aria-describedby={undefined}
         >
