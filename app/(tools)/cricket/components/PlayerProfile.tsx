@@ -24,10 +24,11 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         navigator.clipboard.writeText(text);
         toast.success(`${label} copied`);
       }}
-      className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+      className="flex-shrink-0 h-11 w-11 -my-1.5 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
       title={`Copy ${label}`}
+      aria-label={`Copy ${label}`}
     >
-      <Copy size={14} />
+      <Copy size={15} />
     </button>
   );
 }
@@ -161,7 +162,11 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <Text as="h3" size="lg" weight="bold">Edit Profile</Text>
-              <button onClick={cancelEditing} className="text-[var(--muted)] hover:text-[var(--text)] cursor-pointer">
+              <button
+                onClick={cancelEditing}
+                aria-label="Cancel editing"
+                className="h-11 w-11 -my-2 -mr-2 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] cursor-pointer"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -220,14 +225,14 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Name *</label>
               <input value={editName} onChange={(e) => setEditName(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors" />
             </div>
 
             {/* Email */}
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Email</label>
               <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="player@email.com" />
             </div>
 
@@ -235,7 +240,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">CricClub ID</label>
               <input value={editCricclub} onChange={(e) => setEditCricclub(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
                 placeholder="Optional" />
             </div>
 
