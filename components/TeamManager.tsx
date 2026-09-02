@@ -325,19 +325,15 @@ export default function TeamManager() {
                       Expires {new Date(teamInviteTokens[team.id].expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </Text>
                   </div>
-                  {/* Days remaining, not just a date — a link about to die is
-                      the thing an admin needs to notice before a teammate
-                      does. Turns orange in the last week. */}
+                  {/* A countdown only earns its place in the final week —
+                      "26784 days left" on a long-lived token is noise. */}
                   {(() => {
                     const days = Math.max(0, Math.ceil(
                       (new Date(teamInviteTokens[team.id].expiresAt).getTime() - Date.now()) / 86_400_000));
-                    const soon = days <= 7;
+                    if (days > 7) return <div className="mb-2" />;
                     return (
-                      <Text as="p" size="2xs" className="mb-2"
-                        style={{ color: soon ? 'var(--orange)' : 'var(--dim)' }}>
-                        {days === 0
-                          ? 'Expires today — refresh it to keep people joining'
-                          : `${days} ${days === 1 ? 'day' : 'days'} left${soon ? ' — refresh it soon' : ''}`}
+                      <Text as="p" size="2xs" className="mb-2" style={{ color: 'var(--orange)' }}>
+                        {days <= 1 ? 'Expires today' : `Expires in ${days} days`}
                       </Text>
                     );
                   })()}

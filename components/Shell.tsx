@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HamburgerMenu } from '@/components/HamburgerMenu';
@@ -281,8 +280,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, [pathname, user?.id, isCloud]);
 
-  const isCricketContext = pathname.startsWith('/cricket')
-    || (userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin'));
 
   const showNav = (!isCloud || !!user) && !needsPasswordReset;
 
@@ -315,18 +312,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="w-8" />
           )}
 
-          {isCricketContext ? (
-            <TeamSwitcher />
-          ) : (
-            <Link href="/" className="group flex items-center gap-2">
-              <Text as="h1" size="lg" weight="semibold" tracking="tight" className="bg-gradient-to-r from-[var(--toolkit)] via-[var(--blue)] to-[var(--toolkit-accent)] bg-clip-text text-transparent transition-opacity group-hover:opacity-80">
-                Viber&apos;s Toolkit
-              </Text>
-            </Link>
-          )}
+          {/* Always the team identity. The blue "Viber's Toolkit" wordmark
+              belonged to the personal tools retired 2026-09-02 — with those
+              gone every page, /admin included, is the cricket product, and a
+              second brand in the header was just confusing. */}
+          <TeamSwitcher />
 
           <div className="flex items-center gap-1">
-            {isCricketContext && <NotificationBell />}
+            <NotificationBell />
             <PendingApprovals />
             <ThemeToggle />
           </div>

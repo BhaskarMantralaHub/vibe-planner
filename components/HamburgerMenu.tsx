@@ -84,9 +84,11 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
     .map((g) => ({ key: g, label: GROUP_LABELS[g], items: visibleTools.filter((t) => t.group === g) }))
     .filter((g) => g.items.length > 0);
 
-  const title = userAccess.includes('cricket') && !userAccess.includes('toolkit') && !userAccess.includes('admin')
-    ? (userTeams.find((t) => t.team_id === currentTeamId)?.team_name ?? 'Cricket')
-    : "Viber's Toolkit";
+  // Always the team's name. The "Viber's Toolkit" title (and the access-array
+  // test that chose it) belonged to the personal tools retired 2026-09-02.
+  const title = userTeams.find((t) => t.team_id === currentTeamId)?.team_name
+    ?? userTeams[0]?.team_name
+    ?? 'Cricket';
 
   return (
     <>

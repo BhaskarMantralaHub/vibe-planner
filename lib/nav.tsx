@@ -144,7 +144,9 @@ export const tools: Tool[] = [
     group: 'management',
     href: '/admin',
     icon: <ShieldCheck size={22} />,
-    description: 'Users, activity & stats.',
+    // Covers both audiences: a team admin sees season + invite there, a
+    // platform admin also sees users and activity.
+    description: 'Season, invite link & users.',
     roles: ['admin'],
   },
 ];
