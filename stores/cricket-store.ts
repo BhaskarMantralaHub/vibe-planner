@@ -620,8 +620,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
             if (linkedUserId) {
               const teamId = getCurrentTeamId();
               if (teamId) {
+                // status 'active' EXPLICITLY: an admin linking a known profile
+                // IS the approval. team_members now defaults to pending, so a
+                // bare insert would lock the linked player out.
                 supabase?.from('team_members')
-                  .insert({ team_id: teamId, user_id: linkedUserId, role: 'player' })
+                  .insert({ team_id: teamId, user_id: linkedUserId, role: 'player', status: 'active' })
                   .then(({ error: tmErr }: { error: { message: string } | null }) => {
                     if (tmErr && !tmErr.message?.includes('duplicate')) {
                       console.warn('[cricket] team_members insert failed:', tmErr.message);
@@ -1413,9 +1416,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       return;
     }
 
-    // Remove from pending list and refresh players
+    // Remove from pending list and refresh players. Name comes from the local
+    // pending row — the RPC no longer echoes player_name back.
+    const approvedName = get().pendingMembers.find(m => m.user_id === userId)?.name;
     set({ pendingMembers: get().pendingMembers.filter(m => m.user_id !== userId) });
-    toast.success(`${data.player_name} has been approved!`);
+    toast.success(`${approvedName ?? 'Member'} has been approved!`);
 
     // Reload to get the new player record
     const user = useAuthStore.getState().user;

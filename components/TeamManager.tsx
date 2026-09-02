@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { Text, Button, Input, Card, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, Spinner } from '@/components/ui';
-import { Plus, Copy, Link, Users, Pencil, Camera, Share2 } from 'lucide-react';
+import { Plus, Copy, Link, Users, Pencil, Camera, Share2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 /// Compress logo image to fit within max dimensions (keeps aspect ratio)
@@ -92,7 +92,10 @@ export default function TeamManager() {
       setTeams(teamList);
       setLoading(false);
 
-      // Load invite tokens in parallel (non-blocking, after teams render)
+      // Load invite tokens in parallel (READ-ONLY — the old code silently
+      // INSERTED a permanent, unlimited-use invite as a side effect of
+      // rendering this tab; invite creation is now the explicit
+      // generateInvite action below, with a real expiry).
       const tokenResults = await Promise.all(
         teamList.map(async (t: Team) => {
           const { data: inv } = await supabase
@@ -100,21 +103,11 @@ export default function TeamManager() {
             .select('token')
             .eq('team_id', t.id)
             .eq('is_active', true)
-            .order('created_at', { ascending: true })
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-
-          if (inv) return { id: t.id, token: inv.token };
-
-          if (user) {
-            const { data: newInv } = await supabase
-              .from('team_invites')
-              .insert({ team_id: t.id, created_by: user.id, expires_at: '2099-12-31T23:59:59Z', max_uses: null })
-              .select('token')
-              .single();
-            if (newInv) return { id: t.id, token: newInv.token };
-          }
-          return null;
+          return inv ? { id: t.id, token: inv.token } : null;
         })
       );
 
@@ -183,6 +176,45 @@ export default function TeamManager() {
     if (error) { toast.error(error.message); }
     else { toast.success('Team settings saved'); setEditingTeam(null); loadTeams(); useAuthStore.getState().loadUserTeams(); }
     setSaving(false);
+  };
+
+  /**
+   * Explicit invite management. Generating deactivates any previous link
+   * (one live link per team keeps "who can join" auditable) and issues a
+   * fresh 30-day token; Revoke kills the live link without a replacement.
+   */
+  const generateInvite = async (teamId: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase || !user) return;
+    await supabase.from('team_invites').update({ is_active: false })
+      .eq('team_id', teamId).eq('is_active', true);
+    const { data, error } = await supabase
+      .from('team_invites')
+      .insert({
+        team_id: teamId,
+        created_by: user.id,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        max_uses: null,
+      })
+      .select('token')
+      .single();
+    if (error || !data) { toast.error('Could not create the invite link'); return; }
+    setTeamInviteTokens((prev) => ({ ...prev, [teamId]: data.token }));
+    toast.success('New invite link created — valid for 30 days');
+  };
+
+  const revokeInvite = async (teamId: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { error } = await supabase.from('team_invites').update({ is_active: false })
+      .eq('team_id', teamId).eq('is_active', true);
+    if (error) { toast.error('Could not revoke the invite link'); return; }
+    setTeamInviteTokens((prev) => {
+      const next = { ...prev };
+      delete next[teamId];
+      return next;
+    });
+    toast.success('Invite link revoked');
   };
 
   const copyInviteLink = (token: string) => {
@@ -257,8 +289,8 @@ export default function TeamManager() {
               </Button>
             </div>
 
-            {/* Permanent invite link */}
-            {teamInviteTokens[team.id] && (
+            {/* Invite link — explicit generate/revoke, 30-day expiry */}
+            {teamInviteTokens[team.id] ? (
               <div
                 className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
@@ -281,6 +313,19 @@ export default function TeamManager() {
                 >
                   <Copy size={14} className="text-[var(--muted)]" />
                 </button>
+                <button
+                  onClick={() => revokeInvite(team.id)}
+                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+                  title="Revoke this invite link"
+                >
+                  <X size={14} className="text-[var(--red)]" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <Button size="sm" variant="secondary" brand="cricket" onClick={() => generateInvite(team.id)}>
+                  <Link size={14} className="mr-1.5" /> Generate invite link
+                </Button>
               </div>
             )}
 

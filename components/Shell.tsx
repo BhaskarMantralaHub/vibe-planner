@@ -30,13 +30,24 @@ type PendingUser = {
   full_name: string;
   created_at: string;
   player_meta: PlayerMeta | null;
-  access: string[];
 };
 
 const ROLE_LABELS: Record<string, string> = {
   batsman: 'Batsman', bowler: 'Bowler', 'all-rounder': 'All-Rounder', keeper: 'Keeper',
 };
 
+/**
+ * Admin approval queue. Everything here is server-authoritative:
+ *  - the LIST comes from the pending_members(team) RPC, so a TEAM admin sees
+ *    their own queue (the old direct profiles read required GLOBAL admin RLS
+ *    and silently showed team admins an empty list);
+ *  - APPROVE = approve_team_member RPC — atomic, team-scoped, idempotent,
+ *    links the roster player and posts the single welcome server-side;
+ *  - REJECT = reject_team_member RPC — sets status='rejected' and NEVER
+ *    deletes the person's account (the old path deleted auth.users).
+ * The old version did five sequential raw writes with no team scoping and no
+ * error checks; approving here approved the user into EVERY team.
+ */
 function PendingApprovals() {
   const { user, userAccess, currentTeamId } = useAuthStore();
   const [pending, setPending] = useState<PendingUser[]>([]);
@@ -45,97 +56,42 @@ function PendingApprovals() {
   const isAdmin = userAccess.includes('admin');
 
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    // Team context required — the queue is per-team by design.
+    if (!user || !isAdmin || !currentTeamId) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
+    let cancelled = false;
     (async () => {
-      // Get pending team_members for the current team
-      const teamFilter = currentTeamId
-        ? supabase.from('team_members').select('user_id').eq('team_id', currentTeamId).eq('approved', false)
-        : supabase.from('team_members').select('user_id').eq('approved', false);
-
-      const { data: pendingMembers } = await teamFilter;
-      const pendingUserIds = (pendingMembers ?? []).map((m: { user_id: string }) => m.user_id);
-      if (pendingUserIds.length === 0) { setPending([]); return; }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, created_at, player_meta, access')
-        .in('id', pendingUserIds)
-        .eq('disabled', false)
-        .order('created_at', { ascending: false });
-
-      setPending((data ?? []) as PendingUser[]);
+      const { data, error } = await supabase.rpc('pending_members', { p_team_id: currentTeamId });
+      if (cancelled) return;
+      if (error) { console.warn('[approvals] pending_members failed:', error.message); return; }
+      type Row = { user_id: string; email: string; full_name: string; requested_at: string; player_meta: PlayerMeta | null };
+      setPending(((data ?? []) as Row[]).map((r) => ({
+        id: r.user_id,
+        email: r.email,
+        full_name: r.full_name,
+        created_at: r.requested_at,
+        player_meta: r.player_meta,
+      })));
     })();
+    return () => { cancelled = true; };
   }, [user, isAdmin, currentTeamId]);
 
   const handleApprove = async (p: PendingUser) => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
+    if (!supabase || !currentTeamId || approving) return;
     setApproving(p.id);
-
     try {
-      // If user has cricket access, link or create cricket_players record
-      const access: string[] = p.access ?? [];
-      if (access.includes('cricket')) {
-        // Check if a player record already exists with this email (admin pre-added)
-        const { data: existing } = await supabase
-          .from('cricket_players')
-          .select('id')
-          .ilike('email', p.email.trim())
-          .limit(1)
-          .maybeSingle();
-
-        if (existing) {
-          // Link existing player record and merge signup preferences
-          const updates: Record<string, unknown> = { user_id: p.id, is_active: true };
-          if (p.full_name) updates.name = p.full_name;
-          if (p.player_meta) {
-            const meta = p.player_meta;
-            if (meta.jersey_number != null) updates.jersey_number = meta.jersey_number;
-            if (meta.player_role) updates.player_role = meta.player_role;
-            if (meta.batting_style) updates.batting_style = meta.batting_style;
-            if (meta.bowling_style) updates.bowling_style = meta.bowling_style;
-            if (meta.shirt_size) updates.shirt_size = meta.shirt_size;
-          }
-          await supabase.from('cricket_players')
-            .update(updates)
-            .eq('id', existing.id);
-        } else if (p.player_meta) {
-          // No existing record — create a new one from signup metadata
-          const meta = p.player_meta;
-          await supabase.from('cricket_players').insert({
-            user_id: p.id,
-            name: p.full_name || p.email,
-            jersey_number: meta.jersey_number ?? null,
-            player_role: meta.player_role ?? null,
-            batting_style: meta.batting_style ?? null,
-            bowling_style: meta.bowling_style ?? null,
-            shirt_size: meta.shirt_size ?? null,
-            email: p.email,
-            is_active: true,
-          });
-        }
+      const { data, error } = await supabase.rpc('approve_team_member', {
+        p_team_id: currentTeamId,
+        p_user_id: p.id,
+      });
+      if (error || data?.error) {
+        toast.error(`Couldn't approve ${p.full_name || 'the user'}: ${error?.message ?? data?.error}`);
+        return;
       }
-
-      // Set default features for approved user based on their access
-      const defaultFeatures: string[] = [];
-      if (access.includes('toolkit')) defaultFeatures.push('vibe-planner', 'id-tracker');
-      if (access.includes('cricket')) defaultFeatures.push('cricket');
-      await supabase.from('profiles').update({ approved: true, features: defaultFeatures }).eq('id', p.id);
-      // Also approve team membership (per-team approval)
-      await supabase.from('team_members').update({ approved: true }).eq('user_id', p.id).eq('approved', false);
       setPending((prev) => prev.filter((u) => u.id !== p.id));
-
-      // Auto-post welcome message in Moments via DB function
-      if (access.includes('cricket')) {
-        const playerName = p.full_name || p.email.split('@')[0];
-        await supabase.rpc('create_welcome_post', {
-          new_user_id: p.id,
-          player_name: playerName,
-        });
-      }
       toast.success(`${p.full_name || 'User'} approved`);
     } finally {
       setApproving(null);
@@ -144,22 +100,22 @@ function PendingApprovals() {
 
   const handleReject = async (p: PendingUser) => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
-    const access: string[] = p.access ?? [];
-    const hasOtherAccess = access.some((a) => a !== 'cricket');
-
-    // Clean up team membership first
-    await supabase.from('team_members').delete().eq('user_id', p.id).eq('approved', false);
-    if (hasOtherAccess) {
-      // Existing user (e.g., toolkit) requested cricket — just remove cricket access, restore approved
-      const newAccess = access.filter((a) => a !== 'cricket');
-      await supabase.from('profiles').update({ access: newAccess, approved: true }).eq('id', p.id);
-    } else {
-      // Pure cricket signup with no other access — fully delete so they can re-signup
-      await supabase.rpc('reject_user', { target_user_id: p.id });
+    if (!supabase || !currentTeamId || approving) return;
+    setApproving(p.id);
+    try {
+      const { data, error } = await supabase.rpc('reject_team_member', {
+        p_team_id: currentTeamId,
+        p_user_id: p.id,
+      });
+      if (error || data?.error) {
+        toast.error(`Couldn't reject the request: ${error?.message ?? data?.error}`);
+        return;
+      }
+      setPending((prev) => prev.filter((u) => u.id !== p.id));
+      toast('Request rejected. Their account stays usable.');
+    } finally {
+      setApproving(null);
     }
-    setPending((prev) => prev.filter((u) => u.id !== p.id));
-    toast('Signup rejected');
   };
 
   if (!isAdmin || pending.length === 0) return null;
