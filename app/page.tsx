@@ -15,19 +15,21 @@ export default function Home() {
   useEffect(() => {
     if (loading) return;
 
+    // Cricket is the product; Vibe Planner and ID Tracker were deprecated
+    // 2026-09-02 (hidden from the menu, routes kept alive). So the landing
+    // priority is cricket first, and the toolkit is only a fallback for an
+    // account that has nothing else.
     if (!isCloud || !user) {
-      // Not logged in or local mode — default to vibe planner
-      router.replace('/vibe-planner');
+      router.replace('/cricket');
       return;
     }
 
-    // Redirect based on user's enabled features
-    if (userFeatures.includes('vibe-planner')) {
-      router.replace('/vibe-planner');
-    } else if (userFeatures.includes('cricket')) {
+    if (userFeatures.includes('cricket')) {
       router.replace('/cricket');
-    } else {
+    } else if (userFeatures.includes('vibe-planner')) {
       router.replace('/vibe-planner');
+    } else {
+      router.replace('/cricket');
     }
   }, [user, loading, isCloud, userFeatures, router]);
 

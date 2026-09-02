@@ -19,24 +19,30 @@ export type Tool = {
 };
 
 export const tools: Tool[] = [
-  {
-    name: 'Vibe Planner',
-    group: 'personal',
-    href: '/vibe-planner',
-    icon: <Brain size={22} />,
-    description: 'Capture sparks. Plan actions. Track flow.',
-    roles: ['toolkit', 'admin'],
-    feature: 'vibe-planner',
-  },
-  {
-    name: 'ID Tracker',
-    group: 'personal',
-    href: '/id-tracker',
-    icon: <IdCard size={22} />,
-    description: 'Track IDs & get expiry reminders.',
-    roles: ['toolkit', 'admin'],
-    feature: 'id-tracker',
-  },
+  // DEPRECATED 2026-09-02 — Vibe Planner and ID Tracker are hidden from the
+  // menu. The app is a cricket product now; these personal tools were the
+  // original toolkit and are no longer maintained. Routes and data are
+  // deliberately INTACT (`/vibe-planner`, `/id-tracker` still work by direct
+  // URL) so existing notes and documents stay reachable — same treatment as
+  // Live Scoring below. Re-enable by uncommenting.
+  // {
+  //   name: 'Vibe Planner',
+  //   group: 'personal',
+  //   href: '/vibe-planner',
+  //   icon: <Brain size={22} />,
+  //   description: 'Capture sparks. Plan actions. Track flow.',
+  //   roles: ['toolkit', 'admin'],
+  //   feature: 'vibe-planner',
+  // },
+  // {
+  //   name: 'ID Tracker',
+  //   group: 'personal',
+  //   href: '/id-tracker',
+  //   icon: <IdCard size={22} />,
+  //   description: 'Track IDs & get expiry reminders.',
+  //   roles: ['toolkit', 'admin'],
+  //   feature: 'id-tracker',
+  // },
   {
     // "Roster", not "Cricket": the destination is the player/team roster.
     // "Cricket" implied matches, scoring and stats too — which have their own

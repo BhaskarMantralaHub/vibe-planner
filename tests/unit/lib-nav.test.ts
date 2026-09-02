@@ -19,18 +19,13 @@ describe('lib/nav', () => {
     }
   });
 
-  it('contains Vibe Planner tool with toolkit role', () => {
-    const vp = tools.find((t) => t.name === 'Vibe Planner');
-    expect(vp).toBeDefined();
-    expect(vp!.href).toBe('/vibe-planner');
-    expect(vp!.roles).toContain('toolkit');
-  });
-
-  it('contains ID Tracker tool with toolkit role', () => {
-    const idTracker = tools.find((t) => t.name === 'ID Tracker');
-    expect(idTracker).toBeDefined();
-    expect(idTracker!.href).toBe('/id-tracker');
-    expect(idTracker!.roles).toContain('toolkit');
+  it('does not surface the deprecated personal tools', () => {
+    // Deprecated 2026-09-02: Vibe Planner and ID Tracker are hidden from the
+    // menu (routes and data intentionally still work by direct URL). If they
+    // are ever re-enabled in lib/nav.tsx, update this expectation.
+    const names = tools.map((t) => t.name);
+    expect(names).not.toContain('Vibe Planner');
+    expect(names).not.toContain('ID Tracker');
   });
 
   it('contains Roster tool (the /cricket hub, renamed from Cricket) with cricket role', () => {
