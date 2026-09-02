@@ -237,7 +237,10 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       expect(state.authError).toBe('Your account has been disabled. Contact the administrator.');
     });
 
-    it('profile not approved -> signOut called, authMode=pending-approval', async () => {
+    it('profile not approved -> session KEPT so the waiting screen can poll', async () => {
+      // Signing a pending user out left them with nothing to check, so the
+      // only way to learn the admin's decision was retrying the login form.
+      // The session stays; RLS still shows them no team data.
       const mockUser = { id: 'pending-1', email: 'pending@example.com' };
       const mockSession = { user: mockUser, access_token: 'tok' };
 
@@ -251,10 +254,11 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       await vi.advanceTimersByTimeAsync(10);
 
       const state = useAuthStore.getState();
-      expect(mockSignOut).toHaveBeenCalled();
-      expect(state.user).toBeNull();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(state.user).toEqual(mockUser);
+      expect(state.userApproved).toBe(false);
+      expect(state.profileLoaded).toBe(true);
       expect(state.loading).toBe(false);
-      expect(state.authMode).toBe('pending-approval');
     });
 
     it('profile approved with access=[cricket] -> user set, userAccess=[cricket], features derived', async () => {
@@ -634,7 +638,7 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       expect(state.authError).toBe('Your account has been disabled. Contact the administrator.');
     });
 
-    it('unapproved user detected via onAuthStateChange -> signOut and pending-approval', async () => {
+    it('unapproved user detected via onAuthStateChange -> stays signed in, marked pending', async () => {
       mockGetSession.mockResolvedValue({ data: { session: null } });
 
       let authChangeCallback: (event: string, session: any) => void = () => {};
@@ -657,9 +661,9 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       await vi.advanceTimersByTimeAsync(10);
 
       const state = useAuthStore.getState();
-      expect(mockSignOut).toHaveBeenCalled();
-      expect(state.user).toBeNull();
-      expect(state.authMode).toBe('pending-approval');
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(state.user).toEqual(pendingUser);
+      expect(state.userApproved).toBe(false);
     });
   });
 

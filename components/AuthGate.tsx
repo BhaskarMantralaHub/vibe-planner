@@ -10,6 +10,7 @@ import { MdSportsCricket } from 'react-icons/md';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { validatePassword } from '@/lib/auth';
 import { PasswordInput, passwordRequirements, allRequirementsMet, Spinner, Text } from '@/components/ui';
+import { PendingApproval } from '@/components/PendingApproval';
 
 type AuthGateVariant = 'toolkit' | 'cricket';
 
@@ -179,7 +180,7 @@ const VARIANT_CONFIG = {
 
 export function AuthGate({ children, variant = 'toolkit' }: { children: React.ReactNode; variant?: AuthGateVariant }) {
   const { user, loading, isCloud, authMode, authError, syncing, login, signup, resetPassword, setAuthMode, clearError, init,
-    userAccess: currentAccess, profileLoaded } = useAuthStore();
+    userAccess: currentAccess, profileLoaded, userApproved } = useAuthStore();
   const baseConfig = VARIANT_CONFIG[variant];
   const [v, setV] = useState(baseConfig);
 
@@ -304,6 +305,12 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cricket)] border-t-transparent" />
       </div>
     );
+  }
+
+  // Awaiting (or refused) an admin decision — a live screen that watches the
+  // membership row, not a dead end that makes them retry the login form.
+  if (user && !userApproved) {
+    return <PendingApproval />;
   }
 
   if (user && variant !== 'toolkit' && !currentAccess.includes(variant) && !currentAccess.includes('admin')) {

@@ -167,9 +167,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const access: string[] = profile?.access ?? ['toolkit'];
       const approved: boolean = profile?.approved !== false;
 
+      // Awaiting a team admin's decision. The session is deliberately KEPT
+      // (RLS gates every team table on an ACTIVE membership, so they can see
+      // no team data either way) — signing them out left the pending screen
+      // with nothing to check, so the only way to discover an admin's
+      // decision was to keep guessing at the login form. Staying signed in
+      // lets that screen watch their own membership row and let them in the
+      // moment it turns active.
       if (!approved) {
-        await supabase.auth.signOut();
-        set({ user: null, loading: false, authMode: 'pending-approval' });
+        set({ user: session.user, loading: false, userAccess: access, userFeatures: [],
+              userApproved: false, profileLoaded: true });
         return;
       }
 
@@ -324,9 +331,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      // Pending: keep the session (see checkProfileAndSetUser above). The
+      // auth listener commits the user; AuthGate renders the waiting screen.
       if (profile?.approved === false) {
-        await supabase.auth.signOut();
-        set({ syncing: false, user: null, authMode: 'pending-approval' });
+        set({ syncing: false, userApproved: false, profileLoaded: true,
+              userAccess: profile?.access ?? [], userFeatures: [] });
         return;
       }
 

@@ -380,7 +380,7 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(state.syncing).toBe(false);
     });
 
-    it('pending approval calls signOut and sets authMode', async () => {
+    it('pending approval keeps the session so the waiting screen can poll', async () => {
       const mockUser = { id: 'pending-1', email: 'pending@example.com' };
 
       mockSignInWithPassword.mockResolvedValue({
@@ -393,9 +393,12 @@ describe('Signup & Access Flows (Integration)', () => {
       await useAuthStore.getState().login('pending@example.com', VALID_PASSWORD);
 
       const state = useAuthStore.getState();
-      expect(mockSignOut).toHaveBeenCalled();
-      expect(state.authMode).toBe('pending-approval');
-      expect(state.user).toBeNull();
+      // Signing them out is what forced people to retry the login form to
+      // discover an admin's decision. The session stays; RLS still hides all
+      // team data until the membership is active.
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(state.userApproved).toBe(false);
+      expect(state.profileLoaded).toBe(true);
       expect(state.syncing).toBe(false);
     });
 
