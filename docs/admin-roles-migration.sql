@@ -6,6 +6,8 @@
 -- the app keys its admin controls on GLOBAL admin, so trimming first would
 -- leave the team's captains unable to manage players, fees or matches.
 --
+-- Idempotent: re-running changes nothing once the trim has been applied.
+--
 -- WHY
 -- ---
 -- Three different things were being called "admin":
@@ -22,8 +24,9 @@
 -- RESULT
 -- ------
 --   * Global admin (access @> '{admin}') = the platform owner alone.
---   * Everyone who was managing the team keeps doing so, via team_members.role.
---   * No one loses a capability they legitimately used.
+--   * Existing team admins keep managing the team, via team_members.role.
+--   * A global admin who was only a team PLAYER becomes an ordinary player
+--     (intended — see section 1).
 --
 -- Deliberately keyed on ROLES, never on email addresses: the one account that
 -- keeps global admin is identified by profiles.is_admin, which today is set on
@@ -40,21 +43,16 @@
 
 
 -- ============================================================
--- 1. Promote first: nobody loses their ability mid-migration
+-- 1. No automatic promotion — deliberately
 -- ============================================================
--- A global admin who is only a team PLAYER is administering the team through
--- the global grant. Removing it would silently demote them, so give them the
--- team-level authority they were actually exercising BEFORE the trim.
--- (Owners are left alone — 'owner' already outranks 'admin'.)
-
-UPDATE team_members tm
-SET role = 'admin'
-FROM profiles p
-WHERE p.id = tm.user_id
-  AND p.access @> '{admin}'
-  AND p.is_admin IS NOT TRUE     -- the platform owner is handled separately
-  AND tm.role = 'player'
-  AND tm.status = 'active';
+-- One account held global admin while being only a team PLAYER. It is NOT
+-- promoted to team admin: the decision was that this person does not need
+-- admin ability, so the trim below simply returns them to an ordinary player.
+--
+-- Nothing else to do here. If someone should keep managing the team, give
+-- them team_members.role = 'admin' through the Players screen ("Admin
+-- Access") BEFORE running section 2 — that is the supported path, and it
+-- grants team-scoped authority rather than cross-team power.
 
 
 -- ============================================================
