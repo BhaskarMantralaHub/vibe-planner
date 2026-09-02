@@ -43,16 +43,22 @@
 
 
 -- ============================================================
--- 1. No automatic promotion — deliberately
+-- 1. No automatic promotion here — deliberately
 -- ============================================================
 -- One account held global admin while being only a team PLAYER. It is NOT
 -- promoted to team admin: the decision was that this person does not need
 -- admin ability, so the trim below simply returns them to an ordinary player.
 --
--- Nothing else to do here. If someone should keep managing the team, give
--- them team_members.role = 'admin' through the Players screen ("Admin
--- Access") BEFORE running section 2 — that is the supported path, and it
--- grants team-scoped authority rather than cross-team power.
+-- The one exception is handled by docs/captain-team-admin-migration.sql (run
+-- it FIRST): the captain of the active season is granted team admin, because
+-- captaining and managing are the same job. That file grants nobody else, so
+-- the two do not collide — but run its section 6 verification before the trim
+-- so you can see exactly who ends up with what.
+--
+-- Anyone else who should keep managing the team needs team_members.role =
+-- 'admin' through the Players screen ("Admin Access") BEFORE section 2 — that
+-- is the supported path, and it grants team-scoped authority rather than
+-- cross-team power.
 
 
 -- ============================================================

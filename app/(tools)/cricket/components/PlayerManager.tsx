@@ -903,6 +903,11 @@ export default function PlayerManager() {
                     <ShieldCheck size={12} /> Vice Captain
                   </button>
                 </div>
+                {designation === 'captain' && (
+                  <Text as="p" size="2xs" color="dim" className="mt-2">
+                    The captain can manage the team — add players, record fees and edit matches.
+                  </Text>
+                )}
                 {designationConflict && (
                   <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--cricket)]/5 border border-[var(--cricket)]/20">
                     <span className="text-[12px] text-[var(--text)] flex-1"><b>{designationConflict.existingName}</b> is currently {designationConflict.value === 'captain' ? 'Captain' : 'Vice Captain'}. Reassign?</span>
