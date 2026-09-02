@@ -30,9 +30,24 @@ the same-release frontend are deployed together.
 ## Invite-gated signup
 
 Direct `/cricket` signup is disabled — AuthGate shows "Invite Link Required"
-without `?join=<token>`. Login always works. Invite links are created and
-revoked EXPLICITLY in the Teams admin tab (30-day expiry on new links; the
-old permanent link keeps validating until regenerated). `team_slug` passes
+without `?join=<token>`, and "Invite link not valid" when a token IS present
+but the server refuses it (expired / replaced / revoked), so someone holding a
+dead link is never told to go find a link they already have. Login always works.
+
+**Invite lifecycle** (`docs/invite-lifecycle-migration.sql`): ONE active invite
+per team, states ACTIVE → EXPIRED (time) or REVOKED (admin). Created and
+rotated ONLY through the server RPCs `generate_team_invite(team)` /
+`revoke_team_invite(team)`, both gated on `is_team_admin` for THAT team; the
+30-day TTL is a server constant (`team_invite_ttl()`) and the client has no
+INSERT/UPDATE policy on `team_invites` at all, so an arbitrary expiry cannot
+be posted. Generating rotates: the previous invite is revoked in the same
+call, so old links die the moment a new one is made. The admin UI reads the
+live invite (admin-only SELECT) to display and re-copy it; rendering the page
+creates nothing. The token stays a plaintext `gen_random_uuid()` — 122
+CSPRNG bits, unguessable and unrelated to team id/slug — because hashing it
+would make the link unreadable after creation, and this admin re-copies the
+same link for weeks; rotation + expiry cover most of what hashing would buy.
+The original permanent (2099) token was revoked when this shipped. `team_slug` passes
 through signup metadata; `handle_new_user` resolves the team from it —
 **cricket signups only**; a forged `team_slug` on a toolkit signup creates no
 membership, and metadata `access` is allowlisted to `toolkit|cricket` (an

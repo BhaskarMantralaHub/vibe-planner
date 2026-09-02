@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { Text, Button, Input, Card, Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody, Spinner } from '@/components/ui';
-import { Plus, Copy, Link, Users, Pencil, Camera, Share2, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Plus, Copy, Link, Users, Pencil, Camera, Share2, X, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 /// Compress logo image to fit within max dimensions (keeps aspect ratio)
@@ -32,6 +33,12 @@ interface Team {
   member_count?: number;
 }
 
+/** The one live invite for a team — token plus when it stops working. */
+interface TeamInvite {
+  token: string;
+  expiresAt: string;
+}
+
 const COLOR_PRESETS = [
   { name: 'Ocean', hex: '#0369a1' },
   { name: 'Emerald', hex: '#059669' },
@@ -46,7 +53,10 @@ const COLOR_PRESETS = [
 export default function TeamManager() {
   const { user } = useAuthStore();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [teamInviteTokens, setTeamInviteTokens] = useState<Record<string, string>>({});
+  const [teamInviteTokens, setTeamInviteTokens] = useState<Record<string, TeamInvite>>({});
+  const [busyTeam, setBusyTeam] = useState<string | null>(null);
+  // Refresh and Revoke both break links already sent out, so each confirms.
+  const [inviteConfirm, setInviteConfirm] = useState<{ team: Team; action: 'refresh' | 'revoke' } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -100,19 +110,19 @@ export default function TeamManager() {
         teamList.map(async (t: Team) => {
           const { data: inv } = await supabase
             .from('team_invites')
-            .select('token')
+            .select('token, expires_at')
             .eq('team_id', t.id)
             .eq('is_active', true)
             .gt('expires_at', new Date().toISOString())
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-          return inv ? { id: t.id, token: inv.token } : null;
+          return inv ? { id: t.id, invite: { token: inv.token, expiresAt: inv.expires_at } } : null;
         })
       );
 
-      const tokens: Record<string, string> = {};
-      tokenResults.forEach(r => { if (r) tokens[r.id] = r.token; });
+      const tokens: Record<string, TeamInvite> = {};
+      tokenResults.forEach(r => { if (r) tokens[r.id] = r.invite; });
       setTeamInviteTokens(tokens);
     } else {
       setLoading(false);
@@ -183,32 +193,37 @@ export default function TeamManager() {
    * (one live link per team keeps "who can join" auditable) and issues a
    * fresh 30-day token; Revoke kills the live link without a replacement.
    */
-  const generateInvite = async (teamId: string) => {
+  /**
+   * Invite lifecycle. Both actions are server-authoritative RPCs
+   * (docs/invite-lifecycle-migration.sql): they verify the caller is an admin
+   * OF THIS TEAM, and the 30-day expiry lives on the server — the client
+   * cannot write team_invites at all any more, which is what stopped a
+   * permanent 2099 token from being mintable.
+   */
+  const generateInvite = async (teamId: string, isRefresh = false) => {
     const supabase = getSupabaseClient();
-    if (!supabase || !user) return;
-    await supabase.from('team_invites').update({ is_active: false })
-      .eq('team_id', teamId).eq('is_active', true);
-    const { data, error } = await supabase
-      .from('team_invites')
-      .insert({
-        team_id: teamId,
-        created_by: user.id,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        max_uses: null,
-      })
-      .select('token')
-      .single();
-    if (error || !data) { toast.error('Could not create the invite link'); return; }
-    setTeamInviteTokens((prev) => ({ ...prev, [teamId]: data.token }));
-    toast.success('New invite link created — valid for 30 days');
+    if (!supabase || busyTeam) return;
+    setBusyTeam(teamId);
+    const { data, error } = await supabase.rpc('generate_team_invite', { p_team_id: teamId });
+    setBusyTeam(null);
+    if (error || data?.error) {
+      toast.error(error?.message ?? data?.error ?? 'Could not create the invite link');
+      return;
+    }
+    setTeamInviteTokens((prev) => ({ ...prev, [teamId]: { token: data.token, expiresAt: data.expires_at } }));
+    toast.success(isRefresh ? 'New link created — the old one no longer works' : 'Invite link created, valid 30 days');
   };
 
   const revokeInvite = async (teamId: string) => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
-    const { error } = await supabase.from('team_invites').update({ is_active: false })
-      .eq('team_id', teamId).eq('is_active', true);
-    if (error) { toast.error('Could not revoke the invite link'); return; }
+    if (!supabase || busyTeam) return;
+    setBusyTeam(teamId);
+    const { data, error } = await supabase.rpc('revoke_team_invite', { p_team_id: teamId });
+    setBusyTeam(null);
+    if (error || data?.error) {
+      toast.error(error?.message ?? data?.error ?? 'Could not revoke the invite link');
+      return;
+    }
     setTeamInviteTokens((prev) => {
       const next = { ...prev };
       delete next[teamId];
@@ -289,45 +304,66 @@ export default function TeamManager() {
               </Button>
             </div>
 
-            {/* Invite link — explicit generate/revoke, 30-day expiry */}
-            {teamInviteTokens[team.id] ? (
-              <div
-                className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-              >
-                <Link size={14} className="text-[var(--muted)] shrink-0" />
-                <Text size="2xs" color="muted" className="flex-1 font-mono truncate">
-                  /cricket?join={teamInviteTokens[team.id].slice(0, 8)}...
-                </Text>
-                <button
-                  onClick={() => shareInviteLink(teamInviteTokens[team.id], team.name)}
-                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                  title="Share"
-                >
-                  <Share2 size={14} className="text-[var(--muted)]" />
-                </button>
-                <button
-                  onClick={() => copyInviteLink(teamInviteTokens[team.id])}
-                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                  title="Copy link"
-                >
-                  <Copy size={14} className="text-[var(--muted)]" />
-                </button>
-                <button
-                  onClick={() => revokeInvite(team.id)}
-                  className="p-1.5 rounded-lg hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
-                  title="Revoke this invite link"
-                >
-                  <X size={14} className="text-[var(--red)]" />
-                </button>
+            {/* Team invite — one live link per team, 30-day expiry, rotated
+                and revoked through server RPCs. Nothing here is created by
+                merely rendering the page. */}
+            <div className="mt-3">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Link size={13} className="text-[var(--dim)]" />
+                <Text size="2xs" weight="bold" uppercase tracking="wider" color="dim">Team invite</Text>
               </div>
-            ) : (
-              <div className="mt-3">
-                <Button size="sm" variant="secondary" brand="cricket" onClick={() => generateInvite(team.id)}>
-                  <Link size={14} className="mr-1.5" /> Generate invite link
-                </Button>
-              </div>
-            )}
+
+              {teamInviteTokens[team.id] ? (
+                <div
+                  className="rounded-xl px-3 py-2.5"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: 'var(--green)' }} />
+                    <Text size="xs" weight="semibold" style={{ color: 'var(--green)' }}>Active</Text>
+                    <Text size="2xs" color="muted" className="truncate">
+                      Expires {new Date(teamInviteTokens[team.id].expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </div>
+                  <Text size="2xs" color="dim" className="font-mono truncate block mb-2.5">
+                    /cricket?join={teamInviteTokens[team.id].token.slice(0, 8)}…
+                  </Text>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="secondary" brand="cricket"
+                      onClick={() => copyInviteLink(teamInviteTokens[team.id].token)}>
+                      <Copy size={13} className="mr-1.5" /> Copy link
+                    </Button>
+                    <Button size="sm" variant="ghost"
+                      onClick={() => shareInviteLink(teamInviteTokens[team.id].token, team.name)}>
+                      <Share2 size={13} className="mr-1.5" /> Share
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={busyTeam === team.id}
+                      onClick={() => setInviteConfirm({ team, action: 'refresh' })}>
+                      <RefreshCw size={13} className="mr-1.5" /> Refresh
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={busyTeam === team.id}
+                      onClick={() => setInviteConfirm({ team, action: 'revoke' })}>
+                      <X size={13} className="mr-1.5" style={{ color: 'var(--red)' }} />
+                      <span style={{ color: 'var(--red)' }}>Revoke</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="rounded-xl px-3 py-2.5"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <Text as="p" size="xs" color="muted" className="mb-2.5">
+                    No active invite. Nobody can join this team with a link right now.
+                  </Text>
+                  <Button size="sm" variant="primary" brand="cricket" disabled={busyTeam === team.id}
+                    onClick={() => generateInvite(team.id)}>
+                    <Link size={13} className="mr-1.5" />
+                    {busyTeam === team.id ? 'Creating…' : 'Generate invite'}
+                  </Button>
+                </div>
+              )}
+            </div>
 
           </div>
         </Card>
@@ -335,6 +371,39 @@ export default function TeamManager() {
 
       {teams.length === 0 && (
         <Text size="sm" color="muted" className="text-center py-8">No teams yet</Text>
+      )}
+
+      {/* Refresh / revoke both break links already sent to people, so each
+          says exactly what will happen before it happens. */}
+      {inviteConfirm && (
+        <Dialog open onOpenChange={(o) => { if (!o) setInviteConfirm(null); }}>
+          <DialogContent className="max-w-xs" showClose={false}>
+            <DialogTitle className="text-[15px]">
+              {inviteConfirm.action === 'refresh' ? 'Create a new invite link?' : 'Revoke the invite link?'}
+            </DialogTitle>
+            <DialogDescription className="text-[13px] mt-1.5">
+              {inviteConfirm.action === 'refresh'
+                ? `The current link for ${inviteConfirm.team.name} stops working immediately. Anyone still using it will need the new one.`
+                : `The current link for ${inviteConfirm.team.name} stops working immediately and no new link is created. Nobody can join by link until you generate one.`}
+            </DialogDescription>
+            <DialogFooter>
+              <Button variant="secondary" size="md" onClick={() => setInviteConfirm(null)}>Cancel</Button>
+              <Button
+                variant={inviteConfirm.action === 'revoke' ? 'danger' : 'primary'}
+                brand={inviteConfirm.action === 'refresh' ? 'cricket' : undefined}
+                size="md"
+                onClick={() => {
+                  const { team, action } = inviteConfirm;
+                  setInviteConfirm(null);
+                  if (action === 'refresh') void generateInvite(team.id, true);
+                  else void revokeInvite(team.id);
+                }}
+              >
+                {inviteConfirm.action === 'refresh' ? 'Create new link' : 'Revoke'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── Create Team Drawer ── */}

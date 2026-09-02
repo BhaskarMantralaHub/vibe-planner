@@ -214,6 +214,9 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   // Invite token branding — detect ?join= param and fetch team info
   const [inviteTeam, setInviteTeam] = useState<InviteTeamInfo | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+  // A ?join= token was present but the server refused it (expired, revoked,
+  // or simply not a real token).
+  const [inviteInvalid, setInviteInvalid] = useState(false);
   // True when the typed email matches a pre-added roster player on the
   // invite's team — the Player Info form is then hidden entirely: the admin
   // already entered their details, and signup answers were being thrown away.
@@ -228,6 +231,10 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     supabase.rpc('validate_invite_token', { p_token: joinToken })
       .then(({ data }: { data: InviteTeamInfo | null }) => {
         if (data && !('error' in data)) { setInviteTeam(data); setInviteToken(joinToken); }
+        // A link that was tried and REJECTED is different from no link at
+        // all — "ask your captain for an invite" is the wrong thing to tell
+        // someone who is holding one. Remember the difference.
+        else setInviteInvalid(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
@@ -508,12 +515,14 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             {/* Invite-required screen for direct /cricket signup (no invite token) */}
             {isInviteRequired ? (
               <div className="text-center py-4">
-                <div className="mb-4 text-4xl">🔗</div>
+                <div className="mb-4 text-4xl">{inviteInvalid ? '⚠️' : '🔗'}</div>
                 <Text as="h2" size="xl" weight="semibold" className="mb-2 text-[20px] lg:text-[24px]">
-                  Invite Link Required
+                  {inviteInvalid ? 'Invite link not valid' : 'Invite Link Required'}
                 </Text>
                 <Text as="p" size="md" color="muted" className="mb-6 text-[15px] leading-relaxed">
-                  Ask your team captain or admin for an invite link to join a cricket team.
+                  {inviteInvalid
+                    ? 'This link is not recognised — it may have expired, been replaced, or been revoked. Ask your team admin for the current invite link.'
+                    : 'Ask your team captain or admin for an invite link to join a cricket team.'}
                 </Text>
                 <Text as="p" size="sm" color="muted" className="mt-6">
                   Already have an account?{' '}
@@ -532,6 +541,17 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               onSubmit={handleSubmit}
               className=""
             >
+              {/* A link was supplied and refused — say so on the login screen
+                  too, not only on the signup tab. */}
+              {inviteInvalid && !inviteTeam && (
+                <div className="mb-4 rounded-xl px-3 py-2.5 text-center"
+                  style={{ background: 'color-mix(in srgb, var(--orange) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--orange) 25%, transparent)' }}>
+                  <Text size="xs" weight="medium" style={{ color: 'var(--orange)' }}>
+                    That invite link is not valid — it may have expired or been replaced. Ask your team admin for the current one.
+                  </Text>
+                </div>
+              )}
+
               {/* Invite context banner */}
               {inviteTeam && (
                 <div className="mb-4 rounded-xl px-3 py-2.5 text-center"
