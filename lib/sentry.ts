@@ -17,14 +17,18 @@ export function initSentry() {
 }
 
 /**
- * Public share links carry a live bearer token in the PATH, and Sentry attaches
+ * Public share links carry a live bearer token in the URL, and Sentry attaches
  * the full page URL to every event. `sendDefaultPii: false` does not help — it
  * covers IP, cookies and headers, not the URL. So without this, one JS error on
  * a shared report would mail a working 30-day credential into the issue tracker.
  */
 function scrubShareTokens(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
   const scrub = (u: string) =>
-    u.replace(/\/(settlement|dues)\/[0-9a-f-]{36}/gi, '/$1/<redacted>');
+    u
+      // ?t=<token> — the form links are actually minted in
+      .replace(/([?&]t=)[0-9a-f-]{36}/gi, '$1<redacted>')
+      // /settlement/<token>/ — the path form, still accepted by the page
+      .replace(/\/(settlement|dues)\/[0-9a-f-]{36}/gi, '/$1/<redacted>');
 
   if (event.request?.url) event.request.url = scrub(event.request.url);
   if (event.transaction) event.transaction = scrub(event.transaction);

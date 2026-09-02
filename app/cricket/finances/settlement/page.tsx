@@ -39,13 +39,29 @@ type Report = {
 /** Nothing gets to hang. If the network stalls, show the generic screen. */
 const LOAD_TIMEOUT_MS = 12_000;
 
-function tokenFromPath(): string | null {
+/**
+ * The token rides in the QUERY STRING, not a path segment.
+ *
+ * A path segment would be prettier, but this is a static export on Cloudflare
+ * Pages: /cricket/finances/settlement/<token>/ is not a file, so it needs a
+ * wildcard rewrite — and that rewrite does not fire on this host. The
+ * long-dormant /cricket/dues/<token> rule had the same bug and 404s to this
+ * day, which is exactly how it stayed unnoticed. A query string hits the real
+ * exported page every time, on any static host.
+ *
+ * The path form is still accepted, so links minted if the rewrite is ever
+ * fixed keep working.
+ */
+function tokenFromUrl(): string | null {
+  const isToken = (t: string | null | undefined): t is string =>
+    !!t && /^[0-9a-f-]{36}$/i.test(t);
+
+  const q = new URLSearchParams(window.location.search).get('t');
+  if (isToken(q)) return q;
+
   const parts = window.location.pathname.split('/').filter(Boolean);
-  // ['cricket','finances','settlement','<token>']
-  const t = parts[3];
-  if (!t) return null;
-  // Cheap shape check so an obviously-wrong path never becomes a round trip.
-  return /^[0-9a-f-]{36}$/i.test(t) ? t : null;
+  const seg = parts[3]; // ['cricket','finances','settlement','<token>']
+  return isToken(seg) ? seg : null;
 }
 
 function fmtUpdated(iso: string): string {
@@ -85,7 +101,7 @@ export default function PublicSettlementReportPage() {
 
     (async () => {
       try {
-        const token = tokenFromPath();
+        const token = tokenFromUrl();
         if (!token) return fail();
         const supabase = getSupabaseClient();
         if (!supabase) return fail();

@@ -21,7 +21,7 @@
 # A live share token sits in this path. Keep it out of search indexes and out
 # of the Referer header sent to any image/script host the page touches, and
 # never let an edge cache hold a financial report.
-/cricket/finances/settlement/*
+/cricket/finances/settlement*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
   Cache-Control: no-store

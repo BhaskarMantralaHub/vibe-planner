@@ -22,8 +22,13 @@ import { toast } from 'sonner';
 
 type Share = { token: string; expires_at: string; created_at: string; created_by_name: string | null };
 
+/**
+ * Query string, not a path segment: the static export has no file at
+ * /cricket/finances/settlement/<token>/, and the wildcard rewrite that would
+ * serve one does not fire on Cloudflare Pages. See the note in the public page.
+ */
 function reportUrl(token: string): string {
-  return `${window.location.origin}/cricket/finances/settlement/${token}/`;
+  return `${window.location.origin}/cricket/finances/settlement/?t=${token}`;
 }
 
 function daysLeft(expiresAt: string): number {

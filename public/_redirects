@@ -1,5 +1,8 @@
 / /vibe-planner/ 302
 /cricket/dues  /cricket/dues/index.html  200
-# Token lives in the path, so every /cricket/finances/settlement/<token> URL
-# has to be served the one exported page and read its own token client-side.
-/cricket/finances/settlement/*  /cricket/finances/settlement/index.html  200
+# NOTE: splat rewrites to an exported index.html do NOT fire on this host —
+# verified in production, and the /cricket/dues rule above has the same bug
+# (/cricket/dues/<anything> has always 404'd). The settlement report therefore
+# carries its token as ?t=<token> against the real exported page, which needs
+# no rewrite. Keeping the rule out entirely rather than leaving one that looks
+# like it works.
