@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '@/app/(tools)/cricket/lib/constants';
-import { Target, Star } from 'lucide-react';
+import { Target, Star, Link2Off } from 'lucide-react';
 import { GiCricketBat, GiBaseballGlove, GiTennisBall } from 'react-icons/gi';
 import { MdSportsCricket } from 'react-icons/md';
 
@@ -222,6 +222,22 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   // already entered their details, and signup answers were being thrown away.
   const [rosterMatched, setRosterMatched] = useState(false);
 
+  /**
+   * The token did not work — for ANY reason (unknown, expired, revoked,
+   * consumed, server unreachable). One outcome, one message: the person is
+   * told the link is unusable and to ask their admin, never which of those
+   * it was. Also strips the dead token from the URL and from any pending
+   * invite saved for after login, so it cannot be retried or inherited.
+   * No writes of any kind — an invalid invite has no side effects.
+   */
+  const invalidateInvite = () => {
+    setInviteInvalid(true);
+    try { sessionStorage.removeItem('vibe_pending_invite'); } catch { /* private mode */ }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('join');
+    window.history.replaceState({}, '', url.pathname + url.search);
+  };
+
   useEffect(() => {
     if (variant !== 'cricket' || typeof window === 'undefined') return;
     const joinToken = new URLSearchParams(window.location.search).get('join');
@@ -231,11 +247,12 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     supabase.rpc('validate_invite_token', { p_token: joinToken })
       .then(({ data }: { data: InviteTeamInfo | null }) => {
         if (data && !('error' in data)) { setInviteTeam(data); setInviteToken(joinToken); }
-        // A link that was tried and REJECTED is different from no link at
-        // all — "ask your captain for an invite" is the wrong thing to tell
-        // someone who is holding one. Remember the difference.
-        else setInviteInvalid(true);
-      });
+        else invalidateInvite();
+      })
+      // A refused token and an unreachable server are the same thing to the
+      // person holding the link: it does not work. Never leave them on an
+      // endless spinner.
+      .catch(() => invalidateInvite());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
@@ -299,7 +316,18 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     }
   }, [variant]);
 
-  if (loading) {
+  // A ?join= token is still being validated when neither outcome has landed
+  // yet. Derived, not stored: the store's `loading` already renders a spinner
+  // on the first paint, so the prerendered HTML and the hydrated render agree
+  // and no state initializer can desync them. Without this the login form
+  // paints for a moment and is then replaced — the flicker this must avoid.
+  const inviteChecking =
+    variant === 'cricket' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('join') &&
+    !inviteTeam && !inviteInvalid;
+
+  if (loading || inviteChecking) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner size="lg" brand={variant} />
@@ -358,6 +386,44 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             className="w-full cursor-pointer rounded-xl bg-[var(--surface)] px-4 py-2.5 text-[15px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--border)]"
           >
             Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Invite link unavailable ────────────────────────────────────────────
+   * A dedicated state, not a banner over the login form: someone who
+   * followed a dead link needs to know the link is the problem, not fumble
+   * at a form. Every failure reason collapses to one message — naming which
+   * one would leak whether a token exists, and would not help them anyway.
+   * No team name, no token, no side effects. */
+  if (variant === 'cricket' && inviteInvalid) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+          <span
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+            style={{ background: 'color-mix(in srgb, var(--cricket) 10%, transparent)' }}
+            aria-hidden
+          >
+            <Link2Off size={24} style={{ color: 'var(--cricket)' }} />
+          </span>
+          <Text as="h2" size="xl" weight="semibold" tracking="tight" className="mb-2">
+            Invite Link Unavailable
+          </Text>
+          <Text as="p" size="md" color="muted" className="mb-3 text-[15px] leading-relaxed">
+            This invitation link is no longer valid or may have expired.
+          </Text>
+          <Text as="p" size="md" color="muted" className="mb-6 text-[15px] leading-relaxed">
+            Please ask your team admin for a new invite link to join the team.
+          </Text>
+          <button
+            onClick={() => { window.location.href = '/cricket/'; }}
+            className="w-full cursor-pointer rounded-xl px-4 py-3 text-[15px] font-semibold transition-transform active:scale-[0.98]"
+            style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}
+          >
+            Go to Cricket
           </button>
         </div>
       </div>
@@ -515,14 +581,15 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
             {/* Invite-required screen for direct /cricket signup (no invite token) */}
             {isInviteRequired ? (
               <div className="text-center py-4">
-                <div className="mb-4 text-4xl">{inviteInvalid ? '⚠️' : '🔗'}</div>
+                {/* NO token at all. A token that was REFUSED gets its own
+                    screen above (Invite Link Unavailable) — telling someone
+                    holding a dead link to "ask for a link" reads as nonsense. */}
+                <div className="mb-4 text-4xl">🔗</div>
                 <Text as="h2" size="xl" weight="semibold" className="mb-2 text-[20px] lg:text-[24px]">
-                  {inviteInvalid ? 'Invite link not valid' : 'Invite Link Required'}
+                  Invite Link Required
                 </Text>
                 <Text as="p" size="md" color="muted" className="mb-6 text-[15px] leading-relaxed">
-                  {inviteInvalid
-                    ? 'This link is not recognised — it may have expired, been replaced, or been revoked. Ask your team admin for the current invite link.'
-                    : 'Ask your team captain or admin for an invite link to join a cricket team.'}
+                  Ask your team captain or admin for an invite link to join a cricket team.
                 </Text>
                 <Text as="p" size="sm" color="muted" className="mt-6">
                   Already have an account?{' '}
@@ -541,17 +608,6 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
               onSubmit={handleSubmit}
               className=""
             >
-              {/* A link was supplied and refused — say so on the login screen
-                  too, not only on the signup tab. */}
-              {inviteInvalid && !inviteTeam && (
-                <div className="mb-4 rounded-xl px-3 py-2.5 text-center"
-                  style={{ background: 'color-mix(in srgb, var(--orange) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--orange) 25%, transparent)' }}>
-                  <Text size="xs" weight="medium" style={{ color: 'var(--orange)' }}>
-                    That invite link is not valid — it may have expired or been replaced. Ask your team admin for the current one.
-                  </Text>
-                </div>
-              )}
-
               {/* Invite context banner */}
               {inviteTeam && (
                 <div className="mb-4 rounded-xl px-3 py-2.5 text-center"
