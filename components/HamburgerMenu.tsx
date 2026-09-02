@@ -59,11 +59,18 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   const access = userAccess.length > 0 ? userAccess : ['toolkit'];
   // userFeatures is derived from access in auth-store when empty/null (backward compat)
   // No separate fallback here — auth-store handles the derivation
+  // A TEAM admin (owner/admin on a team) is not a platform admin, but they
+  // still need the Admin entry — it is the only route to the Teams tab, where
+  // the team's invite link is generated. Without this a captain could be made
+  // a team admin and still have no way to invite anyone.
+  const isTeamAdmin = userTeams.some((t) => t.approved && (t.role === 'owner' || t.role === 'admin'));
+
   const visibleTools = tools.filter((t) => {
     // Tools with a feature key: check features array (no admin override)
     if (t.feature) return userFeatures.includes(t.feature);
     // Tools without a feature key (e.g., Admin): fall back to role check
     if (!t.roles) return true;
+    if (t.roles.includes('admin') && isTeamAdmin) return true;
     return t.roles.some((r) => access.includes(r));
   });
 

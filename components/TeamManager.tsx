@@ -318,13 +318,29 @@ export default function TeamManager() {
                   className="rounded-xl px-3 py-2.5"
                   style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-1">
                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: 'var(--green)' }} />
                     <Text size="xs" weight="semibold" style={{ color: 'var(--green)' }}>Active</Text>
                     <Text size="2xs" color="muted" className="truncate">
                       Expires {new Date(teamInviteTokens[team.id].expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </Text>
                   </div>
+                  {/* Days remaining, not just a date — a link about to die is
+                      the thing an admin needs to notice before a teammate
+                      does. Turns orange in the last week. */}
+                  {(() => {
+                    const days = Math.max(0, Math.ceil(
+                      (new Date(teamInviteTokens[team.id].expiresAt).getTime() - Date.now()) / 86_400_000));
+                    const soon = days <= 7;
+                    return (
+                      <Text as="p" size="2xs" className="mb-2"
+                        style={{ color: soon ? 'var(--orange)' : 'var(--dim)' }}>
+                        {days === 0
+                          ? 'Expires today — refresh it to keep people joining'
+                          : `${days} ${days === 1 ? 'day' : 'days'} left${soon ? ' — refresh it soon' : ''}`}
+                      </Text>
+                    );
+                  })()}
                   <Text size="2xs" color="dim" className="font-mono truncate block mb-2.5">
                     /cricket?join={teamInviteTokens[team.id].token.slice(0, 8)}…
                   </Text>

@@ -10,6 +10,7 @@ import {
   Activity, CheckCircle, Zap, BarChart3, Settings2, UsersRound
 } from 'lucide-react';
 import TeamManager from '@/components/TeamManager';
+import TeamAdminPanel from '@/components/TeamAdminPanel';
 import { AuthGate } from '@/components/AuthGate';
 import { Text, Drawer, DrawerHandle, DrawerHeader, DrawerBody, DrawerTitle } from '@/components/ui';
 import { toast } from 'sonner';
@@ -104,7 +105,14 @@ function AdminContent() {
   const [pageStats, setPageStats] = useState<{ path: string; count: number }[]>([]);
   const [allSeasons, setAllSeasons] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  // TWO different admins reach this page, and they are not the same person:
+  //   platform admin (profiles.is_admin) — the whole console: users,
+  //     analytics, features, account deletion.
+  //   team admin (team_members.role owner/admin) — their own team only. They
+  //     come here for ONE thing: the team's invite link. Before this they
+  //     were locked out entirely, so a captain could not issue an invite.
+  const [isAdmin, setIsAdmin] = useState(false);          // platform
+  const [isTeamAdmin, setIsTeamAdmin] = useState(false);  // any team
   const [filter, setFilter] = useState<'all' | 'admin' | 'user' | 'flagged' | 'disabled'>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -134,8 +142,25 @@ function AdminContent() {
         .eq('id', user.id)
         .single();
 
+      // A team admin/owner on any team may open the Teams tab even without
+      // platform admin. Their own membership rows are always readable to
+      // them (team_members SELECT allows user_id = auth.uid()).
+      const { data: myTeams } = await supabase
+        .from('team_members')
+        .select('role, status')
+        .eq('user_id', user.id);
+      const teamAdmin = (myTeams ?? []).some(
+        (m: { role: string; status: string }) =>
+          (m.role === 'owner' || m.role === 'admin') && m.status === 'active',
+      );
+      setIsTeamAdmin(teamAdmin);
+
       if (!myProfile?.is_admin) {
         setIsAdmin(false);
+        // Team admins stop here deliberately: the platform queries below
+        // (all profiles, activity, app_settings) are gated on is_admin() in
+        // RLS and would return nothing for them anyway. They get
+        // TeamAdminPanel instead.
         setLoading(false);
         return;
       }
@@ -247,7 +272,14 @@ function AdminContent() {
     );
   }
 
-  if (!isAdmin) {
+  // Team admin (captain) but not platform admin: their own team's season and
+  // invite, nothing else. The platform console's tabs would be empty for them
+  // — RLS returns no profiles, no activity, no other teams.
+  if (!isAdmin && isTeamAdmin) {
+    return <TeamAdminPanel />;
+  }
+
+  if (!isAdmin && !isTeamAdmin) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
