@@ -8,9 +8,10 @@ ln -s "$(pwd)/.claude/memory" ~/.claude/projects/-$(pwd | tr '/' '-' | sed 's/^-
 
 ## Project Overview
 
-Viber's Toolkit — personal productivity suite on Cloudflare Pages. Two users (Bhaskar + wife), plus Sunrisers Manteca cricket team members. Multiple tools under one shell with hamburger menu navigation.
+Viber's Toolkit — **a cricket team app** on Cloudflare Pages, used by Sunrisers Manteca. It began as a personal productivity suite for two users; that half is retired.
 
-**Tools:** Vibe Planner (Kanban), ID Tracker (documents), Sunrisers HQ (cricket expenses/scoring/moments/umpiring), Admin Dashboard.
+**Tools:** Sunrisers HQ (cricket expenses/fees/splits/scoring/moments/umpiring), Admin Dashboard.
+**RETIRED 2026-09-02:** Vibe Planner and ID Tracker. Removed from the menu, and `/vibe-planner` + `/id-tracker` now redirect to `/cricket` (kept as redirects, not deleted, so bookmarks and old password-reset emails don't 404). Their components/stores remain in the repo but nothing imports them, so they leave the bundle; `vibes` and `id_documents` rows are untouched in the database. The root `/` sends everyone to `/cricket` — no feature branching. Re-enable by restoring the entries in `lib/nav.tsx` and the real page bodies.
 **Roles:** `toolkit` (auto-approved), `cricket` (admin approval), `admin` (manual DB flag). Stored in `profiles.access`.
 **Features:** `profiles.features` controls tool visibility. `hasFeature()` = UI visibility, `hasAccess()` = RLS/privileges.
 **Tech:** Next.js 15 (static export), TypeScript, Tailwind v4, Zustand, Supabase (Postgres + Auth + RLS), Cloudflare Pages.
