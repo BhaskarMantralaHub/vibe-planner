@@ -1,102 +1,34 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuthStore } from '@/stores/auth-store';
-import { useVibeStore } from '@/stores/vibe-store';
-import { isCloudMode } from '@/lib/supabase/client';
-import { AuthGate } from '@/components/AuthGate';
-import { RoleGate } from '@/components/RoleGate';
-import { LocalBanner } from '@/components/LocalBanner';
-import { Skeleton } from '@/components/ui';
-import Header from './components/Header';
-import Board from './components/Board';
-import RecentlyDeleted from './components/RecentlyDeleted';
+import { useRouter } from 'next/navigation';
+import { Spinner } from '@/components/ui';
 
-function BoardSkeleton() {
-  return (
-    <div className="min-h-screen">
-      {/* Header skeleton */}
-      <div className="px-4 lg:px-5 pt-4 lg:pt-5">
-        <Skeleton className="h-7 w-56 rounded-xl mb-3" />
-        <div className="flex items-center gap-2 lg:gap-3 mb-3">
-          <Skeleton className="h-16 w-24 rounded-xl" />
-          <Skeleton className="h-16 w-24 rounded-xl" />
-          <Skeleton className="h-16 w-24 rounded-xl" />
-          <div className="ml-auto">
-            <Skeleton className="h-10 w-24 rounded-xl" />
-          </div>
-        </div>
-      </div>
-      <div className="px-4 lg:px-5 pb-3 pt-2 border-b border-[var(--border)]">
-        <div className="flex items-center gap-2 lg:gap-3 mb-2">
-          <Skeleton className="h-12 flex-1 lg:max-w-xl rounded-2xl" />
-          <Skeleton className="h-12 w-20 rounded-2xl" />
-        </div>
-      </div>
-
-      {/* Board columns skeleton */}
-      <div className="flex flex-col md:flex-row gap-4 p-4">
-        {Array.from({ length: 4 }).map((_, col) => (
-          <div key={col} className="flex-1 min-w-[220px] bg-[var(--surface)] rounded-2xl p-3">
-            <div className="flex items-center gap-2 mb-4 px-1">
-              <Skeleton className="h-5 w-5 rounded" />
-              <Skeleton className="h-5 w-20 rounded" />
-              <Skeleton className="h-4 w-4 rounded ml-auto" />
-            </div>
-            <div className="space-y-3">
-              {Array.from({ length: col === 0 ? 3 : col === 1 ? 2 : 1 }).map((_, card) => (
-                <Skeleton key={card} className="h-20 w-full rounded-xl" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VibePlannerContent() {
-  const { user } = useAuthStore();
-  const { items, syncing, loadItems, setOpenMenu } = useVibeStore();
+/**
+ * RETIRED 2026-09-02 — Vibe Planner is gone; this app is a cricket product.
+ *
+ * The route is kept as a redirect rather than deleted outright, because the
+ * URL is bookmarked, sits in old emails (password resets used to land here),
+ * and is the app's historical front door. A redirect sends those visitors
+ * somewhere real; deleting the folder would hand them a 404.
+ *
+ * It also removes the second, blue-branded login screen — one product, one
+ * way in.
+ *
+ * The board, its components and `stores/vibe-store` are left in the repo but
+ * are no longer reachable; nothing imports them, so they drop out of the
+ * bundle. `vibes` rows are untouched in the database.
+ */
+export default function VibePlannerRetired() {
+  const router = useRouter();
 
   useEffect(() => {
-    const cloud = isCloudMode();
-    if (cloud && user) {
-      loadItems(user.id);
-    } else if (!cloud) {
-      loadItems('');
-    }
-  }, [user, loadItems]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setOpenMenu]);
-
-  // Show skeleton during initial cloud load (syncing + no items yet)
-  if (isCloudMode() && syncing && items.length === 0) {
-    return <BoardSkeleton />;
-  }
+    router.replace('/cricket');
+  }, [router]);
 
   return (
-    <div className="min-h-screen">
-      {!isCloudMode() && <LocalBanner />}
-      <Header />
-      <Board />
-      <RecentlyDeleted />
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <Spinner size="lg" brand="cricket" />
     </div>
-  );
-}
-
-export default function VibePlannerPage() {
-  return (
-    <AuthGate>
-      <RoleGate allowed={['toolkit', 'admin']} feature="vibe-planner">
-        <VibePlannerContent />
-      </RoleGate>
-    </AuthGate>
   );
 }
