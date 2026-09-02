@@ -68,6 +68,7 @@ function resetStore() {
     userAccess: [],
     userFeatures: [],
     userApproved: true,
+    profileLoaded: false,
   });
 }
 
@@ -296,6 +297,31 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
       // Features derived from access when null
       expect(state.userFeatures).toEqual(['vibe-planner', 'id-tracker']);
       expect(state.loading).toBe(false);
+    });
+
+    it('EMPTY access array still marks the profile loaded (no infinite spinner)', async () => {
+      // Regression: a user rejected from the only team they asked to join is
+      // left with access = []. AuthGate used to read "empty access" as "still
+      // loading" and hung on a spinner forever. profileLoaded is the signal.
+      const mockUser = { id: 'rejected-1', email: 'rejected@example.com' };
+      mockGetSession.mockResolvedValue({ data: { session: { user: mockUser, access_token: 'tok' } } });
+      mockQuery.single.mockResolvedValue({
+        data: { disabled: false, access: [], approved: true, features: [] },
+        error: null,
+      });
+
+      useAuthStore.getState().init();
+      await vi.advanceTimersByTimeAsync(10);
+
+      const state = useAuthStore.getState();
+      expect(state.user).toEqual(mockUser);
+      expect(state.userAccess).toEqual([]);
+      expect(state.profileLoaded).toBe(true);
+      expect(state.loading).toBe(false);
+    });
+
+    it('profileLoaded is false before any profile fetch resolves', () => {
+      expect(useAuthStore.getState().profileLoaded).toBe(false);
     });
 
     it('profile query returns null (no profile row) -> defaults to [toolkit], features derived', async () => {

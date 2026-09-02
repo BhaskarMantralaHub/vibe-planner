@@ -38,6 +38,14 @@ interface AuthState {
   userAccess: string[];
   userFeatures: string[];
   userApproved: boolean;
+  /**
+   * True once the profile row has been fetched for the current user — the
+   * ONLY honest signal for "access is known". Callers must never infer it
+   * from `userAccess.length`: an empty access array is a legitimate state
+   * (e.g. a user rejected from the only team they asked to join), and
+   * treating it as "still loading" hangs the UI on a spinner forever.
+   */
+  profileLoaded: boolean;
   userTeams: UserTeam[];
   currentTeamId: string | null;
 
@@ -103,6 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userAccess: [],
   userFeatures: [],
   userApproved: true,
+  profileLoaded: false,
 
   init: () => {
     // Exactly one initialization per page lifecycle. init() is mounted from
@@ -140,7 +149,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const checkProfileAndSetUser = async (session: Session | null) => {
       if (!session?.user) {
-        set({ user: null, loading: false });
+        set({ user: null, loading: false, profileLoaded: false });
         return;
       }
       const { data: profile } = await supabase
@@ -172,7 +181,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Player record linking + preference override handled by handle_new_user() DB trigger
-      set({ user: session.user, loading: false, userAccess: access, userFeatures: features, userApproved: approved });
+      set({ user: session.user, loading: false, userAccess: access, userFeatures: features, userApproved: approved, profileLoaded: true });
 
       // Track login activity (covers session restore + explicit login; dedup prevents double-count)
       import('@/lib/activity').then(({ trackActivity }) => trackActivity(session.user.id, 'login'))
@@ -330,7 +339,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (access.includes('cricket')) features = [...features, 'cricket'];
       }
 
-      set({ userAccess: access, userFeatures: features, userApproved: profile?.approved !== false });
+      set({ userAccess: access, userFeatures: features, userApproved: profile?.approved !== false, profileLoaded: true });
 
       // Login activity tracked by checkProfileAndSetUser (called via onAuthStateChange)
 
@@ -490,7 +499,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // A pending invite saved before login belongs to THIS person's session —
     // it must never survive into whoever logs in next on this tab.
     sessionStorage.removeItem('vibe_pending_invite');
-    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true, userTeams: [], currentTeamId: null });
+    set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true, profileLoaded: false, userTeams: [], currentTeamId: null });
   },
 
   hasAccess: (role: string) => {

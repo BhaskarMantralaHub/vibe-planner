@@ -43,6 +43,16 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
 
     if (variant === 'cricket') {
       const { data, error } = await supabase.rpc('request_cricket_access');
+      if (data === 'rejected') {
+        setRequestError('Your request to join was declined. Please talk to your team admin.');
+        setRequesting(false);
+        return;
+      }
+      if (data === 'already_requested') {
+        setRequested(true);
+        setRequesting(false);
+        return;
+      }
       if (error || (data !== 'ok' && data !== 'already_member')) {
         setRequestError('Could not send the request. Please try again, or ask your team admin for an invite link.');
         setRequesting(false);
@@ -168,8 +178,8 @@ const VARIANT_CONFIG = {
 };
 
 export function AuthGate({ children, variant = 'toolkit' }: { children: React.ReactNode; variant?: AuthGateVariant }) {
-  const { user, loading, isCloud, authMode, authError, syncing, login, signup, resetPassword, setAuthMode, clearError, init } =
-    useAuthStore();
+  const { user, loading, isCloud, authMode, authError, syncing, login, signup, resetPassword, setAuthMode, clearError, init,
+    userAccess: currentAccess, profileLoaded } = useAuthStore();
   const baseConfig = VARIANT_CONFIG[variant];
   const [v, setV] = useState(baseConfig);
 
@@ -282,22 +292,22 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   }
 
   // User is logged in but doesn't have the required access for this variant.
-  // IMPORTANT: Only gate AFTER userAccess is loaded from the profile (non-empty).
-  // Without this guard, a race condition causes RequestAccess to render during
-  // the brief window where user exists but profile hasn't loaded yet (userAccess=[]),
-  // which re-triggers auto-approve + welcome post for existing users.
-  const currentAccess = useAuthStore.getState().userAccess;
-  if (user && variant !== 'toolkit' && currentAccess.length > 0 && !currentAccess.includes(variant) && !currentAccess.includes('admin')) {
-    return <RequestAccess variant={variant} />;
-  }
-
-  // Profile still loading (user exists but access not yet fetched) — show spinner
-  if (user && variant !== 'toolkit' && currentAccess.length === 0) {
+  // IMPORTANT: gate on profileLoaded — the explicit "we have fetched the
+  // profile" signal — NOT on userAccess.length. "Not loaded" must never read
+  // as "no access" (that re-triggered side effects for existing users), and
+  // equally an EMPTY access array must not read as "still loading": that is a
+  // real state (a user rejected from the only team they asked to join) and
+  // the old length check left them on an endless spinner.
+  if (user && variant !== 'toolkit' && !profileLoaded) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cricket)] border-t-transparent" />
       </div>
     );
+  }
+
+  if (user && variant !== 'toolkit' && !currentAccess.includes(variant) && !currentAccess.includes('admin')) {
+    return <RequestAccess variant={variant} />;
   }
 
   if (user) {

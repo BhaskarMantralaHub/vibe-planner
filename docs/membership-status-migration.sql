@@ -806,8 +806,17 @@ BEGIN
   ) INTO v_has_other_cricket;
 
   IF NOT v_has_other_cricket THEN
+    -- Strip the cricket hint, but NEVER leave access empty: the client reads
+    -- an empty array as "profile still loading" in places, and an account
+    -- with no access at all is not a state this app has a screen for. A
+    -- rejected person keeps a baseline account ('toolkit') with no features
+    -- enabled, so they land on the request-access screen rather than a
+    -- spinner or a broken dashboard.
     UPDATE profiles
-    SET access = array_remove(access, 'cricket'),
+    SET access = CASE
+          WHEN array_remove(access, 'cricket') = '{}' THEN ARRAY['toolkit']
+          ELSE array_remove(access, 'cricket')
+        END,
         features = array_remove(features, 'cricket'),
         approved = true
     WHERE id = p_user_id;
@@ -1092,6 +1101,11 @@ WHERE p.approved = false
     SELECT 1 FROM team_members tm
     WHERE tm.user_id = p.id AND tm.status = 'active'
   );
+
+-- Same repair for the empty-access case: a previously rejected user left with
+-- access = '{}' hangs the client on a loading spinner. Give them the baseline.
+UPDATE profiles SET access = ARRAY['toolkit']
+WHERE access IS NULL OR access = '{}';
 
 
 -- ============================================================
