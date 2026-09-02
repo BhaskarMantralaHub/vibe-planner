@@ -355,11 +355,11 @@ function ScoringLanding({ onNewMatch, onContinue, onResumeMatch, onViewScorecard
 }) {
   const router = useRouter();
   const { match, innings, dbMatchId, matchHistory, deletedMatches, historyLoading, loadMatchHistory, loadDeletedMatches, deleteMatch, restoreMatch, permanentDeleteMatch, revertMatch } = useScoringStore();
-  const { user, userAccess } = useAuthStore();
+  const { user,  isTeamAdmin } = useAuthStore();
   const [resuming, setResuming] = useState<string | boolean>(false); // true for local, matchId string for DB
   const [scorecardLoading, setScorecardLoading] = useState<string | false>(false); // matchId when loading scorecard
   const [verifyingLocal, setVerifyingLocal] = useState(true); // true until mount check completes
-  const isAdmin = userAccess.includes('admin');
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
 
   const handleViewScorecard = async (matchId: string) => {
     if (scorecardLoading) return;

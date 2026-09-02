@@ -178,8 +178,8 @@ function DeletedSponsorRow({ sponsor, onRestore }: { sponsor: CricketSponsorship
 
 // ── Main component ──
 export default function SponsorshipSection() {
-  const { userAccess, user } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const {  user, isTeamAdmin } = useAuthStore();
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const adminName = (user?.user_metadata?.full_name as string) || user?.email || '';
   const { sponsorships, selectedSeasonId, addSponsorship, updateSponsorship, deleteSponsorship, restoreSponsorship } = useCricketStore();
 

@@ -1065,8 +1065,8 @@ function localSaveMatches(matches: Match[]) {
 
 /* ── Main Component ── */
 export default function MatchSchedule() {
-  const { userAccess, currentTeamId, userTeams } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const {  currentTeamId, userTeams, isTeamAdmin } = useAuthStore();
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const { selectedSeasonId } = useCricketStore();
 
   const [matches, setMatches] = useState<Match[]>([]);

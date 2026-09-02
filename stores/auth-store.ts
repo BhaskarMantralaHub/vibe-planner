@@ -59,6 +59,17 @@ interface AuthState {
   clearError: () => void;
   hasAccess: (role: string) => boolean;
   hasFeature: (feature: string) => boolean;
+  /**
+   * Can this user administer the team they are looking at?
+   *
+   * TRUE for an owner/admin on the current team, or a global admin. This is
+   * the check the cricket UI should use — the database already gates every
+   * team write on is_team_admin(), so keying the buttons on the GLOBAL admin
+   * flag hid controls from captains the RLS would happily have accepted, and
+   * meant the only way to let a captain manage the roster was to hand them
+   * cross-team global admin.
+   */
+  isTeamAdmin: () => boolean;
   setCurrentTeam: (teamId: string) => void;
   loadUserTeams: (forceRefresh?: boolean) => Promise<void>;
 }
@@ -514,6 +525,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hasAccess: (role: string) => {
     const { userAccess } = get();
     return userAccess.includes(role) || userAccess.includes('admin');
+  },
+
+  isTeamAdmin: () => {
+    const { userAccess, userTeams, currentTeamId } = get();
+    if (userAccess.includes('admin')) return true;
+    return userTeams.some((t) =>
+      t.approved
+      && (t.role === 'owner' || t.role === 'admin')
+      && (!currentTeamId || t.team_id === currentTeamId));
   },
 
   hasFeature: (feature: string) => {

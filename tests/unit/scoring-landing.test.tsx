@@ -116,6 +116,9 @@ function setupDefaults(overrides: {
     user: { id: 'user-1', user_metadata: { full_name: 'Admin User' } },
     userAccess: overrides.isAdmin ? ['cricket', 'admin'] : ['cricket'],
     userFeatures: ['cricket'],
+    // Admin controls now key on isTeamAdmin() — team admin OR global admin —
+    // which is the same gate the database applies.
+    isTeamAdmin: () => !!overrides.isAdmin,
   };
 }
 

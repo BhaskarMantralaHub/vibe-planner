@@ -571,8 +571,8 @@ export default function GalleryPostCard({
   players: CricketPlayer[];
   index?: number;
 }) {
-  const { user, userAccess } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const { user,  isTeamAdmin } = useAuthStore();
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const { deleteGalleryPost, updateGalleryPost, addGalleryComment, updateGalleryComment, deleteGalleryComment, toggleGalleryLike } = useCricketStore();
 
   const [commentText, setCommentText] = useState('');

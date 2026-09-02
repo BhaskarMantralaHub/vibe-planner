@@ -722,8 +722,8 @@ export default function ExpenseList({ onNavigate, carriedSlot }: {
   carriedSlot?: React.ReactNode;
 } = {}) {
   const listRef = useRef<HTMLDivElement>(null);
-  const { userAccess, user } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const {  user, isTeamAdmin } = useAuthStore();
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const { expenses, fees, sponsorships, players, seasons, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string; permanent?: boolean } | null>(null);

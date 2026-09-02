@@ -99,9 +99,9 @@ async function uploadPlayerPhoto(file: File, userId: string, playerId: string): 
 
 /* ── Main Component ── */
 export default function PlayerManager() {
-  const { user } = useAuthStore();
+  const { user, isTeamAdmin } = useAuthStore();
   const { userAccess } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer,
     seasonPlayers, seasons, selectedSeasonId, enrollInSeason, removeFromSeason, setSeasonDesignation } = useCricketStore();
 

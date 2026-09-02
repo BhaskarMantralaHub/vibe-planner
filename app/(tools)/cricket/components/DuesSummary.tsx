@@ -5,8 +5,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { calculatePlayerBalances, formatCurrency } from '../lib/utils';
 
 export default function DuesSummary() {
-  const { userAccess } = useAuthStore();
-  const isAdmin = userAccess.includes('admin');
+  const {  isTeamAdmin } = useAuthStore();
+  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
   const { players, expenses, splits, settlements, selectedSeasonId, setShowSettleForm } = useCricketStore();
 
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);
