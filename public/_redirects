@@ -1,2 +1,5 @@
 / /vibe-planner/ 302
 /cricket/dues  /cricket/dues/index.html  200
+# Token lives in the path, so every /cricket/finances/settlement/<token> URL
+# has to be served the one exported page and read its own token client-side.
+/cricket/finances/settlement/*  /cricket/finances/settlement/index.html  200

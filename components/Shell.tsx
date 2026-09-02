@@ -289,6 +289,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // color could not supply the paired --cricket-accent/-hover/-glow/-on
   // values, so an override desynced fills from their text/glow companions.
 
+  // Public, token-scoped pages render bare — no header, no team switcher, no
+  // hamburger. They are financial documents opened from a WhatsApp link by
+  // people who may have no account, and a signed-in viewer must see the same
+  // read-only page rather than the app wrapped around it.
+  if (pathname?.startsWith('/cricket/finances/settlement')) {
+    return <>{children}</>;
+  }
+
   return (
     <>
       <TopProgressBar />

@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
 import { nameToGradient } from '@/lib/avatar';
+import { SettlementShareButton } from './SettlementShareButton';
+import { computeSettlements, personalBalances } from '../lib/settlement';
 import { Text, ActionSheet, SegmentedControl, FilterDropdown, RefreshButton, Button, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import type { CardMenuItem } from '@/components/ui';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -244,9 +246,11 @@ function MobileActivityMenu({ people, allCount, personValue, onPerson, sort, onS
 
 /* ── Main Dashboard ── */
 
+type Debt = { id: string; name: string; photo: string | null; amount: number };
+
 export default function SplitsDashboard() {
   const { user } = useAuthStore();
-  const { players, selectedSeasonId, adminUserIds } = useCricketStore();
+  const { players, selectedSeasonId, adminUserIds, seasons } = useCricketStore();
   const { splits, shares, settlements, loading, loadSplits } = useSplitsStore();
   const { userAccess } = useAuthStore();
   const isGlobalAdmin = userAccess.includes('admin');
@@ -282,6 +286,13 @@ export default function SplitsDashboard() {
     return l ? `${l.primary}${l.secondary ? ` ${l.secondary}` : ''}` : fallback;
   };
 
+  // The link is minted for the season the admin is LOOKING at, so a report
+  // shared today keeps showing that season after the club rolls over.
+  const selectedSeasonName = useMemo(
+    () => seasons.find((s) => s.id === selectedSeasonId)?.name ?? 'this season',
+    [seasons, selectedSeasonId],
+  );
+
   const seasonSplits = useMemo(() => splits.filter((s) => s.season_id === selectedSeasonId), [splits, selectedSeasonId]);
   const seasonSettlements = useMemo(() => settlements.filter((s) => s.season_id === selectedSeasonId), [settlements, selectedSeasonId]);
 
@@ -311,53 +322,37 @@ export default function SplitsDashboard() {
     return map;
   }, [shares]);
 
-  // My personal debts
+  // My personal debts — a slice of the shared pairwise engine, never a second
+  // copy of the arithmetic. The public settlement report renders the whole
+  // ledger from the same function, so the two cannot drift apart.
   const { myDebtsIOwe, myDebtsOwedToMe } = useMemo(() => {
-    if (!myPlayer) return { myDebtsIOwe: [] as { id: string; name: string; photo: string | null; amount: number }[], myDebtsOwedToMe: [] as { id: string; name: string; photo: string | null; amount: number }[] };
+    const empty = { myDebtsIOwe: [] as Debt[], myDebtsOwedToMe: [] as Debt[] };
+    if (!myPlayer) return empty;
 
-    const perPerson: Record<string, number> = {};
+    const ledger = computeSettlements(activeSplits, shares, seasonSettlements);
+    const mine = personalBalances(ledger, myPlayer.id);
 
-    for (const s of activeSplits) {
-      const splitShareList = sharesMap.get(s.id) ?? [];
-      if (s.paid_by === myPlayer.id) {
-        for (const sh of splitShareList) {
-          if (sh.player_id !== myPlayer.id) {
-            perPerson[sh.player_id] = (perPerson[sh.player_id] ?? 0) + Number(sh.share_amount);
-          }
-        }
-      } else {
-        const myShareEntry = splitShareList.find((sh) => sh.player_id === myPlayer.id);
-        if (myShareEntry) {
-          perPerson[s.paid_by] = (perPerson[s.paid_by] ?? 0) - Number(myShareEntry.share_amount);
-        }
-      }
-    }
-
-    for (const st of seasonSettlements) {
-      if (st.from_player === myPlayer.id) {
-        perPerson[st.to_player] = (perPerson[st.to_player] ?? 0) + Number(st.amount);
-      } else if (st.to_player === myPlayer.id) {
-        perPerson[st.from_player] = (perPerson[st.from_player] ?? 0) - Number(st.amount);
-      }
-    }
-
-    const iOwe: { id: string; name: string; photo: string | null; amount: number }[] = [];
-    const owedToMe: { id: string; name: string; photo: string | null; amount: number }[] = [];
-
-    for (const [pid, net] of Object.entries(perPerson)) {
-      const rounded = Math.round(net * 100) / 100;
-      if (Math.abs(rounded) < 0.01) continue;
-      const p = activePlayers.find((pl) => pl.id === pid);
-      if (!p) continue;
-      if (rounded > 0) owedToMe.push({ id: pid, name: p.name, photo: p.photo_url ?? null, amount: rounded });
-      else iOwe.push({ id: pid, name: p.name, photo: p.photo_url ?? null, amount: Math.abs(rounded) });
-    }
+    // NOTE: this drops a debt owed to or by a DEACTIVATED player, because
+    // activePlayers excludes them. That is pre-existing behaviour, kept
+    // deliberately unchanged here — but it means a leaver's balance silently
+    // disappears from this screen while the public report (correctly) still
+    // shows it. Flagged rather than fixed inside a share feature.
+    const decorate = (rows: { id: string; amountCents: number }[]): Debt[] =>
+      rows
+        .map((r) => {
+          const p = activePlayers.find((pl) => pl.id === r.id);
+          return p
+            ? { id: r.id, name: p.name, photo: p.photo_url ?? null, amount: r.amountCents / 100 }
+            : null;
+        })
+        .filter((d): d is Debt => d !== null)
+        .sort((a, b) => b.amount - a.amount);
 
     return {
-      myDebtsIOwe: iOwe.sort((a, b) => b.amount - a.amount),
-      myDebtsOwedToMe: owedToMe.sort((a, b) => b.amount - a.amount),
+      myDebtsIOwe: decorate(mine.iOwe),
+      myDebtsOwedToMe: decorate(mine.owedToMe),
     };
-  }, [myPlayer, activeSplits, sharesMap, seasonSettlements, activePlayers]);
+  }, [myPlayer, activeSplits, shares, seasonSettlements, activePlayers]);
 
   // Activity feed
   const activityFeed = useMemo(() => {
@@ -493,16 +488,22 @@ export default function SplitsDashboard() {
           <Text as="p" size="xs" color="muted" className="mt-0.5">Track and manage your shared expenses</Text>
         </div>
         {isAdmin && (
-          <Button
-            onClick={() => useSplitsStore.setState({ showSplitForm: true })}
-            variant="primary"
-            brand="cricket"
-            size="md"
-            className="gap-1.5 flex-shrink-0"
-          >
-            <Plus size={16} />
-            Add Split
-          </Button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <SettlementShareButton
+              seasonId={selectedSeasonId}
+              seasonName={selectedSeasonName}
+            />
+            <Button
+              onClick={() => useSplitsStore.setState({ showSplitForm: true })}
+              variant="primary"
+              brand="cricket"
+              size="md"
+              className="gap-1.5 flex-shrink-0"
+            >
+              <Plus size={16} />
+              Add Split
+            </Button>
+          </div>
         )}
       </div>
 
