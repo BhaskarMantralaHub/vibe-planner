@@ -1048,8 +1048,12 @@ function UserMenu({ profile, onToggleAdmin, onToggleDisable, onManageFeatures }:
 }
 
 export default function AdminPage() {
+  // variant="cricket" — NOT the default 'toolkit'. This was the last route
+  // still rendering the retired blue "Viber's Toolkit" login, which is what
+  // you saw after signing out from here. One product, one login screen.
+  // Admins hold 'admin' in access, so the cricket gate lets them straight in.
   return (
-    <AuthGate>
+    <AuthGate variant="cricket">
       <AdminContent />
     </AuthGate>
   );
