@@ -66,7 +66,14 @@ auto-reactivates — the replayed invite goes back to `pending` for the admin.
 
 Signs up → `handle_new_user`: no roster match → `status = 'pending'` +
 join-request notifications to the team's active admins → confirms email (lands
-signed in) → sees the pending state. Admin approval surface is the header
+signed in) → sees the **live waiting screen** (`components/PendingApproval.tsx`).
+
+That screen KEEPS the session — a pending user is signed in but sees no team
+data, because every team-scoped RLS policy requires an ACTIVE membership. It
+polls their own `team_members` row every 15s (plus a "Check now" button):
+approval reloads them straight into the team, rejection says so plainly. The
+old behavior signed pending users OUT, which left them nothing to check and
+made retrying the login form the only way to discover a decision. Admin approval surface is the header
 queue, fed by `pending_members(team)` (SECURITY DEFINER — TEAM admins see
 their own queue, not just global admins):
 - **Approve** → `approve_team_member` RPC: THIS team only, idempotent
