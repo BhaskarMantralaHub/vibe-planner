@@ -60,6 +60,11 @@ export default function InviteHandler() {
       if (!data || data.error) {
         setError('This invite link is invalid or has expired.');
         clearPendingInvite();
+        // Drop the dead token from the address bar too — it otherwise
+        // persists across reloads and keeps re-triggering this error.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('join');
+        window.history.replaceState({}, '', url.pathname + url.search);
         return;
       }
 

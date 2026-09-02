@@ -19,59 +19,42 @@ interface InviteTeamInfo {
   team_id: string;
 }
 
-/* ── Request Access screen — shown when user is logged in but lacks access for this variant ── */
+/* ── Request Access screen — shown when user is logged in but lacks access for this variant ──
+ *
+ * The old version here performed FOUR client-side writes (its own profile
+ * access/approved, a cross-team cricket_players link, a welcome post) from an
+ * unguarded effect. Under RLS every one of those except the welcome post was
+ * a silent no-op for non-admins — success UI over writes that never happened.
+ * All of it is gone: the ONLY mutation is the server-authoritative
+ * request_cricket_access RPC, which acts on the caller alone and creates a
+ * pending team membership for the admin to approve. */
 function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   const { user, logout } = useAuthStore();
   const [requested, setRequested] = useState(false);
   const [requesting, setRequesting] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  // Auto-approve if user's email matches a pre-added player record
-  useEffect(() => {
-    if (!user?.email || variant !== 'cricket') { setChecking(false); return; }
-    const supabase = getSupabaseClient();
-    if (!supabase) { setChecking(false); return; }
-
-    (async () => {
-      // Check if email exists in cricket_players (same as auto-approve logic)
-      const { data: isPlayer } = await supabase.rpc('check_cricket_player_email', { check_email: user.email });
-      if (isPlayer) {
-        // Auto-approve: add cricket access, keep approved=true, link player record
-        const { userAccess, userFeatures } = useAuthStore.getState();
-        const newAccess = [...new Set([...userAccess, 'cricket'])];
-        const newFeatures = [...new Set([...userFeatures, 'cricket'])];
-        await supabase.from('profiles').update({ access: newAccess, approved: true, features: newFeatures }).eq('id', user.id);
-        // Link player record
-        await supabase.from('cricket_players')
-          .update({ user_id: user.id })
-          .ilike('email', user.email!.trim())
-          .eq('is_active', true);
-        // Update local state and reload
-        useAuthStore.setState({ userAccess: newAccess, userFeatures: newFeatures, userApproved: true });
-        // Create welcome post (only reached for genuinely new cricket users —
-        // the race condition guard in AuthGate prevents existing users from
-        // reaching RequestAccess while profile is still loading)
-        await supabase.rpc('create_welcome_post', {
-          new_user_id: user.id,
-          player_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player',
-        });
-        window.location.reload();
-        return;
-      }
-      setChecking(false);
-    })();
-  }, [user, variant]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [requestError, setRequestError] = useState('');
 
   const handleRequest = async () => {
-    if (!user) return;
+    if (!user || requesting) return;
     setRequesting(true);
+    setRequestError('');
     const supabase = getSupabaseClient();
     if (!supabase) { setRequesting(false); return; }
 
-    // Add the variant to user's access array and set approved=false for admin review
-    const { userAccess } = useAuthStore.getState();
-    const newAccess = [...new Set([...userAccess, variant])];
-    await supabase.from('profiles').update({ access: newAccess, approved: false }).eq('id', user.id);
+    if (variant === 'cricket') {
+      const { data, error } = await supabase.rpc('request_cricket_access');
+      if (error || (data !== 'ok' && data !== 'already_member')) {
+        setRequestError('Could not send the request. Please try again, or ask your team admin for an invite link.');
+        setRequesting(false);
+        return;
+      }
+      if (data === 'already_member') {
+        // Membership is active but the profile hint lagged — a reload lets
+        // the server state reassert.
+        window.location.reload();
+        return;
+      }
+    }
     setRequested(true);
     setRequesting(false);
   };
@@ -89,14 +72,6 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     accentColor: 'var(--toolkit)',
     gradient: 'from-[var(--toolkit)] to-[var(--toolkit-accent)]',
   };
-
-  if (checking) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--cricket)] border-t-transparent" />
-      </div>
-    );
-  }
 
   if (requested) {
     return (
@@ -125,6 +100,11 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
         <Text as="p" size="sm" color="dim" className="mb-6">
           Signed in as <Text weight="medium">{user?.email}</Text>
         </Text>
+        {requestError && (
+          <div className="mb-4 rounded-xl border border-[var(--red)]/30 bg-[var(--red)]/10 px-3 py-2.5">
+            <Text size="sm" color="danger">{requestError}</Text>
+          </div>
+        )}
         <button onClick={handleRequest} disabled={requesting}
           className={`w-full cursor-pointer rounded-xl bg-gradient-to-r ${config.gradient} px-4 py-3 text-[15px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed mb-3`}>
           {requesting ? 'Requesting...' : config.buttonText}
@@ -210,6 +190,11 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
 
   // Invite token branding — detect ?join= param and fetch team info
   const [inviteTeam, setInviteTeam] = useState<InviteTeamInfo | null>(null);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  // True when the typed email matches a pre-added roster player on the
+  // invite's team — the Player Info form is then hidden entirely: the admin
+  // already entered their details, and signup answers were being thrown away.
+  const [rosterMatched, setRosterMatched] = useState(false);
 
   useEffect(() => {
     if (variant !== 'cricket' || typeof window === 'undefined') return;
@@ -219,10 +204,31 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     if (!supabase) return;
     supabase.rpc('validate_invite_token', { p_token: joinToken })
       .then(({ data }: { data: InviteTeamInfo | null }) => {
-        if (data && !('error' in data)) setInviteTeam(data);
+        if (data && !('error' in data)) { setInviteTeam(data); setInviteToken(joinToken); }
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
+
+  // Roster probe — requires the invite token (the RPC answers ONLY for the
+  // token's team, so this is not an open email oracle). Debounced; a stale
+  // response is discarded.
+  useEffect(() => {
+    if (variant !== 'cricket' || authMode !== 'signup' || !inviteToken || !email.includes('@')) {
+      setRosterMatched(false);
+      return;
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      supabase.rpc('check_cricket_player_email', { check_email: email.trim(), p_invite_token: inviteToken })
+        .then(({ data }: { data: boolean | null }) => {
+          if (!cancelled) setRosterMatched(data === true);
+        });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, inviteToken, authMode, variant]);
 
   const handleRoleChange = (role: string) => {
     const newRole = playerRole === role ? '' : role;
@@ -301,7 +307,7 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
   // Message screens (check-email, reset-sent, pending-approval)
   if (authMode === 'check-email' || authMode === 'reset-sent' || authMode === 'pending-approval') {
     const config = {
-      'check-email': { icon: '✉️', title: 'Confirm Your Email', message: 'We sent a confirmation link. Click it, then come back and log in.' },
+      'check-email': { icon: '✉️', title: 'Confirm Your Email', message: 'We sent you a confirmation link. Click it and you\u0027ll be signed in automatically.' },
       'reset-sent': { icon: '🔑', title: 'Check Your Email', message: 'We sent a password reset link to your email. Click it to set a new password.' },
       'pending-approval': { icon: '⏳', title: 'Pending Approval', message: 'Your signup request has been sent to the team admin. You\u0027ll be able to log in once approved.' },
     }[authMode];
@@ -385,14 +391,16 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
     if (isLogin) {
       await login(email, password);
     } else {
-      const playerData = isCricketSignup ? {
+      // Roster-matched players send NO player fields — the roster record the
+      // admin filled in is the truth and gets linked server-side.
+      const playerData = isCricketSignup && !rosterMatched ? {
         jersey_number: jerseyNumber ? Number(jerseyNumber) : undefined,
         player_role: playerRole || undefined,
         batting_style: showBatting ? battingStyle || undefined : undefined,
         bowling_style: showBowling ? bowlingStyle || undefined : undefined,
         shirt_size: shirtSize || undefined,
       } : undefined;
-      await signup(email, password, name, v.access, playerData, inviteTeam?.team_slug);
+      await signup(email, password, name, v.access, playerData, inviteTeam?.team_slug, inviteToken ?? undefined);
     }
   }
 
@@ -554,8 +562,19 @@ export function AuthGate({ children, variant = 'toolkit' }: { children: React.Re
                 />
               </div>
 
-              {/* ── Cricket player fields (signup only) ── */}
-              {isCricketSignup && (
+              {/* ── Roster match — the admin already entered this player's
+                     details, so the form ends here for them. ── */}
+              {isCricketSignup && rosterMatched && (
+                <div className="mb-5 rounded-xl px-3 py-2.5 text-center"
+                  style={{ background: 'color-mix(in srgb, var(--green) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--green) 25%, transparent)' }}>
+                  <Text size="sm" weight="medium" style={{ color: 'var(--green)' }}>
+                    You&apos;re on the roster — your player details are already set.
+                  </Text>
+                </div>
+              )}
+
+              {/* ── Cricket player fields (signup only, unknown players only) ── */}
+              {isCricketSignup && !rosterMatched && (
                 <div className="mb-5 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                   <Text as="p" size="xs" weight="semibold" color="muted" uppercase tracking="wide">Player Info</Text>
 

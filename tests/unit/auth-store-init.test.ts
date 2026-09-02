@@ -49,7 +49,7 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 
 // ── Import store after mock is set up ──────────────────────────────────────
 
-import { useAuthStore } from '@/stores/auth-store';
+import { useAuthStore, __resetAuthInitGuardForTests } from '@/stores/auth-store';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -97,6 +97,8 @@ describe('Auth Store — init() and checkProfileAndSetUser', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     resetStore();
+    // init() is one-per-page-load in production; each test is its own "page".
+    __resetAuthInitGuardForTests();
     mockIsCloudMode = true;
     mockReturnSupabase = mockSupabase;
 

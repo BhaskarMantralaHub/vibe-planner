@@ -150,9 +150,7 @@ describe('Signup & Access Flows (Integration)', () => {
 
   describe('Flow 1: New player (admin pre-added) signs up on cricket', () => {
     it('sets authMode to check-email when signup succeeds', async () => {
-      // Player email exists in cricket_players (pre-added by admin)
       mockRpc.mockImplementation((fn: string) => {
-        if (fn === 'check_cricket_player_email') return Promise.resolve({ data: true, error: null });
         if (fn === 'get_user_count') return Promise.resolve({ data: 2, error: null });
         return Promise.resolve({ data: null, error: null });
       });
@@ -160,16 +158,22 @@ describe('Signup & Access Flows (Integration)', () => {
       mockSignupQueries();
       mockSignUp.mockResolvedValue({ data: { user: { id: 'new-1', email: 'newplayer@example.com' } }, error: null });
 
-      await useAuthStore.getState().signup('newplayer@example.com', VALID_PASSWORD, VALID_NAME, 'cricket');
+      await useAuthStore.getState().signup('newplayer@example.com', VALID_PASSWORD, VALID_NAME, 'cricket', undefined, 'sunrisers-manteca', 'tok-123');
 
       const state = useAuthStore.getState();
       expect(state.authMode).toBe('check-email');
       expect(state.syncing).toBe(false);
       expect(state.authError).toBe('');
       expect(mockSignUp).toHaveBeenCalledTimes(1);
-      // Verify auto-approve was true in metadata
       const signUpCall = mockSignUp.mock.calls[0][0];
-      expect(signUpCall.options.data.approved).toBe(true);
+      // `approved` must NOT ride in metadata — the DB trigger always computed
+      // it server-side; sending it only implied a trust that never existed.
+      expect(signUpCall.options.data.approved).toBeUndefined();
+      // The pre-signup roster probe (an anonymous email oracle) is gone.
+      expect(mockRpc).not.toHaveBeenCalledWith('check_cricket_player_email', expect.anything());
+      // Confirmation email returns signed-in, carrying flow=confirm + invite.
+      expect(signUpCall.options.emailRedirectTo).toContain('flow=confirm');
+      expect(signUpCall.options.emailRedirectTo).toContain('join=tok-123');
     });
 
     it('sends player metadata in signup options', async () => {
@@ -204,9 +208,8 @@ describe('Signup & Access Flows (Integration)', () => {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   describe('Flow 2: Player pre-added + already has toolkit account -> signup on cricket', () => {
-    it('shows "already on the team" error when player exists', async () => {
+    it('shows generic log-in guidance when the email already has an account', async () => {
       mockRpc.mockImplementation((fn: string) => {
-        if (fn === 'check_cricket_player_email') return Promise.resolve({ data: true, error: null });
         if (fn === 'get_user_count') return Promise.resolve({ data: 2, error: null });
         return Promise.resolve({ data: null, error: null });
       });
@@ -222,9 +225,13 @@ describe('Signup & Access Flows (Integration)', () => {
       await useAuthStore.getState().signup('existing@example.com', VALID_PASSWORD, VALID_NAME, 'cricket');
 
       const state = useAuthStore.getState();
-      expect(state.authError).toBe('You already have an account and are on the team. Please sign in instead.');
+      // Deliberately generic — no "and are on the team" (that string revealed
+      // both account existence AND roster membership, an enumeration leak).
+      expect(state.authError).toBe('You already have an account. Please log in instead — the invite will be applied after you sign in.');
       expect(state.syncing).toBe(false);
-      expect(state.authMode).toBe('login'); // stays on login
+      expect(state.authMode).toBe('login');
+      // No roster probe on the error path either.
+      expect(mockRpc).not.toHaveBeenCalledWith('check_cricket_player_email', expect.anything());
     });
   });
 
@@ -261,10 +268,8 @@ describe('Signup & Access Flows (Integration)', () => {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   describe('Flow 4: Toolkit user (not a player) -> signup on cricket', () => {
-    it('requests cricket access and sets pending-approval mode', async () => {
+    it('routes an existing account to log in — never fires request_cricket_access unauthenticated', async () => {
       mockRpc.mockImplementation((fn: string) => {
-        if (fn === 'check_cricket_player_email') return Promise.resolve({ data: false, error: null });
-        if (fn === 'request_cricket_access') return Promise.resolve({ data: null, error: null });
         if (fn === 'get_user_count') return Promise.resolve({ data: 3, error: null });
         return Promise.resolve({ data: null, error: null });
       });
@@ -280,12 +285,14 @@ describe('Signup & Access Flows (Integration)', () => {
       await useAuthStore.getState().signup('toolkituser@example.com', VALID_PASSWORD, VALID_NAME, 'cricket');
 
       const state = useAuthStore.getState();
-      expect(state.authMode).toBe('pending-approval');
+      // The old flow called request_cricket_access with an ARBITRARY email
+      // while unauthenticated — the anonymous-lockout RPC. It is gone: the
+      // user logs in, and the authenticated RequestAccess screen (or the
+      // pending invite) takes it from there.
+      expect(state.authMode).toBe('login');
       expect(state.syncing).toBe(false);
-      expect(state.authError).toBe('');
-
-      // Verify request_cricket_access was called
-      expect(mockRpc).toHaveBeenCalledWith('request_cricket_access', { check_email: 'toolkituser@example.com' });
+      expect(state.authError).toBe('You already have an account. Please log in instead — the invite will be applied after you sign in.');
+      expect(mockRpc).not.toHaveBeenCalledWith('request_cricket_access', expect.anything());
     });
   });
 
@@ -294,9 +301,8 @@ describe('Signup & Access Flows (Integration)', () => {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   describe('Flow 5: Random person signs up on cricket (new email, no player record)', () => {
-    it('sets authMode to check-email with approved=false in metadata', async () => {
+    it('sets authMode to check-email with NO approval hint in metadata', async () => {
       mockRpc.mockImplementation((fn: string) => {
-        if (fn === 'check_cricket_player_email') return Promise.resolve({ data: false, error: null });
         if (fn === 'get_user_count') return Promise.resolve({ data: 2, error: null });
         return Promise.resolve({ data: null, error: null });
       });
@@ -310,9 +316,10 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(state.authMode).toBe('check-email');
       expect(state.syncing).toBe(false);
 
-      // Verify approved=false since no player record
+      // Approval is decided ONLY server-side (handle_new_user) — the client
+      // sends no approved flag at all.
       const signUpCall = mockSignUp.mock.calls[0][0];
-      expect(signUpCall.options.data.approved).toBe(false);
+      expect(signUpCall.options.data.approved).toBeUndefined();
       expect(signUpCall.options.data.access).toBe('cricket');
     });
   });
@@ -415,7 +422,7 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(mockSignInWithPassword).not.toHaveBeenCalled();
     });
 
-    it('links cricket player record on login when user has cricket access', async () => {
+    it('performs NO client-side player linking on login', async () => {
       const mockUser = { id: 'player-1', email: 'player@example.com', user_metadata: {} };
 
       mockSignInWithPassword.mockResolvedValue({
@@ -423,17 +430,17 @@ describe('Signup & Access Flows (Integration)', () => {
         error: null,
       });
 
-      const cricketPlayersBuilder = createChainBuilder(null, null);
       mockFrom.mockImplementation((table: string) => {
         if (table === 'profiles') return createChainBuilder({ disabled: false, access: ['cricket'], approved: true }, null);
-        if (table === 'cricket_players') return cricketPlayersBuilder;
         return createChainBuilder(null, null);
       });
 
       await useAuthStore.getState().login('player@example.com', VALID_PASSWORD);
 
-      // Verify cricket_players update was attempted
-      expect(mockFrom).toHaveBeenCalledWith('cricket_players');
+      // The old "backup linking" UPDATE here was a silent RLS no-op for every
+      // non-admin. Linking is server-side only (handle_new_user, accept_invite,
+      // approve_team_member) — login must not touch cricket_players at all.
+      expect(mockFrom).not.toHaveBeenCalledWith('cricket_players');
     });
   });
 
@@ -625,7 +632,6 @@ describe('Signup & Access Flows (Integration)', () => {
 
     it('signup with all player metadata fields', async () => {
       mockRpc.mockImplementation((fn: string) => {
-        if (fn === 'check_cricket_player_email') return Promise.resolve({ data: true, error: null });
         if (fn === 'get_user_count') return Promise.resolve({ data: 1, error: null });
         return Promise.resolve({ data: null, error: null });
       });
@@ -643,7 +649,7 @@ describe('Signup & Access Flows (Integration)', () => {
       const signUpData = mockSignUp.mock.calls[0][0].options.data;
       expect(signUpData.full_name).toBe('Full Player');
       expect(signUpData.access).toBe('cricket');
-      expect(signUpData.approved).toBe(true);
+      expect(signUpData.approved).toBeUndefined();
       expect(signUpData.jersey_number).toBe(42);
       expect(signUpData.player_role).toBe('all-rounder');
       expect(signUpData.batting_style).toBe('left');
@@ -705,7 +711,8 @@ describe('Signup & Access Flows (Integration)', () => {
 
       const signUpData = mockSignUp.mock.calls[0][0].options.data;
       expect(signUpData.access).toBe('toolkit');
-      expect(signUpData.approved).toBe(true); // toolkit is always auto-approved
+      // Approval is server-computed; the metadata carries no approved flag.
+      expect(signUpData.approved).toBeUndefined();
       expect(useAuthStore.getState().authMode).toBe('check-email');
     });
 
@@ -787,7 +794,7 @@ describe('Signup & Access Flows (Integration)', () => {
       expect(useAuthStore.getState().hasAccess('admin')).toBe(true);
     });
 
-    it('"User already registered" on non-cricket signup shows sanitized error', async () => {
+    it('"User already registered" on non-cricket signup shows the same generic guidance', async () => {
       mockRpc.mockImplementation((fn: string) => {
         if (fn === 'get_user_count') return Promise.resolve({ data: 1, error: null });
         return Promise.resolve({ data: null, error: null });
@@ -799,12 +806,14 @@ describe('Signup & Access Flows (Integration)', () => {
         error: { message: 'User already registered' },
       });
 
-      // Toolkit signup (no access param) — "already registered" goes through sanitizeAuthError
+      // One branch for every "already registered", regardless of access —
+      // no variant-specific wording to differentiate account states.
       await useAuthStore.getState().signup('existing@example.com', VALID_PASSWORD, 'Existing User');
 
       expect(useAuthStore.getState().authError).toBe(
-        'An account with this email already exists. Try signing in instead.'
+        'You already have an account. Please log in instead — the invite will be applied after you sign in.'
       );
+      expect(useAuthStore.getState().authMode).toBe('login');
     });
   });
 });

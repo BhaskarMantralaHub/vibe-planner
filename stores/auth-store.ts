@@ -44,7 +44,7 @@ interface AuthState {
   init: () => void;
   updatePassword: (password: string) => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string, inviteToken?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   setAuthMode: (mode: AuthMode) => void;
@@ -84,6 +84,12 @@ const setNeedsReset = (value: boolean) => {
   return { needsPasswordReset: value };
 };
 
+// One-per-page-load guard for init() — see the comment inside init().
+let authInitDone = false;
+
+/** Test-only: clears the one-init-per-page guard so each test can run init(). */
+export const __resetAuthInitGuardForTests = () => { authInitDone = false; };
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
@@ -99,6 +105,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userApproved: true,
 
   init: () => {
+    // Exactly one initialization per page lifecycle. init() is mounted from
+    // both app/page.tsx and AuthGate, and each call used to register another
+    // onAuthStateChange listener (never unsubscribed) plus a duplicate
+    // getSession → profile fetch. The module-level flag survives client-side
+    // navigations and resets on a real page load, which is exactly the
+    // listener lifetime we want.
+    if (authInitDone) return;
+    authInitDone = true;
+
     const cloud = isCloudMode();
     set({ isCloud: cloud });
 
@@ -117,6 +132,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const tokenHash = params.get('token_hash');
     const type = params.get('type');
     const code = params.get('code');
+    // ?flow= disambiguates the two PKCE ?code= arrivals. Emails we send from
+    // now on carry it (signup → flow=confirm, reset → flow=recovery); a bare
+    // legacy ?code= keeps the old recovery treatment so reset links already
+    // in inboxes stay usable.
+    const flow = params.get('flow');
 
     const checkProfileAndSetUser = async (session: Session | null) => {
       if (!session?.user) {
@@ -210,7 +230,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (tokenHash && type === 'recovery') {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
         .then(({ error }: { error: Error | null }) => handleResetResult(error));
-    // Legacy PKCE code flow — fallback for old emails
+    // EMAIL CONFIRMATION (signup): establish the session and carry on — this
+    // must NEVER route into the password-reset form. ?join= is preserved so
+    // InviteHandler can finish the invitation right after the session lands;
+    // the confirmed player is signed in with no second login.
+    } else if (code && flow === 'confirm') {
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ error }: { error: Error | null }) => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('code');
+          url.searchParams.delete('flow');
+          window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : ''));
+          if (error) {
+            console.warn('[auth] email confirmation exchange failed:', error.message);
+            set({ authError: 'This confirmation link is invalid or has expired. Try logging in — your account may already be confirmed.' });
+          }
+          setupAuthListener();
+        });
+    // RECOVERY via PKCE — new reset emails carry flow=recovery; a bare legacy
+    // ?code= gets the same treatment so old reset links keep working.
     } else if (code) {
       supabase.auth.exchangeCodeForSession(code)
         .then(({ error }: { error: Error | null }) => handleResetResult(error));
@@ -296,21 +334,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Login activity tracked by checkProfileAndSetUser (called via onAuthStateChange)
 
-      // Link cricket player record to this user if they signed up with a pre-added email
-      if (data?.user?.email && access.includes('cricket')) {
-        supabase.from('cricket_players')
-          .update({ user_id: data.user.id })
-          .ilike('email', data.user.email.trim())
-          .eq('is_active', true)
-          .is('user_id', null)
-          .then(() => {});
-      }
+      // NOTE: the old "backup" cricket_players linking UPDATE that lived here
+      // was a silent no-op for every non-admin (the client cannot pass the
+      // cricket_players UPDATE RLS, and an unlinked row is invisible to the
+      // self-edit policy's USING). Real linking is server-side only:
+      // handle_new_user, accept_invite, approve_team_member — one authority.
     }
 
     set({ syncing: false });
   },
 
-  signup: async (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string) => {
+  signup: async (email: string, password: string, name: string, access?: string, playerData?: PlayerSignupData, teamSlug?: string, inviteToken?: string) => {
     set({ authError: '', syncing: true });
 
     // Check max users from app_settings (no auth needed)
@@ -361,21 +395,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const role = access || 'toolkit';
 
-    // Check if a cricket player record already exists with this email (admin pre-added)
-    let autoApprove = role !== 'cricket';
-    if (role === 'cricket') {
-      const { data: exists } = await supabase.rpc('check_cricket_player_email', { check_email: email.trim() });
-      if (exists) {
-        autoApprove = true; // Player was pre-added by admin — skip approval
-      }
-    }
-
+    // NOTE: no `approved` in the metadata — the DB trigger computes approval
+    // server-side and always ignored the client value; sending it only
+    // suggested a trust that never existed. Same for the pre-signup roster
+    // probe that used to run here: it fed that dead field and doubled as an
+    // anonymous roster-email oracle.
     const metadata: Record<string, unknown> = {
       full_name: name.trim(),
       access: role,
-      approved: autoApprove,
     };
-    // Include player data in metadata for cricket signups
+    // Include player data in metadata for cricket signups (used only when an
+    // admin approves an UNKNOWN signup and creates their roster record —
+    // pre-added players keep the roster data the admin already entered)
     if (playerData) {
       if (playerData.jersey_number != null) metadata.jersey_number = playerData.jersey_number;
       if (playerData.player_role) metadata.player_role = playerData.player_role;
@@ -385,26 +416,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     // Pass team context for invite-based signups
     if (teamSlug) metadata.team_slug = teamSlug;
+
+    // The confirmation email returns here with ?flow=confirm (+ the invite
+    // token, so InviteHandler can finish the join) — init() exchanges the
+    // code and the user lands SIGNED IN, no second login. The URL is our own
+    // origin/path, never a caller-supplied redirect.
+    const confirmUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?flow=confirm${inviteToken ? `&join=${inviteToken}` : ''}`
+      : undefined;
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata },
+      options: { data: metadata, emailRedirectTo: confirmUrl },
     });
 
     if (error) {
-      console.error('[auth] signup raw error:', error.message, error);
       const lower = error.message.toLowerCase();
 
-      // Handle "already registered" for cricket signup — check if player exists
-      if (lower.includes('user already registered') && access === 'cricket') {
-        const { data: isPlayer } = await supabase.rpc('check_cricket_player_email', { check_email: email });
-        if (isPlayer) {
-          set({ authError: 'You already have an account and are on the team. Please sign in instead.', syncing: false });
-        } else {
-          // No player record — auto-request cricket access for admin approval
-          await supabase.rpc('request_cricket_access', { check_email: email });
-          set({ syncing: false, authMode: 'pending-approval' });
-        }
+      if (lower.includes('user already registered')) {
+        // Deliberately generic — no roster/team detail (enumeration surface).
+        // An existing user joins the team by logging in; InviteHandler picks
+        // the pending invite up after login.
+        set({ authError: 'You already have an account. Please log in instead — the invite will be applied after you sign in.', syncing: false, authMode: 'login' });
         return;
       }
 
@@ -429,8 +463,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    // Return to the page the user reset FROM (a cricket-only user must not
+    // land on the toolkit route), tagged flow=recovery so init() routes the
+    // ?code= into the reset form — and never confuses it with a signup
+    // confirmation. Own origin/path only; never a caller-supplied URL.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/vibe-planner/` : undefined,
+      redirectTo: typeof window !== 'undefined'
+        ? `${window.location.origin}${window.location.pathname}?flow=recovery`
+        : undefined,
     });
 
     if (error) {
@@ -447,6 +487,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut();
     localStorage.removeItem('vibe_current_team');
+    // A pending invite saved before login belongs to THIS person's session —
+    // it must never survive into whoever logs in next on this tab.
+    sessionStorage.removeItem('vibe_pending_invite');
     set({ user: null, authMode: 'login', authError: '', ...setNeedsReset(false), userAccess: [], userFeatures: [], userApproved: true, userTeams: [], currentTeamId: null });
   },
 
