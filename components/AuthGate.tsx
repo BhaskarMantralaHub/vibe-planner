@@ -88,7 +88,12 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-          <div className="mb-4 text-4xl">✅</div>
+          {variant === 'cricket' ? (
+            <img src="/cricket-logo.png" alt="" aria-hidden
+              className="mx-auto mb-4 h-14 w-14 rounded-xl object-cover" />
+          ) : (
+            <div className="mb-4 text-4xl">✅</div>
+          )}
           <Text as="h2" size="xl" weight="semibold" className="mb-2">Request Sent</Text>
           <Text as="p" size="md" color="muted" className="mb-6 text-[15px]">
             The team admin will review your request. You&apos;ll be able to access once approved.
@@ -105,7 +110,14 @@ function RequestAccess({ variant }: { variant: AuthGateVariant }) {
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-        <div className="mb-4 text-4xl">🏏</div>
+        {/* Team logo, not a stock bat-and-ball emoji — this card is the first
+            thing a joining teammate sees, so it should look like the club. */}
+        {variant === 'cricket' ? (
+          <img src="/cricket-logo.png" alt="" aria-hidden
+            className="mx-auto mb-4 h-14 w-14 rounded-xl object-cover" />
+        ) : (
+          <div className="mb-4 text-4xl">🔑</div>
+        )}
         <Text as="h2" size="xl" weight="semibold" className="mb-2">{config.title}</Text>
         <Text as="p" size="md" color="muted" className="mb-2 text-[15px]">{config.subtitle}</Text>
         <Text as="p" size="sm" color="dim" className="mb-6">

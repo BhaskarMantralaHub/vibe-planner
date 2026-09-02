@@ -72,7 +72,11 @@ export function PendingApproval() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
-        <div className="mb-4 text-4xl">{declined ? '🚫' : '⏳'}</div>
+        {/* Team logo — the state lives in the heading, not in an emoji.
+            Dimmed when declined so the card reads as closed at a glance. */}
+        <img src="/cricket-logo.png" alt="" aria-hidden
+          className="mx-auto mb-4 h-14 w-14 rounded-xl object-cover"
+          style={{ opacity: declined ? 0.45 : 1 }} />
         <Text as="h2" size="xl" weight="semibold" className="mb-2">
           {declined ? 'Request declined' : 'Waiting for approval'}
         </Text>
