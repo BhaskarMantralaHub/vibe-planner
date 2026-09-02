@@ -135,7 +135,10 @@ BEGIN
       ) ORDER BY tm.joined_at ASC), '[]'::json)
       FROM team_members tm
       JOIN auth.users au ON au.id = tm.user_id
-      WHERE tm.team_id = v_team_id AND tm.approved = false
+      -- status = 'pending', NOT approved = false: rejected/removed members
+      -- also mirror approved=false and must never reappear in the queue.
+      -- (Requires docs/membership-status-migration.sql to have run first.)
+      WHERE tm.team_id = v_team_id AND tm.status = 'pending'
     ) ELSE '[]'::json END
   ) INTO result;
 

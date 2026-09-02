@@ -6,6 +6,19 @@
 -- Team admins (owner/admin role in team_members) can manage data.
 -- Global admins (profiles.access @> '{admin}') can access all teams.
 -- Pool Fund model: fees + sponsorships - expenses = balance
+--
+-- ⚠ AUTH HARDENING (2026-09-01): the auth/membership surface in THIS file is
+-- SUPERSEDED by two later migrations — read those, not the versions below:
+--   docs/auth-hardening-migration.sql    (reject_user, handle_new_user,
+--     request_cricket_access, check_cricket_player_email, team_members/
+--     cricket_teams/profiles policies, player self-edit trigger)
+--   docs/membership-status-migration.sql (team_members.status model,
+--     user_team_ids/is_team_admin/is_team_member on status='active',
+--     activate_team_membership, post_welcome_message, accept_invite,
+--     approve/reject_team_member, create_team, has_cricket_access,
+--     pending_members; create_welcome_post is DROPPED)
+-- Verified by docs/auth-hardening-verification.sql. Audit context in
+-- docs/AUTH_ACCESS_AUDIT.md.
 
 -- ── Teams ───────────────────────────────────────────────────
 
