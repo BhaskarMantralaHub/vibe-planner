@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
 import { nameToGradient } from '@/lib/avatar';
-import { SettlementShareButton } from './SettlementShareButton';
 import { computeSettlements, personalBalances } from '../lib/settlement';
 import { Text, ActionSheet, SegmentedControl, FilterDropdown, RefreshButton, Button, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import type { CardMenuItem } from '@/components/ui';
@@ -487,23 +486,19 @@ export default function SplitsDashboard() {
           <Text as="h2" size="md" weight="bold" className="leading-tight sm:text-[16px]">Splits</Text>
           <Text as="p" size="xs" color="muted" className="mt-0.5">Track and manage your shared expenses</Text>
         </div>
+        {/* Sharing this report lives on the page's orange FAB, not here —
+            one share button per screen. See page.tsx's splits branch. */}
         {isAdmin && (
-          <div className="flex flex-shrink-0 items-center gap-2">
-            <SettlementShareButton
-              seasonId={selectedSeasonId}
-              seasonName={selectedSeasonName}
-            />
-            <Button
-              onClick={() => useSplitsStore.setState({ showSplitForm: true })}
-              variant="primary"
-              brand="cricket"
-              size="md"
-              className="gap-1.5 flex-shrink-0"
-            >
-              <Plus size={16} />
-              Add Split
-            </Button>
-          </div>
+          <Button
+            onClick={() => useSplitsStore.setState({ showSplitForm: true })}
+            variant="primary"
+            brand="cricket"
+            size="md"
+            className="gap-1.5 flex-shrink-0"
+          >
+            <Plus size={16} />
+            Add Split
+          </Button>
         )}
       </div>
 

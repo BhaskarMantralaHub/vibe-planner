@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import { Share2, Copy, Check, RefreshCw, Ban, Link2 } from 'lucide-react';
+import CricketFab from './CricketFab';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   Button, Text, Dialog, DialogContent, DialogTitle, DialogDescription,
@@ -38,9 +39,17 @@ function daysLeft(expiresAt: string): number {
 export function SettlementShareButton({
   seasonId,
   seasonName,
+  trigger = 'button',
 }: {
   seasonId: string | null;
   seasonName: string;
+  /**
+   * 'fab' renders the page's single orange floating button. On the Splits
+   * view that FAB shares THIS report rather than the season/pool report —
+   * two share buttons on one screen made the reader pick, and the pool
+   * summary is not what you are looking at on Splits anyway.
+   */
+  trigger?: 'button' | 'fab';
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -124,16 +133,22 @@ export function SettlementShareButton({
 
   return (
     <>
-      <Button
-        onClick={openSheet}
-        variant="secondary"
-        size="md"
-        className="gap-1.5 flex-shrink-0"
-        aria-label="Share settlement report"
-      >
-        <Share2 size={16} />
-        <span className="hidden sm:inline">Share</span>
-      </Button>
+      {trigger === 'fab' ? (
+        <CricketFab onClick={openSheet} label="Share settlement report">
+          <Share2 size={24} strokeWidth={2.25} />
+        </CricketFab>
+      ) : (
+        <Button
+          onClick={openSheet}
+          variant="secondary"
+          size="md"
+          className="gap-1.5 flex-shrink-0"
+          aria-label="Share settlement report"
+        >
+          <Share2 size={16} />
+          <span className="hidden sm:inline">Share</span>
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setConfirmRefresh(false); }}>
         <DialogContent className="max-w-sm">

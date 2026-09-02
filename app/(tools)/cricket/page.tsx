@@ -25,6 +25,7 @@ import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
 import ShareFab from './components/ShareFab';
+import { SettlementShareButton } from './components/SettlementShareButton';
 import FeeTracker from './components/FeeTracker';
 import SponsorshipSection from './components/SponsorshipSection';
 import SplitsDashboard from './components/SplitsDashboard';
@@ -662,8 +663,23 @@ function CricketDashboard() {
           {/* Share — extracted from the pill into a standalone FAB. Hidden on
               the Fees view only: that screen already carries its meaningful
               share ("Post a fees reminder to the group"), and a floating
-              button over a payment list can obscure amounts and Mark paid. */}
-          {activeView !== 'fees' && <ShareFab />}
+              button over a payment list can obscure amounts and Mark paid.
+
+              On Splits the FAB shares the SETTLEMENT report instead of the
+              season/pool report. Two share buttons on one screen forced the
+              reader to work out which was which, and the pool summary is not
+              what Splits is about — money between people, not the team fund. */}
+          {activeView === 'splits' ? (
+            isAdmin && (
+              <SettlementShareButton
+                trigger="fab"
+                seasonId={selectedSeasonId}
+                seasonName={seasons.find((s) => s.id === selectedSeasonId)?.name ?? 'this season'}
+              />
+            )
+          ) : activeView !== 'fees' ? (
+            <ShareFab />
+          ) : null}
 
           {/* Segmented control for Finances, which is the only tab with
               sub-views now. Players is a single view (Roster) — a one-option
