@@ -56,6 +56,7 @@ export function SettlementShareButton({
   const [share, setShare] = useState<Share | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const openSheet = async () => {
@@ -97,6 +98,7 @@ export function SettlementShareButton({
     if (!supabase) { setBusy(false); return; }
     const { data, error } = await supabase.rpc('revoke_settlement_share', { p_season_id: seasonId });
     setBusy(false);
+    setConfirmRevoke(false);
     if (error || !data?.success) { toast.error("Couldn't revoke the link"); return; }
     setShare(null);
     toast.success('Link revoked. It no longer opens.');
@@ -150,10 +152,39 @@ export function SettlementShareButton({
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setConfirmRefresh(false); }}>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) { setConfirmRefresh(false); setConfirmRevoke(false); }
+        }}
+      >
         <DialogContent className="max-w-sm">
-          {/* ── Rotate confirmation, deliberately a separate screen ──── */}
-          {confirmRefresh ? (
+          {/* ── Stop sharing confirmation. Revoke used to fire on the first
+                 tap while Refresh asked — backwards, since Revoke is the one
+                 that leaves people holding a dead link and no replacement. ── */}
+          {confirmRevoke ? (
+            <>
+              <DialogTitle className="text-[16px]">Stop sharing this report?</DialogTitle>
+              <DialogDescription className="mt-1 text-[13px] leading-relaxed">
+                The link stops working straight away and is not replaced. Anyone
+                you sent it to will see &ldquo;Share Link Unavailable&rdquo;. No
+                expenses, settlements or balances are changed.
+              </DialogDescription>
+              <div className="mt-4 flex gap-2">
+                <Button variant="secondary" size="md" className="flex-1"
+                  onClick={() => setConfirmRevoke(false)} disabled={busy}>
+                  Cancel
+                </Button>
+                <Button variant="primary" size="md" className="flex-1"
+                  onClick={revoke} disabled={busy}
+                  style={{ background: 'var(--red, #dc2626)', color: '#fff' }}>
+                  {busy ? 'Revoking…' : 'Revoke link'}
+                </Button>
+              </div>
+            </>
+          ) : /* ── Rotate confirmation, deliberately a separate screen ──── */
+          confirmRefresh ? (
             <>
               <DialogTitle className="text-[16px]">Refresh settlement link?</DialogTitle>
               <DialogDescription className="mt-1 text-[13px]">
@@ -226,19 +257,25 @@ export function SettlementShareButton({
                 </Button>
               </div>
 
-              <div className="mt-2 flex gap-2">
+              <div className="mt-3 flex gap-2 border-t border-[var(--border)]/50 pt-3">
                 <Button variant="ghost" size="sm" className="flex-1 gap-1.5"
                   onClick={() => setConfirmRefresh(true)} disabled={busy}>
                   <RefreshCw size={13} />
                   Refresh link
                 </Button>
                 <Button variant="ghost" size="sm" className="flex-1 gap-1.5"
-                  onClick={revoke} disabled={busy}
+                  onClick={() => setConfirmRevoke(true)} disabled={busy}
                   style={{ color: 'var(--red, #dc2626)' }}>
                   <Ban size={13} />
                   Revoke
                 </Button>
               </div>
+              {/* Both stop the current link. The only difference is whether
+                  anything replaces it, and nothing on the buttons said so. */}
+              <Text as="p" size="2xs" color="dim" className="mt-1.5 leading-relaxed">
+                Both stop the current link. <b>Refresh</b> replaces it with a new
+                one; <b>Revoke</b> does not.
+              </Text>
             </>
           )}
         </DialogContent>

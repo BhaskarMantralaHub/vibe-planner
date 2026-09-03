@@ -142,7 +142,6 @@ export default function PublicSettlementReportPage() {
   }, []);
 
   useEffect(() => {
-    document.title = 'Team Settlement Report';
     // Nothing may hang: if the first load stalls, fall to the generic screen.
     const timer = setTimeout(() => {
       setState((cur) => (cur === 'loading' ? 'unavailable' : cur));
