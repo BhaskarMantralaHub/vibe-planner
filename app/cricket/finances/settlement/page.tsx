@@ -30,7 +30,14 @@ type ReasonLine = {
 type SettlementRow = { from: string; to: string; amountCents: number; why: ReasonLine[] };
 type SettledRow = SettlementRow & { date: string };
 
-type ExpenseRow = { label: string; date: string; amountCents: number; paidBy: string };
+type ShareLine = { name: string; amountCents: number };
+type ExpenseRow = {
+  label: string;
+  date: string;
+  amountCents: number;
+  paidBy: string;
+  shares: ShareLine[];
+};
 
 type Report = {
   teamName: string | null;
@@ -101,6 +108,7 @@ export default function PublicSettlementReportPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showLedger, setShowLedger] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [openExpense, setOpenExpense] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
@@ -614,22 +622,71 @@ export default function PublicSettlementReportPage() {
                 className="mt-2 overflow-hidden rounded-2xl"
                 style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
               >
-                {report.expenses.map((e, i) => (
-                  <li
-                    key={`${e.label}-${e.date}-${i}`}
-                    className="flex items-center gap-3 border-b border-[var(--border)]/40 px-4 py-3 last:border-b-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] text-[var(--text)]">{e.label}</p>
-                      <p className="text-[12px] text-[var(--muted)]">
-                        {labelFor(e.paidBy)} paid · {fmtDay(e.date)}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--text)]">
-                      {formatCents(e.amountCents)}
-                    </span>
-                  </li>
-                ))}
+                {report.expenses.map((e, i) => {
+                  const key = `${e.label}-${e.date}-${i}`;
+                  const open = openExpense.has(key);
+                  return (
+                    <li key={key} className="border-b border-[var(--border)]/40 last:border-b-0">
+                      <button
+                        onClick={() =>
+                          setOpenExpense((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          })
+                        }
+                        aria-expanded={open}
+                        className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[14px] text-[var(--text)]">{e.label}</p>
+                          <p className="text-[12px] text-[var(--muted)]">
+                            {e.paidBy} paid · {fmtDay(e.date)}
+                            {e.shares.length > 0 && (
+                              <> · split {e.shares.length} {e.shares.length === 1 ? 'way' : 'ways'}</>
+                            )}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--text)]">
+                          {formatCents(e.amountCents)}
+                        </span>
+                        {e.shares.length > 0 && (
+                          <ChevronDown
+                            size={14}
+                            className="shrink-0 text-[var(--muted)] transition-transform"
+                            style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                            aria-hidden
+                          />
+                        )}
+                      </button>
+
+                      {/* Who was actually in it, and for how much. */}
+                      {open && e.shares.length > 0 && (
+                        <div className="px-4 pb-3">
+                          <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
+                            {e.shares.map((sh, j) => (
+                              <li
+                                key={`${sh.name}-${j}`}
+                                className="flex items-baseline justify-between gap-3 py-1"
+                              >
+                                <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
+                                  {sh.name}
+                                  {sh.name === e.paidBy && (
+                                    <span className="ml-1.5 text-[11px] text-[var(--muted)]">paid</span>
+                                  )}
+                                </span>
+                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">
+                                  {formatCents(sh.amountCents)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

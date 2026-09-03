@@ -406,7 +406,18 @@ BEGIN
       s.split_date,
       ROUND(s.amount * 100)::BIGINT AS amount_cents,
       p.name AS paid_by,
-      s.id
+      s.id,
+      -- Who was actually in it. Without this the ledger says an $88 biryani
+      -- happened but not whether the reader was one of the people eating it,
+      -- which is the only thing they want to know.
+      COALESCE((
+        SELECT json_agg(json_build_object('name', sp.name, 'amountCents',
+                                          ROUND(x.share_amount * 100)::BIGINT)
+                        ORDER BY x.share_amount DESC, sp.name)
+        FROM public.cricket_split_shares x
+        JOIN public.cricket_players sp ON sp.id = x.player_id
+        WHERE x.split_id = s.id
+      ), '[]'::json) AS shares
     FROM public.cricket_splits s
     JOIN public.cricket_players p ON p.id = s.paid_by
     WHERE s.team_id = v_team
@@ -477,6 +488,7 @@ BEGIN
       COALESCE((SELECT json_agg(json_build_object(
         'label', label, 'date', split_date,
         'amountCents', amount_cents, 'paidBy', paid_by
+        , 'shares', shares
       ) ORDER BY split_date DESC, id) FROM expenses_out), '[]'::json),
     'settled',
       COALESCE((SELECT json_agg(json_build_object(
