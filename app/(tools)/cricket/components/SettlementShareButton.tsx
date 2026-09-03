@@ -10,10 +10,15 @@
  * One live link per team+season, enforced in the database by a partial unique
  * index. "Refresh" rotates: the old link stops working the moment the new one
  * exists, which is why it asks first.
+ *
+ * There is no Revoke control, by choice — Refresh already kills the outgoing
+ * link, and a second red button next to it mostly invited a misclick. The
+ * server-side revoke_settlement_share RPC is still there and still tested, so
+ * a link can be killed outright without a redeploy if that is ever wanted.
  */
 
 import { useState } from 'react';
-import { Share2, Copy, Check, RefreshCw, Ban, Link2 } from 'lucide-react';
+import { Share2, Copy, Check, RefreshCw, Link2 } from 'lucide-react';
 import CricketFab from './CricketFab';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
@@ -56,7 +61,6 @@ export function SettlementShareButton({
   const [share, setShare] = useState<Share | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
-  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const openSheet = async () => {
@@ -89,19 +93,6 @@ export function SettlementShareButton({
       created_by_name: null,
     });
     toast.success('Settlement report link ready');
-  };
-
-  const revoke = async () => {
-    if (!seasonId) return;
-    setBusy(true);
-    const supabase = getSupabaseClient();
-    if (!supabase) { setBusy(false); return; }
-    const { data, error } = await supabase.rpc('revoke_settlement_share', { p_season_id: seasonId });
-    setBusy(false);
-    setConfirmRevoke(false);
-    if (error || !data?.success) { toast.error("Couldn't revoke the link"); return; }
-    setShare(null);
-    toast.success('Link revoked. It no longer opens.');
   };
 
   const doShare = async () => {
@@ -156,35 +147,12 @@ export function SettlementShareButton({
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          if (!o) { setConfirmRefresh(false); setConfirmRevoke(false); }
+          if (!o) setConfirmRefresh(false);
         }}
       >
         <DialogContent className="max-w-sm">
-          {/* ── Stop sharing confirmation. Revoke used to fire on the first
-                 tap while Refresh asked — backwards, since Revoke is the one
-                 that leaves people holding a dead link and no replacement. ── */}
-          {confirmRevoke ? (
-            <>
-              <DialogTitle className="text-[16px]">Stop sharing this report?</DialogTitle>
-              <DialogDescription className="mt-1 text-[13px] leading-relaxed">
-                The link stops working straight away and is not replaced. Anyone
-                you sent it to will see &ldquo;Share Link Unavailable&rdquo;. No
-                expenses, settlements or balances are changed.
-              </DialogDescription>
-              <div className="mt-4 flex gap-2">
-                <Button variant="secondary" size="md" className="flex-1"
-                  onClick={() => setConfirmRevoke(false)} disabled={busy}>
-                  Cancel
-                </Button>
-                <Button variant="primary" size="md" className="flex-1"
-                  onClick={revoke} disabled={busy}
-                  style={{ background: 'var(--red, #dc2626)', color: '#fff' }}>
-                  {busy ? 'Revoking…' : 'Revoke link'}
-                </Button>
-              </div>
-            </>
-          ) : /* ── Rotate confirmation, deliberately a separate screen ──── */
-          confirmRefresh ? (
+          {/* ── Rotate confirmation, deliberately a separate screen ──── */}
+          {confirmRefresh ? (
             <>
               <DialogTitle className="text-[16px]">Refresh settlement link?</DialogTitle>
               <DialogDescription className="mt-1 text-[13px]">
@@ -257,24 +225,15 @@ export function SettlementShareButton({
                 </Button>
               </div>
 
-              <div className="mt-3 flex gap-2 border-t border-[var(--border)]/50 pt-3">
-                <Button variant="ghost" size="sm" className="flex-1 gap-1.5"
+              <div className="mt-3 border-t border-[var(--border)]/50 pt-3">
+                <Button variant="ghost" size="sm" className="w-full gap-1.5"
                   onClick={() => setConfirmRefresh(true)} disabled={busy}>
                   <RefreshCw size={13} />
                   Refresh link
                 </Button>
-                <Button variant="ghost" size="sm" className="flex-1 gap-1.5"
-                  onClick={() => setConfirmRevoke(true)} disabled={busy}
-                  style={{ color: 'var(--red, #dc2626)' }}>
-                  <Ban size={13} />
-                  Revoke
-                </Button>
               </div>
-              {/* Both stop the current link. The only difference is whether
-                  anything replaces it, and nothing on the buttons said so. */}
               <Text as="p" size="2xs" color="dim" className="mt-1.5 leading-relaxed">
-                Both stop the current link. <b>Refresh</b> replaces it with a new
-                one; <b>Revoke</b> does not.
+                Refreshing stops the current link and issues a new one.
               </Text>
             </>
           )}
