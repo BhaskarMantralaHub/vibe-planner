@@ -324,6 +324,39 @@ BEGIN
     FROM public.cricket_split_settlements st
     WHERE st.team_id = v_team AND st.season_id = v_season
   ),
+  -- Every line that explains a pair: one per share, one per settlement. A
+  -- number with no invoice behind it reads as a demand, so the report has to
+  -- be able to answer "why do I owe this?" without anyone opening the app.
+  reason_lines AS (
+    SELECT
+      LEAST(x.player_id, s.paid_by)    AS pa,
+      GREATEST(x.player_id, s.paid_by) AS pb,
+      x.player_id                      AS ower,
+      COALESCE(NULLIF(btrim(s.description), ''), s.category) AS label,
+      s.split_date                     AS on_date,
+      ROUND(x.share_amount * 100)::BIGINT AS cents,
+      'share'::TEXT                    AS kind
+    FROM public.cricket_splits s
+    JOIN public.cricket_split_shares x ON x.split_id = s.id
+    WHERE s.team_id = v_team
+      AND s.season_id = v_season
+      AND s.deleted_at IS NULL
+      AND x.player_id <> s.paid_by
+    UNION ALL
+    -- A settlement is the debt running the other way, which is exactly how it
+    -- cancels. Recording it as a line keeps "less what you already paid"
+    -- visible instead of silently shrinking the total.
+    SELECT
+      LEAST(st.from_player, st.to_player),
+      GREATEST(st.from_player, st.to_player),
+      st.to_player,
+      'Already paid',
+      st.settled_date,
+      ROUND(st.amount * 100)::BIGINT,
+      'settled'
+    FROM public.cricket_split_settlements st
+    WHERE st.team_id = v_team AND st.season_id = v_season
+  ),
   -- Collapse both directions of each pair onto one row; the sign says who owes.
   normalised AS (
     SELECT
@@ -365,6 +398,23 @@ BEGIN
     -- so it is applied inside the aggregate below, which is the only place
     -- Postgres guarantees it.
   ),
+  -- The season's shared expenses, for the "all transactions" view. Names and
+  -- totals only — no ids, no receipts, no shares.
+  expenses_out AS (
+    SELECT
+      COALESCE(NULLIF(btrim(s.description), ''), s.category) AS label,
+      s.split_date,
+      ROUND(s.amount * 100)::BIGINT AS amount_cents,
+      p.name AS paid_by,
+      s.id
+    FROM public.cricket_splits s
+    JOIN public.cricket_players p ON p.id = s.paid_by
+    WHERE s.team_id = v_team
+      AND s.season_id = v_season
+      AND s.deleted_at IS NULL
+    ORDER BY s.split_date DESC, s.id
+    LIMIT 60
+  ),
   settled_out AS (
     SELECT
       ROUND(st.amount * 100)::BIGINT AS amount_cents,
@@ -386,6 +436,10 @@ BEGIN
   SELECT json_build_object(
     'teamName',   (SELECT t.name FROM public.cricket_teams t WHERE t.id = v_team),
     'teamLogo',   (SELECT t.logo_url FROM public.cricket_teams t WHERE t.id = v_team),
+    -- The slug, not the name, so the page can apply the same logo fallback
+    -- TeamSwitcher already uses. Matching on a display name is the brittle
+    -- thing this codebase keeps getting bitten by.
+    'teamSlug',   (SELECT t.slug FROM public.cricket_teams t WHERE t.id = v_team),
     'seasonName', (SELECT s.name FROM public.cricket_seasons s WHERE s.id = v_season),
     'updatedAt',  now(),
     'totalOutstandingCents',
@@ -402,8 +456,28 @@ BEGIN
        ) q),
     'settlements',
       COALESCE((SELECT json_agg(json_build_object(
-        'from', from_name, 'to', to_name, 'amountCents', amount_cents
-      ) ORDER BY amount_cents DESC, from_id) FROM rows_out), '[]'::json),
+        'from', from_name, 'to', to_name, 'amountCents', amount_cents,
+        -- Signed against THIS row's direction: a positive line is something
+        -- the payer owes, a negative one is credit against it. They sum to
+        -- amountCents exactly, which the verification harness asserts.
+        'why', COALESCE((
+          SELECT json_agg(json_build_object(
+            'label', rl.label,
+            'date', rl.on_date,
+            'kind', rl.kind,
+            'amountCents', CASE WHEN rl.ower = r.from_id THEN rl.cents ELSE -rl.cents END
+          ) ORDER BY CASE WHEN rl.ower = r.from_id THEN rl.cents ELSE -rl.cents END DESC,
+                     rl.on_date DESC)
+          FROM reason_lines rl
+          WHERE rl.pa = LEAST(r.from_id, r.to_id)
+            AND rl.pb = GREATEST(r.from_id, r.to_id)
+        ), '[]'::json)
+      ) ORDER BY amount_cents DESC, from_id) FROM rows_out r), '[]'::json),
+    'expenses',
+      COALESCE((SELECT json_agg(json_build_object(
+        'label', label, 'date', split_date,
+        'amountCents', amount_cents, 'paidBy', paid_by
+      ) ORDER BY split_date DESC, id) FROM expenses_out), '[]'::json),
     'settled',
       COALESCE((SELECT json_agg(json_build_object(
         'from', from_name, 'to', to_name,

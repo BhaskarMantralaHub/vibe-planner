@@ -14,19 +14,28 @@
  * link from a guessed one, and must never be left on a spinner.
  */
 
-import { useEffect, useState, useMemo } from 'react';
-import { Share2, Copy, ArrowRight, ArrowDown, Check } from 'lucide-react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Share2, Copy, ArrowRight, Check, ChevronDown, Search, RefreshCw } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { playerLabels } from '@/app/(tools)/cricket/lib/player-labels';
 import { formatCents } from '@/app/(tools)/cricket/lib/settlement';
 import { toast } from 'sonner';
 
-type SettlementRow = { from: string; to: string; amountCents: number };
+type ReasonLine = {
+  label: string;
+  date: string | null;
+  kind: 'share' | 'settled';
+  /** Signed against the row: positive adds to the debt, negative is credit. */
+  amountCents: number;
+};
+type SettlementRow = { from: string; to: string; amountCents: number; why: ReasonLine[] };
 type SettledRow = SettlementRow & { date: string };
+
+type ExpenseRow = { label: string; date: string; amountCents: number; paidBy: string };
 
 type Report = {
   teamName: string | null;
   teamLogo: string | null;
+  teamSlug: string | null;
   seasonName: string | null;
   updatedAt: string;
   totalOutstandingCents: number;
@@ -34,6 +43,7 @@ type Report = {
   membersInvolved: number;
   settlements: SettlementRow[];
   settled: SettledRow[];
+  expenses: ExpenseRow[];
 };
 
 /** Nothing gets to hang. If the network stalls, show the generic screen. */
@@ -87,56 +97,142 @@ export default function PublicSettlementReportPage() {
   // prerendered for the static export, and reading it during render would
   // also desync hydration.
   const [canShare, setCanShare] = useState(false);
+  const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showLedger, setShowLedger] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
   }, []);
 
-  useEffect(() => {
-    document.title = 'Team Settlement Report';
-    let done = false;
-
-    const fail = () => { if (!done) { done = true; setState('unavailable'); } };
-    const timer = setTimeout(fail, LOAD_TIMEOUT_MS);
-
-    (async () => {
-      try {
-        const token = tokenFromUrl();
-        if (!token) return fail();
-        const supabase = getSupabaseClient();
-        if (!supabase) return fail();
-
-        const { data, error } = await supabase.rpc('get_settlement_report', { p_token: token });
-        if (done) return;
-        // NULL is the server's single answer for invalid / expired / revoked.
-        if (error || !data) return fail();
-
-        done = true;
-        clearTimeout(timer);
-        setReport(data as Report);
-        setState('ready');
-      } catch {
-        fail();
+  /**
+   * One fetch path for both the first paint and every refresh.
+   *
+   * A background refresh must NOT wipe a report the reader is looking at just
+   * because their train went into a tunnel: a transport error keeps the last
+   * good data, while an explicit null — the server's answer for revoked or
+   * expired — does replace it, because at that point the link really is dead.
+   */
+  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+    const supabase = getSupabaseClient();
+    const token = tokenFromUrl();
+    if (!token || !supabase) {
+      if (mode === 'initial') setState('unavailable');
+      return;
+    }
+    if (mode === 'refresh') setRefreshing(true);
+    try {
+      const { data, error } = await supabase.rpc('get_settlement_report', { p_token: token });
+      if (error) {
+        if (mode === 'initial') setState('unavailable');
+        return; // transient: keep whatever is on screen
       }
-    })();
-
-    return () => clearTimeout(timer);
+      if (!data) {
+        setState('unavailable');   // revoked or expired — genuinely gone
+        return;
+      }
+      setReport(data as Report);
+      setState('ready');
+    } catch {
+      if (mode === 'initial') setState('unavailable');
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
-  // House naming convention: nickname or first name, surname added only when
-  // that alone would point at two people on this page.
-  const labelFor = useMemo(() => {
-    if (!report) return (n: string) => n;
-    const names = new Set<string>();
-    for (const r of report.settlements) { names.add(r.from); names.add(r.to); }
-    for (const r of report.settled) { names.add(r.from); names.add(r.to); }
-    const labels = playerLabels([...names].map((n) => ({ id: n, name: n })));
-    return (n: string) => {
-      const l = labels.get(n);
-      if (!l) return n;
-      return l.secondary ? `${l.primary} ${l.secondary}` : l.primary;
+  useEffect(() => {
+    document.title = 'Team Settlement Report';
+    // Nothing may hang: if the first load stalls, fall to the generic screen.
+    const timer = setTimeout(() => {
+      setState((cur) => (cur === 'loading' ? 'unavailable' : cur));
+    }, LOAD_TIMEOUT_MS);
+    load('initial').finally(() => clearTimeout(timer));
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  /**
+   * Refresh when the reader comes back to the tab. Deliberately not polling:
+   * a link forwarded around a group chat could have dozens of tabs open, and
+   * a timer in each one turns a shared report into a load generator. Coming
+   * back to the tab is the moment a stale number actually matters.
+   */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load('refresh');
     };
-  }, [report]);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [load]);
+
+  /**
+   * FULL stored names, deliberately — not the app's shortened roster labels.
+   *
+   * playerLabels() shortens to a first name and only appends a surname when
+   * another name IN THE SET it is given collides. Both halves of that fail
+   * here. The set is only people with an outstanding balance, so a second
+   * Venkat who happens to be square is invisible to the collision count; and
+   * "Venkat Gudala (Kittu)" shortens to "Kittu", so it never registers as a
+   * clash with "Venkat Subbu" in the first place. The reader, who knows there
+   * are two Venkats and two Sreenis, is left guessing.
+   *
+   * A roster tile can afford that ambiguity because it is tappable. A line
+   * telling someone to send money cannot.
+   */
+  const labelFor = (n: string) => n;
+
+  /**
+   * Grouped by WHO PAYS. Flat, this season is 28 rows across 15 people, and
+   * the reader's actual question is "what do I owe?" — so the unit on screen
+   * is a person and everything they need to pay, with one total at the bottom.
+   */
+  const groups = useMemo(() => {
+    if (!report) return [];
+    const q = query.trim().toLowerCase();
+    const rows = q
+      ? report.settlements.filter(
+          (r) => r.from.toLowerCase().includes(q) || r.to.toLowerCase().includes(q),
+        )
+      : report.settlements;
+
+    const byPayer = new Map<string, SettlementRow[]>();
+    for (const r of rows) {
+      const arr = byPayer.get(r.from);
+      if (arr) arr.push(r);
+      else byPayer.set(r.from, [r]);
+    }
+    return [...byPayer.entries()]
+      .map(([from, rs]) => ({
+        from,
+        rows: rs.sort((a, b) => b.amountCents - a.amountCents),
+        totalCents: rs.reduce((sum, r) => sum + r.amountCents, 0),
+      }))
+      .sort((a, b) => b.totalCents - a.totalCents);
+  }, [report, query]);
+
+  const matchCount = groups.reduce((n, g) => n + g.rows.length, 0);
+
+  const toggle = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  /**
+   * Same rule as TeamSwitcher: an uploaded logo wins, and Sunrisers falls back
+   * to the bundled mark. A 256px copy rather than the 1024px original — this
+   * page gets opened from a WhatsApp link on mobile data, and 875KB for a
+   * 48px crest is rude.
+   */
+  const logoSrc =
+    report?.teamLogo
+    ?? (report?.teamSlug === 'sunrisers-manteca' ? '/sunrisers-logo.png' : null);
 
   const share = async () => {
     const url = window.location.href;
@@ -199,10 +295,10 @@ export default function PublicSettlementReportPage() {
 
         {/* ── Identity: which team, which season ──────────────────────── */}
         <header className="mb-6 flex items-center gap-3">
-          {report.teamLogo ? (
+          {logoSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={report.teamLogo}
+              src={logoSrc}
               alt=""
               /* logo_url is free-text in the DB and this page is public, so a
                  hostile value must not be able to harvest viewers' referers. */
@@ -229,9 +325,22 @@ export default function PublicSettlementReportPage() {
           <h1 className="text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
             Team settlement report
           </h1>
-          <p className="mt-0.5 text-[12px] text-[var(--dim,var(--muted))]">
-            Updated {fmtUpdated(report.updatedAt)}
-          </p>
+          {/* Tappable: the report is live, so a reader who has been staring
+              at it needs a way to say "is this still true?" and watch it
+              answer. It also refreshes itself whenever the tab regains focus. */}
+          <button
+            onClick={() => load('refresh')}
+            disabled={refreshing}
+            className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--muted)] active:opacity-70"
+            aria-label="Refresh report"
+          >
+            <RefreshCw
+              size={11}
+              className={refreshing ? 'animate-spin' : ''}
+              aria-hidden
+            />
+            {refreshing ? 'Updating…' : `Updated ${fmtUpdated(report.updatedAt)}`}
+          </button>
         </div>
 
         {/* ── The headline number ─────────────────────────────────────── */}
@@ -273,54 +382,169 @@ export default function PublicSettlementReportPage() {
           </section>
         )}
 
-        {/* ── WHO PAYS WHOM — the point of the whole page ─────────────── */}
+        {/* ── PAYMENTS TO MAKE — the point of the whole page ──────────── */}
+        {!allSettled && (
+          <section className="mb-6">
+            <div className="mb-2.5 flex items-baseline justify-between gap-2">
+              <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                Payments to make
+              </h2>
+              {query.trim() !== '' && (
+                <span className="text-[12px] text-[var(--muted)]">
+                  {matchCount} of {report.paymentCount}
+                </span>
+              )}
+            </div>
+
+            {/* Find yourself. With 15 people involved, scrolling a wall to
+                answer "what do I owe?" is the whole complaint. */}
+            <div
+              className="mb-3 flex items-center gap-2 rounded-xl px-3"
+              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+            >
+              <Search size={15} className="shrink-0 text-[var(--muted)]" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find your name"
+                aria-label="Find your name"
+                className="min-h-11 w-full bg-transparent text-[16px] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+              />
+              {query && (
+                <button onClick={() => setQuery('')} className="shrink-0 px-1 text-[13px] text-[var(--muted)]" aria-label="Clear">
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {groups.length === 0 ? (
+              <div className="rounded-2xl px-4 py-6 text-center" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+                <p className="text-[14px] text-[var(--muted)]">
+                  No payments involve &ldquo;{query.trim()}&rdquo;.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {groups.map((g) => (
+                  <div
+                    key={g.from}
+                    className="overflow-hidden rounded-2xl"
+                    style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+                  >
+                    {/* One card per person who owes something. */}
+                    <div className="px-4 pt-3.5 pb-1">
+                      <h3 className="truncate text-[16px] font-bold text-[var(--text)]">
+                        {labelFor(g.from)}
+                      </h3>
+                    </div>
+
+                    <ul>
+                      {g.rows.map((r) => {
+                        const key = `${r.from}->${r.to}`;
+                        const open = expanded.has(key);
+                        return (
+                          <li key={key}>
+                            <button
+                              onClick={() => toggle(key)}
+                              aria-expanded={open}
+                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[15px] font-semibold text-[var(--text)]">
+                                  Pay {labelFor(r.to)}
+                                </p>
+                                <p className="mt-0.5 text-[12px] text-[var(--muted)]">
+                                  {r.why.length}{' '}
+                                  {r.why.length === 1 ? 'contributing expense' : 'contributing expenses'}
+                                </p>
+                              </div>
+                              <span
+                                className="shrink-0 text-[16px] font-bold tabular-nums"
+                                style={{ color: 'var(--red, #dc2626)' }}
+                              >
+                                {formatCents(r.amountCents)}
+                              </span>
+                              <ChevronDown
+                                size={15}
+                                className="shrink-0 text-[var(--muted)] transition-transform"
+                                style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                                aria-hidden
+                              />
+                            </button>
+
+                            {/* The invoice behind the number. These lines sum to
+                                the amount above — the database asserts it. */}
+                            {open && (
+                              <div className="px-4 pb-3">
+                                <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
+                                  {r.why.map((w, i) => (
+                                    <li key={`${w.label}-${i}`} className="flex items-baseline justify-between gap-3 py-1">
+                                      <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
+                                        {w.label}
+                                        {w.date && (
+                                          <span className="ml-1.5 text-[11px] text-[var(--muted)]">{fmtDay(w.date)}</span>
+                                        )}
+                                      </span>
+                                      <span
+                                        className="shrink-0 text-[13px] tabular-nums"
+                                        style={{ color: w.amountCents < 0 ? 'var(--green, #16a34a)' : 'var(--muted)' }}
+                                      >
+                                        {w.amountCents < 0 ? '−' : ''}
+                                        {formatCents(Math.abs(w.amountCents))}
+                                      </span>
+                                    </li>
+                                  ))}
+                                  <li className="mt-1 flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 pt-1.5">
+                                    <span className="text-[13px] font-semibold text-[var(--text)]">
+                                      Owed to {labelFor(r.to)}
+                                    </span>
+                                    <span className="text-[13px] font-bold tabular-nums text-[var(--text)]">
+                                      {formatCents(r.amountCents)}
+                                    </span>
+                                  </li>
+                                </ul>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {/* Only when there is more than one payment to add up —
+                        a "total" identical to the single row above it is noise. */}
+                    {g.rows.length > 1 && (
+                      <div className="flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 px-4 py-3">
+                        <span className="text-[14px] font-semibold text-[var(--text)]">Total to pay</span>
+                        <span className="text-[16px] font-bold tabular-nums text-[var(--text)]">
+                          {formatCents(g.totalCents)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Why these payments? ─────────────────────────────────────── */}
         {!allSettled && (
           <section className="mb-6">
             <h2 className="mb-2.5 text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Who pays whom
+              Why these payments?
             </h2>
-            <ul
-              className="overflow-hidden rounded-2xl"
-              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-            >
-              {report.settlements.map((r, i) => (
-                <li
-                  key={`${r.from}-${r.to}-${i}`}
-                  className="flex items-center gap-3 border-b border-[var(--border)]/40 px-4 py-3.5 last:border-b-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    {/* Stacked with a down arrow on phones, inline on wider
-                        screens. Direction is carried by the arrow and the
-                        word "to", never by colour alone. */}
-                    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-                      <span className="truncate text-[15px] font-semibold text-[var(--text)]">
-                        {labelFor(r.from)}
-                      </span>
-                      <ArrowDown
-                        size={13}
-                        className="shrink-0 text-[var(--muted)] sm:hidden"
-                        aria-hidden
-                      />
-                      <ArrowRight
-                        size={14}
-                        className="hidden shrink-0 text-[var(--muted)] sm:block"
-                        aria-hidden
-                      />
-                      <span className="truncate text-[15px] text-[var(--text)]">
-                        <span className="sr-only">pays </span>
-                        {labelFor(r.to)}
-                      </span>
-                    </div>
-                  </div>
-                  <span
-                    className="shrink-0 text-[15px] font-bold tabular-nums"
-                    style={{ color: 'var(--red, #dc2626)' }}
-                  >
-                    {formatCents(r.amountCents)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="rounded-2xl px-4 py-3.5" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+              {/* Accurate to what the app actually computes. It does NOT
+                  simplify debts across the group — saying so would send
+                  someone money they were never told to send. */}
+              <p className="text-[13px] leading-relaxed text-[var(--muted)]">
+                During the season some players paid for things the whole team
+                shared. Each payment below is settled directly between two
+                people: your share of what they paid, minus anything you have
+                already paid them back. Nobody is asked to pay a third person
+                on someone else&apos;s behalf.
+              </p>
+            </div>
           </section>
         )}
 
@@ -357,6 +581,58 @@ export default function PublicSettlementReportPage() {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* ── All transactions — collapsed, because the ledger is context,
+               not the answer. ───────────────────────────────────────────── */}
+        {report.expenses.length > 0 && (
+          <section className="mb-6">
+            <button
+              onClick={() => setShowLedger((v) => !v)}
+              aria-expanded={showLedger}
+              className="flex w-full min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 text-left active:bg-[var(--hover-bg)]"
+              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+            >
+              <span>
+                <span className="block text-[14px] font-semibold text-[var(--text)]">
+                  All transactions
+                </span>
+                <span className="block text-[12px] text-[var(--muted)]">
+                  {report.expenses.length} shared {report.expenses.length === 1 ? 'expense' : 'expenses'} this season
+                </span>
+              </span>
+              <ChevronDown
+                size={16}
+                className="shrink-0 text-[var(--muted)] transition-transform"
+                style={{ transform: showLedger ? 'rotate(180deg)' : 'none' }}
+                aria-hidden
+              />
+            </button>
+
+            {showLedger && (
+              <ul
+                className="mt-2 overflow-hidden rounded-2xl"
+                style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+              >
+                {report.expenses.map((e, i) => (
+                  <li
+                    key={`${e.label}-${e.date}-${i}`}
+                    className="flex items-center gap-3 border-b border-[var(--border)]/40 px-4 py-3 last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] text-[var(--text)]">{e.label}</p>
+                      <p className="text-[12px] text-[var(--muted)]">
+                        {labelFor(e.paidBy)} paid · {fmtDay(e.date)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--text)]">
+                      {formatCents(e.amountCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 

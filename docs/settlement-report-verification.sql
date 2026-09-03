@@ -144,6 +144,29 @@ BEGIN
     VALUES ('accounting','no zero or negative rows',
             CASE WHEN v_n = 0 THEN 'PASS' ELSE 'FAIL' END, v_n::text);
 
+    -- The breakdown must ADD UP to the row it explains. An explanation that
+    -- does not reconcile is worse than none: it invites the reader to trust a
+    -- number the report cannot actually justify.
+    SELECT count(*) INTO v_n
+    FROM json_array_elements(v_res->'settlements') r
+    WHERE (r->>'amountCents')::bigint
+          IS DISTINCT FROM (
+            SELECT COALESCE(SUM((w->>'amountCents')::bigint), 0)
+            FROM json_array_elements(r->'why') w
+          );
+    INSERT INTO _results(area,check_name,status,detail)
+    VALUES ('accounting','every row''s breakdown sums to the row total',
+            CASE WHEN v_n = 0 THEN 'PASS' ELSE 'FAIL' END,
+            format('%s row(s) do not reconcile', v_n));
+
+    SELECT count(*) INTO v_n
+    FROM json_array_elements(v_res->'settlements') r
+    WHERE json_array_length(r->'why') = 0;
+    INSERT INTO _results(area,check_name,status,detail)
+    VALUES ('accounting','no row is left unexplained',
+            CASE WHEN v_n = 0 THEN 'PASS' ELSE 'FAIL' END,
+            format('%s row(s) with no reason', v_n));
+
     INSERT INTO _results(area,check_name,status,detail)
     VALUES ('accounting','paymentCount matches the number of rows',
             CASE WHEN (v_res->>'paymentCount')::int
