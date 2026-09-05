@@ -9,8 +9,31 @@
  *     every browser is WebKit). So on iPhone the tactile layer is carried
  *     entirely by the press animation, and that is fine — it is the reason
  *     the animation is not allowed to depend on haptics landing.
+ *
+ *     PLATFORM LIMITATION, CONFIRMED — not an assumption and not a bug to
+ *     chase. Measured in WebKit 26.4: `'vibrate' in navigator` is false and
+ *     `typeof navigator.vibrate` is "undefined", and it was separately
+ *     confirmed by hand on a real iPhone (Safari, no buzz). There is no
+ *     usable browser haptic API on iOS to fall back to: the Web Haptics
+ *     spec has not shipped, and the one known trick — the iOS 17.4+
+ *     `<input type="checkbox" switch>` toggle — means rendering a fake
+ *     control purely for its side effect. Deliberately NOT done. If Safari
+ *     ever ships the API this file needs no change at all.
  *   - Android Chrome / Firefox / Samsung Internet: supported, and this is
- *     where the vibration is actually felt.
+ *     where the vibration is actually felt. Verified in Chromium 147: the
+ *     call runs inside a genuine user-activation context
+ *     (`navigator.userActivation.isActive === true`) from React's delegated
+ *     click listener, and `navigator.vibrate()` returns true for both a
+ *     single pulse and a pattern.
+ *
+ *     NOTE ON TIMING: these fire on `click`, which on a touchscreen is
+ *     finger-LIFT, measured at ~125ms after `pointerdown` for a normal tap.
+ *     The visual press starts within one frame of touch-down, so on Android
+ *     the buzz trails the squash by about that much. `click` is chosen
+ *     anyway because it is also what the keyboard and assistive tech
+ *     dispatch, and because a drag that starts on a control and ends
+ *     elsewhere must not buzz. Moving to `pointerdown` would tighten the
+ *     feel at the cost of both — a real trade, not an oversight.
  *   - Desktop: `vibrate` may EXIST while there is no vibration motor, in
  *     which case the call silently does nothing. That is the correct outcome,
  *     so it is not worth trying to detect.
