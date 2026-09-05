@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Share2, Copy, Check, RefreshCw, Link2 } from 'lucide-react';
+import { Share2, Copy, Check, RefreshCw, Link2, ExternalLink } from 'lucide-react';
 import CricketFab from './CricketFab';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import {
@@ -252,6 +252,23 @@ export function SettlementShareButton({
                   {copied ? <Check size={15} className="animate-tactile-check" /> : <Copy size={15} />}
                 </Button>
               </div>
+
+              {/* See it before you send it.
+                  Until now this dialog could Share the report or Copy its
+                  link, but never show it — so the first person to read the
+                  thing was whoever it was sent to. Opens the real report at
+                  the real token, which is exactly what the team will see.
+
+                  No await before window.open, so there is no popup-blocker
+                  problem here; `noopener` because the report page must not
+                  get a handle on this one. */}
+              <Button
+                variant="secondary" size="md" className="mt-2 w-full gap-1.5"
+                onClick={() => window.open(reportUrl(share.token), '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink size={15} />
+                Open report
+              </Button>
 
               <div className="mt-3 border-t border-[var(--border)]/50 pt-3">
                 <Button variant="ghost" size="sm" className="w-full gap-1.5"
