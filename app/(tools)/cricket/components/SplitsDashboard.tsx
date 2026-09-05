@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
 import { nameToGradient } from '@/lib/avatar';
 import { computeSettlements, personalBalances } from '../lib/settlement';
+import { buildSettlementPdfModel, renderSettlementPdf } from '../lib/settlement-pdf';
+import { getTeamName } from '../lib/constants';
 import { Text, ActionSheet, SegmentedControl, FilterDropdown, RefreshButton, Button, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import type { CardMenuItem } from '@/components/ui';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -353,6 +355,58 @@ export default function SplitsDashboard() {
     };
   }, [myPlayer, activeSplits, shares, seasonSettlements, activePlayers]);
 
+  /**
+   * Open the season's settlement report as a PDF in a new tab.
+   *
+   * Until now the only way out of the app was the native share sheet, so you
+   * sent a document you had never read. This is the read-it-first path.
+   *
+   * THE BLANK TAB IS OPENED SYNCHRONOUSLY, BEFORE ANY `await`. That is the
+   * whole trick: a `window.open()` called after an await has lost the
+   * user-activation window and Safari silently blocks it. So we claim the tab
+   * on the tap, then point it at the blob once the PDF exists.
+   */
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const openSettlementPdf = async () => {
+    if (pdfBusy) return;
+    const win = window.open('', '_blank');
+    if (!win) {
+      // Never fail silently — a tap that does nothing reads as a broken button.
+      toast.error('Allow pop-ups for this site to open the PDF');
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const ledger = computeSettlements(activeSplits, shares, seasonSettlements);
+      // ALL players, not just active ones: a debt owed to or by someone who
+      // has left is still owed. The Balances tab drops those (see the note in
+      // myDebts above); the printed report, like the public one, keeps them.
+      const nameById = new Map(players.map((p) => [p.id, p.name]));
+      const model = buildSettlementPdfModel({
+        teamName: getTeamName(),
+        seasonName: selectedSeasonName,
+        ledger,
+        // Full stored names. The short-label helper would collapse
+        // "Venkat Gudala (Kittu)" to "Kittu", and a line telling someone to
+        // send money must not be ambiguous.
+        nameOf: (id) => nameById.get(id) ?? 'Unknown player',
+      });
+      const doc = await renderSettlementPdf(model);
+      const url = URL.createObjectURL(doc.output('blob'));
+      win.location.href = url;
+      // Revoked late and on a timer: revoking as soon as we navigate leaves
+      // the viewer with a blank tab, and there is no reliable load event for
+      // a cross-document blob navigation.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      win.close();
+      toast.error("Couldn't build the PDF");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   // Activity feed
   const activityFeed = useMemo(() => {
     const items: { id: string; type: 'split' | 'settlement'; date: string; description: string; amount: number; paidByName: string; paidByPhoto: string | null; paidById: string; splitCount: number; receiptUrls: string[] | null; createdBy: string | null }[] = [];
@@ -487,19 +541,43 @@ export default function SplitsDashboard() {
           <Text as="p" size="xs" color="muted" className="mt-0.5">Track and manage your shared expenses</Text>
         </div>
         {/* Sharing this report lives on the page's orange FAB, not here —
-            one share button per screen. See page.tsx's splits branch. */}
-        {isAdmin && (
-          <Button
-            onClick={() => useSplitsStore.setState({ showSplitForm: true })}
-            variant="primary"
-            brand="cricket"
-            size="md"
-            className="gap-1.5 flex-shrink-0"
-          >
-            <Plus size={16} />
-            Add Split
-          </Button>
-        )}
+            one share button per screen. See page.tsx's splits branch.
+            "Open PDF" is not a second share button: it opens the document for
+            READING. It is what lets someone check the figures before the FAB
+            sends them to the team. Everyone gets it, not just admins — anyone
+            can be asked to pay. */}
+        {/* Both actions share one right-hand cluster, so justify-between does
+            not fling them to opposite ends of the row. */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {hasSplits && (
+            <Button
+              onClick={() => void openSettlementPdf()}
+              variant="secondary"
+              size="md"
+              loading={pdfBusy}
+              className="gap-1.5 flex-shrink-0"
+              aria-label="Open settlement report PDF"
+              title="Open settlement report PDF"
+            >
+              {!pdfBusy && <FileText size={16} />}
+              {/* Label folds away under 640px — at 375px the row also carries
+                  Add Split, and the icon plus the accessible name is enough. */}
+              <span className="hidden sm:inline">Open PDF</span>
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              onClick={() => useSplitsStore.setState({ showSplitForm: true })}
+              variant="primary"
+              brand="cricket"
+              size="md"
+              className="gap-1.5 flex-shrink-0"
+            >
+              <Plus size={16} />
+              Add Split
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Sub-tabs — the shared sliding segmented control; counts fold into
