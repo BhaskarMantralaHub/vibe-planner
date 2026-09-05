@@ -313,12 +313,82 @@ code, pre, .font-mono {
 }
 
 /* Shared press feedback for tappable elements. Builds on the duration tokens,
-   so it goes instant (not animated) under prefers-reduced-motion. */
-.pressable {
-  transition: transform var(--duration-fast) var(--ease-out);
+   so it goes instant (not animated) under prefers-reduced-motion.
+
+   CAREFUL — the property list is load-bearing, and a bare
+   `transition: transform` here would be a BUG.
+
+   `@import "tailwindcss"` puts every Tailwind utility inside
+   `@layer utilities`, while these rules are unlayered (plain CSS, after the
+   import). Per the cascade-layers spec an unlayered normal declaration beats
+   a layered one whatever the specificity, so a shorthand `transition` here
+   resets `transition-property` and silently defeats any `transition-colors`
+   / `transition-opacity` / `transition-all` on the same element.
+
+   Not hypothetical, and measured in a real browser: the settlement report's
+   payment row (`pressable-selection` + `active:bg-[var(--hover-bg)]`) now
+   fades its background across ~8 frames on press and back on release, in
+   both Chromium and WebKit, light and dark. With a bare
+   `transition: transform` it snapped.
+
+   CSS cannot APPEND to transition-property, so the fix is for the press rule
+   to transition the properties a press actually changes — which is why this
+   belongs here, once, rather than as a per-component override.
+
+   Bonus correctness: these durations are the motion tokens, which go to 0ms
+   under prefers-reduced-motion. Tailwind's own `transition-colors` would have
+   kept animating.
+
+   Covered: everything `transition-opacity` promises, and the four properties
+   of `transition-colors` that any press site in this app actually animates.
+   NOT covered, deliberately: box-shadow (the expensive one — components that
+   animate it declare it themselves), plus outline-color,
+   text-decoration-color, fill and stroke, which nothing pairs with a press.
+   `tests/unit/press-transition.test.ts` fails if that ever stops being true. */
+.pressable,
+.pressable-selection {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 .pressable:active {
   transform: scale(0.97);
+}
+
+/* Selection press — a shade shallower than .pressable, for picking one of a
+   set (segmented control, season row, filter chip) rather than committing to
+   an action. The difference is small on purpose: it is the same gesture with
+   a lighter consequence. It also matters on WIDE targets: 0.97 on a
+   full-width card row reads as the whole card lurching. */
+.pressable-selection:active {
+  transform: scale(0.98);
+}
+
+/* Success tick — the confirmation glyph ARRIVES rather than appearing.
+   Used where a control swaps its icon after an operation actually succeeded
+   (Copy → ✓ Copied, Mark paid → Paid ✓).
+
+   Scoped to the icon, never to the button box: animating the control itself
+   would change its measured size mid-layout and nudge its neighbours. The
+   overshoot is 1.08 and it lasts 260ms — enough to read as a confirmation,
+   short of a bounce. Fixed duration, not a --duration token: the reduced
+   motion case below removes it outright rather than making it instant, so a
+   0ms token here would only make the rule harder to follow. */
+@keyframes tactile-check {
+  from { opacity: 0; transform: scale(0.55); }
+  55%  { opacity: 1; transform: scale(1.08); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-tactile-check {
+  animation: tactile-check 260ms var(--ease-spring) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The glyph still appears — it is the state, and state must never be
+     communicated by animation alone. Only the movement goes. */
+  .animate-tactile-check { animation: none; opacity: 1; transform: none; }
 }
 
 /* View entrance — subtle opacity + 6px rise when switching in-page views. */

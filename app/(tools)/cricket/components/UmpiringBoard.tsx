@@ -1370,13 +1370,20 @@ function DutySlotRow({
         <Button
           variant="primary" brand="cricket" size="md" className="shrink-0"
           loading={pending}
+          /* Volunteering for a Saturday morning is a real commitment, and
+             `loading` already blocks the double-tap while the RPC runs. */
+          haptic="light"
           onClick={() => onClaim(duty.id)}
         >
           I&apos;ll do it
         </Button>
       )}
       {isMine && duty.status === 'claimed' && (
-        <Button variant="secondary" size="md" className="shrink-0" loading={pending} onClick={() => onRelease(duty.id)}>
+        <Button variant="secondary" size="md" className="shrink-0" loading={pending}
+          /* Handing a duty back leaves the slot open for someone else —
+             'medium', the weight this system gives a consequence. */
+          haptic="medium"
+          onClick={() => onRelease(duty.id)}>
           Give up
         </Button>
       )}

@@ -2,6 +2,7 @@
 
 import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from './drawer';
 import type { CardMenuItem } from './card-menu';
+import { haptic } from '@/lib/haptics';
 
 /* ── ActionSheet — bottom-sheet replacement for the CardMenu ⋮ popover ──
  *
@@ -35,6 +36,15 @@ export function ActionSheet({ open, onOpenChange, title, showTitle = false, item
             {item.dividerBefore && <div className="border-t border-[var(--border)] my-1 mx-3" />}
             <button
               onClick={() => {
+                // 'selection', not 'light': picking a row off a menu is a
+                // choice, and most of these rows open a confirmation rather
+                // than committing anything. The commitment gets its own
+                // haptic on the dialog's confirm button.
+                //
+                // Note what does NOT buzz: opening the sheet. Only choosing
+                // from it. A haptic on every ⋮ tap is the fastest way to make
+                // the whole system feel like noise.
+                haptic('selection');
                 onOpenChange(false);
                 item.onClick();
               }}

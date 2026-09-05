@@ -2,8 +2,10 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from '@radix-ui/react-slot';
+import { useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useBrand } from '@/lib/brand';
+import { haptic, type HapticPattern } from '@/lib/haptics';
 
 const buttonVariants = cva(
   // Press: small compression + slight dim, returning on the fast token — the
@@ -64,6 +66,24 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, Omi
   asChild?: boolean;
   loading?: boolean;
   brand?: 'toolkit' | 'cricket';
+  /**
+   * Vibrate on activation. OPT-IN, and deliberately so.
+   *
+   * The press animation is free and applies to every button (it is in the
+   * CVA base string above). Haptics are not free — they are a scarce signal,
+   * and a codebase where every Button vibrates is one where none of them
+   * mean anything. Making this a prop rather than a variant default also
+   * makes the set auditable: `grep -rn 'haptic=' ` lists every control in the
+   * app that buzzes.
+   *
+   * Reach for it on commitments (Save, Confirm, Copy, Share, Mark paid,
+   * Generate, Revoke) — not on Cancel, not on a button that only opens a
+   * sheet, and not on navigation.
+   *
+   * A no-op wherever the platform cannot vibrate, iOS included. See
+   * `lib/haptics.ts`.
+   */
+  haptic?: HapticPattern;
 }
 
 function Button({
@@ -75,12 +95,35 @@ function Button({
   asChild = false,
   loading = false,
   disabled,
+  haptic: hapticPattern,
+  onClick,
   children,
   ref,
   ...props
 }: ButtonProps & { ref?: React.Ref<HTMLButtonElement> }) {
   const { brand: contextBrand } = useBrand();
   const brand = brandProp ?? contextBrand;
+  const inert = disabled || loading;
+
+  /**
+   * Haptics fire on ACTIVATION only — click, which is also what the keyboard
+   * (Enter/Space on a real <button>) and assistive tech dispatch. Never on
+   * focus, hover or pointerdown, so tabbing through a form is silent and a
+   * drag that starts on a button but ends elsewhere does not buzz.
+   *
+   * The `inert` guard is belt-and-braces: React does not dispatch click on a
+   * disabled <button>, and the CVA base adds `disabled:pointer-events-none`.
+   * It matters in the asChild case, where the child may be an <a> for which
+   * `disabled` is meaningless and therefore is not forwarded.
+   */
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (inert) return;
+      if (hapticPattern) haptic(hapticPattern);
+      onClick?.(e);
+    },
+    [inert, hapticPattern, onClick],
+  );
   // Radix Slot requires EXACTLY ONE child (React.Children.only). Rendering the
   // spinner as a sibling made `children` an array, so `asChild` threw
   // "React.Children.only expected to receive a single React element child"
@@ -95,6 +138,7 @@ function Button({
       <Slot
         className={cn(buttonVariants({ variant, size, fullWidth, brand }), className)}
         ref={ref}
+        onClick={handleClick}
         {...props}
       >
         {children}
@@ -105,8 +149,9 @@ function Button({
   return (
     <button
       className={cn(buttonVariants({ variant, size, fullWidth, brand }), className)}
-      disabled={disabled || loading}
+      disabled={inert}
       ref={ref}
+      onClick={handleClick}
       {...props}
     >
       {loading && (

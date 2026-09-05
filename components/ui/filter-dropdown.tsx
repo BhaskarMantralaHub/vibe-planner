@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { haptic } from '@/lib/haptics';
 
 interface FilterOption {
   key: string;
@@ -60,8 +61,10 @@ export function FilterDropdown({
     <div className={cn('relative', className)}>
       {/* Trigger */}
       <button
+        /* Press feedback but NO haptic — this only opens the menu. The
+           haptic belongs on the row that changes the filter. */
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium cursor-pointer transition-all bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--muted)] text-[var(--text)]"
+        className="pressable flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium cursor-pointer transition-all bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--muted)] text-[var(--text)]"
       >
         <Filter size={15} className={colors.icon} />
         <span>{activeOption.label}</span>
@@ -88,8 +91,12 @@ export function FilterDropdown({
               return (
                 <button
                   key={opt.key}
-                  onClick={() => { onChange(isActive && opt.key ? '' : opt.key); setOpen(false); }}
-                  className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
+                  onClick={() => {
+                    haptic('selection');
+                    onChange(isActive && opt.key ? '' : opt.key);
+                    setOpen(false);
+                  }}
+                  className={`pressable-selection flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all cursor-pointer ${
                     isActive ? colors.active : 'text-[var(--text)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >

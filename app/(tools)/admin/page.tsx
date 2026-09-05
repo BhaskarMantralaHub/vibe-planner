@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { haptic } from '@/lib/haptics';
 import {
   Search, Users, Shield, ShieldCheck, UserX, AlertTriangle, Ban,
   MoreVertical, Crown, ShieldOff, UserCheck, Lock,
@@ -464,14 +465,24 @@ function AdminContent() {
                     <button
                       key={s.id}
                       onClick={async () => {
+                        // Already current — nothing to change, so no feedback.
+                        if (s.is_active) return;
                         const supabase = getSupabaseClient();
                         if (!supabase) return;
-                        await supabase.from('cricket_seasons').update({ is_active: false }).neq('id', s.id);
-                        await supabase.from('cricket_seasons').update({ is_active: true }).eq('id', s.id);
+                        haptic('selection');
+                        const { error: offErr } = await supabase.from('cricket_seasons').update({ is_active: false }).neq('id', s.id);
+                        const { error: onErr } = await supabase.from('cricket_seasons').update({ is_active: true }).eq('id', s.id);
+                        // Was unchecked: a failed switch still reported success
+                        // and still repainted the chips, so the UI claimed a
+                        // season was active that the database had not changed.
+                        if (offErr || onErr) {
+                          toast.error('Could not change the active season');
+                          return;
+                        }
                         setAllSeasons((prev) => prev.map((x) => ({ ...x, is_active: x.id === s.id })));
                         toast.success(`${s.name} set as active season`);
                       }}
-                      className="px-4 py-2 rounded-xl text-[13px] font-semibold cursor-pointer transition-all active:scale-95"
+                      className="pressable-selection px-4 py-2 rounded-xl text-[13px] font-semibold cursor-pointer transition-all"
                       style={s.is_active ? {
                         background: 'var(--cricket)',
                         color: 'white',
@@ -482,7 +493,14 @@ function AdminContent() {
                         border: '1.5px solid var(--border)',
                       }}
                     >
-                      {s.name} {s.is_active ? '✓' : ''}
+                      {s.name}
+                      {/* Conditionally RENDERED rather than a toggled string:
+                          swapping text inside an existing node does not restart
+                          a CSS animation, so the tick has to be a node that
+                          mounts when the season becomes active. */}
+                      {s.is_active && (
+                        <span className="animate-tactile-check ml-1 inline-block">✓</span>
+                      )}
                     </button>
                   ))}
                 </div>

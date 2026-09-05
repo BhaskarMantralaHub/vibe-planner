@@ -7,6 +7,8 @@ import { Text, Button, Drawer, DrawerHandle, DrawerTitle, DrawerBody, Spinner } 
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Copy, Share2, RefreshCw, X, Check, ChevronRight, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { haptic } from '@/lib/haptics';
+import { useAsyncAction } from '@/hooks/use-async-action';
 
 type Season = { id: string; name: string; is_active: boolean };
 type Invite = {
@@ -51,7 +53,11 @@ export default function TeamAdminPanel() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [invite, setInvite] = useState<Invite | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<null | 'season' | 'invite'>(null);
+  // Season only. The three invite actions carry their own pending state now
+  // (see the useAsyncAction block below), so 'invite' would be a value nothing
+  // ever sets — and a dead branch in a disabled= expression is how a control
+  // ends up permanently enabled by accident.
+  const [busy, setBusy] = useState<null | 'season'>(null);
   const [seasonSheet, setSeasonSheet] = useState(false);
   const [confirm, setConfirm] = useState<'refresh' | 'revoke' | null>(null);
   // Share is offered ONLY where the native sheet exists. Everywhere else it
@@ -112,6 +118,10 @@ export default function TeamAdminPanel() {
   const chooseSeason = async (season: Season) => {
     const supabase = getSupabaseClient();
     if (!supabase || !teamId || busy) return;
+    // Re-picking the season that is already current changes nothing, so it
+    // gets no feedback — the sheet just closes.
+    if (season.is_active) { setSeasonSheet(false); return; }
+    haptic('selection');
     setBusy('season');
     // Scoped to THIS team. Switching only moves which season is current —
     // no historical match, expense, fee or player row is touched.
@@ -128,15 +138,17 @@ export default function TeamAdminPanel() {
 
   // Server-authoritative: the RPCs verify team admin and own the 30-day TTL.
   // State is set only from what the server returns — never optimistically.
+  //
+  // These THROW on failure rather than toasting and returning. That is what
+  // lets useAsyncAction below tell success from failure: a function that
+  // catches its own error returns a resolved promise, and the hook would
+  // then light up a success state for an operation that did not happen.
   const generate = async (kind: 'new' | 'refresh') => {
     const supabase = getSupabaseClient();
-    if (!supabase || !teamId || busy) return;
-    setBusy('invite');
+    if (!supabase || !teamId) throw new Error('Could not create the invite link');
     const { data, error } = await supabase.rpc('generate_team_invite', { p_team_id: teamId });
-    setBusy(null);
     if (error || data?.error) {
-      toast.error(error?.message ?? data?.error ?? 'Could not create the invite link');
-      return;
+      throw new Error(error?.message ?? data?.error ?? 'Could not create the invite link');
     }
     // Re-read rather than construct the row locally: the attribution line
     // ("Refreshed by …") comes from the server's own record.
@@ -148,21 +160,62 @@ export default function TeamAdminPanel() {
 
   const revoke = async () => {
     const supabase = getSupabaseClient();
-    if (!supabase || !teamId || busy) return;
-    setBusy('invite');
+    if (!supabase || !teamId) throw new Error('Could not revoke the invite link');
     const { data, error } = await supabase.rpc('revoke_team_invite', { p_team_id: teamId });
-    setBusy(null);
     if (error || data?.error) {
-      toast.error(error?.message ?? data?.error ?? 'Could not revoke the invite link');
-      return;
+      throw new Error(error?.message ?? data?.error ?? 'Could not revoke the invite link');
     }
     setInvite(null);
     toast.success('Invite link revoked');
   };
 
+  const reportError = (e: unknown) =>
+    toast.error(e instanceof Error ? e.message : 'Something went wrong');
+
+  /**
+   * Three separate actions over two functions, because the haptic weight is
+   * part of what the control MEANS.
+   *
+   * Creating a link is constructive → 'light'. Refreshing and revoking both
+   * break a link already sent to the team → 'medium', the weight this system
+   * reserves for consequences. Same shape as the confirmation dialogs those
+   * two already sit behind.
+   */
+  const createInvite = useAsyncAction(() => generate('new'), {
+    tapHaptic: 'light', onError: reportError,
+  });
+  const refreshInvite = useAsyncAction(() => generate('refresh'), {
+    tapHaptic: 'medium', onError: reportError,
+  });
+  const revokeInvite = useAsyncAction(revoke, {
+    tapHaptic: 'medium', onError: reportError,
+  });
+
+  const inviteBusy = createInvite.pending || refreshInvite.pending || revokeInvite.pending;
+
   const inviteUrl = invite ? `${window.location.origin}/cricket?join=${invite.token}` : '';
-  const copyLink = () => { navigator.clipboard.writeText(inviteUrl); toast.success('Invite link copied'); };
+
+  /**
+   * `clipboard.writeText` returns a promise and the old code dropped it, so a
+   * denied clipboard permission still toasted "copied". Awaiting it is what
+   * makes the ✓ state trustworthy.
+   *
+   * No success haptic: the clipboard resolves inside a frame, so the tap tick
+   * and a success tick would land on top of each other and read as a stutter
+   * rather than as two events. The icon swap carries the confirmation.
+   */
+  const copyLink = useAsyncAction(
+    async () => {
+      await navigator.clipboard.writeText(inviteUrl);
+      toast.success('Invite link copied');
+    },
+    { tapHaptic: 'light', successHaptic: null, onError: () => toast.error("Couldn't copy the link") },
+  );
+
   const shareLink = async () => {
+    // Light tap only. The OS share sheet is the feedback from here on, and
+    // the user can still cancel it — so there is no success to celebrate.
+    haptic('light');
     try { await navigator.share({ title: `Join ${team?.team_name ?? 'the team'}`, url: inviteUrl }); }
     catch { /* cancelled — nothing to report */ }
   };
@@ -230,9 +283,9 @@ export default function TeamAdminPanel() {
                 Generate an invite link for players to join your team.
               </Text>
               <Button variant="primary" brand="cricket" size="md" className="w-full"
-                disabled={busy === 'invite'} onClick={() => void generate('new')}>
+                disabled={inviteBusy} onClick={() => void createInvite.run()}>
                 <LinkIcon size={15} className="mr-2" />
-                {busy === 'invite' ? 'Creating…' : 'Generate invite'}
+                {inviteBusy ? 'Creating…' : 'Generate invite'}
               </Button>
             </>
           )}
@@ -252,9 +305,9 @@ export default function TeamAdminPanel() {
               <div className="mb-3" />
               {/* No Copy or Share — the link does not work. */}
               <Button variant="primary" brand="cricket" size="md" className="w-full"
-                disabled={busy === 'invite'} onClick={() => void generate('new')}>
+                disabled={inviteBusy} onClick={() => void createInvite.run()}>
                 <LinkIcon size={15} className="mr-2" />
-                {busy === 'invite' ? 'Creating…' : 'Generate new invite'}
+                {inviteBusy ? 'Creating…' : 'Generate new invite'}
               </Button>
             </>
           )}
@@ -283,8 +336,24 @@ export default function TeamAdminPanel() {
                 </Text>
               )}
 
-              <Button variant="primary" brand="cricket" size="md" className="mt-3 w-full" onClick={copyLink}>
-                <Copy size={15} className="mr-2" /> Copy invite link
+              {/* Copy → ✓ Copied. The label swap is the confirmation, so it
+                  waits for the clipboard write to actually resolve. */}
+              <Button
+                variant="primary" brand="cricket" size="md" className="mt-3 w-full"
+                onClick={() => void copyLink.run()}
+                aria-live="polite"
+              >
+                {copyLink.succeeded ? (
+                  <>
+                    <Check size={15} className="mr-2 animate-tactile-check" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy size={15} className="mr-2" />
+                    Copy invite link
+                  </>
+                )}
               </Button>
 
               <div className="mt-2 flex items-center justify-between gap-1">
@@ -293,10 +362,13 @@ export default function TeamAdminPanel() {
                     <Share2 size={14} className="mr-1.5" /> Share
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" disabled={busy === 'invite'} onClick={() => setConfirm('refresh')}>
-                  <RefreshCw size={14} className="mr-1.5" /> Refresh invite
+                {/* These two only OPEN a confirmation, so they are silent —
+                    the haptic belongs on the button that does the thing. */}
+                <Button variant="ghost" size="sm" disabled={inviteBusy} onClick={() => setConfirm('refresh')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${refreshInvite.pending ? 'animate-spin' : ''}`} />
+                  Refresh invite
                 </Button>
-                <Button variant="ghost" size="sm" disabled={busy === 'invite'} onClick={() => setConfirm('revoke')}>
+                <Button variant="ghost" size="sm" disabled={inviteBusy} onClick={() => setConfirm('revoke')}>
                   <X size={14} className="mr-1.5" style={{ color: 'var(--red)' }} />
                   <span style={{ color: 'var(--red)' }}>Revoke</span>
                 </Button>
@@ -325,7 +397,7 @@ export default function TeamAdminPanel() {
                   onClick={() => void chooseSeason(s)}
                   disabled={busy === 'season'}
                   aria-current={s.is_active ? 'true' : undefined}
-                  className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3 text-left cursor-pointer transition-colors active:bg-[var(--hover-bg)] disabled:opacity-60"
+                  className="pressable-selection flex min-h-14 w-full items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3 text-left cursor-pointer transition-colors active:bg-[var(--hover-bg)] disabled:opacity-60"
                   style={s.is_active ? { background: 'color-mix(in srgb, var(--cricket) 7%, transparent)' } : undefined}
                 >
                   <span className="flex min-w-0 flex-col">
@@ -358,10 +430,12 @@ export default function TeamAdminPanel() {
                 variant={confirm === 'revoke' ? 'danger' : 'primary'}
                 brand={confirm === 'refresh' ? 'cricket' : undefined}
                 size="md"
+                /* The commitment point — this is where 'medium' fires, and
+                   where a success haptic follows only if the server agrees. */
                 onClick={() => {
                   const action = confirm;
                   setConfirm(null);
-                  if (action === 'refresh') void generate('refresh'); else void revoke();
+                  if (action === 'refresh') void refreshInvite.run(); else void revokeInvite.run();
                 }}
               >
                 {confirm === 'refresh' ? 'Refresh invite' : 'Revoke invite'}

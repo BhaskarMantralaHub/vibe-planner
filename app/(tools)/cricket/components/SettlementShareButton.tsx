@@ -17,7 +17,7 @@
  * a link can be killed outright without a redeploy if that is ever wanted.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Share2, Copy, Check, RefreshCw, Link2 } from 'lucide-react';
 import CricketFab from './CricketFab';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -25,6 +25,8 @@ import {
   Button, Text, Dialog, DialogContent, DialogTitle, DialogDescription,
 } from '@/components/ui';
 import { toast } from 'sonner';
+import { useAsyncAction } from '@/hooks/use-async-action';
+import { haptic } from '@/lib/haptics';
 
 type Share = { token: string; expires_at: string; created_at: string; created_by_name: string | null };
 
@@ -74,55 +76,80 @@ export function SettlementShareButton({
     setLoaded(true);
   };
 
+  /**
+   * Throws on failure rather than toasting and returning — see the note in
+   * useAsyncAction. A rotation that the server refused must not leave the
+   * dialog looking like it succeeded.
+   */
   const generate = async () => {
-    if (!seasonId) return;
+    if (!seasonId) throw new Error("Couldn't create the link");
     setBusy(true);
-    const supabase = getSupabaseClient();
-    if (!supabase) { setBusy(false); return; }
-    const { data, error } = await supabase.rpc('generate_settlement_share', { p_season_id: seasonId });
-    setBusy(false);
-    setConfirmRefresh(false);
-    if (error || !data?.success) {
-      toast.error("Couldn't create the link");
-      return;
-    }
-    setShare({
-      token: data.token,
-      expires_at: data.expires_at,
-      created_at: new Date().toISOString(),
-      created_by_name: null,
-    });
-    toast.success('Settlement report link ready');
-  };
-
-  const doShare = async () => {
-    if (!share) return;
-    const url = reportUrl(share.token);
-    const title = `${seasonName} settlement report`;
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try { await navigator.share({ title, url }); return; } catch { /* dismissed */ }
-    }
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      toast.success('Settlement report link copied');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Couldn't copy the link");
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error("Couldn't create the link");
+      const { data, error } = await supabase.rpc('generate_settlement_share', { p_season_id: seasonId });
+      if (error || !data?.success) throw new Error("Couldn't create the link");
+      setConfirmRefresh(false);
+      setShare({
+        token: data.token,
+        expires_at: data.expires_at,
+        created_at: new Date().toISOString(),
+        created_by_name: null,
+      });
+      toast.success('Settlement report link ready');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const copy = async () => {
-    if (!share) return;
-    try {
-      await navigator.clipboard.writeText(reportUrl(share.token));
-      setCopied(true);
-      toast.success('Settlement report link copied');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Couldn't copy the link");
-    }
+  /** First issue of a link — constructive, so 'light'. */
+  const createLink = useAsyncAction(generate, {
+    tapHaptic: 'light',
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create the link"),
+  });
+
+  /**
+   * Rotation. 'medium' because it BREAKS the link already sitting in the team
+   * group chat — the same weight the confirmation dialog in front of it implies.
+   */
+  const rotateLink = useAsyncAction(generate, {
+    tapHaptic: 'medium',
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't refresh the link"),
+  });
+
+  const copyToClipboard = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success('Settlement report link copied');
   };
+
+  const shareAction = useAsyncAction(
+    async () => {
+      if (!share) return;
+      const url = reportUrl(share.token);
+      const title = `${seasonName} settlement report`;
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        // The OS sheet takes over from here, and a cancel is indistinguishable
+        // from a send on some platforms — so no "Copied" state on this branch.
+        try { await navigator.share({ title, url }); return; } catch { /* dismissed */ }
+      }
+      await copyToClipboard(url);
+    },
+    { tapHaptic: 'light', successHaptic: null, onError: () => toast.error("Couldn't copy the link") },
+  );
+
+  const copyAction = useAsyncAction(
+    async () => { if (share) await copyToClipboard(reportUrl(share.token)); },
+    { tapHaptic: 'light', successHaptic: null, onError: () => toast.error("Couldn't copy the link") },
+  );
+
+  // One timer for the shared `copied` label, cleaned up on unmount. The old
+  // code left a bare setTimeout per copy, which fired into a closed dialog.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
 
   return (
     <>
@@ -164,7 +191,7 @@ export function SettlementShareButton({
                   Cancel
                 </Button>
                 <Button variant="primary" brand="cricket" size="md" className="flex-1"
-                  onClick={generate} disabled={busy}>
+                  onClick={() => void rotateLink.run()} disabled={busy}>
                   {busy ? 'Refreshing…' : 'Refresh link'}
                 </Button>
               </div>
@@ -188,7 +215,7 @@ export function SettlementShareButton({
                   Cancel
                 </Button>
                 <Button variant="primary" brand="cricket" size="md" className="flex-1"
-                  onClick={generate} disabled={busy}>
+                  onClick={() => void createLink.run()} disabled={busy}>
                   {busy ? 'Creating…' : 'Generate link'}
                 </Button>
               </div>
@@ -215,13 +242,14 @@ export function SettlementShareButton({
 
               <div className="mt-4 flex gap-2">
                 <Button variant="primary" brand="cricket" size="md" className="flex-1 gap-1.5"
-                  onClick={doShare}>
-                  {copied ? <Check size={15} /> : <Share2 size={15} />}
+                  onClick={() => void shareAction.run()} aria-live="polite">
+                  {copied ? <Check size={15} className="animate-tactile-check" /> : <Share2 size={15} />}
                   {copied ? 'Copied' : 'Share'}
                 </Button>
-                <Button variant="secondary" size="md" className="gap-1.5" onClick={copy}
+                <Button variant="secondary" size="md" className="gap-1.5"
+                  onClick={() => void copyAction.run()}
                   aria-label="Copy report link">
-                  <Copy size={15} />
+                  {copied ? <Check size={15} className="animate-tactile-check" /> : <Copy size={15} />}
                 </Button>
               </div>
 

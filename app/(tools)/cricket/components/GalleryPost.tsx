@@ -8,6 +8,7 @@ import { Heart, MessageCircle, Ellipsis, Send, X, Pencil, Trash2 } from 'lucide-
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from '@/components/ui';
 import { extractTaggedIds } from '../lib/mentions';
+import { haptic } from '@/lib/haptics';
 
 
 /* ── Resolve photos from post (backward compat: photo_urls → photo_url fallback) ── */
@@ -608,22 +609,43 @@ export default function GalleryPostCard({
     ?? (myAuthName ? players.find((p) => p.is_active && p.name.toLowerCase().includes(myAuthName.toLowerCase())) : undefined);
   const myName = myPlayer?.name ?? myAuthName ?? null;
 
-  const handleLike = () => { if (user) toggleGalleryLike(post.id, user.id, myName); };
+  /**
+   * Liking buzzes; UN-liking does not.
+   *
+   * A like is a small positive act and is the one interaction on this screen
+   * worth a tick. Removing one is a correction — the heart emptying is
+   * feedback enough, and buzzing on both halves of a toggle turns a mis-tap
+   * plus its undo into two rewards.
+   */
+  const handleLike = () => {
+    if (!user) return;
+    if (!isLiked) haptic('light');
+    toggleGalleryLike(post.id, user.id, myName);
+  };
 
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTapTime.current < 300) {
       // Double tap detected
       if (user && !isLiked) {
+        haptic('light');
         toggleGalleryLike(post.id, user.id, myName);
       }
       setShowDoubleTapHeart(true);
-      setTimeout(() => setShowDoubleTapHeart(false), 800);
       lastTapTime.current = 0;
     } else {
       lastTapTime.current = now;
     }
   };
+
+  // The burst heart used to be hidden by a bare setTimeout, which kept
+  // running after the post scrolled out and unmounted. An effect ties the
+  // timer to the state it clears and to the component's lifetime.
+  useEffect(() => {
+    if (!showDoubleTapHeart) return;
+    const t = setTimeout(() => setShowDoubleTapHeart(false), 800);
+    return () => clearTimeout(t);
+  }, [showDoubleTapHeart]);
 
   const handleComment = () => {
     if (!user || !commentText.trim()) return;

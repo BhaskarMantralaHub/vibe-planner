@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { haptic } from '@/lib/haptics';
 
 /* ── Segmented Control — tonal rail with a travelling active surface ──
  *
@@ -64,7 +65,14 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
             key={o.key}
             role="tab"
             aria-selected={isActive}
-            onClick={() => onChange(o.key)}
+            onClick={() => {
+              // Only when the selection actually MOVES. Re-tapping the active
+              // segment is a no-op, and a no-op that vibrates teaches people
+              // the buzz means nothing. Fired before onChange so the tick
+              // lands with the tap rather than after the re-render.
+              if (!isActive) haptic('selection');
+              onChange(o.key);
+            }}
             className="relative z-10 flex-1 py-3 rounded-xl text-[13px] font-semibold cursor-pointer select-none active:scale-[0.97] transition-[color,transform] duration-200"
             style={{ color: isActive ? 'var(--text)' : 'var(--muted)' }}
           >

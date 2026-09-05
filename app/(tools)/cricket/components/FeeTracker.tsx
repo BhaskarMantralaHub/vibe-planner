@@ -510,7 +510,14 @@ export default function FeeTracker() {
             <Button variant="secondary" brand="cricket" size="lg" fullWidth onClick={() => setConfirmPay(null)}>
               Cancel
             </Button>
-            <Button variant="primary" brand="cricket" size="lg" fullWidth onClick={confirmMarkPaid}>
+            {/* 'success', not 'light': this is the confirming tap on a
+                financial write, and the local state really does change here.
+                recordFee is a synchronous optimistic store action with no
+                promise to await, so there is deliberately no server-verified
+                tick — the haptic marks the commitment, and the toast that
+                names the player is what carries the confirmation. */}
+            <Button variant="primary" brand="cricket" size="lg" fullWidth
+              haptic="success" onClick={confirmMarkPaid}>
               Mark as paid
             </Button>
           </DialogFooter>
@@ -537,7 +544,8 @@ export default function FeeTracker() {
             <Button variant="secondary" size="lg" fullWidth onClick={() => setUndoPlayer(null)}>
               Cancel
             </Button>
-            <Button variant="danger" size="lg" fullWidth onClick={confirmUndo}>
+            {/* The destructive twin of Mark as paid, so 'medium'. */}
+            <Button variant="danger" size="lg" fullWidth haptic="medium" onClick={confirmUndo}>
               Revert
             </Button>
           </DialogFooter>

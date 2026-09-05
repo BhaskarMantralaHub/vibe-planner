@@ -18,6 +18,8 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Share2, Copy, ArrowRight, Check, ChevronDown, Search, RefreshCw } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { formatCents } from '@/app/(tools)/cricket/lib/settlement';
+import { haptic } from '@/lib/haptics';
+import { useAsyncAction } from '@/hooks/use-async-action';
 import { toast } from 'sonner';
 
 type ReasonLine = {
@@ -121,29 +123,36 @@ export default function PublicSettlementReportPage() {
    * because their train went into a tunnel: a transport error keeps the last
    * good data, while an explicit null — the server's answer for revoked or
    * expired — does replace it, because at that point the link really is dead.
+   *
+   * Returns whether fresh data actually landed. The automatic refreshes ignore
+   * that, but the tappable "Updated…" control needs it: a control that shows a
+   * confirmation tick has to know the difference between "refreshed" and
+   * "silently kept what was already on screen".
    */
-  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+  const load = useCallback(async (mode: 'initial' | 'refresh'): Promise<boolean> => {
     const supabase = getSupabaseClient();
     const token = tokenFromUrl();
     if (!token || !supabase) {
       if (mode === 'initial') setState('unavailable');
-      return;
+      return false;
     }
     if (mode === 'refresh') setRefreshing(true);
     try {
       const { data, error } = await supabase.rpc('get_settlement_report', { p_token: token });
       if (error) {
         if (mode === 'initial') setState('unavailable');
-        return; // transient: keep whatever is on screen
+        return false; // transient: keep whatever is on screen
       }
       if (!data) {
         setState('unavailable');   // revoked or expired — genuinely gone
-        return;
+        return false;
       }
       setReport(data as Report);
       setState('ready');
+      return true;
     } catch {
       if (mode === 'initial') setState('unavailable');
+      return false;
     } finally {
       setRefreshing(false);
     }
@@ -223,13 +232,25 @@ export default function PublicSettlementReportPage() {
 
   const matchCount = groups.reduce((n, g) => n + g.rows.length, 0);
 
-  const toggle = (key: string) =>
+  /**
+   * Expanding a payment row.
+   *
+   * This ONE accordion gets a haptic and the nested transaction-history rows
+   * below deliberately do not. The split is about what the tap is for: this
+   * row is the reader's own answer ("what do I owe, and why?"), tapped once
+   * or twice a visit. The history rows are browsing — 28 of them on a full
+   * season — and a tick on each would turn the page into a rattle and drain
+   * the meaning out of the taps that matter.
+   */
+  const toggle = (key: string) => {
+    haptic('selection');
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+  };
 
   /**
    * Same rule as TeamSwitcher: an uploaded logo wins, and Sunrisers falls back
@@ -241,21 +262,61 @@ export default function PublicSettlementReportPage() {
     report?.teamLogo
     ?? (report?.teamSlug === 'sunrisers-manteca' ? '/sunrisers-logo.png' : null);
 
-  const share = async () => {
-    const url = window.location.href;
-    const title = report ? `${report.teamName} settlement report` : 'Settlement report';
-    if (canShare) {
-      try { await navigator.share({ title, url }); return; } catch { /* dismissed */ }
-    }
-    try {
+  /**
+   * Share, or copy where there is no share sheet.
+   *
+   * `shared` is tracked separately from the action's own success state: the
+   * native sheet resolving is not a confirmation worth a tick (the user may
+   * have cancelled it, which is indistinguishable on some platforms), whereas
+   * a clipboard write that resolved genuinely did copy. So only the copy
+   * branch flips the label to "Link copied".
+   */
+  const shareAction = useAsyncAction(
+    async () => {
+      const url = window.location.href;
+      const title = report ? `${report.teamName} settlement report` : 'Settlement report';
+      if (canShare) {
+        try { await navigator.share({ title, url }); return; } catch { /* dismissed */ }
+      }
       await navigator.clipboard.writeText(url);
       setCopied(true);
       toast.success('Report link copied');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Couldn't copy the link");
-    }
-  };
+    },
+    {
+      tapHaptic: 'light',
+      // The clipboard resolves within a frame, so a success tick on top of
+      // the tap tick reads as one stutter rather than two events.
+      successHaptic: null,
+      onError: () => toast.error("Couldn't copy the link"),
+    },
+  );
+
+  // Kept as its own timer because `copied` is set inside one branch of the
+  // action rather than by its status, and must clear either way.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  /**
+   * The tappable "Updated…" line. A reader who has been staring at a live
+   * report needs to be able to ask "is this still true?" and watch it answer
+   * — which means the answer has to be real, so a refresh that brought back
+   * nothing says so instead of showing a tick.
+   */
+  const refreshAction = useAsyncAction(
+    async () => {
+      const ok = await load('refresh');
+      if (!ok) throw new Error('stale');
+    },
+    {
+      tapHaptic: 'light',
+      successHaptic: 'success',
+      resetAfterMs: 1400,
+      onError: () => toast.error("Couldn't update — showing the last figures"),
+    },
+  );
 
   if (state === 'loading') {
     return (
@@ -336,16 +397,18 @@ export default function PublicSettlementReportPage() {
               at it needs a way to say "is this still true?" and watch it
               answer. It also refreshes itself whenever the tab regains focus. */}
           <button
-            onClick={() => load('refresh')}
+            onClick={() => void refreshAction.run()}
             disabled={refreshing}
             className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--muted)] active:opacity-70"
             aria-label="Refresh report"
+            aria-busy={refreshing}
+            aria-live="polite"
           >
-            <RefreshCw
-              size={11}
-              className={refreshing ? 'animate-spin' : ''}
-              aria-hidden
-            />
+            {refreshAction.succeeded && !refreshing ? (
+              <Check size={11} className="animate-tactile-check" style={{ color: 'var(--green, #16a34a)' }} aria-hidden />
+            ) : (
+              <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} aria-hidden />
+            )}
             {refreshing ? 'Updating…' : `Updated ${fmtUpdated(report.updatedAt)}`}
           </button>
         </div>
@@ -454,7 +517,11 @@ export default function PublicSettlementReportPage() {
                             <button
                               onClick={() => toggle(key)}
                               aria-expanded={open}
-                              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
+                              /* pressable-selection, not pressable: 0.98 on a
+                                 full-width card row. The deeper 0.97 is fine on
+                                 a 100px button but on a row this wide it reads
+                                 as the whole card lurching. */
+                              className="pressable-selection flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-[15px] font-semibold text-[var(--text)]">
@@ -598,7 +665,9 @@ export default function PublicSettlementReportPage() {
             <button
               onClick={() => setShowLedger((v) => !v)}
               aria-expanded={showLedger}
-              className="flex w-full min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 text-left active:bg-[var(--hover-bg)]"
+              /* Press only. This opens the browsing layer — see the note on
+                 `toggle` for why the haptics stop here. */
+              className="pressable-selection flex w-full min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 text-left active:bg-[var(--hover-bg)]"
               style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
             >
               <span>
@@ -637,7 +706,8 @@ export default function PublicSettlementReportPage() {
                           })
                         }
                         aria-expanded={open}
-                        className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
+                        /* No haptic: up to 28 of these on a full season. */
+                        className="pressable-selection flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14px] text-[var(--text)]">{e.label}</p>
@@ -694,11 +764,15 @@ export default function PublicSettlementReportPage() {
 
         {/* ── Share ───────────────────────────────────────────────────── */}
         <button
-          onClick={share}
-          className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-[15px] font-semibold transition-opacity active:opacity-80"
+          onClick={() => void shareAction.run()}
+          disabled={shareAction.pending}
+          className="pressable flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl text-[15px] font-semibold transition-opacity active:opacity-80 disabled:opacity-70"
           style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}
+          aria-live="polite"
         >
-          {copied ? <Check size={17} /> : canShare ? <Share2 size={17} /> : <Copy size={17} />}
+          {copied
+            ? <Check size={17} className="animate-tactile-check" />
+            : canShare ? <Share2 size={17} /> : <Copy size={17} />}
           {copied ? 'Link copied' : 'Share settlement report'}
         </button>
 

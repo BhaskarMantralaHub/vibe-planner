@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { haptic } from '@/lib/haptics';
 
 export type CardMenuItem = {
   label: string;
@@ -53,7 +54,9 @@ export function CardMenu({ anchorRef, items, onClose, width = 160 }: CardMenuPro
           <div key={i}>
             {item.dividerBefore && <div className="border-t border-[var(--border)] my-0.5 mx-2" />}
             <button
-              onClick={() => { item.onClick(); onClose(); }}
+              // Same haptic as the ActionSheet row it is being migrated to, so
+              // a screen that has not moved over yet does not feel different.
+              onClick={() => { haptic('selection'); item.onClick(); onClose(); }}
               className="w-full flex items-center gap-2.5 px-3.5 py-3 text-[13px] font-medium transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] text-left cursor-pointer"
               style={{ color: item.color }}
             >
