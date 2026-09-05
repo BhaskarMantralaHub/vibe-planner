@@ -978,8 +978,10 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
                 if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
               }
             }}
-            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors active:bg-[var(--hover-bg)]"
-            style={{ background: 'var(--surface)' }}
+            /* Background as a CLASS, not an inline style: an inline style
+               outranks any class rule, so `active:bg-…` below could never
+               apply and this button has never shown its pressed colour. */
+            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors bg-[var(--surface)] active:bg-[var(--hover-bg)]"
             aria-label="Share scorecard link"
           >
             <Share2 size={14} className="flex-shrink-0" style={{ color: 'var(--muted)' }} />
