@@ -872,7 +872,11 @@ export default function LeagueStatsView() {
       photo_url: rosterRow.photo_url ?? null,
       summary: {
         runs: bat?.runs,
-        innings: bat?.innings ?? bowl?.innings,
+        // Two separate counts, never coalesced. `bat?.innings ?? bowl?.innings`
+        // meant the Bowling tab showed BATTING innings for anyone who had
+        // batted — a wrong-but-plausible number that masked a real data bug.
+        batting_innings: bat?.innings,
+        bowling_innings: bowl?.innings,
         average: bat?.batting_average,
         strike_rate: bat?.strike_rate,
         wickets: bowl?.wickets,

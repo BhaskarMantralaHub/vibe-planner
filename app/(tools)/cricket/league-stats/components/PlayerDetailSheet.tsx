@@ -31,9 +31,25 @@ export type PlayerDetailSheetProps = {
   player: {
     player_id: string; name: string; photo_url?: string | null;
     summary?: {
-      runs?: number; innings?: number; average?: number | null; strike_rate?: number | null;
+      runs?: number; average?: number | null; strike_rate?: number | null;
       wickets?: number; economy?: number | null; best_wickets?: number; catches?: number;
       runouts?: number;
+      /**
+       * Innings, kept as TWO fields on purpose.
+       *
+       * There used to be a single `innings` populated as
+       * `bat?.innings ?? bowl?.innings`, so batting innings won whenever the
+       * player had batted at all — and the BOWLING tab then showed his
+       * batting innings. A bowler with seven spells and one knock read as
+       * "1 Inns" next to his wicket tally, which is how a real mismatch went
+       * unnoticed: the number was wrong but plausible.
+       *
+       * They are genuinely different counts, not one value viewed two ways —
+       * batting innings excludes `did_not_bat`, bowling innings is every
+       * spell bowled. Never collapse them back with `??`.
+       */
+      batting_innings?: number;
+      bowling_innings?: number;
       /** Appearances — distinct scorecards, batting OR bowling. Used by the
        *  Fielding tile, where batting innings would be the wrong denominator
        *  for a catch count and would disagree with the leaderboard's "Mat". */
@@ -268,17 +284,21 @@ function SummaryStrip({ context, summary, accent }:
       { label: 'Runs', value: String(s.runs ?? 0) },
       { label: 'Avg', value: fmtNum(s.average ?? null, 2) },
       { label: 'SR', value: fmtNum(s.strike_rate ?? null, 1) },
-      { label: 'Inns', value: String(s.innings ?? 0) },
+      { label: 'Inns', value: String(s.batting_innings ?? 0) },
     ] : context === 'bowling' ? [
       { label: 'Wkts', value: String(s.wickets ?? 0) },
       { label: 'Econ', value: fmtNum(s.economy ?? null, 2) },
       { label: 'Best', value: s.best_wickets ? `${s.best_wickets}w` : '—' },
-      { label: 'Inns', value: String(s.innings ?? 0) },
+      // Spells bowled — NOT batting innings. See the note on the type.
+      { label: 'Inns', value: String(s.bowling_innings ?? 0) },
     ] : context === 'allround' ? [
       { label: 'Runs', value: String(s.runs ?? 0) },
       { label: 'Wkts', value: String(s.wickets ?? 0) },
       { label: 'Catches', value: String(s.catches ?? 0) },
-      { label: 'Inns', value: String(s.innings ?? 0) },
+      // Appearances, not innings. This tile sits beside runs AND wickets AND
+      // catches, and no single innings count is the denominator for all three
+      // — the same argument already applied to the Fielding tile below.
+      { label: 'Mat', value: s.matches === undefined ? '—' : String(s.matches) },
     ] : [
       { label: 'Catches', value: String(s.catches ?? 0) },
       { label: 'Run-outs', value: String(s.runouts ?? 0) },
