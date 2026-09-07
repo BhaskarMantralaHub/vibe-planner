@@ -436,14 +436,17 @@ COMMIT;
 --
 --    Not tidiness. When the trigger WORKS, the harness's INSERT never lands —
 --    the trigger converts it into an in-place UPDATE of a real player's real
---    innings. So the rollback protects the restoration of live figures, not
---    the removal of an obvious phantom row, and a lost rollback leaves no
---    trace to spot. Keeping it inside a migration that explicitly invites
---    piecemeal copy-pasting ("run sections 1 and 2 first") is how that
---    rollback gets lost. The separate harness is self-aborting instead, so
---    transaction control is no longer load-bearing.
+--    innings. So what protects live figures is not the removal of an obvious
+--    phantom row, and a lost rollback leaves no trace to spot. Keeping it
+--    inside a migration that explicitly invites piecemeal copy-pasting ("run
+--    sections 1 and 2 first") is how a rollback gets lost.
 --
---    Run it after sections 3 and 4 are committed.
+--    The harness therefore RESTORES every value it changed from a snapshot,
+--    and verifies the restore, before reporting success. The ROLLBACK is a
+--    second independent guard rather than the only one.
+--
+--    Run it after sections 3 and 4 are committed. Expected output: NOTICE
+--    lines ending "VERIFICATION PASSED". Any error means a real failure.
 -- ────────────────────────────────────────────────────────────────────────────
 
 
