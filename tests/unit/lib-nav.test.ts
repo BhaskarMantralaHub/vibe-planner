@@ -31,10 +31,42 @@ describe('lib/nav', () => {
   it('contains Roster tool (the /cricket hub, renamed from Cricket) with cricket role', () => {
     const roster = tools.find((t) => t.name === 'Roster');
     expect(roster).toBeDefined();
-    expect(roster!.href).toBe('/cricket');
+    // MUST carry ?view=players. This assertion used to read `'/cricket'`,
+    // which is to say the test enforced the bug: a bare /cricket signals its
+    // destination by ABSENCE of a view, and absence cannot override state
+    // that is already set. Arriving from Finances (which leaves
+    // `#expenses` in the URL and 'expenses' in sessionStorage), tapping
+    // Roster reset nothing — same pathname means no remount, a null ?view=
+    // makes the effect return early, and an empty hash is not a valid view —
+    // so the hamburger's Roster opened the Finances tab.
+    expect(roster!.href).toBe('/cricket?view=players');
     expect(roster!.roles).toContain('cricket');
     // The old label must be gone everywhere — one vocabulary.
     expect(tools.find((t) => t.name === 'Cricket')).toBeUndefined();
+  });
+
+  it('every dashboard nav entry states its view explicitly', () => {
+    // The invariant that would have caught the Roster bug, generalised: any
+    // entry pointing at the /cricket dashboard must name the view it wants.
+    // A bare '/cricket' is never correct here, because the dashboard holds
+    // five in-page views and remembers the last one you were on.
+    const dashboardEntries = tools.filter(
+      (t) => t.href === '/cricket' || t.href.startsWith('/cricket?') || t.href.startsWith('/cricket#'),
+    );
+    expect(dashboardEntries.length).toBeGreaterThan(0);
+    for (const t of dashboardEntries) {
+      expect(t.href, `"${t.name}" must deep-link with ?view=`).toMatch(/^\/cricket\?view=[a-z]+$/);
+    }
+  });
+
+  it('dashboard entries use ?view= rather than a #hash', () => {
+    // Hash links look equivalent and are not: the App Router commits the URL
+    // after render and fires no hashchange, so a #hash silently lands on
+    // whatever view was already active. useSearchParams is reactive on
+    // same-route navigations, which is the case that broke.
+    for (const t of tools) {
+      expect(t.href, `"${t.name}" must not rely on a #hash`).not.toMatch(/^\/cricket#/);
+    }
   });
 
   it('contains Admin tool with admin role only', () => {

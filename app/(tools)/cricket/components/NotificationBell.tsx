@@ -43,9 +43,19 @@ export default function NotificationBell() {
     setOpen(false);
     markOneRead(notifId);
 
-    // join_request/approval — stay on cricket dashboard (pending members show there)
+    // join_request/approval — pending members are shown on the ROSTER view,
+    // so say so explicitly and navigate unconditionally.
+    //
+    // This was `if (pathname !== '/cricket') router.push('/cricket')`, which
+    // failed in both halves. `pathname` excludes the hash and search, so a
+    // reader sitting on /cricket#expenses (Finances) already satisfied
+    // `pathname === '/cricket'` and the tap did nothing whatsoever — the
+    // notification cleared and the pending member never appeared. And a bare
+    // /cricket would not have reset the view anyway: it names no view, and
+    // the dashboard remembers the last one. Same root cause as the
+    // hamburger's Roster entry; see the note in lib/nav.tsx.
     if (type === 'join_request' || type === 'approval' || !postId) {
-      if (pathname !== '/cricket') router.push('/cricket');
+      router.push('/cricket?view=players');
       return;
     }
 

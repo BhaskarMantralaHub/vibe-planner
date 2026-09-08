@@ -50,7 +50,31 @@ export const tools: Tool[] = [
     // 'players' there; this is vocabulary, not routing).
     name: 'Roster',
     group: 'team',
-    href: '/cricket',
+    /**
+     * `?view=players`, NOT a bare `/cricket`.
+     *
+     * This was `/cricket` and it took you to Finances. Roster was the only
+     * nav entry that signalled its destination by ABSENCE of a view, and
+     * absence cannot override state that is already set. Coming from
+     * Finances (which rewrites the URL to `/cricket#expenses` and stores
+     * 'expenses' in sessionStorage), tapping Roster did nothing at all:
+     *
+     *   1. same pathname, so the App Router does not remount the page and
+     *      the useState initializer never re-runs;
+     *   2. `searchParams.get('view')` is null, so the ?view= effect returns
+     *      early;
+     *   3. `hashchange` fires with an empty hash, which is not a valid view,
+     *      so the hash-sync effect ignores it.
+     *
+     * Nothing reset `activeView`, and the stale `#expenses` hash plus the
+     * sessionStorage memory both still said Finances.
+     *
+     * ?view= is the mechanism the dashboard documents as reliable — it is
+     * read through useSearchParams, which is wired into the router and
+     * delivers on same-route navigations too. A `#players` hash would not:
+     * the router commits the URL after render and fires no hashchange.
+     */
+    href: '/cricket?view=players',
     icon: <Users size={22} />,
     description: 'Players, roles & team details.',
     roles: ['cricket', 'admin'],
