@@ -97,13 +97,11 @@ export default function TeamAdminPanel() {
   // ── CricClubs Sync ──────────────────────────────────────────
   // Sync info keyed by season id: last synced timestamp + fixture count.
   const [syncInfo, setSyncInfo] = useState<Record<string, SyncInfo>>({});
-  // Last known CricClubs team ID (for auto-fill when connecting new seasons).
-  const [lastKnownTeamId, setLastKnownTeamId] = useState<string>('');
   // Connect sheet state: which season are we connecting, and draft values.
+  // Team ID is stored at team level (cricket_teams.cricclubs_team_id), not per-season.
   const [connectSheet, setConnectSheet] = useState<{
     season: Season;
     draftId: string;
-    draftTeamId: string;
     draftStartDate: string;
     draftEndDate: string;
   } | null>(null);
@@ -191,17 +189,6 @@ export default function TeamAdminPanel() {
       setSyncInfo(infoMap);
     }
 
-    // Fetch last known CricClubs team ID from any season's umpiring settings
-    const { data: umpSettings } = await supabase
-      .from('cricket_umpiring_settings')
-      .select('cricclubs_team_id, season_id')
-      .in('season_id', seasonList.map((x) => x.id))
-      .not('cricclubs_team_id', 'is', null)
-      .limit(1);
-    if (umpSettings?.[0]?.cricclubs_team_id) {
-      setLastKnownTeamId(String(umpSettings[0].cricclubs_team_id));
-    }
-
     setLoading(false);
   }, [teamId]);
 
@@ -270,12 +257,11 @@ export default function TeamAdminPanel() {
   const connectSeason = async (
     season: Season,
     leagueId: number,
-    cricclubsTeamId: number,
     startDate: string | null,
     endDate: string | null,
   ) => {
     const supabase = getSupabaseClient();
-    if (!supabase) return;
+    if (!supabase || !teamId) return;
     setConnecting(true);
 
     // 1. Update season with league ID and dates
@@ -294,20 +280,27 @@ export default function TeamAdminPanel() {
       return;
     }
 
-    // 2. Upsert umpiring settings with the cricclubs team ID (required for duty sync)
-    const { error: umpError } = await supabase
-      .from('cricket_umpiring_settings')
-      .upsert({
-        season_id: season.id,
-        cricclubs_team_id: cricclubsTeamId,
-      }, { onConflict: 'season_id' });
+    // 2. Fetch team-level cricclubs_team_id and upsert umpiring settings
+    const { data: teamData } = await supabase
+      .from('cricket_teams')
+      .select('cricclubs_team_id')
+      .eq('id', teamId)
+      .single();
+
+    if (teamData?.cricclubs_team_id) {
+      const { error: umpError } = await supabase
+        .from('cricket_umpiring_settings')
+        .upsert({
+          season_id: season.id,
+          cricclubs_team_id: teamData.cricclubs_team_id,
+        }, { onConflict: 'season_id' });
+
+      if (umpError) {
+        console.warn('Could not set umpiring team ID:', umpError);
+      }
+    }
 
     setConnecting(false);
-
-    if (umpError) {
-      // Non-fatal: season is connected, just umpiring sync won't work
-      console.warn('Could not set umpiring team ID:', umpError);
-    }
 
     haptic('success');
     setSeasons((prev) => prev.map((x) => x.id === season.id
@@ -342,28 +335,12 @@ export default function TeamAdminPanel() {
     toast.success(`${splitSeasonName(season.name)[0]} disconnected from CricClubs`);
   };
 
-  const changeLeague = async (season: Season) => {
+  const changeLeague = (season: Season) => {
     // Open connect sheet pre-filled with current values for editing
     setManageSheet(null);
-
-    // Fetch existing cricclubs_team_id from umpiring settings
-    let existingTeamId = '';
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data } = await supabase
-        .from('cricket_umpiring_settings')
-        .select('cricclubs_team_id')
-        .eq('season_id', season.id)
-        .maybeSingle();
-      if (data?.cricclubs_team_id) {
-        existingTeamId = String(data.cricclubs_team_id);
-      }
-    }
-
     setConnectSheet({
       season,
       draftId: String(season.cricclubs_league_id ?? ''),
-      draftTeamId: existingTeamId,
       draftStartDate: season.start_date ?? '',
       draftEndDate: season.end_date ?? '',
     });
@@ -536,7 +513,6 @@ export default function TeamAdminPanel() {
                     onClick={() => connected ? setManageSheet(s) : setConnectSheet({
                       season: s,
                       draftId: '',
-                      draftTeamId: lastKnownTeamId,
                       draftStartDate: s.start_date ?? '',
                       draftEndDate: s.end_date ?? '',
                     })}
@@ -760,27 +736,13 @@ export default function TeamAdminPanel() {
             />
           </label>
 
-          <label className="block mt-4">
-            <Text as="span" size="xs" weight="semibold" color="dim" className="mb-1.5 block">
-              CricClubs Team ID
-            </Text>
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder="e.g. 1109"
-              value={connectSheet?.draftTeamId ?? ''}
-              onChange={(e) => setConnectSheet((prev) => prev ? { ...prev, draftTeamId: e.target.value } : null)}
-              className="font-mono"
-            />
-          </label>
-
           <button
             onClick={() => setShowHelp(true)}
             className="mt-3 flex items-center gap-1.5 text-[13px] cursor-pointer transition-colors"
             style={{ color: 'var(--cricket)' }}
           >
             <HelpCircle size={14} />
-            Where do I find these IDs?
+            Where do I find the league ID?
           </button>
 
           {/* Date range for sync filter */}
@@ -824,17 +786,12 @@ export default function TeamAdminPanel() {
               brand="cricket"
               size="md"
               className="flex-1"
-              disabled={!connectSheet?.draftId || !connectSheet?.draftTeamId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate || connecting}
+              disabled={!connectSheet?.draftId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate || connecting}
               onClick={() => {
-                if (!connectSheet?.draftId || !connectSheet?.draftTeamId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate) return;
+                if (!connectSheet?.draftId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate) return;
                 const leagueId = parseInt(connectSheet.draftId, 10);
                 if (isNaN(leagueId) || leagueId <= 0) {
                   toast.error('Enter a valid league ID');
-                  return;
-                }
-                const cricclubsTeamId = parseInt(connectSheet.draftTeamId, 10);
-                if (isNaN(cricclubsTeamId) || cricclubsTeamId <= 0) {
-                  toast.error('Enter a valid team ID');
                   return;
                 }
                 if (connectSheet.draftStartDate > connectSheet.draftEndDate) {
@@ -844,7 +801,6 @@ export default function TeamAdminPanel() {
                 void connectSeason(
                   connectSheet.season,
                   leagueId,
-                  cricclubsTeamId,
                   connectSheet.draftStartDate,
                   connectSheet.draftEndDate,
                 );
@@ -930,39 +886,28 @@ export default function TeamAdminPanel() {
       {/* ── CricClubs Help Sheet ── */}
       <Drawer open={showHelp} onOpenChange={setShowHelp}>
         <DrawerHandle />
-        <DrawerTitle>Finding the IDs</DrawerTitle>
+        <DrawerTitle>Finding the League ID</DrawerTitle>
         <div className="px-5 pb-2" aria-hidden>
-          <Text as="p" size="lg" weight="semibold" tracking="tight">Finding the IDs</Text>
+          <Text as="p" size="lg" weight="semibold" tracking="tight">Finding the League ID</Text>
         </div>
         <DrawerBody>
-          <Text as="p" size="sm" weight="semibold" className="mb-2">League ID</Text>
           <Text as="p" size="sm" color="muted" className="mb-3">
             Found in the fixtures URL — the number after &quot;league=&quot;
           </Text>
           <div className="rounded-xl p-3 overflow-x-auto" style={{ background: 'var(--surface)' }}>
             <code className="text-[11px] font-mono whitespace-nowrap text-[var(--text)]">
-              fixtures.do?<span style={{ color: 'var(--cricket)', fontWeight: 600 }}>league=93</span>&teamId=…
-            </code>
-          </div>
-
-          <Text as="p" size="sm" weight="semibold" className="mt-5 mb-2">Team ID</Text>
-          <Text as="p" size="sm" color="muted" className="mb-3">
-            Found in the same URL — the number after &quot;teamId=&quot;
-          </Text>
-          <div className="rounded-xl p-3 overflow-x-auto" style={{ background: 'var(--surface)' }}>
-            <code className="text-[11px] font-mono whitespace-nowrap text-[var(--text)]">
-              fixtures.do?league=93&<span style={{ color: 'var(--cricket)', fontWeight: 600 }}>teamId=1109</span>&…
+              fixtures.do?<span style={{ color: 'var(--cricket)', fontWeight: 600 }}>league=93</span>&teamId=1109
             </code>
           </div>
           <Text as="p" size="xs" color="dim" className="mt-2">
-            The team ID changes each season when MTCA creates a new league.
+            MTCA creates a new league each season, so this number changes.
           </Text>
 
           <a
             href="https://cricclubs.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex items-center gap-2 text-[14px] font-medium cursor-pointer"
+            className="mt-5 flex items-center gap-2 text-[14px] font-medium cursor-pointer"
             style={{ color: 'var(--cricket)' }}
           >
             <ExternalLink size={15} />
