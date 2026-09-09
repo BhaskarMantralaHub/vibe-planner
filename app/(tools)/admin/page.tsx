@@ -104,7 +104,7 @@ function AdminContent() {
   const [stats, setStats] = useState<UserStats[]>([]);
   const [activity, setActivity] = useState<UserActivity[]>([]);
   const [pageStats, setPageStats] = useState<{ path: string; count: number }[]>([]);
-  const [allSeasons, setAllSeasons] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
+  const [allSeasons, setAllSeasons] = useState<{ id: string; name: string; is_active: boolean; cricclubs_league_id: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
   // TWO different admins reach this page, and they are not the same person:
   //   platform admin (profiles.is_admin) — the whole console: users,
@@ -247,10 +247,10 @@ function AdminContent() {
         );
       }
 
-      // Fetch seasons for active season management
+      // Fetch seasons for active season management + cricclubs sync settings
       const { data: seasonData } = await supabase
         .from('cricket_seasons')
-        .select('id, name, is_active')
+        .select('id, name, is_active, cricclubs_league_id')
         .order('year', { ascending: false });
       if (seasonData) setAllSeasons(seasonData);
 
@@ -502,6 +502,57 @@ function AdminContent() {
                         <span className="animate-tactile-check ml-1 inline-block">✓</span>
                       )}
                     </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cricclubs Sync Settings (super admin only) */}
+            {isSuperAdmin && allSeasons.length > 0 && (
+              <div className="mb-8 bg-[var(--surface)] rounded-2xl p-5 border border-[var(--border)]">
+                <Text as="div" size="sm" color="muted" className="mb-2">Cricclubs Sync Settings</Text>
+                <Text as="div" size="2xs" color="dim" className="mb-3">
+                  Set the cricclubs league ID for each season. Find it in the cricclubs URL: <code className="text-[var(--cricket)]">league=XX</code>
+                </Text>
+                <div className="space-y-3">
+                  {allSeasons.map((s) => (
+                    <div key={s.id} className="flex items-center gap-3">
+                      <Text size="sm" weight="medium" className="w-28 shrink-0">{s.name}</Text>
+                      <input
+                        type="number"
+                        placeholder="League ID"
+                        value={s.cricclubs_league_id ?? ''}
+                        onChange={async (e) => {
+                          const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                          const supabase = getSupabaseClient();
+                          if (!supabase) return;
+                          const { error } = await supabase
+                            .from('cricket_seasons')
+                            .update({ cricclubs_league_id: val })
+                            .eq('id', s.id);
+                          if (error) {
+                            toast.error('Failed to update league ID');
+                            return;
+                          }
+                          setAllSeasons((prev) => prev.map((x) => x.id === s.id ? { ...x, cricclubs_league_id: val } : x));
+                        }}
+                        onBlur={() => {
+                          if (s.cricclubs_league_id) {
+                            toast.success(`${s.name} linked to league ${s.cricclubs_league_id}`);
+                          }
+                        }}
+                        className="w-24 bg-[var(--card)] border border-[var(--border)] rounded-lg px-3 py-2 text-[14px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors text-center font-mono"
+                      />
+                      {s.cricclubs_league_id ? (
+                        <span className="text-[12px] px-2 py-1 rounded-lg bg-[var(--green)]/15 text-[var(--green)] font-medium">
+                          ✓ Linked
+                        </span>
+                      ) : (
+                        <span className="text-[12px] px-2 py-1 rounded-lg bg-[var(--orange)]/15 text-[var(--orange)] font-medium">
+                          Not set
+                        </span>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
