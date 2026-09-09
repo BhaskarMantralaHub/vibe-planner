@@ -762,7 +762,8 @@ async function refreshFixtures(fixtures) {
   const changes = [];
 
   for (const fx of fixtures) {
-    // match_date can be null (TBD) — we still process the fixture to link it
+    // Skip TBD fixtures — sync only updates existing rows, can't create new ones
+    if (!fx.match_date) continue;
     const opponent = fx.team_home === myCricclubsName ? fx.team_away : fx.team_home;
     if (!opponent) continue;
 
