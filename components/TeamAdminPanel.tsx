@@ -97,6 +97,8 @@ export default function TeamAdminPanel() {
   // ── CricClubs Sync ──────────────────────────────────────────
   // Sync info keyed by season id: last synced timestamp + fixture count.
   const [syncInfo, setSyncInfo] = useState<Record<string, SyncInfo>>({});
+  // Last known CricClubs team ID (for auto-fill when connecting new seasons).
+  const [lastKnownTeamId, setLastKnownTeamId] = useState<string>('');
   // Connect sheet state: which season are we connecting, and draft values.
   const [connectSheet, setConnectSheet] = useState<{
     season: Season;
@@ -187,6 +189,17 @@ export default function TeamAdminPanel() {
         };
       }));
       setSyncInfo(infoMap);
+    }
+
+    // Fetch last known CricClubs team ID from any season's umpiring settings
+    const { data: umpSettings } = await supabase
+      .from('cricket_umpiring_settings')
+      .select('cricclubs_team_id, season_id')
+      .in('season_id', seasonList.map((x) => x.id))
+      .not('cricclubs_team_id', 'is', null)
+      .limit(1);
+    if (umpSettings?.[0]?.cricclubs_team_id) {
+      setLastKnownTeamId(String(umpSettings[0].cricclubs_team_id));
     }
 
     setLoading(false);
@@ -523,7 +536,7 @@ export default function TeamAdminPanel() {
                     onClick={() => connected ? setManageSheet(s) : setConnectSheet({
                       season: s,
                       draftId: '',
-                      draftTeamId: '',
+                      draftTeamId: lastKnownTeamId,
                       draftStartDate: s.start_date ?? '',
                       draftEndDate: s.end_date ?? '',
                     })}
