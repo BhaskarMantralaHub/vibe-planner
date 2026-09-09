@@ -208,7 +208,7 @@ function addAllToCalendar(matches: Match[]) {
   toast.success(`${matches.length} matches added to calendar`);
 }
 
-async function exportSchedulePDF(upcoming: Match[], completed: Match[]) {
+async function exportSchedulePDF(upcoming: Match[], completed: Match[], seasonName: string) {
   try {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -254,7 +254,7 @@ async function exportSchedulePDF(upcoming: Match[], completed: Match[]) {
     doc.addImage(b64, 'PNG', M, 5, 14, 14);
   } catch { /* skip */ }
   txt(getTeamName(), M + 18, 13, { size: 18, bold: true, color: WHITE });
-  txt('2026 MTCA Spring League  —  Division D', M + 18, 19, { size: 9, color: [255, 255, 230] });
+  txt(seasonName || 'League Schedule', M + 18, 19, { size: 9, color: [255, 255, 230] });
   txt(`${totalMatches} Matches`, W - M, 13, { size: 10, bold: true, color: [255, 220, 180], align: 'right' });
   txt(`Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`, W - M, 19, { size: 7, color: [220, 200, 170], align: 'right' });
 
@@ -1091,7 +1091,7 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
 /* ── Month Group Header ── */
 function MonthHeader({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 pt-5 pb-2 first:pt-0">
+    <div className="flex items-center gap-3 pt-6 pb-2 first:pt-0">
       <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[10px]" style={{ color: 'var(--cricket)' }}>
         {label}
       </Text>
@@ -1124,7 +1124,9 @@ function localSaveMatches(matches: Match[]) {
 export default function MatchSchedule() {
   const {  currentTeamId, userTeams, isTeamAdmin } = useAuthStore();
   const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
-  const { selectedSeasonId } = useCricketStore();
+  const { selectedSeasonId, seasons } = useCricketStore();
+  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
+  const seasonName = selectedSeason?.name ?? 'League Schedule';
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1615,7 +1617,7 @@ export default function MatchSchedule() {
               Cal
             </button>
             <button
-              onClick={() => exportSchedulePDF(upcoming, completed).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}
+              onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
               style={{
                 background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
