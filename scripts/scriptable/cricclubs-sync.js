@@ -1149,17 +1149,25 @@ async function loadSeasonConfig() {
 
   // Derive date range from DB columns (year, season_type) with fallback to name parsing.
   // This is fully hands-free: create a season with year/type, connect it to CricClubs, done.
+  // Supports: spring (Apr-Jun), summer (Jun-Aug), fall (Sep-Nov), winter (Dec-Mar spans years)
   const year = active.year || active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
   const seasonType = (active.season_type || '').toLowerCase() || active.name.toLowerCase();
   let from, to;
   if (seasonType.includes('spring')) {
     from = `04/01/${year}`;
+    to = `06/30/${year}`;
+  } else if (seasonType.includes('summer')) {
+    from = `06/01/${year}`;
     to = `08/31/${year}`;
   } else if (seasonType.includes('fall')) {
     from = `09/01/${year}`;
-    to = `12/31/${year}`;
+    to = `11/30/${year}`;
+  } else if (seasonType.includes('winter')) {
+    // Winter spans Dec of this year to Mar of next year
+    from = `12/01/${year}`;
+    to = `03/31/${Number(year) + 1}`;
   } else {
-    // Default to full year (summer or unknown)
+    // Default to full year (unknown type)
     from = `01/01/${year}`;
     to = `12/31/${year}`;
   }
