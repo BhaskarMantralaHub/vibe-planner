@@ -20,11 +20,11 @@ const CONFIG = {
   team_id:           '8284208d-fb02-44bf-bb8c-3c5411d35386',                      // cricket_teams.id for Sunrisers Manteca
   team_name:         'Sunrisers Manteca',                                         // exact name (no "MTCA " prefix — that's auto-added when matching)
   cricclubs_base:    'https://cricclubs.com/MountainHouseTracyCricketAssociationMTCA',
-  cricclubs_team_id: 1014,                                                        // cricclubs teamId query param
+  cricclubs_team_id: 1109,                                                        // cricclubs teamId query param (changes per season)
   club_id:           14653,                                                       // cricclubs clubId query param
-  league_id:         87,                                                          // cricclubs league query param
-  season_from:       '04/01/2026',                                                // MM/DD/YYYY (cricclubs format)
-  season_to:         '08/31/2026',
+  league_id:         93,                                                          // cricclubs league query param (Fall 2026)
+  season_from:       '09/01/2026',                                                // MM/DD/YYYY (cricclubs format)
+  season_to:         '12/31/2026',
   force_resync:      false,                                                      // true: re-ingest scorecards already in DB (schedule auto-completes either way)
   scorecard_timeout_sec: 30,
   user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
