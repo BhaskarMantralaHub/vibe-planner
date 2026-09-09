@@ -1137,7 +1137,7 @@ async function syncUmpiringDuties(leagueFixtures) {
  */
 async function loadSeasonConfig() {
   const seasons = await supabase('cricket_seasons', {
-    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id`,
+    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id,year,season_type`,
   }) || [];
 
   const active = seasons.find((s) => s.cricclubs_league_id != null);
@@ -1147,18 +1147,19 @@ async function loadSeasonConfig() {
     );
   }
 
-  // Derive date range from season name (e.g., "2026 MTCA Fall League" → Fall = Sep-Dec)
-  const year = active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
-  const nameLower = active.name.toLowerCase();
+  // Derive date range from DB columns (year, season_type) with fallback to name parsing.
+  // This is fully hands-free: create a season with year/type, connect it to CricClubs, done.
+  const year = active.year || active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
+  const seasonType = (active.season_type || '').toLowerCase() || active.name.toLowerCase();
   let from, to;
-  if (nameLower.includes('spring')) {
+  if (seasonType.includes('spring')) {
     from = `04/01/${year}`;
     to = `08/31/${year}`;
-  } else if (nameLower.includes('fall')) {
+  } else if (seasonType.includes('fall')) {
     from = `09/01/${year}`;
     to = `12/31/${year}`;
   } else {
-    // Default to full year
+    // Default to full year (summer or unknown)
     from = `01/01/${year}`;
     to = `12/31/${year}`;
   }
