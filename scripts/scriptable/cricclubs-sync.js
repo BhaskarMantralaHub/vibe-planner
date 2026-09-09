@@ -1142,37 +1142,30 @@ async function syncUmpiringDuties(leagueFixtures) {
  */
 async function loadSeasonConfig() {
   const seasons = await supabase('cricket_seasons', {
-    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id,start_date,end_date`,
+    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id`,
   }) || [];
 
   const active = seasons.find((s) => s.cricclubs_league_id != null);
   if (!active) {
     throw new Error(
-      'No active season with cricclubs_league_id set. Go to Team Admin → Cricclubs Sync and set the league ID.',
+      'No active season with cricclubs_league_id set. Go to Team Admin → CricClubs Sync and set the league ID.',
     );
   }
 
-  // Derive date range: prefer explicit dates, then infer from season name, then default to current year
+  // Derive date range from season name (e.g., "2026 MTCA Fall League" → Fall = Sep-Dec)
+  const year = active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
+  const nameLower = active.name.toLowerCase();
   let from, to;
-  if (active.start_date && active.end_date) {
-    // Database has explicit dates
-    from = formatDateUS(active.start_date);
-    to = formatDateUS(active.end_date);
+  if (nameLower.includes('spring')) {
+    from = `04/01/${year}`;
+    to = `08/31/${year}`;
+  } else if (nameLower.includes('fall')) {
+    from = `09/01/${year}`;
+    to = `12/31/${year}`;
   } else {
-    // Infer from season name (e.g., "2026 MTCA Fall League" → Fall = Sep-Dec)
-    const year = active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
-    const nameLower = active.name.toLowerCase();
-    if (nameLower.includes('spring')) {
-      from = `04/01/${year}`;
-      to = `08/31/${year}`;
-    } else if (nameLower.includes('fall')) {
-      from = `09/01/${year}`;
-      to = `12/31/${year}`;
-    } else {
-      // Default to full year
-      from = `01/01/${year}`;
-      to = `12/31/${year}`;
-    }
+    // Default to full year
+    from = `01/01/${year}`;
+    to = `12/31/${year}`;
   }
 
   SEASON_CONFIG.league_id = active.cricclubs_league_id;
@@ -1181,12 +1174,6 @@ async function loadSeasonConfig() {
   SEASON_CONFIG.season_name = active.name;
 
   return active;
-}
-
-/** Convert YYYY-MM-DD to MM/DD/YYYY */
-function formatDateUS(iso) {
-  const [y, m, d] = iso.split('-');
-  return `${m}/${d}/${y}`;
 }
 
 const log = [];
