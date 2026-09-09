@@ -1137,40 +1137,30 @@ async function syncUmpiringDuties(leagueFixtures) {
  */
 async function loadSeasonConfig() {
   const seasons = await supabase('cricket_seasons', {
-    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id,year,season_type`,
+    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id,start_date,end_date`,
   }) || [];
 
   const active = seasons.find((s) => s.cricclubs_league_id != null);
   if (!active) {
     throw new Error(
-      'No active season with cricclubs_league_id set. Go to Team Admin → CricClubs Sync and set the league ID.',
+      'No active season with cricclubs_league_id set. Go to Team Admin → CricClubs Sync and connect the season.',
     );
   }
 
-  // Derive date range from DB columns (year, season_type) with fallback to name parsing.
-  // This is fully hands-free: create a season with year/type, connect it to CricClubs, done.
-  // Supports: spring (Apr-Jun), summer (Jun-Aug), fall (Sep-Nov), winter (Dec-Mar spans years)
-  const year = active.year || active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
-  const seasonType = (active.season_type || '').toLowerCase() || active.name.toLowerCase();
-  let from, to;
-  if (seasonType.includes('spring')) {
-    from = `04/01/${year}`;
-    to = `06/30/${year}`;
-  } else if (seasonType.includes('summer')) {
-    from = `06/01/${year}`;
-    to = `08/31/${year}`;
-  } else if (seasonType.includes('fall')) {
-    from = `09/01/${year}`;
-    to = `11/30/${year}`;
-  } else if (seasonType.includes('winter')) {
-    // Winter spans Dec of this year to Mar of next year
-    from = `12/01/${year}`;
-    to = `03/31/${Number(year) + 1}`;
-  } else {
-    // Default to full year (unknown type)
-    from = `01/01/${year}`;
-    to = `12/31/${year}`;
+  // Use explicit dates from DB. These are set via Team Admin → CricClubs Sync → Connect.
+  if (!active.start_date || !active.end_date) {
+    throw new Error(
+      'Season dates not set. Go to Team Admin → CricClubs Sync → Manage connection and set the date range.',
+    );
   }
+
+  // Convert YYYY-MM-DD to MM/DD/YYYY for CricClubs URL
+  const toMmDdYyyy = (ymd) => {
+    const [y, m, d] = ymd.split('-');
+    return `${m}/${d}/${y}`;
+  };
+  const from = toMmDdYyyy(active.start_date);
+  const to = toMmDdYyyy(active.end_date);
 
   SEASON_CONFIG.league_id = active.cricclubs_league_id;
   SEASON_CONFIG.season_from = from;

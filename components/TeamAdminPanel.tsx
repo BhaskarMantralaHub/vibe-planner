@@ -10,7 +10,14 @@ import { toast } from 'sonner';
 import { haptic } from '@/lib/haptics';
 import { useAsyncAction } from '@/hooks/use-async-action';
 
-type Season = { id: string; name: string; is_active: boolean; cricclubs_league_id: number | null };
+type Season = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  cricclubs_league_id: number | null;
+  start_date: string | null;  // YYYY-MM-DD
+  end_date: string | null;    // YYYY-MM-DD
+};
 
 /** Sync metadata derived from backend (cricclubs_matches, cricket_schedule_matches). */
 type SyncInfo = {
@@ -90,8 +97,13 @@ export default function TeamAdminPanel() {
   // ── CricClubs Sync ──────────────────────────────────────────
   // Sync info keyed by season id: last synced timestamp + fixture count.
   const [syncInfo, setSyncInfo] = useState<Record<string, SyncInfo>>({});
-  // Connect sheet state: which season are we connecting, and draft league ID.
-  const [connectSheet, setConnectSheet] = useState<{ season: Season; draftId: string } | null>(null);
+  // Connect sheet state: which season are we connecting, and draft values.
+  const [connectSheet, setConnectSheet] = useState<{
+    season: Season;
+    draftId: string;
+    draftStartDate: string;
+    draftEndDate: string;
+  } | null>(null);
   // Manage sheet: which season's connection are we viewing.
   const [manageSheet, setManageSheet] = useState<Season | null>(null);
   // Disconnect confirmation dialog.
@@ -106,7 +118,7 @@ export default function TeamAdminPanel() {
     if (!supabase || !teamId) { setLoading(false); return; }
 
     const [{ data: s }, { data: inv }] = await Promise.all([
-      supabase.from('cricket_seasons').select('id, name, is_active, cricclubs_league_id')
+      supabase.from('cricket_seasons').select('id, name, is_active, cricclubs_league_id, start_date, end_date')
         .eq('team_id', teamId).order('year', { ascending: false }),
       // NOT filtered by expiry: an invite that has run out must be shown as
       // Expired, not silently reported as "no invite" — the admin needs to
@@ -241,13 +253,22 @@ export default function TeamAdminPanel() {
     toast.error(e instanceof Error ? e.message : 'Something went wrong');
 
   // ── CricClubs connection handlers ──────────────────────────
-  const connectSeason = async (season: Season, leagueId: number) => {
+  const connectSeason = async (
+    season: Season,
+    leagueId: number,
+    startDate: string | null,
+    endDate: string | null,
+  ) => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setConnecting(true);
     const { error } = await supabase
       .from('cricket_seasons')
-      .update({ cricclubs_league_id: leagueId })
+      .update({
+        cricclubs_league_id: leagueId,
+        start_date: startDate || null,
+        end_date: endDate || null,
+      })
       .eq('id', season.id);
     setConnecting(false);
     if (error) {
@@ -255,7 +276,10 @@ export default function TeamAdminPanel() {
       return;
     }
     haptic('success');
-    setSeasons((prev) => prev.map((x) => x.id === season.id ? { ...x, cricclubs_league_id: leagueId } : x));
+    setSeasons((prev) => prev.map((x) => x.id === season.id
+      ? { ...x, cricclubs_league_id: leagueId, start_date: startDate, end_date: endDate }
+      : x
+    ));
     setConnectSheet(null);
     toast.success(`${splitSeasonName(season.name)[0]} connected to CricClubs`);
   };
@@ -285,9 +309,14 @@ export default function TeamAdminPanel() {
   };
 
   const changeLeague = (season: Season) => {
-    // Open connect sheet pre-filled with current league ID for editing
+    // Open connect sheet pre-filled with current values for editing
     setManageSheet(null);
-    setConnectSheet({ season, draftId: String(season.cricclubs_league_id ?? '') });
+    setConnectSheet({
+      season,
+      draftId: String(season.cricclubs_league_id ?? ''),
+      draftStartDate: season.start_date ?? '',
+      draftEndDate: season.end_date ?? '',
+    });
   };
 
   /**
@@ -454,7 +483,12 @@ export default function TeamAdminPanel() {
 
                   {/* Action */}
                   <button
-                    onClick={() => connected ? setManageSheet(s) : setConnectSheet({ season: s, draftId: '' })}
+                    onClick={() => connected ? setManageSheet(s) : setConnectSheet({
+                      season: s,
+                      draftId: '',
+                      draftStartDate: s.start_date ?? '',
+                      draftEndDate: s.end_date ?? '',
+                    })}
                     className="mt-2.5 -mx-1 flex min-h-11 w-full items-center justify-between rounded-xl px-1 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
                   >
                     <Text size="sm" weight="medium" style={{ color: connected ? 'var(--text)' : 'var(--cricket)' }}>
@@ -658,7 +692,7 @@ export default function TeamAdminPanel() {
         </div>
         <DrawerBody>
           <Text as="p" size="sm" color="muted" className="mb-4">
-            Enter the CricClubs league ID for this season. Fixtures will sync automatically.
+            Enter the CricClubs league ID and date range for this season.
           </Text>
 
           <label className="block">
@@ -681,8 +715,35 @@ export default function TeamAdminPanel() {
             style={{ color: 'var(--cricket)' }}
           >
             <HelpCircle size={14} />
-            Where do I find this?
+            Where do I find the league ID?
           </button>
+
+          {/* Date range for sync filter */}
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <label className="block">
+              <Text as="span" size="xs" weight="semibold" color="dim" className="mb-1.5 block">
+                Start date
+              </Text>
+              <Input
+                type="date"
+                value={connectSheet?.draftStartDate ?? ''}
+                onChange={(e) => setConnectSheet((prev) => prev ? { ...prev, draftStartDate: e.target.value } : null)}
+              />
+            </label>
+            <label className="block">
+              <Text as="span" size="xs" weight="semibold" color="dim" className="mb-1.5 block">
+                End date
+              </Text>
+              <Input
+                type="date"
+                value={connectSheet?.draftEndDate ?? ''}
+                onChange={(e) => setConnectSheet((prev) => prev ? { ...prev, draftEndDate: e.target.value } : null)}
+              />
+            </label>
+          </div>
+          <Text as="p" size="xs" color="dim" className="mt-1.5">
+            Fixtures within this range will sync from CricClubs.
+          </Text>
 
           <div className="mt-6 flex gap-3">
             <Button
@@ -698,15 +759,24 @@ export default function TeamAdminPanel() {
               brand="cricket"
               size="md"
               className="flex-1"
-              disabled={!connectSheet?.draftId || connecting}
+              disabled={!connectSheet?.draftId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate || connecting}
               onClick={() => {
-                if (!connectSheet?.draftId) return;
+                if (!connectSheet?.draftId || !connectSheet?.draftStartDate || !connectSheet?.draftEndDate) return;
                 const leagueId = parseInt(connectSheet.draftId, 10);
                 if (isNaN(leagueId) || leagueId <= 0) {
                   toast.error('Enter a valid league ID');
                   return;
                 }
-                void connectSeason(connectSheet.season, leagueId);
+                if (connectSheet.draftStartDate > connectSheet.draftEndDate) {
+                  toast.error('End date must be after start date');
+                  return;
+                }
+                void connectSeason(
+                  connectSheet.season,
+                  leagueId,
+                  connectSheet.draftStartDate,
+                  connectSheet.draftEndDate,
+                );
               }}
             >
               {connecting ? 'Connecting…' : 'Connect'}
@@ -741,6 +811,11 @@ export default function TeamAdminPanel() {
                   <Text as="p" size="sm" color="muted" className="mt-1">
                     League {manageSheet.cricclubs_league_id}
                   </Text>
+                  {manageSheet.start_date && manageSheet.end_date && (
+                    <Text as="p" size="xs" color="dim" className="mt-1">
+                      {fmtDate(manageSheet.start_date)} – {fmtDate(manageSheet.end_date)}
+                    </Text>
+                  )}
                   {info?.lastSyncedAt && (
                     <Text as="p" size="xs" color="dim" className="mt-2">
                       Last synced: {formatSyncTime(info.lastSyncedAt)}
