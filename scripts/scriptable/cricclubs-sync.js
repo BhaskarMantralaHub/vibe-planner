@@ -752,6 +752,15 @@ async function refreshFixtures(fixtures) {
     query: `?team_id=eq.${CONFIG.team_id}&status=eq.upcoming&result=is.null&deleted_at=is.null&select=id,opponent,match_date,match_time,venue,match_type,is_home,umpire,cricclubs_fixture_id,status`,
   }) || [];
 
+  // Resolve season for inserting new fixtures
+  const seasonRows = await supabase('cricket_seasons', {
+    query: `?team_id=eq.${CONFIG.team_id}&cricclubs_league_id=eq.${CONFIG.league_id}&select=id,name`,
+  }) || [];
+  const seasonId = seasonRows[0]?.id ?? null;
+  if (!seasonId) {
+    console.warn(`fixtures: no season with cricclubs_league_id=${CONFIG.league_id} — cannot create new fixtures`);
+  }
+
   const byFixtureId = new Map();
   for (const r of scheduleRows) {
     if (r.cricclubs_fixture_id != null) byFixtureId.set(r.cricclubs_fixture_id, r);
@@ -759,10 +768,11 @@ async function refreshFixtures(fixtures) {
   const claimed = new Set();
   let matched = 0;
   let updated = 0;
+  let created = 0;
   const changes = [];
 
   for (const fx of fixtures) {
-    // Skip TBD fixtures — sync only updates existing rows, can't create new ones
+    // Skip TBD fixtures — can't match or create without a date
     if (!fx.match_date) continue;
     const opponent = fx.team_home === myCricclubsName ? fx.team_away : fx.team_home;
     if (!opponent) continue;
@@ -771,7 +781,6 @@ async function refreshFixtures(fixtures) {
 
     if (!target && fx.match_date) {
       // Opponent + nearest date within 14 days (legacy rows without fixture_id)
-      // Only when fixture has a confirmed date — TBD fixtures skip this fallback
       const candidates = scheduleRows
         .filter((r) => !claimed.has(r.id))
         .filter((r) => r.cricclubs_fixture_id == null)
@@ -783,35 +792,63 @@ async function refreshFixtures(fixtures) {
     }
     if (!target && fx.match_date && fx.venue) {
       // Date+venue fallback (heals admin name typos)
-      // Only when fixture has a confirmed date
       target = scheduleRows
         .filter((r) => !claimed.has(r.id))
         .filter((r) => r.cricclubs_fixture_id == null)
         .filter((r) => r.match_type === 'league')
         .find((r) => r.match_date === fx.match_date && r.venue === fx.venue) ?? null;
     }
-    if (!target) continue;
-    claimed.add(target.id);
-    matched += 1;
 
-    const upd = buildFixtureUpdate(target, fx, myCricclubsName);
-    if (Object.keys(upd).length === 0) continue;
+    if (target) {
+      // UPDATE existing row
+      claimed.add(target.id);
+      matched += 1;
 
-    try {
-      await supabase('cricket_schedule_matches', {
-        method: 'PATCH',
-        query: `?id=eq.${target.id}&status=eq.upcoming&result=is.null`,
-        body: upd,
-      });
-      updated += 1;
-      changes.push({ opponent, date: fx.match_date ?? 'TBD', fields: Object.keys(upd).filter((k) => k !== 'cricclubs_fixture_id') });
-    } catch (e) {
-      // Log but don't abort the whole sync
-      console.warn(`fixture update failed: ${e.message}`);
+      const upd = buildFixtureUpdate(target, fx, myCricclubsName);
+      if (Object.keys(upd).length === 0) continue;
+
+      try {
+        await supabase('cricket_schedule_matches', {
+          method: 'PATCH',
+          query: `?id=eq.${target.id}&status=eq.upcoming&result=is.null`,
+          body: upd,
+        });
+        updated += 1;
+        changes.push({ action: 'updated', opponent, date: fx.match_date, fields: Object.keys(upd).filter((k) => k !== 'cricclubs_fixture_id') });
+      } catch (e) {
+        console.warn(`fixture update failed: ${e.message}`);
+      }
+    } else if (seasonId) {
+      // INSERT new fixture — no existing row matched
+      const isHome = fx.team_home === myCricclubsName;
+      const newRow = {
+        team_id: CONFIG.team_id,
+        season_id: seasonId,
+        opponent: opponent.replace(/^MTCA\s+/i, ''),  // strip MTCA prefix for cleaner display
+        match_date: fx.match_date,
+        match_time: fx.match_time || '10:00',
+        venue: fx.venue || 'TBD',
+        match_type: normalizeMatchType(fx.match_type),
+        is_home: isHome,
+        overs: 20,
+        status: 'upcoming',
+        cricclubs_fixture_id: fx.cricclubs_fixture_id,
+      };
+
+      try {
+        await supabase('cricket_schedule_matches', {
+          method: 'POST',
+          body: newRow,
+        });
+        created += 1;
+        changes.push({ action: 'created', opponent: newRow.opponent, date: fx.match_date });
+      } catch (e) {
+        console.warn(`fixture insert failed: ${e.message}`);
+      }
     }
   }
 
-  return { fixturesOnCricclubs: fixtures.length, matched, updated, changes };
+  return { fixturesOnCricclubs: fixtures.length, matched, updated, created, changes };
 }
 
 // ── 5b. UMPIRING DUTIES ──────────────────────────────────────────────────────
@@ -1099,9 +1136,10 @@ try {
   const fixturesHtml = await withRetry(() => fetchHtml(fixturesUrl(), 20));
   const fixtures = JSON.parse(await parseInWebView(fixturesHtml, FIXTURES_PARSER));
   const fixSummary = await refreshFixtures(fixtures);
-  log.push(`📆 ${fixSummary.matched}/${fixSummary.fixturesOnCricclubs} matched · ${fixSummary.updated} updated`);
-  for (const c of fixSummary.changes.slice(0, 5)) {
-    log.push(`   ↳ ${c.opponent} (${c.date}): ${c.fields.join(', ')}`);
+  log.push(`📆 ${fixSummary.matched}/${fixSummary.fixturesOnCricclubs} matched · ${fixSummary.updated} updated · ${fixSummary.created} created`);
+  for (const c of fixSummary.changes.slice(0, 8)) {
+    const fields = c.fields ? `: ${c.fields.join(', ')}` : '';
+    log.push(`   ↳ ${c.action} ${c.opponent} (${c.date})${fields}`);
   }
 
   // 6.1c — umpiring duties, from a SECOND, LEAGUE-WIDE fixture fetch.
