@@ -1091,7 +1091,7 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
 /* ── Month Group Header ── */
 function MonthHeader({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 pt-6 pb-2 first:pt-0">
+    <div className="flex items-center gap-3 pb-2">
       <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[10px]" style={{ color: 'var(--cricket)' }}>
         {label}
       </Text>
@@ -1640,7 +1640,7 @@ export default function MatchSchedule() {
         {activeTab === 'upcoming' && (
           <>
             {restUpcoming.length > 0 ? (
-              <div className="space-y-0">
+              <div className="space-y-6">
                 {monthGroups.map((group) => (
                   <div key={group.label}>
                     <MonthHeader label={group.label} />
