@@ -15,6 +15,11 @@
 // Edit these for your project / team. (Mirror the constants at the top of
 // scripts/cricclubs-sync/sync.ts — cricclubs URLs need all three of league,
 // teamId, clubId, not just one.)
+// Runtime detection: if the script name contains "force", enable force_resync.
+// This lets you create a second Scriptable shortcut named "CricClubs Force Sync"
+// that imports the same GitHub URL but auto-enables force mode.
+const FORCE_MODE = /force/i.test(Script.name());
+
 const CONFIG = {
   supabase_url:      'https://mcklzjmaivtwdhjauwtv.supabase.co',                  // your Supabase project URL
   team_id:           '8284208d-fb02-44bf-bb8c-3c5411d35386',                      // cricket_teams.id for Sunrisers Manteca
@@ -24,7 +29,7 @@ const CONFIG = {
   club_id:           14653,                                                       // cricclubs clubId query param
   // league_id is now fetched from the ACTIVE season's cricclubs_league_id in the database
   // season dates are derived from the season's start_date/end_date or default to current year
-  force_resync:      false,                                                      // true: re-ingest scorecards already in DB (schedule auto-completes either way)
+  force_resync:      FORCE_MODE,                                                 // true: re-ingest scorecards already in DB (schedule auto-completes either way)
   scorecard_timeout_sec: 30,
   user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 };
@@ -1174,6 +1179,11 @@ const log = [];
 const startMs = Date.now();
 
 try {
+  // Show mode in first log line
+  if (FORCE_MODE) {
+    log.push('🔄 FORCE MODE — re-ingesting all scorecards');
+  }
+
   // Load season config from DB first
   log.push('⚙️ Loading season config…');
   const season = await loadSeasonConfig();
