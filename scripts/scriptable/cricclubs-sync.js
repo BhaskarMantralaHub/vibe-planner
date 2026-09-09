@@ -511,7 +511,7 @@ async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
     // the phone (the canonical path) landed with a NULL league id and could not
     // be attributed to a season at all. Season-filtered stats are impossible
     // without it, and the gap is silent — the match itself looks fine.
-    cricclubs_league_id: CONFIG.league_id,
+    cricclubs_league_id: SEASON_CONFIG.league_id,
     match_date: listEntry.match_date,
     match_format: listEntry.match_format,
     league_name: extractLeagueName(listEntry.league_division),
@@ -761,11 +761,11 @@ async function refreshFixtures(fixtures) {
 
   // Resolve season for inserting new fixtures
   const seasonRows = await supabase('cricket_seasons', {
-    query: `?team_id=eq.${CONFIG.team_id}&cricclubs_league_id=eq.${CONFIG.league_id}&select=id,name`,
+    query: `?team_id=eq.${CONFIG.team_id}&cricclubs_league_id=eq.${SEASON_CONFIG.league_id}&select=id,name`,
   }) || [];
   const seasonId = seasonRows[0]?.id ?? null;
   if (!seasonId) {
-    console.warn(`fixtures: no season with cricclubs_league_id=${CONFIG.league_id} — cannot create new fixtures`);
+    console.warn(`fixtures: no season with cricclubs_league_id=${SEASON_CONFIG.league_id} — cannot create new fixtures`);
   }
 
   const byFixtureId = new Map();
@@ -875,20 +875,15 @@ async function refreshFixtures(fixtures) {
 /**
  * Which season these duties belong to, and our numeric cricclubs team id.
  *
- * Resolved by matching CONFIG.league_id against cricket_seasons
- * .cricclubs_league_id — NOT by looking for the active season.
+ * Resolved by matching SEASON_CONFIG.league_id (loaded from the active season)
+ * against cricket_seasons.cricclubs_league_id.
  *
- * This deliberately diverges from ingest-html.mts, which asserts exactly one
- * `is_active` season. The league id is the exact fact: we just fetched league
- * N's fixtures, so the duties belong to whichever season IS league N. Keying on
- * `is_active` couples the sync to an unrelated admin flag, and that breaks in a
- * real situation happening right now — Fall 2026 has been marked active for fee
- * collection while Spring 2026's playoffs are still being played. Resolving by
- * active season would skip Spring's duties for weeks; resolving by league id
- * files them correctly regardless of which season is flagged.
+ * The league id is the exact fact: we just fetched league N's fixtures, so the
+ * duties belong to whichever season IS league N. This ensures duties are filed
+ * to the correct season regardless of which season is marked active.
  *
- * It also still protects next season: bump CONFIG.league_id when MTCA publishes
- * the Fall league, and duties start landing on Fall automatically.
+ * When MTCA publishes a new league (e.g., Fall), set the league ID via
+ * Team Admin → CricClubs Sync, and duties will land on that season.
  *
  * Returns null rather than guessing. Filing duties under the wrong season hides
  * them from the people who owe them and shows phantom duties to everyone else,
@@ -897,17 +892,17 @@ async function refreshFixtures(fixtures) {
 async function resolveUmpiringContext() {
   const seasons = await supabase('cricket_seasons', {
     query: `?team_id=eq.${CONFIG.team_id}`
-      + `&cricclubs_league_id=eq.${CONFIG.league_id}`
+      + `&cricclubs_league_id=eq.${SEASON_CONFIG.league_id}`
       + '&select=id,name,cricclubs_league_id',
   });
   const rows = seasons ?? [];
   if (rows.length !== 1) {
     console.warn(
-      `umpiring: expected exactly 1 season with cricclubs_league_id=${CONFIG.league_id}, `
+      `umpiring: expected exactly 1 season with cricclubs_league_id=${SEASON_CONFIG.league_id}, `
       + `found ${rows.length} — skipping duty sync.\n`
-      + '  Either CONFIG.league_id is stale, or no season records this league yet. Set\n'
+      + '  Either the league ID is stale, or no season records this league yet. Set\n'
       + '  cricket_seasons.cricclubs_league_id on the season MTCA published as league '
-      + `${CONFIG.league_id}.`,
+      + `${SEASON_CONFIG.league_id}.`,
     );
     return null;
   }
