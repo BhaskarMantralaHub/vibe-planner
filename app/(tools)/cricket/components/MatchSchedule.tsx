@@ -1091,7 +1091,7 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
 /* ── Month Group Header ── */
 function MonthHeader({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 pt-4 pb-1 first:pt-0">
+    <div className="flex items-center gap-3 pt-5 pb-2 first:pt-0">
       <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[10px]" style={{ color: 'var(--cricket)' }}>
         {label}
       </Text>
@@ -1642,7 +1642,7 @@ export default function MatchSchedule() {
                 {monthGroups.map((group) => (
                   <div key={group.label}>
                     <MonthHeader label={group.label} />
-                    <div className="space-y-0">
+                    <div className="space-y-3">
                       {group.matches.map((m) => (
                         <TimelineMatchCard
                           key={m.id}
