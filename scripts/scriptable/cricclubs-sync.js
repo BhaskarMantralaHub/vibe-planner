@@ -22,12 +22,19 @@ const CONFIG = {
   cricclubs_base:    'https://cricclubs.com/MountainHouseTracyCricketAssociationMTCA',
   cricclubs_team_id: 1109,                                                        // cricclubs teamId query param (changes per season)
   club_id:           14653,                                                       // cricclubs clubId query param
-  league_id:         93,                                                          // cricclubs league query param (Fall 2026)
-  season_from:       '09/01/2026',                                                // MM/DD/YYYY (cricclubs format)
-  season_to:         '12/31/2026',
+  // league_id is now fetched from the ACTIVE season's cricclubs_league_id in the database
+  // season dates are derived from the season's start_date/end_date or default to current year
   force_resync:      false,                                                      // true: re-ingest scorecards already in DB (schedule auto-completes either way)
   scorecard_timeout_sec: 30,
   user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+};
+
+// Runtime config populated from DB — set by loadSeasonConfig()
+let SEASON_CONFIG = {
+  league_id: null,
+  season_from: null,  // MM/DD/YYYY
+  season_to: null,    // MM/DD/YYYY
+  season_name: null,
 };
 
 // ── 2. SERVICE-ROLE KEY (iOS Keychain) ──────────────────────────────────────
@@ -108,22 +115,22 @@ async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
 //                        and those never appear in the team-filtered feed.
 function fixturesUrl() {
   return `${CONFIG.cricclubs_base}/fixtures.do`
-    + `?league=${CONFIG.league_id}`
+    + `?league=${SEASON_CONFIG.league_id}`
     + `&teamId=${CONFIG.cricclubs_team_id}`
     + `&clubId=${CONFIG.club_id}`;
 }
 function leagueFixturesUrl() {
   return `${CONFIG.cricclubs_base}/fixtures.do`
-    + `?league=${CONFIG.league_id}`
+    + `?league=${SEASON_CONFIG.league_id}`
     + `&clubId=${CONFIG.club_id}`;
 }
 function matchListUrl() {
   return `${CONFIG.cricclubs_base}/listMatches.do`
-    + `?league=${CONFIG.league_id}`
+    + `?league=${SEASON_CONFIG.league_id}`
     + `&teamId=${CONFIG.cricclubs_team_id}`
     + `&clubId=${CONFIG.club_id}`
-    + `&fromDate=${encodeURIComponent(CONFIG.season_from)}`
-    + `&toDate=${encodeURIComponent(CONFIG.season_to)}`;
+    + `&fromDate=${encodeURIComponent(SEASON_CONFIG.season_from)}`
+    + `&toDate=${encodeURIComponent(SEASON_CONFIG.season_to)}`;
 }
 function scorecardUrl(matchId) {
   return `${CONFIG.cricclubs_base}/viewScorecard.do`
@@ -1127,10 +1134,70 @@ async function syncUmpiringDuties(leagueFixtures) {
 }
 
 // ── 6. MAIN ──────────────────────────────────────────────────────────────────
+
+/**
+ * Load season config from the database — finds the ACTIVE season with a
+ * cricclubs_league_id set, and derives date ranges from season name or uses
+ * reasonable defaults.
+ */
+async function loadSeasonConfig() {
+  const seasons = await supabase('cricket_seasons', {
+    query: `?team_id=eq.${CONFIG.team_id}&is_active=eq.true&select=id,name,cricclubs_league_id,start_date,end_date`,
+  }) || [];
+
+  const active = seasons.find((s) => s.cricclubs_league_id != null);
+  if (!active) {
+    throw new Error(
+      'No active season with cricclubs_league_id set. Go to Team Admin → Cricclubs Sync and set the league ID.',
+    );
+  }
+
+  // Derive date range: prefer explicit dates, then infer from season name, then default to current year
+  let from, to;
+  if (active.start_date && active.end_date) {
+    // Database has explicit dates
+    from = formatDateUS(active.start_date);
+    to = formatDateUS(active.end_date);
+  } else {
+    // Infer from season name (e.g., "2026 MTCA Fall League" → Fall = Sep-Dec)
+    const year = active.name.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear();
+    const nameLower = active.name.toLowerCase();
+    if (nameLower.includes('spring')) {
+      from = `04/01/${year}`;
+      to = `08/31/${year}`;
+    } else if (nameLower.includes('fall')) {
+      from = `09/01/${year}`;
+      to = `12/31/${year}`;
+    } else {
+      // Default to full year
+      from = `01/01/${year}`;
+      to = `12/31/${year}`;
+    }
+  }
+
+  SEASON_CONFIG.league_id = active.cricclubs_league_id;
+  SEASON_CONFIG.season_from = from;
+  SEASON_CONFIG.season_to = to;
+  SEASON_CONFIG.season_name = active.name;
+
+  return active;
+}
+
+/** Convert YYYY-MM-DD to MM/DD/YYYY */
+function formatDateUS(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${m}/${d}/${y}`;
+}
+
 const log = [];
 const startMs = Date.now();
 
 try {
+  // Load season config from DB first
+  log.push('⚙️ Loading season config…');
+  const season = await loadSeasonConfig();
+  log.push(`📋 ${SEASON_CONFIG.season_name} (league ${SEASON_CONFIG.league_id})`);
+
   // 6.1a — refresh fixtures (upcoming matches: date/time/venue/umpire/opponent)
   log.push('📅 Fetching fixtures…');
   const fixturesHtml = await withRetry(() => fetchHtml(fixturesUrl(), 20));

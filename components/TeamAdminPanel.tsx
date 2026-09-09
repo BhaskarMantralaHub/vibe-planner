@@ -3,14 +3,36 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
-import { Text, Button, Drawer, DrawerHandle, DrawerTitle, DrawerBody, Spinner } from '@/components/ui';
+import { Text, Button, Input, Drawer, DrawerHandle, DrawerTitle, DrawerBody, Spinner } from '@/components/ui';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Copy, Share2, RefreshCw, X, Check, ChevronRight, Link as LinkIcon } from 'lucide-react';
+import { Copy, Share2, RefreshCw, X, Check, ChevronRight, Link as LinkIcon, ExternalLink, HelpCircle, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { haptic } from '@/lib/haptics';
 import { useAsyncAction } from '@/hooks/use-async-action';
 
-type Season = { id: string; name: string; is_active: boolean };
+type Season = { id: string; name: string; is_active: boolean; cricclubs_league_id: number | null };
+
+/** Sync metadata derived from backend (cricclubs_matches, cricket_schedule_matches). */
+type SyncInfo = {
+  lastSyncedAt: string | null;
+  fixtureCount: number;
+};
+
+/** Format a relative time string ("Today, 8:42 PM", "Yesterday, 3:15 PM", "Sep 8, 8:42 PM"). */
+function formatSyncTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (isToday) return `Today, ${time}`;
+  if (isYesterday) return `Yesterday, ${time}`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + `, ${time}`;
+}
+
 type Invite = {
   token: string;
   expiresAt: string;
@@ -65,12 +87,26 @@ export default function TeamAdminPanel() {
   const [canShare, setCanShare] = useState(false);
   useEffect(() => { setCanShare(typeof navigator !== 'undefined' && !!navigator.share); }, []);
 
+  // ── CricClubs Sync ──────────────────────────────────────────
+  // Sync info keyed by season id: last synced timestamp + fixture count.
+  const [syncInfo, setSyncInfo] = useState<Record<string, SyncInfo>>({});
+  // Connect sheet state: which season are we connecting, and draft league ID.
+  const [connectSheet, setConnectSheet] = useState<{ season: Season; draftId: string } | null>(null);
+  // Manage sheet: which season's connection are we viewing.
+  const [manageSheet, setManageSheet] = useState<Season | null>(null);
+  // Disconnect confirmation dialog.
+  const [disconnectConfirm, setDisconnectConfirm] = useState<Season | null>(null);
+  // Help sheet: explains where to find the league ID.
+  const [showHelp, setShowHelp] = useState(false);
+  // Connection action state.
+  const [connecting, setConnecting] = useState(false);
+
   const load = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase || !teamId) { setLoading(false); return; }
 
     const [{ data: s }, { data: inv }] = await Promise.all([
-      supabase.from('cricket_seasons').select('id, name, is_active')
+      supabase.from('cricket_seasons').select('id, name, is_active, cricclubs_league_id')
         .eq('team_id', teamId).order('year', { ascending: false }),
       // NOT filtered by expiry: an invite that has run out must be shown as
       // Expired, not silently reported as "no invite" — the admin needs to
@@ -80,7 +116,8 @@ export default function TeamAdminPanel() {
         .eq('team_id', teamId).order('created_at', { ascending: false }),
     ]);
 
-    setSeasons((s ?? []) as Season[]);
+    const seasonList = (s ?? []) as Season[];
+    setSeasons(seasonList);
 
     type Row = { token: string; expires_at: string; created_by: string; created_at: string };
     const rows = (inv ?? []) as Row[];
@@ -108,6 +145,37 @@ export default function TeamAdminPanel() {
     } else {
       setInvite(null);
     }
+
+    // ── Fetch sync metadata for connected seasons ──────────────
+    const connectedSeasons = seasonList.filter((x) => x.cricclubs_league_id != null);
+    if (connectedSeasons.length > 0) {
+      const infoMap: Record<string, SyncInfo> = {};
+      await Promise.all(connectedSeasons.map(async (season) => {
+        // Last synced: max parsed_at from cricclubs_matches for this league
+        const { data: lastMatch } = await supabase
+          .from('cricclubs_matches')
+          .select('parsed_at')
+          .eq('team_id', teamId)
+          .eq('cricclubs_league_id', season.cricclubs_league_id)
+          .order('parsed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Fixture count: schedule matches linked to this season with cricclubs_fixture_id
+        const { count } = await supabase
+          .from('cricket_schedule_matches')
+          .select('*', { count: 'exact', head: true })
+          .eq('season_id', season.id)
+          .not('cricclubs_fixture_id', 'is', null);
+
+        infoMap[season.id] = {
+          lastSyncedAt: lastMatch?.parsed_at ?? null,
+          fixtureCount: count ?? 0,
+        };
+      }));
+      setSyncInfo(infoMap);
+    }
+
     setLoading(false);
   }, [teamId]);
 
@@ -171,6 +239,56 @@ export default function TeamAdminPanel() {
 
   const reportError = (e: unknown) =>
     toast.error(e instanceof Error ? e.message : 'Something went wrong');
+
+  // ── CricClubs connection handlers ──────────────────────────
+  const connectSeason = async (season: Season, leagueId: number) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setConnecting(true);
+    const { error } = await supabase
+      .from('cricket_seasons')
+      .update({ cricclubs_league_id: leagueId })
+      .eq('id', season.id);
+    setConnecting(false);
+    if (error) {
+      toast.error('Could not connect to CricClubs');
+      return;
+    }
+    haptic('success');
+    setSeasons((prev) => prev.map((x) => x.id === season.id ? { ...x, cricclubs_league_id: leagueId } : x));
+    setConnectSheet(null);
+    toast.success(`${splitSeasonName(season.name)[0]} connected to CricClubs`);
+  };
+
+  const disconnectSeason = async (season: Season) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    haptic('medium');
+    const { error } = await supabase
+      .from('cricket_seasons')
+      .update({ cricclubs_league_id: null })
+      .eq('id', season.id);
+    if (error) {
+      toast.error('Could not disconnect from CricClubs');
+      return;
+    }
+    haptic('success');
+    setSeasons((prev) => prev.map((x) => x.id === season.id ? { ...x, cricclubs_league_id: null } : x));
+    setSyncInfo((prev) => {
+      const next = { ...prev };
+      delete next[season.id];
+      return next;
+    });
+    setManageSheet(null);
+    setDisconnectConfirm(null);
+    toast.success(`${splitSeasonName(season.name)[0]} disconnected from CricClubs`);
+  };
+
+  const changeLeague = (season: Season) => {
+    // Open connect sheet pre-filled with current league ID for editing
+    setManageSheet(null);
+    setConnectSheet({ season, draftId: String(season.cricclubs_league_id ?? '') });
+  };
 
   /**
    * Three separate actions over two functions, because the haptic weight is
@@ -267,6 +385,87 @@ export default function TeamAdminPanel() {
               <ChevronRight size={16} className="text-[var(--dim)]" />
             </button>
           )}
+        </div>
+      </section>
+
+      {/* ── CricClubs Sync ── */}
+      <section className="mb-6">
+        <Text as="p" size="2xs" weight="bold" uppercase tracking="wider" color="dim" className="mb-2 px-1">
+          CricClubs Sync
+        </Text>
+        <div className="rounded-2xl" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+          <div className="px-4 pt-3 pb-2">
+            <Text as="p" size="xs" color="muted">
+              Sync league fixtures from CricClubs automatically.
+            </Text>
+          </div>
+          <div className="divide-y divide-[var(--border)]">
+            {seasons.map((s) => {
+              const [name, division] = splitSeasonName(s.name);
+              const connected = s.cricclubs_league_id != null;
+              const info = syncInfo[s.id];
+              return (
+                <div key={s.id} className="px-4 py-3">
+                  {/* Season header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <Text as="p" size="sm" weight="semibold">{name}</Text>
+                      {division && <Text as="p" size="xs" color="muted">{division}</Text>}
+                    </div>
+                  </div>
+
+                  {/* Status line */}
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{ background: connected ? 'var(--green)' : 'var(--dim)' }}
+                    />
+                    <Text size="xs" weight="medium" style={{ color: connected ? 'var(--green)' : 'var(--dim)' }}>
+                      {connected ? 'Connected' : 'Not connected'}
+                    </Text>
+                  </div>
+
+                  {/* Connected: league info + sync status */}
+                  {connected && (
+                    <div className="mt-1">
+                      <Text as="p" size="xs" color="muted">
+                        CricClubs League {s.cricclubs_league_id}
+                      </Text>
+                      {info?.lastSyncedAt && (
+                        <Text as="p" size="xs" color="dim" className="mt-0.5">
+                          Last synced: {formatSyncTime(info.lastSyncedAt)}
+                          {info.fixtureCount > 0 && ` · ${info.fixtureCount} fixture${info.fixtureCount !== 1 ? 's' : ''}`}
+                        </Text>
+                      )}
+                      {!info?.lastSyncedAt && (
+                        <Text as="p" size="xs" color="dim" className="mt-0.5">
+                          Never synced
+                        </Text>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Not connected: prompt */}
+                  {!connected && (
+                    <Text as="p" size="xs" color="dim" className="mt-1">
+                      Connect this season to sync fixtures.
+                    </Text>
+                  )}
+
+                  {/* Action */}
+                  <button
+                    onClick={() => connected ? setManageSheet(s) : setConnectSheet({ season: s, draftId: '' })}
+                    className="mt-2.5 -mx-1 flex min-h-11 w-full items-center justify-between rounded-xl px-1 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
+                  >
+                    <Text size="sm" weight="medium" style={{ color: connected ? 'var(--text)' : 'var(--cricket)' }}>
+                      {connected ? 'Manage connection' : 'Connect CricClubs'}
+                    </Text>
+                    <ChevronRight size={16} className="text-[var(--dim)]" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -439,6 +638,211 @@ export default function TeamAdminPanel() {
                 }}
               >
                 {confirm === 'refresh' ? 'Refresh invite' : 'Revoke invite'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── CricClubs Connect Sheet ── */}
+      <Drawer open={!!connectSheet} onOpenChange={(o) => { if (!o) setConnectSheet(null); }}>
+        <DrawerHandle />
+        <DrawerTitle>Connect CricClubs</DrawerTitle>
+        <div className="px-5 pb-2" aria-hidden>
+          <Text as="p" size="lg" weight="semibold" tracking="tight">Connect CricClubs</Text>
+          {connectSheet && (
+            <Text as="p" size="sm" color="muted" className="mt-1">
+              {splitSeasonName(connectSheet.season.name)[0]}
+            </Text>
+          )}
+        </div>
+        <DrawerBody>
+          <Text as="p" size="sm" color="muted" className="mb-4">
+            Enter the CricClubs league ID for this season. Fixtures will sync automatically.
+          </Text>
+
+          <label className="block">
+            <Text as="span" size="xs" weight="semibold" color="dim" className="mb-1.5 block">
+              CricClubs League ID
+            </Text>
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="e.g. 93"
+              value={connectSheet?.draftId ?? ''}
+              onChange={(e) => setConnectSheet((prev) => prev ? { ...prev, draftId: e.target.value } : null)}
+              className="font-mono"
+            />
+          </label>
+
+          <button
+            onClick={() => setShowHelp(true)}
+            className="mt-3 flex items-center gap-1.5 text-[13px] cursor-pointer transition-colors"
+            style={{ color: 'var(--cricket)' }}
+          >
+            <HelpCircle size={14} />
+            Where do I find this?
+          </button>
+
+          <div className="mt-6 flex gap-3">
+            <Button
+              variant="secondary"
+              size="md"
+              className="flex-1"
+              onClick={() => setConnectSheet(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              brand="cricket"
+              size="md"
+              className="flex-1"
+              disabled={!connectSheet?.draftId || connecting}
+              onClick={() => {
+                if (!connectSheet?.draftId) return;
+                const leagueId = parseInt(connectSheet.draftId, 10);
+                if (isNaN(leagueId) || leagueId <= 0) {
+                  toast.error('Enter a valid league ID');
+                  return;
+                }
+                void connectSeason(connectSheet.season, leagueId);
+              }}
+            >
+              {connecting ? 'Connecting…' : 'Connect'}
+            </Button>
+          </div>
+        </DrawerBody>
+      </Drawer>
+
+      {/* ── CricClubs Manage Connection Sheet ── */}
+      <Drawer open={!!manageSheet} onOpenChange={(o) => { if (!o) setManageSheet(null); }}>
+        <DrawerHandle />
+        <DrawerTitle>CricClubs Connection</DrawerTitle>
+        <div className="px-5 pb-2" aria-hidden>
+          <Text as="p" size="lg" weight="semibold" tracking="tight">CricClubs Connection</Text>
+          {manageSheet && (
+            <Text as="p" size="sm" color="muted" className="mt-1">
+              {splitSeasonName(manageSheet.name)[0]}
+            </Text>
+          )}
+        </div>
+        <DrawerBody>
+          {manageSheet && (() => {
+            const info = syncInfo[manageSheet.id];
+            return (
+              <>
+                {/* Connection status */}
+                <div className="rounded-xl p-4" style={{ background: 'var(--surface)' }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ background: 'var(--green)' }} />
+                    <Text size="sm" weight="semibold" style={{ color: 'var(--green)' }}>Connected</Text>
+                  </div>
+                  <Text as="p" size="sm" color="muted" className="mt-1">
+                    League {manageSheet.cricclubs_league_id}
+                  </Text>
+                  {info?.lastSyncedAt && (
+                    <Text as="p" size="xs" color="dim" className="mt-2">
+                      Last synced: {formatSyncTime(info.lastSyncedAt)}
+                    </Text>
+                  )}
+                  {info?.fixtureCount != null && info.fixtureCount > 0 && (
+                    <Text as="p" size="xs" color="dim">
+                      {info.fixtureCount} fixture{info.fixtureCount !== 1 ? 's' : ''} synced
+                    </Text>
+                  )}
+                  {!info?.lastSyncedAt && (
+                    <Text as="p" size="xs" color="dim" className="mt-2">
+                      Never synced
+                    </Text>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="mt-4 space-y-1">
+                  <button
+                    onClick={() => changeLeague(manageSheet)}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
+                  >
+                    <RefreshCw size={16} className="text-[var(--muted)]" />
+                    <Text size="sm" weight="medium">Change league</Text>
+                  </button>
+                  <button
+                    onClick={() => setDisconnectConfirm(manageSheet)}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
+                  >
+                    <Unlink size={16} style={{ color: 'var(--red)' }} />
+                    <Text size="sm" weight="medium" style={{ color: 'var(--red)' }}>Disconnect</Text>
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+        </DrawerBody>
+      </Drawer>
+
+      {/* ── CricClubs Help Sheet ── */}
+      <Drawer open={showHelp} onOpenChange={setShowHelp}>
+        <DrawerHandle />
+        <DrawerTitle>Finding the League ID</DrawerTitle>
+        <div className="px-5 pb-2" aria-hidden>
+          <Text as="p" size="lg" weight="semibold" tracking="tight">Finding the League ID</Text>
+        </div>
+        <DrawerBody>
+          <Text as="p" size="sm" color="muted" className="mb-4">
+            The league ID is in the CricClubs URL when viewing your league fixtures.
+          </Text>
+          <div className="rounded-xl p-4 overflow-x-auto" style={{ background: 'var(--surface)' }}>
+            <code className="text-[12px] font-mono whitespace-nowrap text-[var(--text)]">
+              cricclubs.com/…/fixtures.do?<span style={{ color: 'var(--cricket)', fontWeight: 600 }}>league=93</span>&teamId=…
+            </code>
+          </div>
+          <Text as="p" size="sm" color="muted" className="mt-4">
+            The number after <code className="font-mono px-1 py-0.5 rounded" style={{ background: 'var(--surface)', color: 'var(--cricket)' }}>league=</code> is the league ID.
+          </Text>
+
+          <a
+            href="https://cricclubs.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 flex items-center gap-2 text-[14px] font-medium cursor-pointer"
+            style={{ color: 'var(--cricket)' }}
+          >
+            <ExternalLink size={15} />
+            Open CricClubs
+          </a>
+
+          <Button
+            variant="secondary"
+            size="md"
+            className="mt-6 w-full"
+            onClick={() => setShowHelp(false)}
+          >
+            Got it
+          </Button>
+        </DrawerBody>
+      </Drawer>
+
+      {/* ── CricClubs Disconnect Confirmation ── */}
+      {disconnectConfirm && (
+        <Dialog open onOpenChange={(o) => { if (!o) setDisconnectConfirm(null); }}>
+          <DialogContent className="max-w-xs" showClose={false}>
+            <DialogTitle className="text-[15px]">
+              Disconnect from CricClubs?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] mt-1.5">
+              <span className="font-medium">{splitSeasonName(disconnectConfirm.name)[0]}</span> will no longer sync fixtures from CricClubs League {disconnectConfirm.cricclubs_league_id}. Existing fixtures will not be deleted.
+            </DialogDescription>
+            <DialogFooter>
+              <Button variant="secondary" size="md" onClick={() => setDisconnectConfirm(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="md"
+                onClick={() => void disconnectSeason(disconnectConfirm)}
+              >
+                Disconnect
               </Button>
             </DialogFooter>
           </DialogContent>
