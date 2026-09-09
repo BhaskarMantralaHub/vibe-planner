@@ -31,7 +31,7 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
   useEffect(() => {
     if (open && initialData) {
       setOpponent(initialData.opponent);
-      setMatchDate(initialData.match_date);
+      setMatchDate(initialData.match_date ?? '');  // null (TBD) → empty string for form
       setMatchTime(initialData.match_time);
       setVenue(initialData.venue);
       setIsHome(initialData.is_home ?? null);
@@ -55,14 +55,14 @@ export default function MatchForm({ open, onClose, onSubmit, initialData }: Matc
 
   const validate = (): Omit<Match, 'id' | 'status'> | null => {
     if (!opponent.trim()) { setFormError('Opponent name is required.'); return null; }
-    if (!matchDate) { setFormError('Match date is required.'); return null; }
+    // Date can be empty (TBD) — no validation required
     if (!venue.trim()) { setFormError('Venue is required.'); return null; }
     const parsedOvers = parseInt(overs, 10);
     if (isNaN(parsedOvers) || parsedOvers <= 0) { setFormError('Overs must be a positive number.'); return null; }
     setFormError('');
     return {
       opponent: opponent.trim(),
-      match_date: matchDate,
+      match_date: matchDate || null,  // empty string → null (TBD)
       match_time: matchTime,
       venue: venue.trim(),
       match_type: matchType,

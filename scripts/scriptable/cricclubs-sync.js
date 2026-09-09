@@ -729,7 +729,8 @@ function daysBetween(a, b) {
 
 function buildFixtureUpdate(current, fixture, myCricclubsName) {
   const upd = {};
-  if (fixture.match_date && fixture.match_date !== current.match_date) upd.match_date = fixture.match_date;
+  // match_date can be null (TBD) — only update if the value changed (including null → date)
+  if (fixture.match_date !== current.match_date) upd.match_date = fixture.match_date;
   if (fixture.match_time_24h && fixture.match_time_24h !== current.match_time) upd.match_time = fixture.match_time_24h;
   if (fixture.venue && fixture.venue !== current.venue) upd.venue = fixture.venue;
   const mt = normalizeMatchType(fixture.match_type);
@@ -761,14 +762,15 @@ async function refreshFixtures(fixtures) {
   const changes = [];
 
   for (const fx of fixtures) {
-    if (!fx.match_date) continue;
+    // match_date can be null (TBD) — we still process the fixture to link it
     const opponent = fx.team_home === myCricclubsName ? fx.team_away : fx.team_home;
     if (!opponent) continue;
 
     let target = byFixtureId.get(fx.cricclubs_fixture_id) ?? null;
 
-    if (!target) {
+    if (!target && fx.match_date) {
       // Opponent + nearest date within 14 days (legacy rows without fixture_id)
+      // Only when fixture has a confirmed date — TBD fixtures skip this fallback
       const candidates = scheduleRows
         .filter((r) => !claimed.has(r.id))
         .filter((r) => r.cricclubs_fixture_id == null)
@@ -778,8 +780,9 @@ async function refreshFixtures(fixtures) {
         .sort((a, b) => a.distance - b.distance);
       if (candidates.length) target = candidates[0].row;
     }
-    if (!target && fx.venue) {
+    if (!target && fx.match_date && fx.venue) {
       // Date+venue fallback (heals admin name typos)
+      // Only when fixture has a confirmed date
       target = scheduleRows
         .filter((r) => !claimed.has(r.id))
         .filter((r) => r.cricclubs_fixture_id == null)
@@ -800,7 +803,7 @@ async function refreshFixtures(fixtures) {
         body: upd,
       });
       updated += 1;
-      changes.push({ opponent, date: fx.match_date, fields: Object.keys(upd).filter((k) => k !== 'cricclubs_fixture_id') });
+      changes.push({ opponent, date: fx.match_date ?? 'TBD', fields: Object.keys(upd).filter((k) => k !== 'cricclubs_fixture_id') });
     } catch (e) {
       // Log but don't abort the whole sync
       console.warn(`fixture update failed: ${e.message}`);

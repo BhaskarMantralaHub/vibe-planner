@@ -31,7 +31,7 @@ export interface Match {
   id: string;
   season_id?: string;
   opponent: string;
-  match_date: string;
+  match_date: string | null;  // null = TBD (date not yet confirmed)
   match_time: string;
   venue: string;
   match_type: 'league' | 'practice' | 'semi_final' | 'final';
@@ -82,7 +82,8 @@ const PERFORMER_ICONS: Record<string, { emoji: string; color: string }> = {
 };
 
 /* ── Helpers ── */
-function formatMatchDate(dateStr: string) {
+function formatMatchDate(dateStr: string | null) {
+  if (!dateStr) return 'Date TBD';
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -94,20 +95,21 @@ function formatMatchTime(timeStr: string) {
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function getCountdown(dateStr: string, timeStr: string) {
+function getCountdown(dateStr: string | null, timeStr: string) {
+  if (!dateStr) return { text: 'Date TBD', days: 0, hours: 0, mins: 0, isTbd: true };
   const matchDate = new Date(`${dateStr}T${timeStr}:00`);
   const now = new Date();
   const diff = matchDate.getTime() - now.getTime();
-  if (diff <= 0) return { text: 'Starting soon', days: 0, hours: 0, mins: 0 };
+  if (diff <= 0) return { text: 'Starting soon', days: 0, hours: 0, mins: 0, isTbd: false };
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  if (days > 0) return { text: `${days}d ${hours}h`, days, hours, mins };
-  if (hours > 0) return { text: `${hours}h ${mins}m`, days, hours, mins };
-  return { text: `${mins}m`, days, hours, mins };
+  if (days > 0) return { text: `${days}d ${hours}h`, days, hours, mins, isTbd: false };
+  if (hours > 0) return { text: `${hours}h ${mins}m`, days, hours, mins, isTbd: false };
+  return { text: `${mins}m`, days, hours, mins, isTbd: false };
 }
 
-function getCountdownSimple(dateStr: string, timeStr: string) {
+function getCountdownSimple(dateStr: string | null, timeStr: string) {
   return getCountdown(dateStr, timeStr).text;
 }
 
@@ -133,6 +135,10 @@ const toICS = (d: Date) =>
   `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}00`;
 
 function addToCalendar(match: Match) {
+  if (!match.match_date) {
+    toast.error('Cannot add TBD match to calendar');
+    return;
+  }
   const start = new Date(`${match.match_date}T${match.match_time}:00`);
   const end = new Date(start.getTime() + 4 * 60 * 60 * 1000); // 4 hour duration
 
@@ -162,7 +168,13 @@ function addToCalendar(match: Match) {
 }
 
 function addAllToCalendar(matches: Match[]) {
-  const events = matches.map((match) => {
+  // Filter out TBD matches — they have no date to schedule
+  const schedulable = matches.filter((m) => m.match_date);
+  if (schedulable.length === 0) {
+    toast.error('No matches with confirmed dates to add');
+    return;
+  }
+  const events = schedulable.map((match) => {
     const start = new Date(`${match.match_date}T${match.match_time}:00`);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     return [
@@ -221,7 +233,7 @@ async function exportSchedulePDF(upcoming: Match[], completed: Match[]) {
     doc.text(s, x, yy, { align: opts?.align ?? 'left' });
   };
 
-  const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const fmtDate = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Date TBD';
   const fmtTime = (t: string) => { if (!t || !t.includes(':')) return ''; const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`; };
 
   const totalMatches = upcoming.length + completed.length;
@@ -366,7 +378,17 @@ function formatDeletedAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
-function parseDateParts(dateStr: string) {
+function parseDateParts(dateStr: string | null) {
+  if (!dateStr) {
+    return {
+      dayName: '',
+      dayNum: 0,
+      month: 'TBD',
+      monthFull: 'TBD',
+      year: 0,
+      isTbd: true,
+    };
+  }
   const d = new Date(dateStr + 'T00:00:00');
   return {
     dayName: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
@@ -374,18 +396,26 @@ function parseDateParts(dateStr: string) {
     month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
     monthFull: d.toLocaleDateString('en-US', { month: 'long' }).toUpperCase(),
     year: d.getFullYear(),
+    isTbd: false,
   };
 }
 
 function groupByMonth(matches: Match[]): { label: string; matches: Match[] }[] {
   const groups: Record<string, Match[]> = {};
   for (const m of matches) {
-    const { monthFull, year } = parseDateParts(m.match_date);
-    const key = `${monthFull} ${year}`;
+    const { monthFull, year, isTbd } = parseDateParts(m.match_date);
+    const key = isTbd ? 'DATE TBD' : `${monthFull} ${year}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(m);
   }
-  return Object.entries(groups).map(([label, matches]) => ({ label, matches }));
+  // Put TBD group at the end
+  const entries = Object.entries(groups);
+  const tbdIdx = entries.findIndex(([label]) => label === 'DATE TBD');
+  if (tbdIdx > 0) {
+    const [tbdEntry] = entries.splice(tbdIdx, 1);
+    entries.push(tbdEntry);
+  }
+  return entries.map(([label, matches]) => ({ label, matches }));
 }
 
 /* ── Season Record Summary ── */
@@ -547,24 +577,35 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
           </Text>
         </div>
 
-        {/* Countdown */}
-        <div className="flex items-center gap-4 mb-4">
-          {freshCountdown.days > 0 && (
-            <>
-              <CountdownBlock label="Days" value={freshCountdown.days} />
-              <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
-            </>
-          )}
-          <CountdownBlock label="Hours" value={freshCountdown.hours} />
-          <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
-          <CountdownBlock label="Mins" value={freshCountdown.mins} />
-        </div>
+        {/* Countdown — show "Date TBD" when no date */}
+        {freshCountdown.isTbd ? (
+          <div className="mb-4">
+            <span
+              className="text-[28px] sm:text-[32px] font-black leading-none"
+              style={{ color: 'white', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
+            >
+              Date TBD
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 mb-4">
+            {freshCountdown.days > 0 && (
+              <>
+                <CountdownBlock label="Days" value={freshCountdown.days} />
+                <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
+              </>
+            )}
+            <CountdownBlock label="Hours" value={freshCountdown.hours} />
+            <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
+            <CountdownBlock label="Mins" value={freshCountdown.mins} />
+          </div>
+        )}
 
         {/* Date / Time / Venue */}
         <div className="flex flex-col gap-1.5 text-[12px] text-white/70">
           <div className="flex items-center gap-1.5">
             <Clock size={14} className="opacity-50 flex-shrink-0" />
-            <span>{dayName} {dayNum} {month} · {formatMatchTime(match.match_time)}</span>
+            <span>{match.match_date ? `${dayName} ${dayNum} ${month} · ${formatMatchTime(match.match_time)}` : 'Date and time to be confirmed'}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <MapPin size={14} className="opacity-50 flex-shrink-0" />
@@ -587,8 +628,22 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
 }
 
 /* ── Timeline Date Block (left side of match card) ── */
-function DateBlock({ dateStr, isFirst }: { dateStr: string; isFirst?: boolean }) {
-  const { dayName, dayNum, month } = parseDateParts(dateStr);
+function DateBlock({ dateStr, isFirst }: { dateStr: string | null; isFirst?: boolean }) {
+  const { dayName, dayNum, month, isTbd } = parseDateParts(dateStr);
+
+  if (isTbd) {
+    return (
+      <div className="flex flex-col items-center justify-center w-[52px] flex-shrink-0">
+        <span
+          className="text-[13px] font-black leading-none"
+          style={{ color: 'var(--dim)' }}
+        >
+          TBD
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center w-[52px] flex-shrink-0">
       <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[9px]" style={{ color: 'var(--cricket)' }}>
@@ -648,7 +703,7 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
 
           <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
             <Clock size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
-            <span>{formatMatchTime(match.match_time)}</span>
+            <span>{match.match_date ? formatMatchTime(match.match_time) : 'Time TBD'}</span>
             <span style={{ color: 'var(--border)' }}>|</span>
             <MapPin size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
             <span>{match.venue}</span>
@@ -1223,12 +1278,24 @@ export default function MatchSchedule() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const upcoming = active
-    .filter((m) => m.status === 'upcoming' && m.match_date >= today)
-    .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
+    // TBD matches (null date) are upcoming; dated matches compare against today
+    .filter((m) => m.status === 'upcoming' && (m.match_date === null || m.match_date >= today))
+    // Sort: dated matches by date ascending, TBD matches at the end
+    .sort((a, b) => {
+      if (!a.match_date && !b.match_date) return 0;
+      if (!a.match_date) return 1;  // TBD goes to end
+      if (!b.match_date) return -1;
+      return new Date(a.match_date).getTime() - new Date(b.match_date).getTime();
+    });
 
   const completed = active
-    .filter((m) => m.status === 'completed' || (m.status === 'upcoming' && m.match_date < today))
-    .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
+    // Only completed if status is completed OR (upcoming with a past date that is NOT null)
+    .filter((m) => m.status === 'completed' || (m.status === 'upcoming' && m.match_date !== null && m.match_date < today))
+    .sort((a, b) => {
+      // Both should have dates for completed, but guard anyway
+      if (!a.match_date || !b.match_date) return 0;
+      return new Date(b.match_date).getTime() - new Date(a.match_date).getTime();
+    });
 
   const nextMatch = upcoming[0];
   const restUpcoming = upcoming.slice(1);
