@@ -34,6 +34,14 @@ const CONFIG = {
   user_agent:        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
 };
 
+// Exact display name cricclubs uses for us. Only ever used for an EXACT
+// equality check against a row we already suspect is ours (e.g. as a
+// fallback when a bracket/playoff row's team cell has no
+// viewTeam.do?teamId= link to check instead) — never for fuzzy/substring
+// matching against an unknown opponent, which is the name-collision problem
+// numeric team ids exist to avoid ("Sky Risers" vs "Risers" vs "Valley Risers").
+const MY_CRICCLUBS_NAME = `MTCA ${CONFIG.team_name.replace(/^MTCA\s+/i, '')}`;
+
 // Runtime config populated from DB — set by loadSeasonConfig()
 let SEASON_CONFIG = {
   league_id: null,
@@ -775,7 +783,7 @@ function buildFixtureUpdate(current, fixture, myCricclubsName) {
 }
 
 async function refreshFixtures(fixtures) {
-  const myCricclubsName = `MTCA ${CONFIG.team_name.replace(/^MTCA\s+/i, '')}`;
+  const myCricclubsName = MY_CRICCLUBS_NAME;
   const scheduleRows = await supabase('cricket_schedule_matches', {
     query: `?team_id=eq.${CONFIG.team_id}&status=eq.upcoming&result=is.null&deleted_at=is.null&select=id,opponent,match_date,match_time,venue,match_type,is_home,umpire,cricclubs_fixture_id,status`,
   }) || [];
@@ -1225,12 +1233,25 @@ try {
     log.push(`🧢 League fixtures fetch failed — ${e.message}`);
   }
 
-  // Only rows carrying OUR numeric cricclubs_team_id as home or away are
-  // trustworthy enough to hand to refreshFixtures() — see its comment above.
+  // Only rows we can verify are actually ours are trustworthy enough to hand
+  // to refreshFixtures() — see its comment above. Prefer the numeric
+  // cricclubs_team_id (survives a club rename); fall back to an EXACT match
+  // against our own known display name, in case a bracket/playoff row's team
+  // cell renders as plain text with no viewTeam.do?teamId= link (unconfirmed
+  // — this exact-string check is safe where a fuzzy/substring opponent check
+  // would not be: we are testing "is this literally us", not guessing which
+  // of many strangers a row belongs to).
   const seenFixtureIds = new Set(fixtures.map((fx) => fx.cricclubs_fixture_id));
   const playoffFixturesForUs = leagueFixtures.filter((fx) =>
     !seenFixtureIds.has(fx.cricclubs_fixture_id)
-    && (fx.team_home_id === CONFIG.cricclubs_team_id || fx.team_away_id === CONFIG.cricclubs_team_id));
+    && (fx.team_home_id === CONFIG.cricclubs_team_id
+      || fx.team_away_id === CONFIG.cricclubs_team_id
+      || fx.team_home === MY_CRICCLUBS_NAME
+      || fx.team_away === MY_CRICCLUBS_NAME));
+  // Temporary diagnostic — remove once the playoff-backfill gap is confirmed
+  // fixed on a real run. Shows whether the league-wide parse itself came back
+  // empty (selector/DOM issue) versus non-empty but not matching our team.
+  log.push(`🔍 debug: team-filtered=${fixtures.length} · league-wide=${leagueFixtures.length} · playoff-backfill=${playoffFixturesForUs.length}`);
   const fixSummary = await refreshFixtures(fixtures.concat(playoffFixturesForUs));
   log.push(`📆 ${fixSummary.matched}/${fixSummary.fixturesOnCricclubs} matched · ${fixSummary.updated} updated · ${fixSummary.created} created`);
   for (const c of fixSummary.changes.slice(0, 8)) {
