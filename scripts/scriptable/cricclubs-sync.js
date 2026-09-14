@@ -108,16 +108,27 @@ async function fetchHtml(url, timeoutSec = CONFIG.scorecard_timeout_sec) {
 
 // Build cricclubs URLs with all three required query params.
 //
-// TWO fixture fetches, and they must stay separate:
+// TWO fixture fetches:
 //
-//   fixturesUrl()      — team-filtered. Only matches WE PLAY. This is the only
-//                        thing refreshFixtures() may ever see, because it
-//                        resolves the opponent as "whichever side isn't us" and
-//                        its date+venue fallback would happily rebind one of our
-//                        schedule rows to a stranger's match.
+//   fixturesUrl()      — team-filtered. Only matches WE PLAY... in theory. In
+//                        practice CricClubs' teamId filter does not reliably
+//                        include auto-generated playoff/bracket fixtures the
+//                        way it includes round-robin ones — a semi-final we
+//                        are confirmed to play can come back 0 rows here (seen
+//                        2026-09-14, Spring semis). So this feed alone is not
+//                        sufficient once playoffs start.
 //   leagueFixturesUrl() — no teamId, so the WHOLE league. Required for umpiring:
 //                        MTCA assigns us to officiate matches we are not playing,
-//                        and those never appear in the team-filtered feed.
+//                        and those never appear in the team-filtered feed. Also
+//                        now used to backfill playoff fixtures fixturesUrl()
+//                        misses — see the merge in main(), which only folds in
+//                        rows where team_home_id/team_away_id equals our OWN
+//                        numeric cricclubs_team_id. That numeric-id check is
+//                        what refreshFixtures() may safely trust; it must never
+//                        see a row where "the opponent" was resolved as merely
+//                        "whichever side isn't us" over an unfiltered feed —
+//                        its date+venue fallback would happily rebind one of
+//                        our schedule rows to a stranger's match.
 function fixturesUrl() {
   return `${CONFIG.cricclubs_base}/fixtures.do`
     + `?league=${SEASON_CONFIG.league_id}`
@@ -711,6 +722,11 @@ function extractOvers(s) {
 // (1) by cricclubs_fixture_id, (2) by opponent+nearest-date within ±14 days,
 // (3) by date+venue. PATCH only the fields that differ; never touch rows
 // with a non-null result (admin-entered wins are sacred).
+//
+// `fixtures` is now the team-filtered feed PLUS any league-wide rows main()
+// verified carry our numeric cricclubs_team_id as home or away (see the
+// leagueFixturesUrl() comment above) — needed because playoff fixtures don't
+// reliably show up in the team-filtered feed alone.
 
 const stripClubPrefix = (s) => (s ?? '').replace(/^MTCA\s+/i, '').trim();
 const normalizeOpponent = (s) => (s ?? '').toLowerCase().replace(/^mtca\s+/i, '').trim();
@@ -1193,27 +1209,37 @@ try {
   log.push('📅 Fetching fixtures…');
   const fixturesHtml = await withRetry(() => fetchHtml(fixturesUrl(), 20));
   const fixtures = JSON.parse(await parseInWebView(fixturesHtml, FIXTURES_PARSER));
-  const fixSummary = await refreshFixtures(fixtures);
+
+  // Also fetch the league-wide feed once — it backfills playoff fixtures the
+  // team-filtered feed above can miss (see the leagueFixturesUrl() comment),
+  // and below it's reused for umpiring duties. A failure here is logged and
+  // does not abort the schedule refresh or scorecard sync — it degrades to
+  // "no playoff backfill, no umpiring" for this run only.
+  log.push('🧢 Fetching league fixtures…');
+  let leagueFixtures = [];
+  try {
+    const leagueHtml = await withRetry(() => fetchHtml(leagueFixturesUrl(), 20));
+    leagueFixtures = JSON.parse(await parseInWebView(leagueHtml, FIXTURES_PARSER));
+  } catch (e) {
+    console.warn(`league fixtures fetch failed: ${e.message}`);
+    log.push(`🧢 League fixtures fetch failed — ${e.message}`);
+  }
+
+  // Only rows carrying OUR numeric cricclubs_team_id as home or away are
+  // trustworthy enough to hand to refreshFixtures() — see its comment above.
+  const seenFixtureIds = new Set(fixtures.map((fx) => fx.cricclubs_fixture_id));
+  const playoffFixturesForUs = leagueFixtures.filter((fx) =>
+    !seenFixtureIds.has(fx.cricclubs_fixture_id)
+    && (fx.team_home_id === CONFIG.cricclubs_team_id || fx.team_away_id === CONFIG.cricclubs_team_id));
+  const fixSummary = await refreshFixtures(fixtures.concat(playoffFixturesForUs));
   log.push(`📆 ${fixSummary.matched}/${fixSummary.fixturesOnCricclubs} matched · ${fixSummary.updated} updated · ${fixSummary.created} created`);
   for (const c of fixSummary.changes.slice(0, 8)) {
     const fields = c.fields ? `: ${c.fields.join(', ')}` : '';
     log.push(`   ↳ ${c.action} ${c.opponent} (${c.date})${fields}`);
   }
 
-  // 6.1c — umpiring duties, from a SECOND, LEAGUE-WIDE fixture fetch.
-  //
-  // Deliberately not reusing `fixtures` above: that feed is team-filtered, and
-  // MTCA assigns us to officiate matches we are NOT playing, so our duties are
-  // literally absent from it. Equally, this wider feed must never reach
-  // refreshFixtures() — it resolves the opponent as "whichever side isn't us"
-  // and would rebind our schedule rows to strangers' matches.
-  //
-  // A failure here is logged and does not abort the scorecard sync below, which
-  // is the more valuable half.
-  log.push('🧢 Fetching league fixtures for umpiring…');
+  // 6.1c — umpiring duties, from the league-wide fixture feed fetched above.
   try {
-    const leagueHtml = await withRetry(() => fetchHtml(leagueFixturesUrl(), 20));
-    const leagueFixtures = JSON.parse(await parseInWebView(leagueHtml, FIXTURES_PARSER));
     const duty = await syncUmpiringDuties(leagueFixtures);
     if (duty.skipped) {
       log.push('🧢 Umpiring: skipped (see console for why)');
