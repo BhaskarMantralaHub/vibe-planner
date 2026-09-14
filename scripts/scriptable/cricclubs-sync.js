@@ -862,7 +862,7 @@ async function refreshFixtures(fixtures) {
         season_id: seasonId,
         opponent: opponent.replace(/^MTCA\s+/i, ''),  // strip MTCA prefix for cleaner display
         match_date: fx.match_date,
-        match_time: fx.match_time || '10:00',
+        match_time: fx.match_time_24h || '10:00',
         venue: fx.venue || 'TBD',
         match_type: normalizeMatchType(fx.match_type),
         is_home: isHome,
