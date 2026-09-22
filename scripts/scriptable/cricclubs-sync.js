@@ -381,9 +381,17 @@ const SCORECARD_PARSER = String.raw`
     return Array.from(tr.querySelectorAll('td, th')).map((c) => clean(c.textContent));
   }
 
-  // Teams from <title>
+  // Teams from <title> — "<round label>: <team A> vs <team B> - <club name>".
+  // The round label was only ever stripped for "League:" — a playoff
+  // scorecard's title reads "Semi Final: MTCA X vs MTCA Y", so the
+  // un-stripped label swallowed into team_a ("Semi Final: MTCA X"), corrupting
+  // opponent resolution everywhere downstream (league-stats display AND
+  // schedule auto-complete, both of which compare team_a against our own
+  // exact team name). Enumerated to match normalizeMatchType()'s known
+  // vocabulary rather than a generic "anything before a colon" strip, which
+  // risks eating a team name.
   const title = clean(document.querySelector('title')?.textContent);
-  const titleMatch = title.match(/^(?:League:\s*)?(.+?)\s+vs\s+(.+?)(?:\s+-\s+|$)/i);
+  const titleMatch = title.match(/^(?:(?:League|Practice|Semi Final|Final):\s*)?(.+?)\s+vs\s+(.+?)(?:\s+-\s+|$)/i);
   const team_a = titleMatch ? titleMatch[1].trim() : null;
   const team_b = titleMatch ? titleMatch[2].trim() : null;
 
