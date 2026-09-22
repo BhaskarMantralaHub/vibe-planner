@@ -148,10 +148,32 @@ function leagueFixturesUrl() {
     + `?league=${SEASON_CONFIG.league_id}`
     + `&clubId=${CONFIG.club_id}`;
 }
+// Same team-filtered gap as fixturesUrl() above, confirmed 2026-09-22 on the
+// Spring semifinal: CricClubs' teamId filter on listMatches.do also drops
+// completed playoff/bracket matches, so a finished semifinal can come back
+// absent from this feed forever — no scorecard ever gets fetched, which
+// means no cricclubs_matches/batting/bowling rows (league-stats never sees
+// it) AND autoCompleteAll() has nothing to match the schedule row against
+// (it stays "upcoming"). leagueMatchListUrl() below is the same no-teamId
+// backfill fixturesUrl() got, merged in by main() for any match not already
+// present in the team-filtered list.
 function matchListUrl() {
   return `${CONFIG.cricclubs_base}/listMatches.do`
     + `?league=${SEASON_CONFIG.league_id}`
     + `&teamId=${CONFIG.cricclubs_team_id}`
+    + `&clubId=${CONFIG.club_id}`
+    + `&fromDate=${encodeURIComponent(SEASON_CONFIG.season_from)}`
+    + `&toDate=${encodeURIComponent(SEASON_CONFIG.season_to)}`;
+}
+// League-wide completed-matches feed (no teamId) — backfills playoff matches
+// matchListUrl() misses. Unlike FIXTURES_PARSER, MATCH_LIST_PARSER has no
+// numeric-teamId link to filter on (listMatches.do's markup exposes only a
+// text "A v B" matchup header), so the merge in main() can only match by
+// EXACT name against MY_CRICCLUBS_NAME — the same fallback branch the
+// fixtures backfill already uses when a row's team cell has no teamId link.
+function leagueMatchListUrl() {
+  return `${CONFIG.cricclubs_base}/listMatches.do`
+    + `?league=${SEASON_CONFIG.league_id}`
     + `&clubId=${CONFIG.club_id}`
     + `&fromDate=${encodeURIComponent(SEASON_CONFIG.season_from)}`
     + `&toDate=${encodeURIComponent(SEASON_CONFIG.season_to)}`;
@@ -1278,7 +1300,26 @@ try {
   // 6.1b — fetch match list, parse completed scorecards
   log.push('🔄 Fetching match list…');
   const listHtml = await withRetry(() => fetchHtml(matchListUrl()));
-  const matches = JSON.parse(await parseInWebView(listHtml, MATCH_LIST_PARSER));
+  const teamMatches = JSON.parse(await parseInWebView(listHtml, MATCH_LIST_PARSER));
+
+  // League-wide backfill for completed playoff matches the team-filtered feed
+  // drops (see leagueMatchListUrl() comment above). A failure here degrades to
+  // "no playoff backfill" for this run only — it does not abort the sync.
+  log.push('🔄 Fetching league match list…');
+  let leagueMatches = [];
+  try {
+    const leagueListHtml = await withRetry(() => fetchHtml(leagueMatchListUrl()));
+    leagueMatches = JSON.parse(await parseInWebView(leagueListHtml, MATCH_LIST_PARSER));
+  } catch (e) {
+    console.warn(`league match list fetch failed: ${e.message}`);
+    log.push(`🔄 League match list fetch failed — ${e.message}`);
+  }
+  const seenMatchIds = new Set(teamMatches.map((m) => m.cricclubs_match_id));
+  const playoffMatchesForUs = leagueMatches.filter((m) =>
+    !seenMatchIds.has(m.cricclubs_match_id)
+    && (m.team_a === MY_CRICCLUBS_NAME || m.team_b === MY_CRICCLUBS_NAME));
+  log.push(`🔍 debug: team-filtered=${teamMatches.length} · league-wide=${leagueMatches.length} · playoff-backfill=${playoffMatchesForUs.length}`);
+  const matches = teamMatches.concat(playoffMatchesForUs);
   log.push(`📋 ${matches.length} matches found`);
 
   // 6.2 — load roster once (used across all scorecards)
