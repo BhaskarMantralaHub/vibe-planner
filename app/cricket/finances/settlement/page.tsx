@@ -14,13 +14,16 @@
  * link from a guessed one, and must never be left on a spinner.
  */
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { Share2, Copy, ArrowRight, Check, ChevronDown, Search, RefreshCw } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { formatCents } from '@/app/(tools)/cricket/lib/settlement';
 import { haptic } from '@/lib/haptics';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { toast } from 'sonner';
+import { SegmentedControl } from '@/components/ui';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ReasonLine = {
   label: string;
@@ -57,6 +60,29 @@ type Report = {
 
 /** Nothing gets to hang. If the network stalls, show the generic screen. */
 const LOAD_TIMEOUT_MS = 12_000;
+
+/**
+ * Sticky table headers, applied per <th> rather than the <tr> (sticky on a
+ * table row is less reliably supported than sticky on a cell) — but getting
+ * a WORKING sticky reference at all took a real investigation. `top: 0`
+ * relative to the page doesn't work anywhere under this app's <main>: both
+ * <html> and <body> carry an app-wide `overflow-x-hidden` class (prevents
+ * horizontal bounce), and per the CSS Overflow spec, declaring overflow-x
+ * forces overflow-y to also compute as 'auto' — which makes <body> the
+ * sticky reference container instead of <html> (the element that actually
+ * scrolls), and <body> never has internal scroll room of its own (confirmed:
+ * document.scrollingElement is <html>, and body.scrollHeight ===
+ * body.clientHeight). A sticky element anchored to a box that never scrolls
+ * never appears to stick. Fixing <body>/<html> is a shared-layout change,
+ * out of scope for "settlement report only" — so instead each table's own
+ * wrapper below is given real internal scroll (max-height + overflow-y),
+ * which sticky works reliably against, same as any scrollable panel.
+ */
+const STICKY_TH_STYLE: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  background: 'var(--card)',
+};
 
 /**
  * The token rides in the QUERY STRING, not a path segment.
@@ -108,7 +134,7 @@ export default function PublicSettlementReportPage() {
   const [canShare, setCanShare] = useState(false);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showLedger, setShowLedger] = useState(false);
+  const [tab, setTab] = useState<'payments' | 'settled' | 'ledger'>('payments');
   const [refreshing, setRefreshing] = useState(false);
   const [openExpense, setOpenExpense] = useState<Set<string>>(new Set());
 
@@ -230,7 +256,28 @@ export default function PublicSettlementReportPage() {
       .sort((a, b) => b.totalCents - a.totalCents);
   }, [report, query]);
 
-  const matchCount = groups.reduce((n, g) => n + g.rows.length, 0);
+  const filteredSettled = useMemo(() => {
+    if (!report) return [];
+    const q = query.trim().toLowerCase();
+    return q
+      ? report.settled.filter(
+          (r) => r.from.toLowerCase().includes(q) || r.to.toLowerCase().includes(q),
+        )
+      : report.settled;
+  }, [report, query]);
+
+  const filteredExpenses = useMemo(() => {
+    if (!report) return [];
+    const q = query.trim().toLowerCase();
+    return q
+      ? report.expenses.filter(
+          (e) =>
+            e.paidBy.toLowerCase().includes(q)
+            || e.label.toLowerCase().includes(q)
+            || e.shares.some((s) => s.name.toLowerCase().includes(q)),
+        )
+      : report.expenses;
+  }, [report, query]);
 
   /**
    * Expanding a payment row.
@@ -357,6 +404,15 @@ export default function PublicSettlementReportPage() {
 
   const allSettled = report.settlements.length === 0;
 
+  const totalCount =
+    tab === 'payments' ? report.paymentCount
+    : tab === 'settled' ? report.settled.length
+    : report.expenses.length;
+  const matchCount =
+    tab === 'payments' ? groups.reduce((n, g) => n + g.rows.length, 0)
+    : tab === 'settled' ? filteredSettled.length
+    : filteredExpenses.length;
+
   return (
     <main className="min-h-[100dvh] bg-[var(--bg)] px-4 pb-16 pt-8">
       <div className="mx-auto w-full max-w-lg">
@@ -381,12 +437,13 @@ export default function PublicSettlementReportPage() {
               🏏
             </div>
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-[17px] font-bold leading-tight text-[var(--text)]">
               {report.teamName}
             </p>
             <p className="truncate text-[13px] text-[var(--muted)]">{report.seasonName}</p>
           </div>
+          <ThemeToggle />
         </header>
 
         <div className="mb-5">
@@ -452,315 +509,371 @@ export default function PublicSettlementReportPage() {
           </section>
         )}
 
-        {/* ── PAYMENTS TO MAKE — the point of the whole page ──────────── */}
-        {!allSettled && (
-          <section className="mb-6">
-            <div className="mb-2.5 flex items-baseline justify-between gap-2">
-              <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                Payments to make
-              </h2>
-              {query.trim() !== '' && (
-                <span className="text-[12px] text-[var(--muted)]">
-                  {matchCount} of {report.paymentCount}
-                </span>
-              )}
-            </div>
+        {/* ── Report sections, as tabs — was three stacked sections that
+               made a 15-person season an unbroken scroll. Same three concepts
+               (what's owed, what's been settled, the raw ledger), same
+               tap-to-expand invoices, just switched instead of stacked.
+               Design-reviewed against the Apple HIG foundations (a web app,
+               so principles/foundations apply, not native chrome) — see the
+               five fixes below, each tied to a specific finding. */}
+        <section className="mb-6">
+          <div className="mb-2.5 flex items-baseline justify-between gap-2">
+            <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              {tab === 'payments' ? 'Payments to make' : tab === 'settled' ? 'Settled' : 'All transactions'}
+            </h2>
+            {/* Always shown now, not just while searching — this is also
+                where the tab count moved FROM (see SegmentedControl below):
+                `tab-bars.md › Best practices` — "Use single words whenever
+                possible" for tab labels. "Payments to make (28)" wrapped to
+                two lines on a 390px phone; the count belongs here instead. */}
+            <span className="text-[12px] text-[var(--muted)]">
+              {query.trim() !== '' ? `${matchCount} of ${totalCount}` : totalCount}
+            </span>
+          </div>
 
-            {/* Find yourself. With 15 people involved, scrolling a wall to
-                answer "what do I owe?" is the whole complaint. */}
-            <div
-              className="mb-3 flex items-center gap-2 rounded-xl px-3"
-              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-            >
-              <Search size={15} className="shrink-0 text-[var(--muted)]" aria-hidden />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Find your name"
-                aria-label="Find your name"
-                className="min-h-11 w-full bg-transparent text-[16px] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
-              />
-              {query && (
-                <button onClick={() => setQuery('')} className="shrink-0 px-1 text-[13px] text-[var(--muted)]" aria-label="Clear">
-                  Clear
-                </button>
-              )}
-            </div>
-
-            {groups.length === 0 ? (
-              <div className="rounded-2xl px-4 py-6 text-center" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
-                <p className="text-[14px] text-[var(--muted)]">
-                  No payments involve &ldquo;{query.trim()}&rdquo;.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {groups.map((g) => (
-                  <div
-                    key={g.from}
-                    className="overflow-hidden rounded-2xl"
-                    style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-                  >
-                    {/* One card per person who owes something. */}
-                    <div className="px-4 pt-3.5 pb-1">
-                      <h3 className="truncate text-[16px] font-bold text-[var(--text)]">
-                        {labelFor(g.from)}
-                      </h3>
-                    </div>
-
-                    <ul>
-                      {g.rows.map((r) => {
-                        const key = `${r.from}->${r.to}`;
-                        const open = expanded.has(key);
-                        return (
-                          <li key={key}>
-                            <button
-                              onClick={() => toggle(key)}
-                              aria-expanded={open}
-                              /* pressable-selection, not pressable: 0.98 on a
-                                 full-width card row. The deeper 0.97 is fine on
-                                 a 100px button but on a row this wide it reads
-                                 as the whole card lurching. */
-                              className="pressable-selection flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-[15px] font-semibold text-[var(--text)]">
-                                  Pay {labelFor(r.to)}
-                                </p>
-                                <p className="mt-0.5 text-[12px] text-[var(--muted)]">
-                                  {r.why.length}{' '}
-                                  {r.why.length === 1 ? 'contributing expense' : 'contributing expenses'}
-                                </p>
-                              </div>
-                              <span
-                                className="shrink-0 text-[16px] font-bold tabular-nums"
-                                style={{ color: 'var(--red, #dc2626)' }}
-                              >
-                                {formatCents(r.amountCents)}
-                              </span>
-                              <ChevronDown
-                                size={15}
-                                className="shrink-0 text-[var(--muted)] transition-transform"
-                                style={{ transform: open ? 'rotate(180deg)' : 'none' }}
-                                aria-hidden
-                              />
-                            </button>
-
-                            {/* The invoice behind the number. These lines sum to
-                                the amount above — the database asserts it. */}
-                            {open && (
-                              <div className="px-4 pb-3">
-                                <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
-                                  {r.why.map((w, i) => (
-                                    <li key={`${w.label}-${i}`} className="flex items-baseline justify-between gap-3 py-1">
-                                      <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
-                                        {w.label}
-                                        {w.date && (
-                                          <span className="ml-1.5 text-[11px] text-[var(--muted)]">{fmtDay(w.date)}</span>
-                                        )}
-                                      </span>
-                                      <span
-                                        className="shrink-0 text-[13px] tabular-nums"
-                                        style={{ color: w.amountCents < 0 ? 'var(--green, #16a34a)' : 'var(--muted)' }}
-                                      >
-                                        {w.amountCents < 0 ? '−' : ''}
-                                        {formatCents(Math.abs(w.amountCents))}
-                                      </span>
-                                    </li>
-                                  ))}
-                                  <li className="mt-1 flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 pt-1.5">
-                                    <span className="text-[13px] font-semibold text-[var(--text)]">
-                                      Owed to {labelFor(r.to)}
-                                    </span>
-                                    <span className="text-[13px] font-bold tabular-nums text-[var(--text)]">
-                                      {formatCents(r.amountCents)}
-                                    </span>
-                                  </li>
-                                </ul>
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-
-                    {/* Only when there is more than one payment to add up —
-                        a "total" identical to the single row above it is noise. */}
-                    {g.rows.length > 1 && (
-                      <div className="flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 px-4 py-3">
-                        <span className="text-[14px] font-semibold text-[var(--text)]">Total to pay</span>
-                        <span className="text-[16px] font-bold tabular-nums text-[var(--text)]">
-                          {formatCents(g.totalCents)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {/* Find yourself. With 15 people involved, scrolling a wall to
+              answer "what do I owe?" is the whole complaint. Applies across
+              all three tabs, not just Payments — the same question ("am I in
+              this?") is worth answering on the ledger and the settled log too. */}
+          <div
+            className="mb-3 flex items-center gap-2 rounded-xl px-3"
+            style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+          >
+            <Search size={15} className="shrink-0 text-[var(--muted)]" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find your name"
+              aria-label="Find your name"
+              className="min-h-11 w-full bg-transparent text-[16px] text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} className="shrink-0 px-1 text-[13px] text-[var(--muted)]" aria-label="Clear">
+                Clear
+              </button>
             )}
-          </section>
-        )}
+          </div>
 
-        {/* ── Why these payments? ─────────────────────────────────────── */}
-        {!allSettled && (
-          <section className="mb-6">
-            <h2 className="mb-2.5 text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Why these payments?
-            </h2>
-            <div className="rounded-2xl px-4 py-3.5" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
-              {/* Accurate to what the app actually computes. It does NOT
-                  simplify debts across the group — saying so would send
-                  someone money they were never told to send. */}
-              <p className="text-[13px] leading-relaxed text-[var(--muted)]">
-                During the season some players paid for things the whole team
-                shared. Each payment below is settled directly between two
-                people: your share of what they paid, minus anything you have
-                already paid them back. Nobody is asked to pay a third person
-                on someone else&apos;s behalf.
-              </p>
-            </div>
-          </section>
-        )}
+          <SegmentedControl
+            options={[
+              { key: 'payments', label: 'Payments' },
+              { key: 'settled', label: 'Settled' },
+              { key: 'ledger', label: 'All' },
+            ]}
+            active={tab}
+            onChange={(k) => setTab(k as 'payments' | 'settled' | 'ledger')}
+            className="mb-3"
+            ariaLabel="Report section"
+          />
 
-        {/* ── Already paid, kept well away from the outstanding list ──── */}
-        {report.settled.length > 0 && (
-          <section className="mb-6">
-            <h2 className="mb-2.5 text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
-              Settled
-            </h2>
-            <ul
-              className="overflow-hidden rounded-2xl"
-              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-            >
-              {report.settled.map((r, i) => (
-                <li
-                  key={`${r.from}-${r.to}-${r.date}-${i}`}
-                  className="flex items-center gap-3 border-b border-[var(--border)]/40 px-4 py-3 last:border-b-0"
-                >
-                  <Check
-                    size={14}
-                    className="shrink-0"
-                    style={{ color: 'var(--green, #16a34a)' }}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] text-[var(--text)]">
-                      {labelFor(r.from)} <span className="text-[var(--muted)]">to</span> {labelFor(r.to)}
-                    </p>
-                    <p className="text-[12px] text-[var(--muted)]">{fmtDay(r.date)}</p>
-                  </div>
-                  <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--muted)]">
-                    {formatCents(r.amountCents)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+          {/* No HORIZONTAL scroll wrapper here on purpose — it was tried and
+              reverted. Each table uses table-layout:fixed with percentage
+              <col> widths sized to fit a 375px phone (and, tested, 320px
+              with only a few px of visually-harmless overflow from
+              break-words) without scrolling. Previously the Amount column —
+              the one number this page exists to show — was off-screen by
+              default with no scroll affordance at all: `layout.md › Best
+              practices` — "Make essential information easy to find... don't
+              obscure it."
 
-        {/* ── All transactions — collapsed, because the ledger is context,
-               not the answer. ───────────────────────────────────────────── */}
-        {report.expenses.length > 0 && (
-          <section className="mb-6">
-            <button
-              onClick={() => setShowLedger((v) => !v)}
-              aria-expanded={showLedger}
-              /* Press only. This opens the browsing layer — see the note on
-                 `toggle` for why the haptics stop here. */
-              className="pressable-selection flex w-full min-h-12 cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 text-left active:bg-[var(--hover-bg)]"
-              style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-            >
-              <span>
-                <span className="block text-[14px] font-semibold text-[var(--text)]">
-                  All transactions
-                </span>
-                <span className="block text-[12px] text-[var(--muted)]">
-                  {report.expenses.length} shared {report.expenses.length === 1 ? 'expense' : 'expenses'} this season
-                </span>
-              </span>
-              <ChevronDown
-                size={16}
-                className="shrink-0 text-[var(--muted)] transition-transform"
-                style={{ transform: showLedger ? 'rotate(180deg)' : 'none' }}
-                aria-hidden
-              />
-            </button>
+              There IS a VERTICAL scroll wrapper below (max-h + overflow-y),
+              and it's load-bearing for the sticky header, not decorative —
+              see STICKY_TH_STYLE's comment for why `position: sticky`
+              relative to the PAGE doesn't work anywhere under this app's
+              <main>. A container that genuinely scrolls internally is what
+              sticky needs, so that's what this is. */}
+          <div className="overflow-hidden rounded-2xl" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+            <div className="max-h-[65vh] overflow-y-auto">
 
-            {showLedger && (
-              <ul
-                className="mt-2 overflow-hidden rounded-2xl"
-                style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-              >
-                {report.expenses.map((e, i) => {
-                  const key = `${e.label}-${e.date}-${i}`;
-                  const open = openExpense.has(key);
-                  return (
-                    <li key={key} className="border-b border-[var(--border)]/40 last:border-b-0">
-                      <button
-                        onClick={() =>
+              {/* ── Payments to make ──────────────────────────────────── */}
+              {tab === 'payments' && (
+                allSettled ? (
+                  <p className="px-4 py-6 text-center text-[14px] text-[var(--muted)]">
+                    No payments are currently needed.
+                  </p>
+                ) : groups.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-[14px] text-[var(--muted)]">
+                    No payments involve &ldquo;{query.trim()}&rdquo;.
+                  </p>
+                ) : (
+                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
+                    <colgroup>
+                      <col style={{ width: '40%' }} />
+                      <col style={{ width: '33%' }} />
+                      <col style={{ width: '27%' }} />
+                    </colgroup>
+                    <thead>
+                      {/* Sticky, so the reader scrolled a few rows down into a
+                          28-row list doesn't lose which column is which —
+                          `lists-and-tables.md › Content`: column headings
+                          exist "to help people understand the context." */}
+                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Owes</th>
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>To</th>
+                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g) => (
+                        <Fragment key={g.from}>
+                          {g.rows.map((r, i) => {
+                            const key = `${r.from}->${r.to}`;
+                            const open = expanded.has(key);
+                            return (
+                              <Fragment key={key}>
+                                <tr className="border-t border-[var(--border)]/40">
+                                  {i === 0 && (
+                                    <td rowSpan={g.rows.length} className="align-top px-3 py-3">
+                                      <p className="break-words text-[14px] font-bold text-[var(--text)]">{labelFor(g.from)}</p>
+                                      {g.rows.length > 1 && (
+                                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                                          Total {formatCents(g.totalCents)}
+                                        </p>
+                                      )}
+                                    </td>
+                                  )}
+                                  <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.to)}</td>
+                                  <td className="px-1 py-1.5 text-right">
+                                    {/* A real <button>, not a role="button" tr — the
+                                        row-click version removed native table row/cell
+                                        semantics for screen readers navigating via
+                                        table commands, even though it stayed reachable
+                                        by keyboard. `accessibility.md › Speech`. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggle(key)}
+                                      aria-expanded={open}
+                                      aria-label={`${open ? 'Hide' : 'Show'} breakdown of ${formatCents(r.amountCents)} owed to ${labelFor(r.to)}`}
+                                      className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2 active:bg-[var(--hover-bg)]"
+                                    >
+                                      <span
+                                        className="text-[14px] font-bold tabular-nums"
+                                        style={{ color: 'var(--red, #dc2626)' }}
+                                      >
+                                        {formatCents(r.amountCents)}
+                                      </span>
+                                      <ChevronDown
+                                        size={14}
+                                        className="shrink-0 text-[var(--muted)] transition-transform"
+                                        style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                                        aria-hidden
+                                      />
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* The invoice behind the number. These lines
+                                    sum to the amount above — the database
+                                    asserts it. */}
+                                {open && (
+                                  <tr>
+                                    <td colSpan={3} className="px-3 pb-3">
+                                      <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
+                                        {r.why.map((w, wi) => (
+                                          <li key={`${w.label}-${wi}`} className="flex items-baseline justify-between gap-3 py-1">
+                                            <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
+                                              {w.label}
+                                              {w.date && (
+                                                <span className="ml-1.5 text-[11px] text-[var(--muted)]">{fmtDay(w.date)}</span>
+                                              )}
+                                            </span>
+                                            <span
+                                              className="shrink-0 text-[13px] tabular-nums"
+                                              style={{ color: w.amountCents < 0 ? 'var(--credit-text)' : 'var(--muted)' }}
+                                            >
+                                              {w.amountCents < 0 ? '−' : ''}
+                                              {formatCents(Math.abs(w.amountCents))}
+                                            </span>
+                                          </li>
+                                        ))}
+                                        <li className="mt-1 flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 pt-1.5">
+                                          <span className="text-[13px] font-semibold text-[var(--text)]">
+                                            Owed to {labelFor(r.to)}
+                                          </span>
+                                          <span className="text-[13px] font-bold tabular-nums text-[var(--text)]">
+                                            {formatCents(r.amountCents)}
+                                          </span>
+                                        </li>
+                                      </ul>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+
+              {/* ── Settled ────────────────────────────────────────────── */}
+              {tab === 'settled' && (
+                filteredSettled.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-[14px] text-[var(--muted)]">
+                    {query.trim()
+                      ? <>No settled payments involve &ldquo;{query.trim()}&rdquo;.</>
+                      : 'No settled payments yet.'}
+                  </p>
+                ) : (
+                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
+                    <colgroup>
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '29%' }} />
+                      <col style={{ width: '29%' }} />
+                      <col style={{ width: '26%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Date</th>
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>From</th>
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>To</th>
+                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSettled.map((r, i) => (
+                        <tr key={`${r.from}-${r.to}-${r.date}-${i}`} className="border-t border-[var(--border)]/40">
+                          <td className="px-3 py-3 text-[12px] text-[var(--muted)]">{fmtDay(r.date)}</td>
+                          <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.from)}</td>
+                          <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.to)}</td>
+                          <td className="px-3 py-3 text-right font-semibold tabular-nums text-[var(--text)]">
+                            <span className="inline-flex items-center gap-1">
+                              <Check size={12} className="shrink-0" style={{ color: 'var(--green, #16a34a)' }} aria-hidden />
+                              {formatCents(r.amountCents)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+
+              {/* ── All transactions ──────────────────────────────────── */}
+              {tab === 'ledger' && (
+                filteredExpenses.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-[14px] text-[var(--muted)]">
+                    {query.trim()
+                      ? <>No expenses involve &ldquo;{query.trim()}&rdquo;.</>
+                      : 'No expenses recorded yet.'}
+                  </p>
+                ) : (
+                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
+                    <colgroup>
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '34%' }} />
+                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '27%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Date</th>
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Expense</th>
+                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Paid by</th>
+                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredExpenses.map((e, i) => {
+                        const key = `${e.label}-${e.date}-${i}`;
+                        const open = openExpense.has(key);
+                        const expandable = e.shares.length > 0;
+                        const toggleExpense = () => {
+                          if (!expandable) return;
                           setOpenExpense((prev) => {
                             const next = new Set(prev);
                             if (next.has(key)) next.delete(key);
                             else next.add(key);
                             return next;
-                          })
-                        }
-                        aria-expanded={open}
-                        /* No haptic: up to 28 of these on a full season. */
-                        className="pressable-selection flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[14px] text-[var(--text)]">{e.label}</p>
-                          <p className="text-[12px] text-[var(--muted)]">
-                            {e.paidBy} paid · {fmtDay(e.date)}
-                            {e.shares.length > 0 && (
-                              <> · split {e.shares.length} {e.shares.length === 1 ? 'way' : 'ways'}</>
-                            )}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--text)]">
-                          {formatCents(e.amountCents)}
-                        </span>
-                        {e.shares.length > 0 && (
-                          <ChevronDown
-                            size={14}
-                            className="shrink-0 text-[var(--muted)] transition-transform"
-                            style={{ transform: open ? 'rotate(180deg)' : 'none' }}
-                            aria-hidden
-                          />
-                        )}
-                      </button>
+                          });
+                        };
+                        return (
+                          <Fragment key={key}>
+                            <tr className="border-t border-[var(--border)]/40">
+                              <td className="px-3 py-3 text-[12px] text-[var(--muted)]">{fmtDay(e.date)}</td>
+                              <td className="break-words px-3 py-3 text-[var(--text)]">{e.label}</td>
+                              <td className="break-words px-3 py-3 text-[var(--text)]">
+                                {e.paidBy}
+                                {expandable && (
+                                  <span className="block text-[11px] text-[var(--muted)]">
+                                    split {e.shares.length} {e.shares.length === 1 ? 'way' : 'ways'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-1 py-1.5 text-right">
+                                {expandable ? (
+                                  <button
+                                    type="button"
+                                    onClick={toggleExpense}
+                                    aria-expanded={open}
+                                    aria-label={`${open ? 'Hide' : 'Show'} who split ${e.label}`}
+                                    className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2 active:bg-[var(--hover-bg)]"
+                                  >
+                                    <span className="text-[14px] font-semibold tabular-nums text-[var(--text)]">
+                                      {formatCents(e.amountCents)}
+                                    </span>
+                                    <ChevronDown
+                                      size={14}
+                                      className="shrink-0 text-[var(--muted)] transition-transform"
+                                      style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                                      aria-hidden
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="block px-2 py-1 text-[14px] font-semibold tabular-nums text-[var(--text)]">
+                                    {formatCents(e.amountCents)}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
 
-                      {/* Who was actually in it, and for how much. */}
-                      {open && e.shares.length > 0 && (
-                        <div className="px-4 pb-3">
-                          <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
-                            {e.shares.map((sh, j) => (
-                              <li
-                                key={`${sh.name}-${j}`}
-                                className="flex items-baseline justify-between gap-3 py-1"
-                              >
-                                <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
-                                  {sh.name}
-                                  {sh.name === e.paidBy && (
-                                    <span className="ml-1.5 text-[11px] text-[var(--muted)]">paid</span>
-                                  )}
-                                </span>
-                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">
-                                  {formatCents(sh.amountCents)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        )}
+                            {/* Who was actually in it, and for how much. */}
+                            {open && expandable && (
+                              <tr>
+                                <td colSpan={4} className="px-3 pb-3">
+                                  <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
+                                    {e.shares.map((sh, j) => (
+                                      <li key={`${sh.name}-${j}`} className="flex items-baseline justify-between gap-3 py-1">
+                                        <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
+                                          {sh.name}
+                                          {sh.name === e.paidBy && (
+                                            <span className="ml-1.5 text-[11px] text-[var(--muted)]">paid</span>
+                                          )}
+                                        </span>
+                                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">
+                                          {formatCents(sh.amountCents)}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Explains the Payments tab's numbers specifically — does NOT
+              simplify debts across the group, so it only belongs next to the
+              tab it's explaining. */}
+          {tab === 'payments' && !allSettled && (
+            <p className="mt-3 rounded-2xl px-4 py-3.5 text-[13px] leading-relaxed text-[var(--muted)]" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
+              During the season some players paid for things the whole team
+              shared. Each payment above is settled directly between two
+              people: your share of what they paid, minus anything you have
+              already paid them back. Nobody is asked to pay a third person
+              on someone else&apos;s behalf.
+            </p>
+          )}
+        </section>
 
         {/* ── Share ───────────────────────────────────────────────────── */}
         <button
