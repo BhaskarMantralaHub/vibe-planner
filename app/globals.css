@@ -43,6 +43,13 @@
   --green-deep: #15803D;
   --red-deep: #B91C1C;
 
+  /* Accessible green for regular-weight TEXT (not icons — icons only need
+     3:1). --green itself is 9.75:1 on --card in dark mode, so it stays the
+     right choice here; the light-mode override below is what needed
+     changing. Used by the public settlement report's credit-line amounts.
+     See --credit-text below for why this is split from --green at all. */
+  --credit-text: var(--green);
+
   /* Status card gradients — each has a distinct hue */
   --spark-from: #111B2E;
   --spark-to: #1A2D4A;
@@ -181,6 +188,13 @@
   --cricket-deep: #7C2D12;
   --green-deep: #15803D;
   --red-deep: #B91C1C;
+
+  /* --green (#16A34A) on white card is only 3.30:1 — below the 4.5:1 AA
+     minimum for regular-weight text under 18px (accessibility.md). Fine for
+     an icon (icons need only 3:1) but not for the credit-line TEXT in the
+     public settlement report, which used --green directly. --green-deep is
+     5.02:1 on white and already existed for exactly this kind of case. */
+  --credit-text: var(--green-deep);
 
   /* Cricket team theme — Sunrisers Manteca orange, burnt-deep so 11px bold
      labels on white still pass AA (#C2410C ≈ 5.1:1). Filled controls keep
