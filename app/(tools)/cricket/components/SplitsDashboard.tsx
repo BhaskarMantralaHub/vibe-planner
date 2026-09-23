@@ -355,6 +355,30 @@ export default function SplitsDashboard() {
     };
   }, [myPlayer, activeSplits, shares, seasonSettlements, activePlayers]);
 
+  // Admin view of every open debt the admin is NOT part of (their own are
+  // listed above). Same engine as everything else, and ALL players are named —
+  // a debt owed to or by a leaver is still owed. Full names: this line tells
+  // someone who to pay.
+  const otherTeamDebts = useMemo(() => {
+    if (!isAdmin) return [];
+    const nameById = new Map(players.map((p) => [p.id, p]));
+    return computeSettlements(activeSplits, shares, seasonSettlements).rows
+      .filter((r) => r.fromId !== myPlayer?.id && r.toId !== myPlayer?.id)
+      .map((r) => {
+        const from = nameById.get(r.fromId);
+        const to = nameById.get(r.toId);
+        return {
+          key: `${r.fromId}-${r.toId}`,
+          fromId: r.fromId,
+          toId: r.toId,
+          fromName: from?.name ?? 'Unknown player',
+          fromPhoto: from?.photo_url ?? null,
+          toName: to?.name ?? 'Unknown player',
+          amount: r.amountCents / 100,
+        };
+      });
+  }, [isAdmin, players, activeSplits, shares, seasonSettlements, myPlayer?.id]);
+
   /**
    * Open the season's settlement report as a PDF in a new tab.
    *
@@ -427,6 +451,7 @@ export default function SplitsDashboard() {
   const [activityPage, setActivityPage] = useState(0);
   const [activityFilter, setActivityFilter] = useState<string>('all');
   const [settlementFilter, setSettlementFilter] = useState<string>('all');
+  const [teamDebtFilter, setTeamDebtFilter] = useState<string>('all');
   const [activitySearch, setActivitySearch] = useState('');
   const [activityRelation, setActivityRelation] = useState<'all' | 'iowe' | 'owed'>('all');
   const [activitySort, setActivitySort] = useState<'newest' | 'oldest'>('newest');
@@ -793,8 +818,70 @@ export default function SplitsDashboard() {
         </div>
       )}
 
+      {/* Admin: settle on behalf of other players */}
+      {otherTeamDebts.length > 0 && (() => {
+        const teamDebtPeople = new Map<string, string>();
+        for (const d of otherTeamDebts) {
+          teamDebtPeople.set(d.fromId, d.fromName);
+          teamDebtPeople.set(d.toId, d.toName);
+        }
+        // Settling a person's last debt drops them from the list; fall back to
+        // everyone rather than leave the admin looking at an empty filter.
+        const activeFilter = teamDebtPeople.has(teamDebtFilter) ? teamDebtFilter : 'all';
+        const involves = (id: string) => (d: (typeof otherTeamDebts)[number]) => d.fromId === id || d.toId === id;
+        const visibleDebts = activeFilter === 'all' ? otherTeamDebts : otherTeamDebts.filter(involves(activeFilter));
+        return (
+        <div className={`rounded-2xl bg-[var(--card)] overflow-hidden ${myDebtsIOwe.length > 0 || myDebtsOwedToMe.length > 0 ? 'mt-3' : ''}`} style={{ boxShadow: 'var(--card-shadow)' }}>
+          <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+            <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
+              <Handshake size={13} style={{ color: 'var(--cricket)' }} />
+            </div>
+            <Text size="sm" weight="bold">Between other players</Text>
+            <span className="ml-auto flex items-baseline gap-1.5">
+              <Text size="sm" weight="bold" tabular>{formatCurrency(visibleDebts.reduce((sum, d) => sum + d.amount, 0))}</Text>
+              <Text size="2xs" color="dim">· {visibleDebts.length} {visibleDebts.length === 1 ? 'payment' : 'payments'}</Text>
+            </span>
+          </div>
+          <Text as="p" size="2xs" color="dim" className="px-4 pb-2">Admin only. Record a payment when someone tells you they&apos;ve paid.</Text>
+          <div className="px-4 pb-2">
+            <FilterDropdown
+              options={[...teamDebtPeople.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => ({
+                key: id, label: name, count: otherTeamDebts.filter(involves(id)).length,
+              }))}
+              value={activeFilter === 'all' ? '' : activeFilter}
+              onChange={(key) => setTeamDebtFilter(key || 'all')}
+              allLabel="Everyone"
+              allCount={otherTeamDebts.length}
+              brand="cricket"
+            />
+          </div>
+          <div className="px-3 pb-3 space-y-1">
+            {visibleDebts.map((d) => (
+              <div key={d.key} className="flex items-center gap-3 rounded-xl p-3">
+                <PlayerAvatar name={d.fromName} photoUrl={d.fromPhoto} />
+                <div className="flex-1 min-w-0">
+                  <Text as="p" size="sm" weight="semibold" className="break-words">{d.fromName}</Text>
+                  <Text as="p" size="2xs" color="dim" className="break-words">pays {d.toName}</Text>
+                </div>
+                <Text size="md" weight="bold" tabular>{formatCurrency(d.amount)}</Text>
+                <Button
+                  onClick={() => openSettleDrawer(d.fromId, d.toId, d.amount)}
+                  variant="secondary"
+                  size="md"
+                  className="flex-shrink-0 min-h-[44px]"
+                  aria-label={`Record ${d.fromName} paying ${formatCurrency(d.amount)} to ${d.toName}`}
+                >
+                  Settle
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+        );
+      })()}
+
       {/* All settled celebration */}
-      {allSettled && hasSplits && (
+      {allSettled && hasSplits && otherTeamDebts.length === 0 && (
         <div className="rounded-2xl border bg-[var(--card)] p-6 text-center" style={{ borderColor: 'color-mix(in srgb, var(--cricket) 25%, transparent)' }}>
           <div className="h-14 w-14 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)' }}>
             <PartyPopper size={28} style={{ color: 'var(--cricket)' }} />

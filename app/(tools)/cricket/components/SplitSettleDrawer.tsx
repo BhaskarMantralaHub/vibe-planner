@@ -12,8 +12,11 @@ import { ArrowRight, Check, Handshake } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SplitSettleDrawer() {
-  const { showSettleForm, settleTarget, addSplitSettlement, splits, shares, settlements } = useSplitsStore();
+  const { showSettleForm, settleTarget, addSplitSettlement, splits: allSplits, shares, settlements: allSettlements } = useSplitsStore();
   const { players, selectedSeasonId } = useCricketStore();
+  // Season-scoped so the suggested amount matches the Balances row it was opened from.
+  const splits = useMemo(() => allSplits.filter((s) => s.season_id === selectedSeasonId), [allSplits, selectedSeasonId]);
+  const settlements = useMemo(() => allSettlements.filter((s) => s.season_id === selectedSeasonId), [allSettlements, selectedSeasonId]);
   const { user } = useAuthStore();
 
   const setOpen = (v: boolean) => useSplitsStore.setState({
