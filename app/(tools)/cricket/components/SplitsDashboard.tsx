@@ -15,7 +15,7 @@ import type { CardMenuItem } from '@/components/ui';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Handshake, Trash2, Pencil, ChevronDown, ChevronRight, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw, Info, Search, ArrowUpDown, SlidersHorizontal, Check } from 'lucide-react';
+import { Plus, Handshake, ArrowRight,Trash2, Pencil, ChevronDown, ChevronRight, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw, Info, Search, ArrowUpDown, SlidersHorizontal, Check } from 'lucide-react';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 import dynamic from 'next/dynamic';
@@ -374,6 +374,7 @@ export default function SplitsDashboard() {
           fromName: from?.name ?? 'Unknown player',
           fromPhoto: from?.photo_url ?? null,
           toName: to?.name ?? 'Unknown player',
+          toPhoto: to?.photo_url ?? null,
           amount: r.amountCents / 100,
         };
       });
@@ -830,6 +831,14 @@ export default function SplitsDashboard() {
         const activeFilter = teamDebtPeople.has(teamDebtFilter) ? teamDebtFilter : 'all';
         const involves = (id: string) => (d: (typeof otherTeamDebts)[number]) => d.fromId === id || d.toId === id;
         const visibleDebts = activeFilter === 'all' ? otherTeamDebts : otherTeamDebts.filter(involves(activeFilter));
+        // Grouped by PAYER with a "Pay <name>" verb on every row — the same shape
+        // as the public settlement report. Grouping by collector left each row a
+        // bare name + amount, which read as though that person were owed.
+        const byPayer = new Map<string, typeof visibleDebts>();
+        for (const d of visibleDebts) byPayer.set(d.fromId, [...(byPayer.get(d.fromId) ?? []), d]);
+        const groups = [...byPayer.values()]
+          .map((rows) => ({ rows, total: rows.reduce((sum, d) => sum + d.amount, 0) }))
+          .sort((a, b) => b.total - a.total);
         return (
         <div className={`rounded-2xl bg-[var(--card)] overflow-hidden ${myDebtsIOwe.length > 0 || myDebtsOwedToMe.length > 0 ? 'mt-3' : ''}`} style={{ boxShadow: 'var(--card-shadow)' }}>
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
@@ -855,26 +864,43 @@ export default function SplitsDashboard() {
               brand="cricket"
             />
           </div>
-          <div className="px-3 pb-3 space-y-1">
-            {visibleDebts.map((d) => (
-              <div key={d.key} className="flex items-center gap-3 rounded-xl p-3">
-                <PlayerAvatar name={d.fromName} photoUrl={d.fromPhoto} />
-                <div className="flex-1 min-w-0">
-                  <Text as="p" size="sm" weight="semibold" className="break-words">{d.fromName}</Text>
-                  <Text as="p" size="2xs" color="dim" className="break-words">pays {d.toName}</Text>
-                </div>
-                <Text size="md" weight="bold" tabular>{formatCurrency(d.amount)}</Text>
-                <Button
-                  onClick={() => openSettleDrawer(d.fromId, d.toId, d.amount)}
-                  variant="secondary"
-                  size="md"
-                  className="flex-shrink-0 min-h-[44px]"
-                  aria-label={`Record ${d.fromName} paying ${formatCurrency(d.amount)} to ${d.toName}`}
-                >
-                  Settle
-                </Button>
-              </div>
-            ))}
+          <div className="px-3 pb-3 space-y-3">
+            {groups.map(({ rows, total }) => {
+              const { fromId, fromName, fromPhoto } = rows[0];
+              return (
+                <section key={fromId} aria-label={`${fromName} pays`} className="rounded-xl border border-[var(--border)] overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--cricket) 5%, transparent)' }}>
+                    <PlayerAvatar name={fromName} photoUrl={fromPhoto} size="sm" />
+                    <Text as="p" size="sm" weight="bold" className="flex-1 min-w-0 break-words">{fromName}</Text>
+                    <div className="text-right flex-shrink-0">
+                      <Text as="p" size="2xs" color="dim">Total to pay</Text>
+                      <Text as="p" size="sm" weight="bold" tabular style={{ color: 'var(--split-owe)' }}>{formatCurrency(total)}</Text>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]/60">
+                    {rows.map((d) => (
+                      <div key={d.key} className="flex items-center gap-3 px-3 py-2">
+                        <ArrowRight size={14} className="flex-shrink-0 text-[var(--dim)]" aria-hidden />
+                        <Text size="sm" className="flex-1 min-w-0 break-words">
+                          <Text size="sm" color="muted">Pay </Text>
+                          <Text size="sm" weight="semibold">{d.toName}</Text>
+                        </Text>
+                        <Text size="sm" weight="bold" tabular className="flex-shrink-0">{formatCurrency(d.amount)}</Text>
+                        <Button
+                          onClick={() => openSettleDrawer(d.fromId, d.toId, d.amount)}
+                          variant="secondary"
+                          size="md"
+                          className="flex-shrink-0 min-h-[44px]"
+                          aria-label={`Record ${d.fromName} paying ${formatCurrency(d.amount)} to ${d.toName}`}
+                        >
+                          Settle
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </div>
         );
