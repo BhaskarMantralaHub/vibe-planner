@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
-import { Button, Text } from '@/components/ui';
+import { Button, Text, ComposerModal } from '@/components/ui';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -152,19 +151,21 @@ export default function SplitSettleDrawer() {
   const fromPhoto = fromPlayer.photo_url;
   const toPhoto = toPlayer.photo_url;
 
+  // ComposerModal, not a vaul Drawer: the amount input auto-focuses, and vaul's
+  // input repositioning breaks under the iOS keyboard (page floats and scrolls).
   return (
-    <Drawer open={showSettleForm} onOpenChange={handleClose}>
-      <DrawerHandle />
-      <DrawerTitle>Settle Up</DrawerTitle>
-      <DrawerHeader>
-        <Text as="h3" size="lg" weight="bold" tracking="tight">
-          <Handshake size={18} className="inline mr-2" style={{ color: 'var(--cricket)' }} />
-          Settle Up
-        </Text>
-      </DrawerHeader>
-      <DrawerBody>
+    <ComposerModal
+      open={showSettleForm}
+      onClose={() => handleClose(false)}
+      title="Settle Up"
+      footer={settled ? undefined : (
+        <Button onClick={handleSettle} disabled={numAmount <= 0 || submitting} variant="primary" brand="cricket" size="xl" fullWidth loading={submitting}>
+          <Handshake size={18} />Confirm Settlement
+        </Button>
+      )}
+    >
         {settled ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
+          <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in overflow-hidden">
             <div className="relative mb-6">
               <div className="h-20 w-20 rounded-full flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg, #059669, #10B981)', animation: 'bounceIn 0.5s ease-out', boxShadow: '0 0 40px rgba(16, 185, 129, 0.3)' }}>
@@ -217,7 +218,8 @@ export default function SplitSettleDrawer() {
                 <input ref={amountInputRef} type="text" inputMode="decimal"
                   value={settleAmount || suggestedAmount.toFixed(2)}
                   onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setSettleAmount(e.target.value); }}
-                  className="flex-1 bg-transparent outline-none font-bold text-[28px] leading-none"
+                  aria-label="Settlement amount"
+                  className="flex-1 min-w-0 w-full bg-transparent outline-none font-bold text-[28px] leading-none"
                   style={{ color: 'var(--text)', caretColor: 'var(--cricket)', fontVariantNumeric: 'tabular-nums' }} />
               </div>
               {numAmount > 0 && numAmount < suggestedAmount && (
@@ -269,13 +271,8 @@ export default function SplitSettleDrawer() {
               <div className="h-px" style={{ background: 'var(--border)' }} />
               <div className="flex justify-between"><Text size="sm" weight="bold">New balance</Text><Text size="sm" weight="bold" tabular style={{ color: newBalance === 0 ? 'var(--cricket)' : 'var(--split-owe)' }}>{newBalance === 0 ? 'Settled!' : formatCurrency(newBalance)}</Text></div>
             </div>
-
-            <Button onClick={handleSettle} disabled={numAmount <= 0 || submitting} variant="primary" brand="cricket" size="xl" fullWidth loading={submitting}>
-              <Handshake size={18} />Confirm Settlement
-            </Button>
           </>
         )}
-      </DrawerBody>
-    </Drawer>
+    </ComposerModal>
   );
 }
