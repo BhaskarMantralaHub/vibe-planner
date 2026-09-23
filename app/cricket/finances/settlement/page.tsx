@@ -14,8 +14,7 @@
  * link from a guessed one, and must never be left on a spinner.
  */
 
-import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
-import type { CSSProperties } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Share2, Copy, ArrowRight, Check, ChevronDown, Search, RefreshCw } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { formatCents } from '@/app/(tools)/cricket/lib/settlement';
@@ -62,27 +61,19 @@ type Report = {
 const LOAD_TIMEOUT_MS = 12_000;
 
 /**
- * Sticky table headers, applied per <th> rather than the <tr> (sticky on a
- * table row is less reliably supported than sticky on a cell) — but getting
- * a WORKING sticky reference at all took a real investigation. `top: 0`
- * relative to the page doesn't work anywhere under this app's <main>: both
- * <html> and <body> carry an app-wide `overflow-x-hidden` class (prevents
- * horizontal bounce), and per the CSS Overflow spec, declaring overflow-x
- * forces overflow-y to also compute as 'auto' — which makes <body> the
- * sticky reference container instead of <html> (the element that actually
- * scrolls), and <body> never has internal scroll room of its own (confirmed:
- * document.scrollingElement is <html>, and body.scrollHeight ===
+ * NOTE for anyone reaching for `position: sticky` on this page (or anywhere
+ * under this app's <main>): it does not work, and it fails silently. Both
+ * <html> and <body> carry an app-wide `overflow-x-hidden` class to stop
+ * horizontal bounce, and per the CSS Overflow spec, declaring overflow-x
+ * forces overflow-y to compute as 'auto' too — which makes <body> the sticky
+ * reference container instead of <html> (the element that actually scrolls),
+ * and <body> has no internal scroll room of its own (confirmed:
+ * document.scrollingElement is <html>, body.scrollHeight ===
  * body.clientHeight). A sticky element anchored to a box that never scrolls
- * never appears to stick. Fixing <body>/<html> is a shared-layout change,
- * out of scope for "settlement report only" — so instead each table's own
- * wrapper below is given real internal scroll (max-height + overflow-y),
- * which sticky works reliably against, same as any scrollable panel.
+ * never appears to stick. The sticky table header this page used to have
+ * only worked because its table sat in a bounded-height internal scroller;
+ * the card layout needs neither.
  */
-const STICKY_TH_STYLE: CSSProperties = {
-  position: 'sticky',
-  top: 0,
-  background: 'var(--card)',
-};
 
 /**
  * The token rides in the QUERY STRING, not a path segment.
@@ -570,24 +561,11 @@ export default function PublicSettlementReportPage() {
             ariaLabel="Report section"
           />
 
-          {/* No HORIZONTAL scroll wrapper here on purpose — it was tried and
-              reverted. Each table uses table-layout:fixed with percentage
-              <col> widths sized to fit a 375px phone (and, tested, 320px
-              with only a few px of visually-harmless overflow from
-              break-words) without scrolling. Previously the Amount column —
-              the one number this page exists to show — was off-screen by
-              default with no scroll affordance at all: `layout.md › Best
-              practices` — "Make essential information easy to find... don't
-              obscure it."
-
-              There IS a VERTICAL scroll wrapper below (max-h + overflow-y),
-              and it's load-bearing for the sticky header, not decorative —
-              see STICKY_TH_STYLE's comment for why `position: sticky`
-              relative to the PAGE doesn't work anywhere under this app's
-              <main>. A container that genuinely scrolls internally is what
-              sticky needs, so that's what this is. */}
-          <div className="overflow-hidden rounded-2xl" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
-            <div className="max-h-[65vh] overflow-y-auto">
+          {/* No table, no bounded-height scroller, no sticky header — all
+              three were scaffolding the TABLE needed and none of it survives
+              the move to cards. Each card carries its own surface and the
+              page just scrolls; there are no columns to keep aligned and no
+              header to keep on screen. */}
 
               {/* ── Payments to make ──────────────────────────────────── */}
               {tab === 'payments' && (
@@ -600,131 +578,122 @@ export default function PublicSettlementReportPage() {
                     No payments involve &ldquo;{query.trim()}&rdquo;.
                   </p>
                 ) : (
-                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
-                    <colgroup>
-                      <col style={{ width: '58%' }} />
-                      <col style={{ width: '42%' }} />
-                    </colgroup>
-                    <thead>
-                      {/* Sticky, so the reader scrolled a few rows down into a
-                          28-row list doesn't lose which column is which —
-                          `lists-and-tables.md › Content`: column headings
-                          exist "to help people understand the context." */}
-                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>To</th>
-                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groups.map((g) => (
-                        <Fragment key={g.from}>
-                          {/* The payer name is its own full-width row, NOT a
-                              rowSpan cell. rowSpan counts actual <tr>
-                              elements, and every expanded row inserts an EXTRA
-                              <tr> between the grouped rows — so as soon as
-                              anything in a group was expanded, the span
-                              undercounted its own rows: later rows fell
-                              outside it and their "To" cell rendered in the
-                              wrong column, and the last row's breakdown could
-                              fail to render at all. A plain full-width header
-                              row has no row count to get wrong, whatever is
-                              expanded. */}
-                          <tr className="border-t border-[var(--border)]/40">
-                            <td colSpan={2} className="px-3 pt-3 pb-1">
-                              <p className="break-words text-[14px] font-bold text-[var(--text)]">{labelFor(g.from)}</p>
-                              {g.rows.length > 1 && (
-                                <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                                  Total {formatCents(g.totalCents)}
-                                </p>
-                              )}
-                            </td>
-                          </tr>
-                          {g.rows.map((r) => {
-                            const key = `${r.from}->${r.to}`;
-                            const open = expanded.has(key);
-                            return (
-                              <Fragment key={key}>
-                                <tr
-                                  onClick={() => toggle(key)}
-                                  className="pressable-selection cursor-pointer active:bg-[var(--hover-bg)]"
-                                >
-                                  <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.to)}</td>
-                                  <td className="px-1 py-1.5 text-right">
-                                    {/* A real <button>, not a role="button" tr — plain
-                                        onClick on the tr (no role/tabIndex override)
-                                        keeps native table row/cell semantics for screen
-                                        readers, while this button stays the labeled,
-                                        keyboard-focusable control. No onClick here: a
-                                        native button's click bubbles to the tr handler
-                                        for mouse AND Enter/Space, so there is exactly
-                                        one toggle per interaction and the WHOLE ROW is
-                                        the tap target, not just this button's box.
-                                        `accessibility.md › Speech`. */}
-                                    <button
-                                      type="button"
-                                      aria-expanded={open}
-                                      aria-label={`${open ? 'Hide' : 'Show'} breakdown of ${formatCents(r.amountCents)} owed to ${labelFor(r.to)}`}
-                                      className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2"
-                                    >
-                                      <span
-                                        className="text-[14px] font-bold tabular-nums"
-                                        style={{ color: 'var(--red, #dc2626)' }}
-                                      >
+                  /* CARDS, not a table. The table fought this data the whole
+                     way: names wrapped unpredictably, the Amount column fell
+                     off a 375px screen, and a merged payer cell miscounted
+                     its own rows the moment one expanded. A card per payer
+                     has no columns to misalign — the name and total sit in
+                     the card head, each payment is a flex row, and the
+                     breakdown opens inside the card. */
+                  <div className="flex flex-col gap-3">
+                    {groups.map((g) => (
+                      <div
+                        key={g.from}
+                        className="overflow-hidden rounded-2xl border border-[var(--border)]"
+                        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+                      >
+                        <div className="px-4 pb-3 pt-3.5">
+                          <p className="break-words text-[16px] font-bold tracking-tight text-[var(--text)]">
+                            {labelFor(g.from)}
+                          </p>
+                          {/* Only when there is more than one payment to add
+                              up — a total identical to the single row below
+                              it is noise. */}
+                          {g.rows.length > 1 && (
+                            <div className="mt-1.5 flex items-baseline gap-3">
+                              <span className="flex-1 text-[13px] text-[var(--muted)]">Total to pay</span>
+                              <span
+                                className="shrink-0 text-[16px] font-bold tabular-nums"
+                                style={{ color: 'var(--red, #dc2626)' }}
+                              >
+                                {formatCents(g.totalCents)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {g.rows.map((r) => {
+                          const key = `${r.from}->${r.to}`;
+                          const open = expanded.has(key);
+                          return (
+                            <div key={key} className="border-t border-[var(--border)]">
+                              {/* One button per row, so the whole row is the
+                                  tap target AND screen readers get a single
+                                  correctly-labeled control. */}
+                              <button
+                                type="button"
+                                onClick={() => toggle(key)}
+                                aria-expanded={open}
+                                aria-label={`${open ? 'Hide' : 'Show'} breakdown of ${formatCents(r.amountCents)} owed to ${labelFor(r.to)}`}
+                                className="pressable-selection flex min-h-14 w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--hover-bg)]"
+                              >
+                                <span className="min-w-0 flex-1">
+                                  <span className="block break-words text-[14px] font-medium text-[var(--text)]">
+                                    Pay {labelFor(r.to)}
+                                  </span>
+                                  <span className="mt-0.5 block text-[12px] text-[var(--muted)]">
+                                    {r.why.length === 1 ? '1 transaction' : `${r.why.length} transactions`}
+                                  </span>
+                                </span>
+                                <span className="shrink-0 text-[15px] font-semibold tabular-nums text-[var(--text)]">
+                                  {formatCents(r.amountCents)}
+                                </span>
+                                <ChevronDown
+                                  size={15}
+                                  className="shrink-0 text-[var(--muted)] transition-transform"
+                                  style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                                  aria-hidden
+                                />
+                              </button>
+
+                              {/* The invoice behind the number. These lines
+                                  sum to the amount above — the database
+                                  asserts it. Label, date and amount are three
+                                  columns: the date and amount are fixed-width
+                                  and right-aligned so they stack into clean
+                                  columns instead of being shoved around by
+                                  whatever amount follows them. The label
+                                  WRAPS rather than truncating — the expense
+                                  name is the whole reason the line is there. */}
+                              {open && (
+                                <div className="px-3 pb-3">
+                                  <ul className="rounded-xl px-3 py-1.5" style={{ background: 'var(--hover-bg)' }}>
+                                    {r.why.map((w, wi) => (
+                                      <li key={`${w.label}-${wi}`} className="flex items-baseline gap-3 py-2">
+                                        <span className="min-w-0 flex-1 break-words text-[13px] leading-[1.4] text-[var(--text)]">
+                                          {w.label}
+                                        </span>
+                                        {w.date && (
+                                          <span className="w-[46px] shrink-0 text-right text-[11px] tabular-nums text-[var(--muted)]">
+                                            {fmtDay(w.date)}
+                                          </span>
+                                        )}
+                                        <span
+                                          className="w-[64px] shrink-0 text-right text-[13px] tabular-nums"
+                                          style={{ color: w.amountCents < 0 ? 'var(--credit-text)' : 'var(--muted)' }}
+                                        >
+                                          {w.amountCents < 0 ? '−' : ''}
+                                          {formatCents(Math.abs(w.amountCents))}
+                                        </span>
+                                      </li>
+                                    ))}
+                                    <li className="mt-0.5 flex items-baseline gap-3 border-t border-[var(--border)]/60 py-2">
+                                      <span className="flex-1 text-[13px] font-semibold text-[var(--text)]">
+                                        Owed to {labelFor(r.to)}
+                                      </span>
+                                      <span className="w-[64px] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--text)]">
                                         {formatCents(r.amountCents)}
                                       </span>
-                                      <ChevronDown
-                                        size={14}
-                                        className="shrink-0 text-[var(--muted)] transition-transform"
-                                        style={{ transform: open ? 'rotate(180deg)' : 'none' }}
-                                        aria-hidden
-                                      />
-                                    </button>
-                                  </td>
-                                </tr>
-
-                                {/* The invoice behind the number. These lines
-                                    sum to the amount above — the database
-                                    asserts it. */}
-                                {open && (
-                                  <tr>
-                                    <td colSpan={2} className="px-3 pb-3">
-                                      <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
-                                        {r.why.map((w, wi) => (
-                                          <li key={`${w.label}-${wi}`} className="flex items-baseline justify-between gap-3 py-1">
-                                            <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
-                                              {w.label}
-                                              {w.date && (
-                                                <span className="ml-1.5 text-[11px] text-[var(--muted)]">{fmtDay(w.date)}</span>
-                                              )}
-                                            </span>
-                                            <span
-                                              className="shrink-0 text-[13px] tabular-nums"
-                                              style={{ color: w.amountCents < 0 ? 'var(--credit-text)' : 'var(--muted)' }}
-                                            >
-                                              {w.amountCents < 0 ? '−' : ''}
-                                              {formatCents(Math.abs(w.amountCents))}
-                                            </span>
-                                          </li>
-                                        ))}
-                                        <li className="mt-1 flex items-baseline justify-between gap-3 border-t border-[var(--border)]/50 pt-1.5">
-                                          <span className="text-[13px] font-semibold text-[var(--text)]">
-                                            Owed to {labelFor(r.to)}
-                                          </span>
-                                          <span className="text-[13px] font-bold tabular-nums text-[var(--text)]">
-                                            {formatCents(r.amountCents)}
-                                          </span>
-                                        </li>
-                                      </ul>
-                                    </td>
-                                  </tr>
-                                )}
-                              </Fragment>
-                            );
-                          })}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
+                                    </li>
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
                 )
               )}
 
@@ -737,37 +706,35 @@ export default function PublicSettlementReportPage() {
                       : 'No settled payments yet.'}
                   </p>
                 ) : (
-                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
-                    <colgroup>
-                      <col style={{ width: '16%' }} />
-                      <col style={{ width: '29%' }} />
-                      <col style={{ width: '29%' }} />
-                      <col style={{ width: '26%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Date</th>
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>From</th>
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>To</th>
-                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <div
+                    className="overflow-hidden rounded-2xl border border-[var(--border)]"
+                    style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+                  >
+                    <ul>
                       {filteredSettled.map((r, i) => (
-                        <tr key={`${r.from}-${r.to}-${r.date}-${i}`} className="border-t border-[var(--border)]/40">
-                          <td className="px-3 py-3 text-[12px] text-[var(--muted)]">{fmtDay(r.date)}</td>
-                          <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.from)}</td>
-                          <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.to)}</td>
-                          <td className="px-3 py-3 text-right font-semibold tabular-nums text-[var(--text)]">
-                            <span className="inline-flex items-center gap-1">
-                              <Check size={12} className="shrink-0" style={{ color: 'var(--green, #16a34a)' }} aria-hidden />
-                              {formatCents(r.amountCents)}
+                        <li
+                          key={`${r.from}-${r.to}-${r.date}-${i}`}
+                          className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-3 first:border-t-0"
+                        >
+                          <span
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                            style={{ background: 'color-mix(in srgb, var(--green, #16a34a) 14%, transparent)' }}
+                          >
+                            <Check size={13} style={{ color: 'var(--credit-text)' }} aria-hidden />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-[14px] text-[var(--text)]">
+                              {labelFor(r.from)} <span className="text-[var(--muted)]">paid</span> {labelFor(r.to)}
                             </span>
-                          </td>
-                        </tr>
+                            <span className="mt-0.5 block text-[12px] text-[var(--muted)]">{fmtDay(r.date)}</span>
+                          </span>
+                          <span className="shrink-0 text-[15px] font-semibold tabular-nums text-[var(--muted)]">
+                            {formatCents(r.amountCents)}
+                          </span>
+                        </li>
                       ))}
-                    </tbody>
-                  </table>
+                    </ul>
+                  </div>
                 )
               )}
 
@@ -780,110 +747,86 @@ export default function PublicSettlementReportPage() {
                       : 'No expenses recorded yet.'}
                   </p>
                 ) : (
-                  <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
-                    <colgroup>
-                      <col style={{ width: '14%' }} />
-                      <col style={{ width: '34%' }} />
-                      <col style={{ width: '25%' }} />
-                      <col style={{ width: '27%' }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Date</th>
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Expense</th>
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Paid by</th>
-                        <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredExpenses.map((e, i) => {
-                        const key = `${e.label}-${e.date}-${i}`;
-                        const open = openExpense.has(key);
-                        const expandable = e.shares.length > 0;
-                        const toggleExpense = () => {
-                          if (!expandable) return;
-                          setOpenExpense((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(key)) next.delete(key);
-                            else next.add(key);
-                            return next;
-                          });
-                        };
-                        return (
-                          <Fragment key={key}>
-                            <tr
+                  <div className="flex flex-col gap-2.5">
+                    {filteredExpenses.map((e, i) => {
+                      const key = `${e.label}-${e.date}-${i}`;
+                      const open = openExpense.has(key);
+                      const expandable = e.shares.length > 0;
+                      const toggleExpense = () => {
+                        if (!expandable) return;
+                        setOpenExpense((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          return next;
+                        });
+                      };
+                      const head = (
+                        <>
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-[14px] font-medium text-[var(--text)]">{e.label}</span>
+                            <span className="mt-0.5 block text-[12px] text-[var(--muted)]">
+                              {e.paidBy} paid · {fmtDay(e.date)}
+                              {expandable && <> · split {e.shares.length} {e.shares.length === 1 ? 'way' : 'ways'}</>}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[15px] font-semibold tabular-nums text-[var(--text)]">
+                            {formatCents(e.amountCents)}
+                          </span>
+                        </>
+                      );
+                      return (
+                        <div
+                          key={key}
+                          className="overflow-hidden rounded-2xl border border-[var(--border)]"
+                          style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+                        >
+                          {expandable ? (
+                            <button
+                              type="button"
                               onClick={toggleExpense}
-                              className={`border-t border-[var(--border)]/40${expandable ? ' pressable-selection cursor-pointer active:bg-[var(--hover-bg)]' : ''}`}
+                              aria-expanded={open}
+                              aria-label={`${open ? 'Hide' : 'Show'} who split ${e.label}`}
+                              className="pressable-selection flex min-h-14 w-full cursor-pointer items-center gap-3 px-4 py-3 text-left active:bg-[var(--hover-bg)]"
                             >
-                              <td className="px-3 py-3 text-[12px] text-[var(--muted)]">{fmtDay(e.date)}</td>
-                              <td className="break-words px-3 py-3 text-[var(--text)]">{e.label}</td>
-                              <td className="break-words px-3 py-3 text-[var(--text)]">
-                                {e.paidBy}
-                                {expandable && (
-                                  <span className="block text-[11px] text-[var(--muted)]">
-                                    split {e.shares.length} {e.shares.length === 1 ? 'way' : 'ways'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-1 py-1.5 text-right">
-                                {expandable ? (
-                                  /* No onClick — the native click bubbles to the
-                                     tr's handler, so the whole row is tappable. */
-                                  <button
-                                    type="button"
-                                    aria-expanded={open}
-                                    aria-label={`${open ? 'Hide' : 'Show'} who split ${e.label}`}
-                                    className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2"
-                                  >
-                                    <span className="text-[14px] font-semibold tabular-nums text-[var(--text)]">
-                                      {formatCents(e.amountCents)}
-                                    </span>
-                                    <ChevronDown
-                                      size={14}
-                                      className="shrink-0 text-[var(--muted)] transition-transform"
-                                      style={{ transform: open ? 'rotate(180deg)' : 'none' }}
-                                      aria-hidden
-                                    />
-                                  </button>
-                                ) : (
-                                  <span className="block px-2 py-1 text-[14px] font-semibold tabular-nums text-[var(--text)]">
-                                    {formatCents(e.amountCents)}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
+                              {head}
+                              <ChevronDown
+                                size={15}
+                                className="shrink-0 text-[var(--muted)] transition-transform"
+                                style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+                                aria-hidden
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex min-h-14 items-center gap-3 px-4 py-3">{head}</div>
+                          )}
 
-                            {/* Who was actually in it, and for how much. */}
-                            {open && expandable && (
-                              <tr>
-                                <td colSpan={4} className="px-3 pb-3">
-                                  <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
-                                    {e.shares.map((sh, j) => (
-                                      <li key={`${sh.name}-${j}`} className="flex items-baseline justify-between gap-3 py-1">
-                                        <span className="min-w-0 truncate text-[13px] text-[var(--text)]">
-                                          {sh.name}
-                                          {sh.name === e.paidBy && (
-                                            <span className="ml-1.5 text-[11px] text-[var(--muted)]">paid</span>
-                                          )}
-                                        </span>
-                                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">
-                                          {formatCents(sh.amountCents)}
-                                        </span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          {/* Who was actually in it, and for how much. */}
+                          {open && expandable && (
+                            <div className="px-3 pb-3">
+                              <ul className="rounded-xl px-3 py-1.5" style={{ background: 'var(--hover-bg)' }}>
+                                {e.shares.map((sh, j) => (
+                                  <li key={`${sh.name}-${j}`} className="flex items-baseline gap-3 py-2">
+                                    <span className="min-w-0 flex-1 break-words text-[13px] leading-[1.4] text-[var(--text)]">
+                                      {sh.name}
+                                      {sh.name === e.paidBy && (
+                                        <span className="ml-1.5 text-[11px] text-[var(--muted)]">paid</span>
+                                      )}
+                                    </span>
+                                    <span className="w-[64px] shrink-0 text-right text-[13px] tabular-nums text-[var(--muted)]">
+                                      {formatCents(sh.amountCents)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )
               )}
-            </div>
-          </div>
 
           {/* Explains the Payments tab's numbers specifically — does NOT
               simplify debts across the group, so it only belongs next to the
