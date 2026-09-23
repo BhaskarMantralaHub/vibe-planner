@@ -275,6 +275,32 @@ export default function PublicSettlementReportPage() {
   }, [report, query]);
 
   /**
+   * The ledger grouped into months, in the order the server already sorted
+   * them — grouping must not silently re-sort a financial list. A month with
+   * no matching expense simply doesn't appear; there are no empty headers.
+   */
+  const expenseMonths = useMemo(() => {
+    const out: { key: string; label: string; expenses: ExpenseRow[] }[] = [];
+    for (const e of filteredExpenses) {
+      const key = e.date.slice(0, 7); // YYYY-MM
+      let group = out[out.length - 1];
+      if (!group || group.key !== key) {
+        const d = new Date(`${e.date}T00:00:00`);
+        out.push({
+          key,
+          label: Number.isNaN(d.getTime())
+            ? key
+            : d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+          expenses: [],
+        });
+        group = out[out.length - 1];
+      }
+      group.expenses.push(e);
+    }
+    return out;
+  }, [filteredExpenses]);
+
+  /**
    * Expanding a payment row.
    *
    * This ONE accordion gets a haptic and the nested transaction-history rows
@@ -516,14 +542,16 @@ export default function PublicSettlementReportPage() {
             <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--muted)]">
               {tab === 'payments' ? 'Payments to make' : tab === 'settled' ? 'Settled' : 'All transactions'}
             </h2>
-            {/* Always shown now, not just while searching — this is also
-                where the tab count moved FROM (see SegmentedControl below):
-                `tab-bars.md › Best practices` — "Use single words whenever
-                possible" for tab labels. "Payments to make (28)" wrapped to
-                two lines on a 390px phone; the count belongs here instead. */}
-            <span className="text-[12px] text-[var(--muted)]">
-              {query.trim() !== '' ? `${matchCount} of ${totalCount}` : totalCount}
-            </span>
+            {/* ONLY while filtering. A bare "27" sitting to the right of the
+                heading is an orphan — it names nothing, and the Outstanding
+                card directly above already says "27 payments · 13 members".
+                "3 of 27" during a search is different: it answers what the
+                filter just did. */}
+            {query.trim() !== '' && (
+              <span className="text-[12px] tabular-nums text-[var(--muted)]">
+                {matchCount} of {totalCount}
+              </span>
+            )}
           </div>
 
           {/* Find yourself. With 15 people involved, scrolling a wall to
@@ -747,8 +775,13 @@ export default function PublicSettlementReportPage() {
                       : 'No expenses recorded yet.'}
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {filteredExpenses.map((e, i) => {
+                  <div className="flex flex-col gap-5">
+                    {expenseMonths.map((month) => (
+                      <div key={month.key} className="flex flex-col gap-2.5">
+                        <h3 className="px-1 text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                          {month.label}
+                        </h3>
+                        {month.expenses.map((e, i) => {
                       const key = `${e.label}-${e.date}-${i}`;
                       const open = openExpense.has(key);
                       const expandable = e.shares.length > 0;
@@ -823,7 +856,9 @@ export default function PublicSettlementReportPage() {
                           )}
                         </div>
                       );
-                    })}
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )
               )}
