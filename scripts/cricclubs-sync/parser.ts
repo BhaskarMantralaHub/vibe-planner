@@ -248,7 +248,15 @@ export const parseScorecard = (
 ): ParsedScorecard => {
   const $ = cheerio.load(html);
   const title = clean($('title').text());
-  const titleMatch = title.match(/^(?:League:\s*)?(.+?)\s+vs\s+(.+?)(?:\s+-\s+|$)/i);
+  // Title is "<round label>: <team A> vs <team B> - <club name>". The round
+  // label was only ever stripped for "League:" — a playoff scorecard's title
+  // reads "Semi Final: MTCA X vs MTCA Y", so the un-stripped label swallowed
+  // into teamA ("Semi Final: MTCA X"), corrupting opponent resolution
+  // everywhere downstream (league-stats display AND schedule auto-complete,
+  // both of which compare teamA against our own exact team name). Enumerated
+  // to match normalizeMatchType()'s known vocabulary rather than a generic
+  // "anything before a colon" strip, which risks eating a team name.
+  const titleMatch = title.match(/^(?:(?:League|Practice|Semi Final|Final):\s*)?(.+?)\s+vs\s+(.+?)(?:\s+-\s+|$)/i);
   const teamA = titleMatch?.[1]?.trim() ?? null;
   const teamB = titleMatch?.[2]?.trim() ?? null;
   const toss = parseToss(html);

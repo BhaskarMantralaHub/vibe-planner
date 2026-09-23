@@ -150,6 +150,52 @@ describe('parseScorecard', () => {
   });
 });
 
+// Regression: 2026-09-20 Spring semifinal. The title's round label ("Semi
+// Final: ") was only ever stripped for "League:", so team_a came out as
+// "Semi Final: MTCA Sunrisers Manteca" instead of "MTCA Sunrisers Manteca" —
+// corrupting opponent resolution in league-stats AND schedule auto-complete,
+// both of which compare team_a against our exact team name.
+describe('parseScorecard playoff title labels', () => {
+  const titleOnly = (title: string) =>
+    `<html><head><title>${title}</title></head><body></body></html>`;
+
+  it('strips a "Semi Final:" round label from team_a', () => {
+    const card = parseScorecard(
+      titleOnly('Semi Final: MTCA Sunrisers Manteca vs MTCA Dhurandhars - Mountain House Tracy Cricket Association (MTCA)'),
+      3347,
+    );
+    expect(card.team_a).toBe('MTCA Sunrisers Manteca');
+    expect(card.team_b).toBe('MTCA Dhurandhars');
+  });
+
+  it('strips a "Final:" round label from team_a', () => {
+    const card = parseScorecard(
+      titleOnly('Final: MTCA Sunrisers Manteca vs MTCA Dhurandhars - Mountain House Tracy Cricket Association (MTCA)'),
+      3348,
+    );
+    expect(card.team_a).toBe('MTCA Sunrisers Manteca');
+    expect(card.team_b).toBe('MTCA Dhurandhars');
+  });
+
+  it('still strips the original "League:" round label', () => {
+    const card = parseScorecard(
+      titleOnly('League: MTCA Sunrisers Manteca vs MTCA Dhurandhars - Mountain House Tracy Cricket Association (MTCA)'),
+      3349,
+    );
+    expect(card.team_a).toBe('MTCA Sunrisers Manteca');
+    expect(card.team_b).toBe('MTCA Dhurandhars');
+  });
+
+  it('handles a title with no round label at all', () => {
+    const card = parseScorecard(
+      titleOnly('MTCA Sunrisers Manteca vs MTCA Dhurandhars - Mountain House Tracy Cricket Association (MTCA)'),
+      3350,
+    );
+    expect(card.team_a).toBe('MTCA Sunrisers Manteca');
+    expect(card.team_b).toBe('MTCA Dhurandhars');
+  });
+});
+
 // Numeric cricclubs team ids, shared by the fixture and umpiring-duty tests.
 // The umpiring feature's whole identity decision rests on these being compared
 // as integers rather than the display names being string-matched — see the
