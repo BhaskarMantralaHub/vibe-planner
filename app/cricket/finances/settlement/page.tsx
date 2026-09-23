@@ -272,8 +272,12 @@ export default function PublicSettlementReportPage() {
     return q
       ? report.expenses.filter(
           (e) =>
+            // "Find your name" means names — same rule as the Payments
+            // (Owes/To) and Settled (From/To) tabs. e.label is the expense's
+            // free-text description ("Tea and samosas post semifinals"), not
+            // a person, and matching it made the placeholder's promise untrue
+            // on this one tab only.
             e.paidBy.toLowerCase().includes(q)
-            || e.label.toLowerCase().includes(q)
             || e.shares.some((s) => s.name.toLowerCase().includes(q)),
         )
       : report.expenses;
@@ -598,9 +602,8 @@ export default function PublicSettlementReportPage() {
                 ) : (
                   <table className="w-full border-separate text-[13px]" style={{ tableLayout: 'fixed', borderSpacing: 0 }}>
                     <colgroup>
-                      <col style={{ width: '40%' }} />
-                      <col style={{ width: '33%' }} />
-                      <col style={{ width: '27%' }} />
+                      <col style={{ width: '58%' }} />
+                      <col style={{ width: '42%' }} />
                     </colgroup>
                     <thead>
                       {/* Sticky, so the reader scrolled a few rows down into a
@@ -608,7 +611,6 @@ export default function PublicSettlementReportPage() {
                           `lists-and-tables.md › Content`: column headings
                           exist "to help people understand the context." */}
                       <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                        <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>Owes</th>
                         <th className="sticky z-10 px-3 py-2.5" style={STICKY_TH_STYLE}>To</th>
                         <th className="sticky z-10 px-3 py-2.5 text-right" style={STICKY_TH_STYLE}>Amount</th>
                       </tr>
@@ -616,35 +618,53 @@ export default function PublicSettlementReportPage() {
                     <tbody>
                       {groups.map((g) => (
                         <Fragment key={g.from}>
-                          {g.rows.map((r, i) => {
+                          {/* The payer name is its own full-width row, NOT a
+                              rowSpan cell. rowSpan counts actual <tr>
+                              elements, and every expanded row inserts an EXTRA
+                              <tr> between the grouped rows — so as soon as
+                              anything in a group was expanded, the span
+                              undercounted its own rows: later rows fell
+                              outside it and their "To" cell rendered in the
+                              wrong column, and the last row's breakdown could
+                              fail to render at all. A plain full-width header
+                              row has no row count to get wrong, whatever is
+                              expanded. */}
+                          <tr className="border-t border-[var(--border)]/40">
+                            <td colSpan={2} className="px-3 pt-3 pb-1">
+                              <p className="break-words text-[14px] font-bold text-[var(--text)]">{labelFor(g.from)}</p>
+                              {g.rows.length > 1 && (
+                                <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                                  Total {formatCents(g.totalCents)}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                          {g.rows.map((r) => {
                             const key = `${r.from}->${r.to}`;
                             const open = expanded.has(key);
                             return (
                               <Fragment key={key}>
-                                <tr className="border-t border-[var(--border)]/40">
-                                  {i === 0 && (
-                                    <td rowSpan={g.rows.length} className="align-top px-3 py-3">
-                                      <p className="break-words text-[14px] font-bold text-[var(--text)]">{labelFor(g.from)}</p>
-                                      {g.rows.length > 1 && (
-                                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                                          Total {formatCents(g.totalCents)}
-                                        </p>
-                                      )}
-                                    </td>
-                                  )}
+                                <tr
+                                  onClick={() => toggle(key)}
+                                  className="pressable-selection cursor-pointer active:bg-[var(--hover-bg)]"
+                                >
                                   <td className="break-words px-3 py-3 text-[var(--text)]">{labelFor(r.to)}</td>
                                   <td className="px-1 py-1.5 text-right">
-                                    {/* A real <button>, not a role="button" tr — the
-                                        row-click version removed native table row/cell
-                                        semantics for screen readers navigating via
-                                        table commands, even though it stayed reachable
-                                        by keyboard. `accessibility.md › Speech`. */}
+                                    {/* A real <button>, not a role="button" tr — plain
+                                        onClick on the tr (no role/tabIndex override)
+                                        keeps native table row/cell semantics for screen
+                                        readers, while this button stays the labeled,
+                                        keyboard-focusable control. No onClick here: a
+                                        native button's click bubbles to the tr handler
+                                        for mouse AND Enter/Space, so there is exactly
+                                        one toggle per interaction and the WHOLE ROW is
+                                        the tap target, not just this button's box.
+                                        `accessibility.md › Speech`. */}
                                     <button
                                       type="button"
-                                      onClick={() => toggle(key)}
                                       aria-expanded={open}
                                       aria-label={`${open ? 'Hide' : 'Show'} breakdown of ${formatCents(r.amountCents)} owed to ${labelFor(r.to)}`}
-                                      className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2 active:bg-[var(--hover-bg)]"
+                                      className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2"
                                     >
                                       <span
                                         className="text-[14px] font-bold tabular-nums"
@@ -667,7 +687,7 @@ export default function PublicSettlementReportPage() {
                                     asserts it. */}
                                 {open && (
                                   <tr>
-                                    <td colSpan={3} className="px-3 pb-3">
+                                    <td colSpan={2} className="px-3 pb-3">
                                       <ul className="rounded-xl px-3 py-2" style={{ background: 'var(--hover-bg)' }}>
                                         {r.why.map((w, wi) => (
                                           <li key={`${w.label}-${wi}`} className="flex items-baseline justify-between gap-3 py-1">
@@ -791,7 +811,10 @@ export default function PublicSettlementReportPage() {
                         };
                         return (
                           <Fragment key={key}>
-                            <tr className="border-t border-[var(--border)]/40">
+                            <tr
+                              onClick={toggleExpense}
+                              className={`border-t border-[var(--border)]/40${expandable ? ' pressable-selection cursor-pointer active:bg-[var(--hover-bg)]' : ''}`}
+                            >
                               <td className="px-3 py-3 text-[12px] text-[var(--muted)]">{fmtDay(e.date)}</td>
                               <td className="break-words px-3 py-3 text-[var(--text)]">{e.label}</td>
                               <td className="break-words px-3 py-3 text-[var(--text)]">
@@ -804,12 +827,13 @@ export default function PublicSettlementReportPage() {
                               </td>
                               <td className="px-1 py-1.5 text-right">
                                 {expandable ? (
+                                  /* No onClick — the native click bubbles to the
+                                     tr's handler, so the whole row is tappable. */
                                   <button
                                     type="button"
-                                    onClick={toggleExpense}
                                     aria-expanded={open}
                                     aria-label={`${open ? 'Hide' : 'Show'} who split ${e.label}`}
-                                    className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2 active:bg-[var(--hover-bg)]"
+                                    className="pressable-selection ml-auto flex min-h-11 items-center gap-1 rounded-lg py-1 pl-2 pr-2"
                                   >
                                     <span className="text-[14px] font-semibold tabular-nums text-[var(--text)]">
                                       {formatCents(e.amountCents)}
