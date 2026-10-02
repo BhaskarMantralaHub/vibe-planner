@@ -187,6 +187,30 @@ describe('loadAll (cloud)', () => {
     expect(useCricketStore.getState().selectedSeasonId).toBe('season-fall-2025');
   });
 
+  /**
+   * Regression: a stale revalidation (tab regains focus after 30s) set
+   * loading=true, the page swapped to its skeleton and unmounted an open
+   * New Split form, losing everything typed into it.
+   */
+  it('does not blank the page when revalidating data already on screen', async () => {
+    configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS });
+    // Step 1: first load shows the skeleton, then clears it
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+    expect(useCricketStore.getState().loading).toBe(false);
+
+    // Step 2: age the data past the 30s freshness window
+    useCricketStore.setState({ lastLoadedAt: Date.now() - 60_000 });
+
+    // Step 3: record every loading value the revalidation writes
+    const seen: boolean[] = [];
+    const unsub = useCricketStore.subscribe((st) => seen.push(st.loading));
+    await useCricketStore.getState().loadAll(ADMIN_USER.id);
+    unsub();
+
+    // Step 4: it never flipped to true, so nothing on screen unmounted
+    expect(seen).not.toContain(true);
+  });
+
   it('auto-picks when the chosen season no longer exists', async () => {
     // A deleted season, or a team switch — seasons are queried per team.
     configureFrom({ cricket_players: PLAYERS, cricket_seasons: SEASONS });

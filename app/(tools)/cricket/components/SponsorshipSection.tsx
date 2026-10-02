@@ -14,7 +14,6 @@ import {
   ChevronDown, RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Alert } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import type { CricketSponsorship } from '@/types/cricket';
 
@@ -330,9 +329,16 @@ export default function SponsorshipSection() {
           onClose={() => { resetForm(); setDrawerOpen(false); }}
           title={editingId ? 'Edit Sponsorship' : 'New Sponsorship'}
           footer={
-            <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth>
-              {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
-            </Button>
+            <div>
+              {formError && (
+                <Text as="p" size="sm" weight="medium" role="alert" className="mb-2 text-center" style={{ color: 'var(--danger-text)' }}>
+                  {formError}
+                </Text>
+              )}
+              <Button onClick={handleSubmit} variant="primary" brand="cricket" size="lg" fullWidth>
+                {editingId ? 'Update Sponsorship' : 'Add Sponsorship'}
+              </Button>
+            </div>
           }
         >
           <Input
@@ -345,10 +351,11 @@ export default function SponsorshipSection() {
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Amount ($)"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
+              className="tabular-nums"
               placeholder="0.00"
               brand="cricket"
             />
@@ -364,10 +371,9 @@ export default function SponsorshipSection() {
             label="Notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional — e.g. jersey sponsor"
+            placeholder="Optional, e.g. jersey sponsor"
             brand="cricket"
           />
-          {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
         </ComposerModal>
       )}
 

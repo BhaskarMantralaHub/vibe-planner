@@ -280,7 +280,11 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       return;
     }
 
-    set({ loading: true });
+    // Only the FIRST load for a team blanks the page. A revalidation (e.g. the
+    // tab regaining focus) keeps the screen mounted, or it would unmount any
+    // open form and lose what was typed; TopProgressBar shows it instead.
+    const hasData = lastLoadedAt !== null && lastLoadedTeamId === teamId;
+    if (!hasData) set({ loading: true });
     const ui = useUIStore.getState();
     ui.beginLoad();
     try {

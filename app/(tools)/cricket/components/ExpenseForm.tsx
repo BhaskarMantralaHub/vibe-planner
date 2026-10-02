@@ -4,12 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EXPENSE_CATEGORIES } from '../lib/constants';
-import { Shirt, Trophy, Utensils, Package, Camera, X, FileText } from 'lucide-react';
+import { Shirt, Trophy, Utensils, Package } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Alert } from '@/components/ui/alert';
-import { Spinner, ComposerModal, Text } from '@/components/ui';
+import { ComposerModal, Input, Text } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { ReceiptAttach, ReceiptThumb } from './ReceiptAttach';
 import { toast } from 'sonner';
 import { compressReceiptImage } from '../lib/image';
 
@@ -166,56 +166,60 @@ export default function ExpenseForm() {
       onClose={resetAndClose}
       title="Add Expense"
       footer={
-        <Button
-          onClick={handleSubmit}
-          variant="primary"
-          brand="cricket"
-          size="lg"
-          fullWidth
-          disabled={submitting || compressing}
-        >
-          {submitting ? 'Adding...' : 'Add Expense'}
-        </Button>
+        <div>
+          {/* In the footer, not the body: the footer rides above the iOS
+              keyboard, so the reason the tap failed is always on screen. */}
+          {formError && (
+            <Text as="p" size="sm" weight="medium" role="alert" className="mb-2 text-center" style={{ color: 'var(--danger-text)' }}>
+              {formError}
+            </Text>
+          )}
+          <Button
+            onClick={handleSubmit}
+            variant="primary"
+            brand="cricket"
+            size="lg"
+            fullWidth
+            disabled={submitting || compressing}
+          >
+            {compressing ? 'Compressing…' : submitting ? 'Adding…' : 'Add Expense'}
+          </Button>
+        </div>
       }
     >
-        {/* Description (text input — at top so keyboard doesn't cover it) */}
-        <div>
-          <Label uppercase className="mb-1.5 block">Description</Label>
-          <input
-            value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-            placeholder="Ground booking, balls, etc."
+        {/* Text inputs first — the keyboard covers the bottom half */}
+        <Input
+          label="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Ground booking, balls, etc."
+          brand="cricket"
+        />
+
+        {/* Two fluid columns; a fixed 140px date column cramped the amount at 375px */}
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Amount ($)"
+            type="text"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
+            placeholder="0.00"
+            brand="cricket"
+            className="tabular-nums"
+          />
+          <Input
+            label="Date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            brand="cricket"
           />
         </div>
 
-        {/* Amount + Date — two fluid columns; a fixed 140px date column left
-            the amount cramped at 375px */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label uppercase className="mb-1.5 block">Amount ($)</Label>
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*\.?[0-9]*"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <Label uppercase className="mb-1.5 block">Date</Label>
-            <input
-              type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--cricket)] transition-colors"
-            />
-          </div>
-        </div>
-
-        {/* Category — moved BELOW the text inputs since it's tap-to-select (no keyboard) */}
         <div>
-          <Label uppercase className="mb-2 block">Category</Label>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" role="radiogroup" aria-label="Expense category">
+          <Text as="p" id="expense-category-label" size="sm" weight="medium" color="muted" className="mb-1">Category</Text>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" role="radiogroup" aria-labelledby="expense-category-label">
             {EXPENSE_CATEGORIES.map((c) => {
               const active = category === c.key;
               const Icon = CATEGORY_ICONS[c.iconName];
@@ -225,15 +229,15 @@ export default function ExpenseForm() {
                   role="radio"
                   aria-checked={active}
                   onClick={() => setCategory(c.key)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 cursor-pointer transition-all border-2 active:scale-95"
-                  style={{
-                    backgroundColor: active ? `${c.color}15` : 'var(--surface)',
-                    borderColor: active ? c.color : 'var(--border)',
-                    boxShadow: active ? `0 2px 12px ${c.color}20` : 'none',
-                  }}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-1.5 rounded-xl min-h-[68px] px-2 cursor-pointer transition-[background-color,box-shadow,transform] active:scale-95',
+                    active
+                      ? 'bg-[var(--card)] text-[var(--text)] shadow-[inset_0_0_0_2px_var(--text)]'
+                      : 'bg-[var(--fill)] text-[var(--muted)]',
+                  )}
                 >
-                  {Icon && <Icon size={20} style={{ color: active ? c.color : 'var(--muted)' }} />}
-                  <span className="text-[11px] font-bold" style={{ color: active ? c.color : 'var(--muted)' }}>
+                  {Icon && <Icon size={20} />}
+                  <span className={cn('text-[12px] leading-tight text-center', active ? 'font-semibold' : 'font-medium')}>
                     {c.label}
                   </span>
                 </button>
@@ -242,105 +246,26 @@ export default function ExpenseForm() {
           </div>
         </div>
 
-        {/* Receipt upload */}
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,application/pdf"
-            multiple
-            className="hidden"
-            aria-label="Select receipt images or PDFs"
-            onChange={handleFileSelect}
-          />
-
-          {/* Thumbnail previews */}
-          {receiptFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {receiptFiles.map((r, i) => (
-                <div key={r.preview || `pdf-${i}`} className="relative animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
-                  {isPdf(r.file) ? (
-                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
-                      <FileText size={22} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
-                        {r.file.name.length > 12 ? r.file.name.slice(0, 10) + '…' : r.file.name}
-                      </span>
-                    </div>
-                  ) : (
-                    <img
-                      src={r.preview}
-                      alt={`Receipt: ${r.file.name}`}
-                      className="h-20 w-20 rounded-xl object-cover border border-[var(--border)]"
-                    />
-                  )}
-                  <button
-                    onClick={() => setPendingRemoveIdx(i)}
-                    aria-label={`Remove receipt ${i + 1}`}
-                    className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
-                  >
-                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
-                      <X size={12} className="text-white" />
-                    </span>
-                  </button>
-                  {!r.compressed && (
-                    <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
-                      <Spinner size="sm" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Inline remove confirmation */}
-          {pendingRemoveIdx !== null && (
-            <div className="rounded-xl p-3 mb-2 space-y-2.5"
-              style={{ background: '#EF44440A', border: '1px solid #EF444425' }}>
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EF444415' }}>
-                  <X size={14} style={{ color: '#EF4444' }} />
-                </div>
-                <Text size="sm" weight="medium">Remove <Text weight="bold">Receipt {pendingRemoveIdx + 1}</Text>?</Text>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setPendingRemoveIdx(null)}
-                  className="flex-1 rounded-lg py-2 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
-                  Cancel
-                </button>
-                <button onClick={removeReceipt}
-                  className="flex-1 rounded-lg py-2 text-[12px] font-bold text-white cursor-pointer active:scale-95"
-                  style={{ background: '#EF4444' }}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Add receipt button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={compressing}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] border-2 border-dashed cursor-pointer active:scale-[0.98] transition-all hover:border-[var(--cricket)] hover:bg-[var(--hover-bg)]"
-            style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 4%, transparent)' }}
-          >
-            {compressing ? (
-              <>
-                <Spinner size="sm" />
-                <span className="text-[13px] font-medium text-[var(--muted)]">Compressing...</span>
-              </>
-            ) : (
-              <>
-                <Camera size={18} className="text-[var(--muted)]" />
-                <span className="text-[13px] font-medium text-[var(--muted)]">
-                  {receiptFiles.length > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Validation error */}
-        {formError && <Alert variant="error" className="text-[13px]">{formError}</Alert>}
+        <ReceiptAttach
+          inputRef={fileInputRef}
+          onChange={handleFileSelect}
+          compressing={compressing}
+          count={receiptFiles.length}
+          pendingLabel={pendingRemoveIdx !== null ? `Receipt ${pendingRemoveIdx + 1}` : null}
+          onCancelRemove={() => setPendingRemoveIdx(null)}
+          onConfirmRemove={removeReceipt}
+        >
+          {receiptFiles.map((r, i) => (
+            <ReceiptThumb
+              key={r.preview || `pdf-${i}`}
+              src={isPdf(r.file) ? null : r.preview}
+              name={r.file.name}
+              busy={!r.compressed}
+              onRemove={() => setPendingRemoveIdx(i)}
+              removeLabel={`Remove receipt ${i + 1}`}
+            />
+          ))}
+        </ReceiptAttach>
     </ComposerModal>
   );
 }

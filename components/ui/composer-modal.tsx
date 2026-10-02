@@ -136,7 +136,7 @@ export function ComposerModal({
               onClick={rightAction.onClick}
               disabled={rightAction.disabled}
               className="flex items-center gap-1.5 text-[14px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed min-w-[60px] min-h-11 justify-end"
-              style={{ color: rightAction.color ?? 'var(--blue)' }}
+              style={{ color: rightAction.color ?? 'var(--cricket)' }}
             >
               {rightAction.icon}
               {rightAction.label}

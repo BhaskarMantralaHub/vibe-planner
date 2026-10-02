@@ -47,7 +47,9 @@ const buttonVariants = cva(
       { variant: 'primary', brand: 'toolkit', class: 'bg-gradient-to-br from-[var(--toolkit)] to-[var(--toolkit-accent)] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08),0_4px_14px_var(--toolkit-glow)] active:shadow-[0_1px_4px_var(--toolkit-glow)] hover:brightness-110' },
       // Primary + cricket = solid brand blue, flat like an iOS filled button.
       // Text is --cricket-on so a future accent can choose its own ink.
-      { variant: 'primary', brand: 'cricket', class: 'bg-[var(--cricket)] text-[var(--cricket-on)]' },
+      // Disabled (but not loading) goes iOS gray rather than a faded blue —
+      // 45% blue with a desaturate filter rendered as muddy slate.
+      { variant: 'primary', brand: 'cricket', class: 'bg-[var(--cricket)] text-[var(--cricket-on)] [&:disabled:not([data-loading])]:bg-[var(--fill)] [&:disabled:not([data-loading])]:text-[var(--dim)] [&:disabled:not([data-loading])]:opacity-100 [&:disabled:not([data-loading])]:saturate-100' },
       // Tinted = the accent at low strength, accent text. For secondary
       // actions that should still read as tappable (Share, Add to calendar).
       { variant: 'tinted', brand: 'cricket', class: 'bg-[var(--cricket)]/12 text-[var(--cricket)]' },
@@ -156,6 +158,7 @@ function Button({
     <button
       className={cn(buttonVariants({ variant, size, fullWidth, brand }), className)}
       disabled={inert}
+      data-loading={loading || undefined}
       ref={ref}
       onClick={handleClick}
       {...props}

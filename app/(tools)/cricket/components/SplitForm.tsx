@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { ComposerModal } from '@/components/ui';
-import { Button, Text, Badge, Spinner } from '@/components/ui';
+import { Button, Text } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Input } from '@/components/ui/input';
 import { useCricketStore } from '@/stores/cricket-store';
@@ -11,21 +11,25 @@ import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
 import { compressReceiptImage } from '../lib/image';
-import { nameToGradient } from '@/lib/avatar';
+import { cn } from '@/lib/utils';
+import PlayerAvatar from './PlayerAvatar';
+import { ReceiptAttach, ReceiptThumb } from './ReceiptAttach';
+import { SPLIT_FORM_KEY, readSplitDraft, type SplitDraft } from '../lib/split-draft';
 import { toast } from 'sonner';
-import { Camera, Check, CheckCircle2, Cookie, CupSoda, Utensils, Package, Users, Search, X, FileText, Trash2 } from 'lucide-react';
+import { Check, ChevronRight, Cookie, CupSoda, Utensils, Package, Users, Search, X } from 'lucide-react';
 import type { SplitCategory } from '@/types/cricket';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
 const MAX_RECEIPTS = 10;
 
-type CategoryDef = { key: SplitCategory; label: string; renderIcon: (color: string) => React.ReactNode; color: string };
+
+type CategoryDef = { key: SplitCategory; label: string; icon: React.ReactNode };
 
 const SPLIT_CATEGORIES: CategoryDef[] = [
-  { key: 'snacks', label: 'Snacks', renderIcon: (c) => <Cookie size={18} style={{ color: c }} />, color: '#F59E0B' },
-  { key: 'drinks', label: 'Drinks', renderIcon: (c) => <CupSoda size={18} style={{ color: c }} />, color: '#3B82F6' },
-  { key: 'food', label: 'Food', renderIcon: (c) => <Utensils size={18} style={{ color: c }} />, color: '#EF4444' },
-  { key: 'other', label: 'Other', renderIcon: (c) => <Package size={18} style={{ color: c }} />, color: '#6B7280' },
+  { key: 'snacks', label: 'Snacks', icon: <Cookie size={20} /> },
+  { key: 'drinks', label: 'Drinks', icon: <CupSoda size={20} /> },
+  { key: 'food', label: 'Food', icon: <Utensils size={20} /> },
+  { key: 'other', label: 'Other', icon: <Package size={20} /> },
 ];
 
 export default function SplitForm() {
@@ -58,13 +62,14 @@ export default function SplitForm() {
     [activePlayers, user?.email],
   );
 
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<SplitCategory>('snacks');
-  const [paidById, setPaidById] = useState<string | null>(null);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
-  const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal');
-  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [draft] = useState(() => (editingSplitId ? null : readSplitDraft()));
+  const [amount, setAmount] = useState(draft?.amount ?? '');
+  const [description, setDescription] = useState(draft?.description ?? '');
+  const [category, setCategory] = useState<SplitCategory>(draft?.category ?? 'snacks');
+  const [paidById, setPaidById] = useState<string | null>(draft?.paidById ?? null);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(() => new Set(draft?.playerIds ?? []));
+  const [splitType, setSplitType] = useState<'equal' | 'custom'>(draft?.splitType ?? 'equal');
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>(draft?.customAmounts ?? {});
   const [showPaidByPicker, setShowPaidByPicker] = useState(false);
   const [paidBySearch, setPaidBySearch] = useState('');
   const [playerSearch, setPlayerSearch] = useState('');
@@ -110,6 +115,15 @@ export default function SplitForm() {
   }, [editingSplitId, showSplitForm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const effectivePaidBy = paidById ?? myPlayer?.id ?? null;
+
+  useEffect(() => {
+    if (!showSplitForm || editingSplitId) return;
+    if (!amount && !description && selectedPlayerIds.size === 0) return;
+    try {
+      const d: SplitDraft = { amount, description, category, paidById, playerIds: [...selectedPlayerIds], splitType, customAmounts };
+      sessionStorage.setItem(SPLIT_FORM_KEY, JSON.stringify(d));
+    } catch { /* storage full or blocked — the draft is a convenience */ }
+  }, [showSplitForm, editingSplitId, amount, description, category, paidById, selectedPlayerIds, splitType, customAmounts]);
 
   // Auto-include payer in selection only when explicitly changed via picker
   useEffect(() => {
@@ -166,6 +180,7 @@ export default function SplitForm() {
     setExistingUrls([]); setNewFiles([]); setPendingRemove(null);
     // Defensive: reset compression counter so a stale increment can't keep the submit button disabled
     setCompressingCount(0);
+    try { sessionStorage.removeItem(SPLIT_FORM_KEY); } catch { /* ignore */ }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,6 +290,30 @@ export default function SplitForm() {
     setShowPaidByPicker(false);
   };
 
+  const payer = activePlayers.find((pl) => pl.id === effectivePaidBy);
+  const allSelected = activePlayers.length > 0 && selectedPlayerIds.size === activePlayers.length;
+  const pendingLabel = pendingRemove
+    ? `Receipt ${pendingRemove.type === 'existing' ? pendingRemove.index + 1 : existingUrls.length + pendingRemove.index + 1}`
+    : null;
+
+  // One pick-list row for the "Paid by" picker — iOS style: name, detail,
+  // a checkmark on the chosen row. Selection is neutral, never the accent.
+  const payerRow = (p: (typeof activePlayers)[number], isMe: boolean) => {
+    const selected = p.id === effectivePaidBy;
+    return (
+      <button key={p.id} onClick={() => { handlePaidBySelect(p.id); setPaidBySearch(''); }}
+        aria-pressed={selected}
+        className="w-full flex items-center gap-3 px-3 min-h-[52px] cursor-pointer transition-colors active:bg-[var(--hover-bg)]">
+        <PlayerAvatar player={p} name={p.name} size={32} />
+        <span className="flex-1 min-w-0 text-left">
+          <Text as="span" size="md" weight={selected ? 'semibold' : 'medium'} truncate className="block">{isMe ? 'You' : p.name}</Text>
+          {isMe && <Text as="span" size="xs" color="muted" className="block">{p.name}</Text>}
+        </span>
+        <Check size={20} aria-hidden className="shrink-0 text-[var(--text)]" style={{ opacity: selected ? 1 : 0 }} />
+      </button>
+    );
+  };
+
   return (
     <ComposerModal
       open={showSplitForm}
@@ -282,161 +321,116 @@ export default function SplitForm() {
       title={editingSplitId ? 'Edit Split' : 'New Split'}
       footer={
         <div>
-          {/* Validation hint — explains why button is disabled */}
+          {/* Explains why the button is disabled */}
           {(!canSubmit || compressing) && (numAmount > 0 || selectedCount > 0 || compressing) && (
-            <Text as="p" size="xs" color="dim" className="text-center mb-2">
-              {compressing ? 'Compressing receipts...' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Select who paid' : selectedCount < 2 ? 'Select at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+            <Text as="p" size="sm" color="muted" className="text-center mb-2">
+              {compressing ? 'Compressing receipts…' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Choose who paid' : selectedCount < 2 ? 'Pick at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
             </Text>
           )}
-          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="xl" fullWidth>
-            {compressing ? 'Compressing...' : `${editingSplitId ? 'Update' : 'Split'} $${numAmount > 0 ? numAmount.toFixed(2) : '0.00'}`}
+          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="lg" fullWidth>
+            {compressing ? 'Compressing…' : `${editingSplitId ? 'Update' : 'Split'}${numAmount > 0 ? ` $${numAmount.toFixed(2)}` : ''}`}
           </Button>
         </div>
       }
     >
-        {/* Amount input */}
-        <div className="text-center py-2">
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Total Amount</Text>
-          <div className="flex items-center justify-center gap-1">
-            <Text size="3xl" weight="bold" color="muted" className="leading-none">$</Text>
-            <input
-              type="text" inputMode="decimal" value={amount}
-              onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
-              placeholder="0.00"
-              aria-label="Total amount in dollars"
-              className="bg-transparent text-center outline-none font-bold text-[40px] leading-none max-w-[200px]"
-              style={{ color: 'var(--text)', caretColor: 'var(--cricket)', fontVariantNumeric: 'tabular-nums' }}
-            />
-          </div>
+      {/* Four groups — what, who paid, who shares, receipts. Tight inside a
+          group, generous between, so the form reads as steps not a list. */}
+      <div className="flex flex-col gap-7">
+        <section className="flex flex-col gap-4">
+        {/* The amount IS the heading — no label above it */}
+        <div className="flex items-baseline justify-center gap-0.5 pt-4 pb-1">
+          <span className="text-[30px] font-semibold leading-none text-[var(--dim)]">$</span>
+          <input
+            type="text" inputMode="decimal" value={amount}
+            onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value); }}
+            placeholder="0.00"
+            aria-label="Total amount in dollars"
+            // Sized to its own text so the "$" sits against the figure
+            className="bg-transparent text-left outline-none font-bold text-[44px] leading-none tracking-tight max-w-[240px] placeholder:text-[var(--dim)]"
+            style={{ width: `${(amount || '0.00').length + 0.5}ch`, color: 'var(--text)', caretColor: 'var(--cricket)', fontVariantNumeric: 'tabular-nums' }}
+          />
         </div>
 
-        <Input label="Description" placeholder="Chai, snacks, uber..." value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input label="Description" placeholder="Chai, snacks, uber…" value={description} onChange={(e) => setDescription(e.target.value)} brand="cricket" />
 
-        {/* Category chips */}
         <div>
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Category</Text>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          <Text as="p" id="split-category-label" size="sm" weight="medium" color="muted" className="mb-1">Category</Text>
+          <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-labelledby="split-category-label">
             {SPLIT_CATEGORIES.map((c) => {
               const active = category === c.key;
               return (
-                <button key={c.key} onClick={() => setCategory(c.key)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-3 min-h-[60px] flex-shrink-0 cursor-pointer transition-all border active:scale-95 min-w-[60px]"
-                  style={{ backgroundColor: active ? `${c.color}15` : 'var(--surface)', borderColor: active ? `${c.color}55` : 'transparent' }}>
-                  {c.renderIcon(active ? c.color : 'var(--muted)')}
-                  <Text size="2xs" weight="bold" style={{ color: active ? c.color : 'var(--muted)' }}>{c.label}</Text>
+                <button key={c.key} role="radio" aria-checked={active} onClick={() => setCategory(c.key)}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-1.5 rounded-xl min-h-[64px] cursor-pointer transition-[background-color,box-shadow,transform] active:scale-95',
+                    active
+                      ? 'bg-[var(--card)] text-[var(--text)] shadow-[inset_0_0_0_2px_var(--text)]'
+                      : 'bg-[var(--fill)] text-[var(--muted)]',
+                  )}>
+                  {c.icon}
+                  <span className={cn('text-[12px] leading-tight', active ? 'font-semibold' : 'font-medium')}>{c.label}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Paid by — inline quick select with animated expansion */}
-        <div>
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Paid By</Text>
+        </section>
+
+        {/* Paid by */}
+        <section>
+          <Text as="p" size="sm" weight="medium" color="muted" className="mb-1">Paid by</Text>
           {!showPaidByPicker ? (
-            /* ── Collapsed: avatar + name + Change link ── */
-            <div className="flex items-center gap-3 min-h-[44px]">
-              {(() => {
-                const p = activePlayers.find((pl) => pl.id === effectivePaidBy);
-                if (!p) return (
-                  <button
-                    onClick={() => setShowPaidByPicker(true)}
-                    className="w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 min-h-[48px] cursor-pointer active:scale-[0.98] transition-all"
-                    style={{
-                      border: '1.5px dashed color-mix(in srgb, var(--cricket) 50%, transparent)',
-                      background: 'color-mix(in srgb, var(--cricket) 6%, transparent)',
-                    }}
-                  >
-                    <Text size="sm" weight="semibold" style={{ color: 'var(--cricket)' }}>Tap to pick who paid</Text>
-                    <Text size="xs" weight="bold" style={{ color: 'var(--cricket)' }}>Choose →</Text>
-                  </button>
-                );
-                const [gF, gT] = nameToGradient(p.name);
-                const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                return (
-                  <>
-                    <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
-                      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
-                    <Text size="sm" weight="semibold">{p.id === myPlayer?.id ? 'You' : p.name}</Text>
-                    {p.id === myPlayer?.id && <Text size="2xs" color="dim">({p.name.split(' ')[0]})</Text>}
-                    <button onClick={() => { setShowPaidByPicker(true); setPaidBySearch(''); }}
-                      className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 min-h-[36px] cursor-pointer active:scale-95 transition-all"
-                      style={{ color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 8%, transparent)' }}>
-                      <Text size="xs" weight="bold" style={{ color: 'var(--cricket)' }}>Change</Text>
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
+            payer ? (
+              <div className="flex items-center gap-3 min-h-[48px]">
+                <PlayerAvatar player={payer} name={payer.name} size={36} />
+                <span className="flex-1 min-w-0">
+                  <Text as="span" size="md" weight="semibold" truncate className="block">{payer.id === myPlayer?.id ? 'You' : payer.name}</Text>
+                  {payer.id === myPlayer?.id && <Text as="span" size="xs" color="muted" className="block">{payer.name}</Text>}
+                </span>
+                <Button variant="tinted" brand="cricket" size="sm" className="h-9 px-3.5 text-[13px] font-semibold"
+                  onClick={() => { setShowPaidByPicker(true); setPaidBySearch(''); }}>
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowPaidByPicker(true)}
+                className="w-full flex items-center justify-between gap-2 rounded-xl px-4 min-h-[48px] bg-[var(--fill)] cursor-pointer active:scale-[0.98] transition-transform"
+              >
+                <Text size="md" weight="medium">Choose who paid</Text>
+                <ChevronRight size={18} className="text-[var(--dim)]" />
+              </button>
+            )
           ) : (
-            /* ── Expanded: search + player list ── */
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden animate-fade-in">
-              {/* Search header */}
-              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
-                <Search size={16} className="text-[var(--muted)] flex-shrink-0" />
+            <div className="rounded-2xl bg-[var(--surface)] overflow-hidden animate-fade-in">
+              <div className="flex items-center gap-2 pl-3 border-b border-[var(--border)]">
+                <Search size={16} className="text-[var(--dim)] flex-shrink-0" />
                 <input
                   type="text" value={paidBySearch} onChange={(e) => setPaidBySearch(e.target.value)}
-                  placeholder="Search players..."
-                  className="flex-1 bg-transparent text-[16px] outline-none"
+                  placeholder="Search players…"
+                  aria-label="Search who paid"
+                  className="flex-1 min-w-0 bg-transparent text-[16px] outline-none placeholder:text-[var(--dim)]"
                   style={{ color: 'var(--text)' }}
                 />
                 <button onClick={() => { setShowPaidByPicker(false); setPaidBySearch(''); }}
-                  className="p-2 -mr-2 cursor-pointer text-[var(--muted)] active:text-[var(--text)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
+                  aria-label="Close player list"
+                  className="cursor-pointer text-[var(--muted)] active:text-[var(--text)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <X size={18} />
                 </button>
               </div>
-              {/* Player list */}
-              <div className="max-h-[220px] overflow-y-auto overscroll-contain">
+              <div className="max-h-[260px] overflow-y-auto overscroll-contain divide-y divide-[var(--border)]">
                 {(() => {
                   const q = paidBySearch.toLowerCase().trim();
-                  // Pin "You" at top, then filter others alphabetically
+                  // "You" pinned at top, then everyone else alphabetically
                   const others = activePlayers.filter((p) => p.id !== myPlayer?.id);
                   const filteredOthers = q ? others.filter((p) => p.name.toLowerCase().includes(q)) : others;
                   const showMe = myPlayer && (!q || myPlayer.name.toLowerCase().includes(q) || 'you'.includes(q));
-
                   return (
                     <>
-                      {/* "You" pinned at top */}
-                      {showMe && myPlayer && (() => {
-                        const [gF, gT] = nameToGradient(myPlayer.name);
-                        const initials = myPlayer.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                        const selected = myPlayer.id === effectivePaidBy;
-                        return (
-                          <>
-                            <button onClick={() => { handlePaidBySelect(myPlayer.id); setPaidBySearch(''); }}
-                              className="w-full flex items-center gap-3 px-3 py-3 min-h-[48px] cursor-pointer transition-colors active:opacity-80"
-                              style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'transparent' }}>
-                              <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
-                                style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
-                              <div className="flex-1 min-w-0 text-left">
-                                <Text size="sm" weight="semibold">You</Text>
-                                <Text as="p" size="2xs" color="muted">{myPlayer.name}</Text>
-                              </div>
-                              {selected && <CheckCircle2 size={20} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />}
-                            </button>
-                            {filteredOthers.length > 0 && <div className="h-px mx-3" style={{ background: 'var(--border)' }} />}
-                          </>
-                        );
-                      })()}
-                      {/* Other players */}
-                      {filteredOthers.map((p) => {
-                        const [gF, gT] = nameToGradient(p.name);
-                        const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                        const selected = p.id === effectivePaidBy;
-                        return (
-                          <button key={p.id} onClick={() => { handlePaidBySelect(p.id); setPaidBySearch(''); }}
-                            className="w-full flex items-center gap-3 px-3 py-3 min-h-[48px] cursor-pointer transition-colors active:opacity-80"
-                            style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : 'transparent' }}>
-                            <div className="h-8 w-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0"
-                              style={{ background: `linear-gradient(135deg, ${gF}, ${gT})` }}>{initials}</div>
-                            <Text size="sm" weight={selected ? 'semibold' : 'medium'} truncate className="flex-1 text-left"
-                              style={{ color: selected ? 'var(--cricket)' : undefined }}>{p.name}</Text>
-                            {selected && <CheckCircle2 size={20} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />}
-                          </button>
-                        );
-                      })}
-                      {showMe === false && filteredOthers.length === 0 && (
-                        <Text as="p" size="xs" color="dim" className="text-center py-4">No players match &ldquo;{paidBySearch}&rdquo;</Text>
+                      {showMe && myPlayer && payerRow(myPlayer, true)}
+                      {filteredOthers.map((p) => payerRow(p, false))}
+                      {!showMe && filteredOthers.length === 0 && (
+                        <Text as="p" size="sm" color="muted" className="text-center py-5">No players match &ldquo;{paidBySearch}&rdquo;</Text>
                       )}
                     </>
                   );
@@ -444,80 +438,76 @@ export default function SplitForm() {
               </div>
             </div>
           )}
-        </div>
+        </section>
 
         {/* Split between — search + avatar grid */}
+        <section className="flex flex-col gap-4">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider">Split Between</Text>
-            <Text size="2xs" weight="bold" style={{ color: 'var(--cricket)' }}>{selectedCount} selected</Text>
+          <div className="flex items-baseline justify-between mb-1">
+            <Text as="p" size="sm" weight="medium" color="muted">Split between</Text>
+            {selectedCount > 0 && <Text size="xs" weight="medium" color="muted" tabular>{selectedCount} selected</Text>}
           </div>
 
-          {/* Search + Select All row */}
           <div className="flex items-center gap-2 mb-3">
             <div className="relative flex-1">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--dim)]" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--dim)] pointer-events-none" />
               <input
                 type="text"
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
-                placeholder="Search players..."
-                className="w-full rounded-lg bg-[var(--surface)] py-2 pl-8 pr-8 min-h-10 text-[16px] outline-none focus:ring-1 focus:ring-[var(--cricket)]/50 transition-shadow"
+                placeholder="Search players…"
+                aria-label="Search players to split with"
+                className="w-full rounded-xl bg-[var(--fill)] pl-9 pr-10 min-h-11 text-[16px] outline-none placeholder:text-[var(--dim)] focus:ring-1 focus:ring-[var(--cricket)]/50 transition-shadow"
                 style={{ color: 'var(--text)' }}
               />
               {playerSearch && (
-                <button onClick={() => setPlayerSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-[var(--dim)] hover:text-[var(--text)]">
-                  <X size={14} />
+                <button onClick={() => setPlayerSearch('')} aria-label="Clear search"
+                  className="absolute right-0 top-0 h-11 w-10 flex items-center justify-center cursor-pointer text-[var(--dim)] active:text-[var(--text)]">
+                  <X size={15} />
                 </button>
               )}
             </div>
-            <button onClick={selectAll}
-              aria-pressed={selectedPlayerIds.size === activePlayers.length}
-              className="flex items-center gap-1.5 rounded-lg px-3 min-h-10 cursor-pointer transition-all active:scale-95 flex-shrink-0"
-              style={{ background: selectedPlayerIds.size === activePlayers.length ? 'color-mix(in srgb, var(--cricket) 12%, transparent)' : 'color-mix(in srgb, var(--text) 5%, transparent)', color: selectedPlayerIds.size === activePlayers.length ? 'var(--cricket)' : 'var(--muted)' }}>
-              <Users size={12} />
-              <Text size="2xs" weight="bold">{selectedPlayerIds.size === activePlayers.length ? 'Clear' : 'All'}</Text>
-            </button>
+            <Button variant="secondary" size="md" onClick={selectAll} aria-pressed={allSelected}
+              className="h-11 gap-1.5 flex-shrink-0">
+              <Users size={15} />
+              {allSelected ? 'Clear' : 'All'}
+            </Button>
           </div>
 
-          {/* Player selection grid — 3 columns, not 4: the roster has two
-              Venkats, and first-name-only tiles at 4-up made the two
-              indistinguishable at exactly the moment money is being split.
-              Labels come from the shared playerLabels disambiguator (same as
-              the umpiring roster), so a duplicate first name always carries
-              its surname line. */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 3 columns, not 4: the roster has two Venkats, and first-name-only
+              tiles at 4-up made them indistinguishable at exactly the moment
+              money is being split. Labels come from the shared playerLabels
+              disambiguator, so a duplicate first name carries its surname. */}
+          <div className="grid grid-cols-3 gap-x-2 gap-y-1">
             {filteredPlayers.map((p) => {
               const selected = selectedPlayerIds.has(p.id);
-              const [gFrom, gTo] = nameToGradient(p.name);
-              const initials = p.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
               const isPayer = p.id === effectivePaidBy;
               const label = gridLabels.get(p.id);
+              const secondary = [isPayer ? 'Paid' : null, label?.secondary].filter(Boolean).join(' · ');
               return (
                 <button key={p.id} onClick={() => togglePlayer(p.id)}
                   aria-pressed={selected}
-                  aria-label={`${p.name}${p.jersey_number != null ? `, jersey ${p.jersey_number}` : ''}${p.is_guest ? ', guest' : ''}`}
-                  className="flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-1 cursor-pointer transition-all active:scale-95"
-                  style={{ background: selected ? 'color-mix(in srgb, var(--cricket) 10%, transparent)' : 'transparent', border: selected ? '1.5px solid color-mix(in srgb, var(--cricket) 40%, transparent)' : '1.5px solid transparent' }}>
-                  <div className="relative">
-                    <div className="h-10 w-10 rounded-full text-[12px] font-bold text-white flex items-center justify-center transition-all"
-                      style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})`, opacity: selected ? 1 : 0.55 }}>{initials}</div>
+                  aria-label={`${p.name}${p.jersey_number != null ? `, jersey ${p.jersey_number}` : ''}${p.is_guest ? ', guest' : ''}${isPayer ? ', paid' : ''}`}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-xl pt-2.5 pb-1.5 px-1 cursor-pointer transition-[background-color,transform] active:scale-95',
+                    selected ? 'bg-[var(--fill)]' : 'bg-transparent',
+                  )}>
+                  {/* Full strength whether picked or not; dimming read as "unavailable" */}
+                  <span className="relative">
+                    <PlayerAvatar player={p} name={p.name} size={40} />
                     {selected && (
-                      <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center"
-                        style={{ background: 'var(--cricket)', border: '2px solid var(--card)' }}>
-                        <Check size={9} style={{ color: 'var(--cricket-on)' }} />
-                      </div>
-                    )}
-                  </div>
-                  <span className="flex min-h-[26px] w-full flex-col items-center justify-start leading-tight">
-                    <Text size="2xs" weight={selected ? 'bold' : 'medium'} truncate className="w-full text-center"
-                      style={{ color: selected ? 'var(--cricket)' : 'var(--muted)' }}>
-                      {label?.primary ?? p.name.split(' ')[0]}{p.is_guest ? ' (G)' : ''}{isPayer ? ' $' : ''}
-                    </Text>
-                    {label?.secondary && (
-                      <span className="block w-full truncate text-center text-[9px] text-[var(--dim)]">
-                        {label.secondary}
+                      <span className="absolute -bottom-0.5 -right-0.5 h-[18px] w-[18px] rounded-full flex items-center justify-center bg-[var(--text)]"
+                        style={{ boxShadow: '0 0 0 2px var(--card)' }}>
+                        <Check size={11} strokeWidth={3} className="text-[var(--card)]" />
                       </span>
+                    )}
+                  </span>
+                  <span className="flex min-h-[28px] w-full flex-col items-center justify-start leading-tight">
+                    <span className={cn('block w-full truncate text-center text-[12px]', selected ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--muted)]')}>
+                      {label?.primary ?? p.name.split(' ')[0]}{p.is_guest ? ' (G)' : ''}
+                    </span>
+                    {secondary && (
+                      <span className="block w-full truncate text-center text-[10px] text-[var(--dim)]">{secondary}</span>
                     )}
                   </span>
                 </button>
@@ -525,148 +515,80 @@ export default function SplitForm() {
             })}
           </div>
           {playerSearch && filteredPlayers.length === 0 && (
-            <Text as="p" size="xs" color="dim" className="text-center py-4">No players match &ldquo;{playerSearch}&rdquo;</Text>
+            <Text as="p" size="sm" color="muted" className="text-center py-4">No players match &ldquo;{playerSearch}&rdquo;</Text>
           )}
         </div>
 
-        <SegmentedControl options={[{ key: 'equal', label: 'Equal Split' }, { key: 'custom', label: 'Custom' }]} active={splitType} onChange={(key) => setSplitType(key as 'equal' | 'custom')} />
+        <SegmentedControl ariaLabel="How to split" options={[{ key: 'equal', label: 'Equal' }, { key: 'custom', label: 'Custom' }]} active={splitType} onChange={(key) => setSplitType(key as 'equal' | 'custom')} />
 
         {splitType === 'equal' && selectedCount > 0 && numAmount > 0 && (
-          <div className="rounded-xl p-3 flex items-center gap-2"
-            style={{ background: 'color-mix(in srgb, var(--cricket) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--cricket) 20%, transparent)' }}>
-            <Text size="sm" color="muted"><Text weight="bold" style={{ color: 'var(--cricket)' }}>${perPerson.toFixed(2)}</Text>{' per person'}</Text>
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-3 flex items-baseline justify-between gap-2">
+            <Text size="md" color="muted">{selectedCount} {selectedCount === 1 ? 'person' : 'people'}</Text>
+            <Text size="md"><Text weight="bold" tabular>${perPerson.toFixed(2)}</Text> each</Text>
           </div>
         )}
 
         {splitType === 'custom' && selectedCount > 0 && (
-          <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
-            {Array.from(selectedPlayerIds).map((playerId) => {
-              const player = activePlayers.find((p) => p.id === playerId);
-              if (!player) return null;
-              return (
-                <div key={playerId} className="flex items-center gap-3">
-                  <Text size="sm" weight="medium" truncate className="flex-1">{player.name}</Text>
-                  <div className="flex items-center gap-1">
-                    <Text size="sm" color="muted">$</Text>
-                    <input type="text" inputMode="decimal" value={customAmounts[playerId] || ''}
-                      onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setCustomAmounts((prev) => ({ ...prev, [playerId]: e.target.value })); }}
-                      className="w-20 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-[14px] font-semibold text-right outline-none focus:border-[var(--cricket)] transition-colors"
-                      style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }} />
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-1">
+            <div className="divide-y divide-[var(--border)]">
+              {Array.from(selectedPlayerIds).map((playerId) => {
+                const player = activePlayers.find((p) => p.id === playerId);
+                if (!player) return null;
+                return (
+                  <div key={playerId} className="flex items-center gap-3 py-2">
+                    <Text size="md" weight="medium" truncate className="flex-1">{player.name}</Text>
+                    <div className="flex items-center gap-1">
+                      <Text size="md" color="muted">$</Text>
+                      <input type="text" inputMode="decimal" value={customAmounts[playerId] || ''}
+                        aria-label={`${player.name}'s share in dollars`}
+                        placeholder="0.00"
+                        onChange={(e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setCustomAmounts((prev) => ({ ...prev, [playerId]: e.target.value })); }}
+                        className="w-24 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 min-h-10 text-[16px] font-semibold text-right outline-none placeholder:text-[var(--dim)] focus:border-[var(--cricket)] transition-colors"
+                        style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            <div className="pt-2 border-t border-[var(--border)]/50 flex items-center justify-between">
-              <Text size="xs" color="muted" weight="medium">Remaining</Text>
-              <Text size="sm" weight="bold" tabular style={{ color: Math.abs(remaining) < 0.01 ? 'var(--split-credit)' : remaining > 0 ? 'var(--cricket)' : 'var(--split-owe)' }}>${remaining.toFixed(2)}</Text>
+                );
+              })}
+            </div>
+            <div className="py-2.5 border-t border-[var(--border)] flex items-center justify-between">
+              <Text size="sm" color="muted" weight="medium">Remaining</Text>
+              <Text size="md" weight="bold" tabular style={{ color: Math.abs(remaining) < 0.01 ? 'var(--split-credit)' : remaining > 0 ? 'var(--text)' : 'var(--split-owe)' }}>${remaining.toFixed(2)}</Text>
             </div>
           </div>
         )}
 
-        {/* Receipt upload */}
-        <div>
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="mb-2">Receipts (optional)</Text>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,application/pdf"
-            multiple
-            className="hidden"
-            aria-label="Select receipt images or PDFs"
-            onChange={handleFileSelect}
-          />
+        </section>
 
-          {(existingUrls.length > 0 || newFiles.length > 0) && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {existingUrls.map((url, i) => (
-                <div key={`existing-${i}`} className="relative">
-                  {isUrlPdf(url) ? (
-                    <div className="h-20 w-20 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1">
-                      <FileText size={22} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight">Receipt {i + 1}.pdf</span>
-                    </div>
-                  ) : (
-                    <img src={url} alt={`Receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)]"
-                      onError={(ev) => { ev.currentTarget.style.opacity = '0.3'; }} />
-                  )}
-                  <button onClick={() => setPendingRemove({ type: 'existing', index: i })}
-                    aria-label={`Remove receipt ${i + 1}`}
-                    className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform">
-                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
-                      <X size={12} className="text-white" />
-                    </span>
-                  </button>
-                </div>
-              ))}
-              {newFiles.map((f, i) => (
-                <div key={`new-${i}`} className="relative animate-fade-in">
-                  {f.isPdf ? (
-                    <div className="h-20 w-20 rounded-xl border-2 border-dashed bg-[var(--surface)] flex flex-col items-center justify-center gap-1 px-1"
-                      style={{ borderColor: 'var(--cricket)' }}>
-                      <FileText size={22} className="text-red-500" />
-                      <span className="text-[9px] font-bold text-[var(--muted)] text-center leading-tight truncate w-full">
-                        {f.fileName.length > 14 ? f.fileName.slice(0, 12) + '…' : f.fileName}
-                      </span>
-                    </div>
-                  ) : (
-                    <img src={f.preview} alt={`New receipt ${i + 1}`} className="h-20 w-20 rounded-xl object-cover border-2 border-dashed"
-                      style={{ borderColor: 'var(--cricket)' }} />
-                  )}
-                  <button onClick={() => setPendingRemove({ type: 'new', index: i })}
-                    aria-label={`Remove new receipt ${i + 1}`}
-                    className="absolute -top-2 -right-2 h-8 w-8 flex items-center justify-center cursor-pointer active:scale-90 transition-transform">
-                    <span className="h-6 w-6 rounded-full bg-black/70 flex items-center justify-center">
-                      <X size={12} className="text-white" />
-                    </span>
-                  </button>
-                  {!f.compressed && (
-                    <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center"><Spinner size="sm" /></div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Inline remove confirmation */}
-          {pendingRemove && (
-            <div className="rounded-xl p-3 mb-2 space-y-2.5"
-              style={{ background: '#EF44440A', border: '1px solid #EF444425' }}>
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EF444415' }}>
-                  <Trash2 size={14} style={{ color: '#EF4444' }} />
-                </div>
-                <Text size="sm" weight="medium">Remove <Text weight="bold">Receipt {pendingRemove.index + 1}</Text>?</Text>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setPendingRemove(null)}
-                  className="flex-1 rounded-lg py-2 min-h-9 text-[12px] font-medium text-[var(--muted)] border border-[var(--border)] cursor-pointer active:scale-95">
-                  Cancel
-                </button>
-                <button onClick={confirmRemove}
-                  className="flex-1 rounded-lg py-2 min-h-9 text-[12px] font-bold text-white cursor-pointer active:scale-95"
-                  style={{ background: '#EF4444' }}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button onClick={() => fileInputRef.current?.click()} disabled={compressing}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] border-2 border-dashed cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
-            style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, var(--border))', background: 'color-mix(in srgb, var(--cricket) 4%, transparent)' }}>
-            {compressing ? (
-              <><Spinner size="sm" /><span className="text-[13px] font-medium text-[var(--muted)]">Compressing...</span></>
-            ) : (
-              <>
-                <Camera size={18} style={{ color: 'var(--cricket)' }} />
-                <span className="text-[13px] font-semibold" style={{ color: 'var(--cricket)' }}>
-                  {existingUrls.length + newFiles.length > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-
+        <ReceiptAttach
+          inputRef={fileInputRef}
+          onChange={handleFileSelect}
+          compressing={compressing}
+          count={existingUrls.length + newFiles.length}
+          pendingLabel={pendingLabel}
+          onCancelRemove={() => setPendingRemove(null)}
+          onConfirmRemove={confirmRemove}
+        >
+          {existingUrls.map((url, i) => (
+            <ReceiptThumb
+              key={`existing-${i}`}
+              src={isUrlPdf(url) ? null : url}
+              name={`Receipt ${i + 1}.pdf`}
+              onRemove={() => setPendingRemove({ type: 'existing', index: i })}
+              removeLabel={`Remove receipt ${i + 1}`}
+            />
+          ))}
+          {newFiles.map((f, i) => (
+            <ReceiptThumb
+              key={`new-${i}`}
+              src={f.isPdf ? null : f.preview}
+              name={f.fileName}
+              busy={!f.compressed}
+              onRemove={() => setPendingRemove({ type: 'new', index: i })}
+              removeLabel={`Remove receipt ${existingUrls.length + i + 1}`}
+            />
+          ))}
+        </ReceiptAttach>
+      </div>
     </ComposerModal>
   );
 }
