@@ -6,7 +6,7 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
-import { nameToGradient } from '@/lib/avatar';
+import { readSplitDraft } from '../lib/split-draft';
 import { computeSettlements, personalBalances } from '../lib/settlement';
 import { buildSettlementPdfModel, renderSettlementPdf } from '../lib/settlement-pdf';
 import { getTeamName } from '../lib/constants';
@@ -49,15 +49,14 @@ function LoadMore({ page, setPage, totalItems, pageSize }: { page: number; setPa
 }
 
 function PlayerAvatar({ name, photoUrl, size = 'md', opacity = 1 }: { name: string; photoUrl?: string | null; size?: 'sm' | 'md' | 'lg'; opacity?: number }) {
-  const [gF, gT] = nameToGradient(name);
   const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const dims = size === 'sm' ? 'h-7 w-7 text-[9px]' : size === 'lg' ? 'h-14 w-14 text-[16px]' : 'h-9 w-9 text-[11px]';
+  const dims = size === 'sm' ? 'h-7 w-7 text-[10px]' : size === 'lg' ? 'h-14 w-14 text-[17px]' : 'h-9 w-9 text-[12px]';
   if (photoUrl) {
     return <img src={photoUrl} alt={name} className={`${dims} rounded-full object-cover flex-shrink-0`} style={{ opacity }} />;
   }
   return (
-    <div className={`${dims} rounded-full font-bold text-white flex items-center justify-center flex-shrink-0`}
-      style={{ background: `linear-gradient(135deg, ${gF}, ${gT})`, opacity }}
+    <div className={`${dims} rounded-full font-semibold text-[var(--text)] flex items-center justify-center flex-shrink-0`}
+      style={{ background: 'var(--fill)', opacity }}
       role="img" aria-label={name}>{initials}</div>
   );
 }
@@ -178,10 +177,9 @@ function SummaryCard({ variant, amount, onClick }: { variant: 'owe' | 'owed'; am
 type RelationValue = 'all' | 'iowe' | 'owed';
 function RelationChips({ value, onChange, fullWidth = false }: { value: RelationValue; onChange: (v: RelationValue) => void; fullWidth?: boolean }) {
   return (
-    // Quiet tonal rail — no border, no inset ring; the active option's brand
-    // tint is the only signal, matching the umpiring roster filters.
-    <div role="group" aria-label="Filter by relationship" className={`flex items-center gap-1 rounded-xl p-1 ${fullWidth ? 'w-full' : ''}`}
-      style={{ background: 'color-mix(in srgb, var(--text) 5%, transparent)' }}>
+    // Same neutral language as SegmentedControl — a raised white thumb on a
+    // gray track. It is a filter (selection state), so no accent.
+    <div role="group" aria-label="Filter by relationship" className={`flex items-center gap-0.5 rounded-[12px] p-[3px] bg-[var(--fill)] ${fullWidth ? 'w-full' : ''}`}>
       {([['all', 'All'], ['iowe', 'I Owe'], ['owed', 'Owed to Me']] as const).map(([key, label]) => {
         const on = value === key;
         return (
@@ -189,8 +187,8 @@ function RelationChips({ value, onChange, fullWidth = false }: { value: Relation
             key={key}
             onClick={() => onChange(key)}
             aria-pressed={on}
-            className={`${fullWidth ? 'flex-1' : ''} px-3 py-1.5 min-h-[38px] rounded-lg text-[12px] sm:text-[13px] font-semibold cursor-pointer transition-all active:scale-[0.96] whitespace-nowrap ${on ? '' : 'text-[var(--muted)]'}`}
-            style={on ? { background: 'color-mix(in srgb, var(--cricket) 14%, transparent)', color: 'var(--cricket)' } : undefined}
+            className={`${fullWidth ? 'flex-1' : ''} px-3 min-h-[38px] rounded-[9px] text-[13px] cursor-pointer transition-colors whitespace-nowrap ${on ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--muted)]'}`}
+            style={on ? { background: 'var(--segment-selected)', boxShadow: '0 3px 8px rgba(0,0,0,0.12), 0 3px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.04)' } : undefined}
           >
             {label}
           </button>
@@ -237,8 +235,8 @@ function MobileActivityMenu({ people, allCount, personValue, onPerson, sort, onS
         aria-expanded={open}
         className="relative h-11 w-11 flex items-center justify-center rounded-xl bg-[var(--surface)] cursor-pointer active:scale-95 active:bg-[var(--hover-bg)] transition-transform"
       >
-        <SlidersHorizontal size={17} className="text-[var(--cricket)]" />
-        {personActive && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--card)]" style={{ background: 'var(--cricket)' }} />}
+        <SlidersHorizontal size={17} className="text-[var(--text)]" />
+        {personActive && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--card)] bg-[var(--text)]" />}
       </button>
       <ActionSheet open={open} onOpenChange={setOpen} title="Filter and sort activity" items={items} />
     </div>
@@ -268,6 +266,10 @@ export default function SplitsDashboard() {
   useEffect(() => {
     if (showSplitForm || editingSplitId) setSplitFormMounted(true);
   }, [showSplitForm, editingSplitId]);
+  // Reopen a New Split that iOS discarded with the tab (see lib/split-draft)
+  useEffect(() => {
+    if (readSplitDraft()) useSplitsStore.setState({ showSplitForm: true, editingSplitId: null });
+  }, []);
   useEffect(() => {
     if (showSettleForm) setSettleDrawerMounted(true);
   }, [showSettleForm]);
@@ -1015,7 +1017,7 @@ export default function SplitsDashboard() {
                   title="Toggle sort order"
                   aria-label={activitySort === 'newest' ? 'Sorted newest first — tap for oldest first' : 'Sorted oldest first — tap for newest first'}
                 >
-                  <ArrowUpDown size={14} className="text-[var(--cricket)]" />
+                  <ArrowUpDown size={14} className="text-[var(--muted)]" />
                   <span>{activitySort === 'newest' ? 'Newest first' : 'Oldest first'}</span>
                 </button>
               </div>
@@ -1040,14 +1042,14 @@ export default function SplitsDashboard() {
               const myShare = myPlayer ? splitShares.find((sh) => sh.player_id === myPlayer.id) : null;
               const myShareAmt = myShare ? Number(myShare.share_amount) : 0;
               const myRelation = iAmPayer
-                ? { label: 'You paid', color: 'var(--cricket)', amount: a.amount }
+                ? { label: 'You paid', color: 'var(--muted)', amount: a.amount }
                 : myShare
                   ? { label: 'You owe', color: 'var(--split-owe)', amount: myShareAmt }
                   : null;
 
               return (
-                <div key={a.id} className="rounded-xl overflow-hidden border transition-colors duration-200" style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'transparent' }}>
-                  <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'transparent' }}>
+                <div key={a.id} className={`rounded-xl overflow-hidden transition-colors duration-200 ${expanded ? 'bg-[var(--surface)]' : ''}`}>
+                  <div className="flex items-center">
                     <button
                       onClick={() => setExpandedId(expanded ? null : a.id)}
                       aria-expanded={expanded}
@@ -1082,9 +1084,9 @@ export default function SplitsDashboard() {
                             skim the red/green figures down the list without
                             reading a sentence per row. */}
                         {myRelation && (
-                          <p className="mt-1 flex items-baseline gap-1.5" style={{ color: myRelation.color }}>
-                            <span className="text-[9px] font-bold uppercase tracking-[0.08em]">{myRelation.label}</span>
-                            <span className="text-[12.5px] font-bold tabular-nums">{formatCurrency(myRelation.amount)}</span>
+                          <p className="mt-1 flex items-baseline gap-1 text-[12px]" style={{ color: myRelation.color }}>
+                            <span className="font-medium">{myRelation.label}</span>
+                            <span className="font-semibold tabular-nums">{formatCurrency(myRelation.amount)}</span>
                           </p>
                         )}
                       </div>
@@ -1129,7 +1131,7 @@ export default function SplitsDashboard() {
                   <div className={`expand-collapse ${expanded ? 'expanded' : ''}`}>
                     <div>
                       {a.type === 'split' && (
-                      <div className="px-3 pb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
+                      <div className="px-3 pb-3" >
                         <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
                           {/* Disclosed metadata — date, headcount, and the
                               record's creator (a different fact from payer) */}
@@ -1157,26 +1159,21 @@ export default function SplitsDashboard() {
                             );
 
                             return (
-                              // Participant ROW, not a card — the payer keeps a
-                              // whisper of brand tint; everyone else sits flat.
-                              <div key={sh.id}
-                                className="flex items-center gap-3 rounded-lg px-2 py-2"
-                                style={{
-                                  background: isPayer ? 'color-mix(in srgb, var(--cricket) 7%, transparent)' : 'transparent',
-                                }}>
+                              // Participant ROW, not a card. The payer leads the
+                              // list and says "Paid"; no tint needed to find them.
+                              <div key={sh.id} className="flex items-center gap-3 rounded-lg px-1.5 py-2">
                                 <PlayerAvatar name={p.name} photoUrl={p.photo_url} size="sm" />
                                 <div className="flex-1 min-w-0">
                                   <Text size="sm" weight={isMe ? 'bold' : 'semibold'} truncate>
                                     {p.name}{isMe ? <Text as="span" color="muted" weight="normal"> · you</Text> : ''}
                                   </Text>
                                   {isPayer ? (
-                                    <Text as="p" size="2xs" style={{ color: 'var(--cricket)' }}>Paid {formatCurrency(a.amount)}</Text>
+                                    <Text as="p" size="2xs" weight="medium" color="muted">Paid {formatCurrency(a.amount)}</Text>
                                   ) : (
                                     <Text as="p" size="2xs" color="dim">Owes {activePlayers.find((pl) => pl.id === a.paidById)?.name?.split(' ')[0]}</Text>
                                   )}
                                 </div>
-                                <Text size="sm" weight="bold" tabular className="flex-shrink-0"
-                                  style={{ color: isPayer ? 'var(--cricket)' : 'var(--text)' }}>
+                                <Text size="sm" weight="semibold" tabular className="flex-shrink-0">
                                   {formatCurrency(shareAmt)}
                                 </Text>
                                 {stillOwes && myPlayer && (
@@ -1187,8 +1184,7 @@ export default function SplitsDashboard() {
                                     aria-label={isMe
                                       ? `Settle ${formatCurrency(shareAmt)} owed to ${activePlayers.find((pl) => pl.id === a.paidById)?.name ?? 'the payer'}`
                                       : `Record ${p.name} settling ${formatCurrency(shareAmt)} with you`}
-                                    className="flex-shrink-0 rounded-lg px-3 py-2.5 min-h-[44px] text-[11px] font-bold cursor-pointer transition-all active:scale-95"
-                                    style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
+                                    className="flex-shrink-0 rounded-full px-4 min-h-[36px] text-[13px] font-semibold cursor-pointer transition-all active:scale-95 bg-[var(--cricket)] text-[var(--cricket-on)]">
                                     Settle
                                   </button>
                                 )}
@@ -1201,7 +1197,7 @@ export default function SplitsDashboard() {
                             <div className="mt-3 pt-3 border-t border-[var(--border)]/50">
                               <div className="flex items-center gap-1.5 mb-2">
                                 <Paperclip size={12} style={{ color: 'var(--muted)' }} />
-                                <Text size="2xs" weight="bold" color="muted" uppercase tracking="wider">
+                                <Text size="xs" weight="medium" color="muted">
                                   Receipts ({a.receiptUrls.length})
                                 </Text>
                               </div>
@@ -1217,7 +1213,7 @@ export default function SplitsDashboard() {
                                     >
                                       {pdf
                                         ? <FileText size={12} style={{ color: '#EF4444' }} />
-                                        : <Receipt size={12} style={{ color: 'var(--cricket)' }} />}
+                                        : <Receipt size={12} style={{ color: 'var(--muted)' }} />}
                                       <Text size="2xs" weight="medium">Receipt {i + 1}{pdf ? '.pdf' : '.jpg'}</Text>
                                       <ExternalLink size={9} className="text-[var(--dim)]" />
                                     </button>
@@ -1247,8 +1243,7 @@ export default function SplitsDashboard() {
                                     });
                                   }
                                 }}
-                                className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[13px] font-bold cursor-pointer transition-all active:scale-[0.97] border-2 border-dashed"
-                                style={{ borderColor: 'color-mix(in srgb, var(--cricket) 40%, transparent)', color: 'var(--cricket)', background: 'color-mix(in srgb, var(--cricket) 5%, transparent)' }}>
+                                className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl min-h-[48px] text-[15px] font-semibold cursor-pointer transition-all active:scale-[0.98] bg-[var(--cricket)]/12 text-[var(--cricket)]">
                                 <Handshake size={15} />
                                 Settle All ({unsettledInSplit.length} people)
                               </button>
@@ -1467,10 +1462,9 @@ export default function SplitsDashboard() {
                   return (
                     <div
                       key={s.id}
-                      className="rounded-xl overflow-hidden border transition-colors duration-200"
-                      style={{ borderColor: expanded ? 'color-mix(in srgb, var(--cricket) 30%, transparent)' : 'transparent' }}
+                      className={`rounded-xl overflow-hidden transition-colors duration-200 ${expanded ? 'bg-[var(--surface)]' : ''}`}
                     >
-                      <div className="flex items-center" style={{ background: expanded ? 'color-mix(in srgb, var(--cricket) 5%, transparent)' : 'transparent' }}>
+                      <div className="flex items-center">
                         <button
                           onClick={() => setExpandedId(expanded ? null : s.id)}
                           className="flex-1 flex items-center gap-3 p-3 cursor-pointer transition-all active:scale-[0.98] min-w-0"
@@ -1536,7 +1530,7 @@ export default function SplitsDashboard() {
                       {/* Expanded per-person breakdown */}
                       <div className={`expand-collapse ${expanded ? 'expanded' : ''}`}>
                         <div>
-                          <div className="px-3 pb-3" style={{ background: 'color-mix(in srgb, var(--cricket) 3%, transparent)' }}>
+                          <div className="px-3 pb-3" >
                             <div className="border-t border-[var(--border)]/50 pt-3 space-y-2">
                               {/* Per-person breakdown — payer at top, others sorted by share */}
                               {[...splitShares]
@@ -1596,7 +1590,7 @@ export default function SplitsDashboard() {
                                         >
                                           {pdf
                                             ? <FileText size={12} style={{ color: '#EF4444' }} />
-                                            : <Receipt size={12} style={{ color: 'var(--cricket)' }} />}
+                                            : <Receipt size={12} style={{ color: 'var(--muted)' }} />}
                                           <Text size="2xs" weight="medium">Receipt {i + 1}{pdf ? '.pdf' : '.jpg'}</Text>
                                           <ExternalLink size={9} className="text-[var(--dim)]" />
                                         </button>

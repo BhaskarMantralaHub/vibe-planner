@@ -507,14 +507,17 @@ function CricketDashboard() {
     };
   }, []);
 
+  // Keyed on the id, not the object: Supabase hands over a NEW user object on
+  // every tab refocus, which would otherwise re-run this on each return.
+  const userId = user?.id;
   useEffect(() => {
     const cloud = isCloudMode();
-    if (cloud && user) {
-      loadAll(user.id);
+    if (cloud && userId) {
+      loadAll(userId);
     } else if (!cloud) {
       loadAll('');
     }
-  }, [user, loadAll]);
+  }, [userId, loadAll]);
 
   if (loading) {
     return (
