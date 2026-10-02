@@ -5,8 +5,7 @@ import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import LeagueStatsView from './components/LeagueStatsView';
-import CricketSectionNav from '../components/CricketSectionNav';
-import { CRICKET_GLOBAL_NAV } from '../components/cricket-global-nav';
+import { MATCH_TABS } from '../lib/match-tabs';
 
 // Hero is now owned by LeagueStatsView (its CompactHero) so it can be sticky
 // and reflect tab-specific theming. page.tsx is the wrapper + auth gate +
@@ -22,18 +21,13 @@ function LeagueStatsContent() {
     <div className="px-4 pt-2 pb-cricket-nav space-y-3">
       <SegmentedControl
         ariaLabel="Schedule view"
-        options={[
-          { key: 'upcoming', label: 'Upcoming' },
-          { key: 'completed', label: 'Completed' },
-          { key: 'stats', label: 'Stats' },
-        ]}
+        options={MATCH_TABS}
         active="stats"
         onChange={(key) => {
-          if (key !== 'stats') router.push(`/cricket/schedule#${key}`);
+          if (key !== 'stats') router.push(`/cricket/schedule?tab=${key}`);
         }}
       />
       <LeagueStatsView />
-      <CricketSectionNav items={CRICKET_GLOBAL_NAV} activeKey="matches" />
     </div>
   );
 }

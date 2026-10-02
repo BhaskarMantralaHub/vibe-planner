@@ -535,7 +535,7 @@ export default function PracticeLeaderboard() {
                 : 'text-[var(--muted)] hover:text-[var(--cricket)]',
             )}
             style={matchFilter === f.key
-              ? { background: 'var(--cricket)', boxShadow: '0 2px 8px var(--cricket-glow)' }
+              ? { background: 'var(--cricket)' }
               : { background: 'color-mix(in srgb, var(--cricket) 6%, var(--surface))', border: '1px solid color-mix(in srgb, var(--cricket) 12%, var(--border))' }
             }
           >

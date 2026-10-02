@@ -1,15 +1,15 @@
 'use client';
 
 import { Drawer, DrawerHandle, DrawerTitle, DrawerBody } from './drawer';
-import type { CardMenuItem } from './card-menu';
+import { menuItemColor, type CardMenuItem } from './card-menu';
 import { haptic } from '@/lib/haptics';
 
 /* ── ActionSheet — bottom-sheet replacement for the CardMenu ⋮ popover ──
  *
  * Mobile-first contextual action menu: same `CardMenuItem[]` shape as
  * CardMenu, so a screen migrates by swapping the component, not reshaping
- * its data. Rows are ≥52px touch targets; destructive rows pass their own
- * color (var(--red)) exactly as they did with CardMenu.
+ * its data. Rows are ≥52px touch targets. Colour follows `menuItemColor`:
+ * label ink for everything, red only for destructive rows.
  *
  * Tap-only flow ⇒ built on the shared vaul Drawer (never ComposerModal).
  */
@@ -49,7 +49,7 @@ export function ActionSheet({ open, onOpenChange, title, showTitle = false, item
                 item.onClick();
               }}
               className="pressable w-full flex items-center gap-3 min-h-[52px] px-4 rounded-xl text-[15px] font-medium text-left cursor-pointer active:bg-[var(--hover-bg)]"
-              style={{ color: item.color }}
+              style={{ color: menuItemColor(item.color) }}
             >
               {item.icon}
               {item.label}

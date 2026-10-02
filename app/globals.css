@@ -9,20 +9,21 @@
 }
 
 /* ── Charcoal Dark Theme (default) ──
-   Deep NEUTRAL charcoal, not navy: surfaces separate by tone and elevation,
+   Apple's dark system palette: true black page, #1C1C1E cards, #2C2C2E
+   for anything floating. Surfaces separate by tone and elevation,
    borders are quiet, and the Sunrisers orange is the one saturated voice.
    Elevation ladder: --bg → --surface (inset wells) → --card (content)
    → --elevated (floating). */
 :root,
 [data-theme="dark"] {
-  --bg: #0E0F12;
-  --surface: #16171C;
-  --card: #1B1C22;
-  --card-end: #20222A;
-  --border: #2C2E36;
-  --text: #E8E9EC;
-  --muted: #9CA3AF;
-  --dim: #6B7280;
+  --bg: #000000;
+  --surface: #151517;
+  --card: #1C1C1E;
+  --card-end: #1C1C1E;
+  --border: #38383A;
+  --text: #F5F5F7;
+  --muted: #98989D;
+  --dim: #636366;
   --purple: #C084FC;
   --blue: #60A5FA;
   --orange: #FBBF24;
@@ -31,13 +32,13 @@
   --indigo: #818CF8;
   --red: #F87171;
   --accent: #8B5CF6;
-  --today-bg: #1E2027;
-  --menu-bg: #1B1C22;
+  --today-bg: #2C2C2E;
+  --menu-bg: #1C1C1E;
   --hover-bg: rgba(255, 255, 255, 0.06);
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.35);
   --card-hover-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --elevated: #22242C;
-  --glass: rgba(27, 28, 34, 0.75);
+  --elevated: #2C2C2E;
+  --glass: rgba(28, 28, 30, 0.75);
   --inner-glow: rgba(255, 255, 255, 0.05);
   --header-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0, 0, 0, 0.3);
   --green-deep: #15803D;
@@ -49,6 +50,25 @@
      changing. Used by the public settlement report's credit-line amounts.
      See --credit-text below for why this is split from --green at all. */
   --credit-text: var(--green);
+
+  /* Player-role colours (Roster + PlayerProfile). Neutral on purpose: with
+     a blue accent, coloured roles collided with it (and 16 of 19 players
+     are all-rounders, so the colour carried little information). The accent
+     stays reserved for things you can tap. Kept as tokens so a role can be
+     re-coloured later without touching components. */
+  --role-bat: var(--muted);
+  --role-bowl: var(--muted);
+  --role-allround: var(--muted);
+  --role-keep: var(--muted);
+
+  /* Buttons — Apple's three filled styles. --fill is tertiarySystemFill (a
+     translucent gray that reads correctly on both page and card).
+     --danger-fill carries WHITE text in both themes (4.8:1). */
+  --fill: rgba(118, 118, 128, 0.24);
+  /* Selected segment / tab chip — Apple's dark segmented-control thumb. */
+  --segment-selected: #636366;
+  --danger-fill: #DC2626;
+  --danger-text: #F87171;
 
   /* Status card gradients — each has a distinct hue */
   --spark-from: #111B2E;
@@ -68,20 +88,21 @@
   --done-glow: #22C55E;
 
   /* Filter buttons */
-  --filter-bg: #17181E;
-  --filter-border: #2C2E36;
-  --filter-active: #FB923C;
+  --filter-bg: #1C1C1E;
+  --filter-border: #38383A;
+  --filter-active: #0A84FF;
 
-  /* Cricket team theme — Sunrisers Manteca orange. In dark mode the accent is
-     luminous, so filled controls carry DARK text (--cricket-on): white on
-     bright orange fails contrast, and dark-on-accent is the premium pattern.
-     Change these to rebrand the entire cricket app. */
-  --cricket: #FB923C;
-  --cricket-accent: #F97316;
-  --cricket-deep: #7C2D12;
-  --cricket-hover: #FDA75B;
-  --cricket-glow: rgba(251, 146, 60, 0.22);
-  --cricket-on: #2A1103;
+  /* Cricket team theme — Apple system blue (dark variant #0A84FF). Filled
+     controls carry white text (--cricket-on) like iOS; that pair is 3.65:1,
+     Apple's own choice, below WCAG AA for small text. As TEXT on --card the
+     blue is 4.7:1. Orange was retired 2026-10 (user preference); the crest
+     is now the only orange in the app. Change these to rebrand. */
+  --cricket: #0A84FF;
+  --cricket-accent: #409CFF;
+  --cricket-deep: #003A80;
+  --cricket-hover: #409CFF;
+  --cricket-glow: rgba(10, 132, 255, 0.22);
+  --cricket-on: #FFFFFF;
 
   /* ── Cricket league-stats accent tokens (dark mode) ──
      One color per discipline — batting keeps the brand blue; bowling gets
@@ -113,34 +134,21 @@
   --split-credit-border: rgba(52, 211, 153, 0.20);
 
   /* Leaderboard-specific tokens */
-  --row-alt: #181920;
+  --row-alt: #111113;
   --table-header-bg: color-mix(in srgb, var(--cricket) 8%, var(--surface));
   --highlight-bg: color-mix(in srgb, var(--cricket) 8%, var(--card));
 
-  /* ── Cricket bottom-nav geometry — SINGLE SOURCE OF TRUTH ──
-     Every floating element that must clear the nav pill (the FABs, and
-     anything added later) reads --cricket-fab-bottom instead of re-deriving
-     the pill's size. CricketSectionNav itself is positioned from
-     --cricket-nav-inset, so the nav and the things above it cannot drift
-     apart: change the pill here and everything follows.
-
-     --cricket-nav-height mirrors the pill's box in CricketSectionNav:
-       10px padding-top + 44px min-height tab + 8px padding-bottom = 62px,
-     plus the slice of safe-area the pill absorbs internally (× 0.35).
-     Geometry, not colour — one definition serves both themes.
+  /* ── Cricket floating-button geometry — SINGLE SOURCE OF TRUTH ──
+     There is no bottom bar any more (removed 2026-10; the menu is the only
+     navigation), so the FAB sits just above the home indicator. Every
+     floating element reads these instead of re-deriving the safe area.
 
      The 0px fallbacks matter: a bare env() that a browser does not understand
      makes the whole declaration invalid, which would drop `bottom` to auto and
      fling the FAB to the top of the screen. */
-  --cricket-nav-inset: max(0.5rem, env(safe-area-inset-bottom, 0px));
-  --cricket-nav-height: calc(62px + env(safe-area-inset-bottom, 0px) * 0.35);
-  --cricket-fab-gap: 16px;
-  --cricket-fab-bottom: calc(
-    var(--cricket-nav-inset) + var(--cricket-nav-height) + var(--cricket-fab-gap)
-  );
-  /* Bottom padding for page content so the last item scrolls clear of the
-     nav pill AND the 56px FAB floating above it. Pages use .pb-cricket-nav
-     instead of a hardcoded pb-32. */
+  --cricket-fab-bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 12px);
+  /* Bottom padding so the last item on a page scrolls clear of the 56px FAB.
+     Pages use .pb-cricket-nav instead of a hardcoded pb-32. */
   --cricket-content-bottom: calc(var(--cricket-fab-bottom) + 56px + 16px);
 
   /* Toolkit brand theme — change these to rebrand the entire toolkit */
@@ -151,23 +159,23 @@
   --toolkit-glow: rgba(77, 187, 235, 0.25);
 }
 
-/* ── Light Theme — cool neutral foundation ──
-   A flat cool-gray canvas on purpose: a dozen components paint opaque
-   var(--bg) slabs (sticky masks, scoring screens), so any gradient here would
-   show seams wherever those slabs overlap it. Atmosphere comes from the
-   fixed ambient layer on the cricket page, never from --bg itself.
-   White cards separate from the canvas by TONE + soft shadow, not borders —
-   the old mint wash + lavender cards read flat and generic (user feedback
-   2026-08). Orange is the single saturated voice; everything else is quiet. */
+/* ── Light Theme — Apple white ──
+   Pure white page and white cards, Apple's system grays for wells
+   (#F2F2F7), separators (#E5E5EA) and secondary text (#6E6E73). Cards
+   separate from the white page by a hairline + soft shadow, not by tone.
+   Flat on purpose: a dozen components paint opaque var(--bg) slabs (sticky
+   masks, scoring screens), so any gradient or tint would show seams. No
+   ambient wash either (user feedback 2026-10: "pure white, like Apple").
+   Orange is the single saturated voice; everything else is quiet. */
 [data-theme="light"] {
-  --bg: #EEF0F3;
-  --surface: #F5F6F8;
+  --bg: #FFFFFF;
+  --surface: #F2F2F7;
   --card: #FFFFFF;
-  --card-end: #FAFBFC;
-  --border: #E2E5EA;
-  --text: #1B1D22;
-  --muted: #646B76;
-  --dim: #9AA1AB;
+  --card-end: #FFFFFF;
+  --border: #E5E5EA;
+  --text: #1D1D1F;
+  --muted: #6E6E73;
+  --dim: #AEAEB2;
   --purple: #7C3AED;
   --blue: #3B82F6;
   --orange: #D97706;
@@ -176,16 +184,16 @@
   --indigo: #6C63FF;
   --red: #EF4444;
   --accent: #6C63FF;
-  --today-bg: #EEF1F6;
+  --today-bg: #F2F2F7;
   --menu-bg: #FFFFFF;
-  --hover-bg: rgba(15, 20, 30, 0.045);
-  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.06);
-  --card-hover-shadow: 0 10px 28px rgba(16, 24, 40, 0.10);
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --card-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05), 0 6px 20px rgba(0, 0, 0, 0.06);
+  --card-hover-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
   --elevated: #FFFFFF;
   --glass: rgba(255, 255, 255, 0.78);
   --inner-glow: rgba(255, 255, 255, 0.6);
-  --header-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent), 0 4px 16px rgba(16, 24, 40, 0.04);
-  --cricket-deep: #7C2D12;
+  --header-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --cricket-deep: #003A80;
   --green-deep: #15803D;
   --red-deep: #B91C1C;
 
@@ -196,13 +204,24 @@
      5.02:1 on white and already existed for exactly this kind of case. */
   --credit-text: var(--green-deep);
 
-  /* Cricket team theme — Sunrisers Manteca orange, burnt-deep so 11px bold
-     labels on white still pass AA (#C2410C ≈ 5.1:1). Filled controls keep
-     white text in light mode. Change these to rebrand the cricket app. */
-  --cricket: #C2410C;
-  --cricket-accent: #EA580C;
-  --cricket-hover: #A83A0B;
-  --cricket-glow: rgba(194, 65, 12, 0.20);
+  --role-bat: var(--muted);
+  --role-bowl: var(--muted);
+  --role-allround: var(--muted);
+  --role-keep: var(--muted);
+
+  --fill: rgba(118, 118, 128, 0.12);
+  --segment-selected: #FFFFFF;
+  --danger-fill: #DC2626;
+  /* --red (#EF4444) is 3.8:1 on white, too faint for button text. */
+  --danger-text: #C81E1E;
+
+  /* Cricket team theme — iOS blue, one step darker (#0066D6, not #007AFF)
+     so 11px labels pass AA on white (5.4:1) and on #F2F2F7 wells (4.9:1).
+     White text on the fill is 5.4:1. */
+  --cricket: #0066D6;
+  --cricket-accent: #0071E3;
+  --cricket-hover: #0058B8;
+  --cricket-glow: rgba(0, 102, 214, 0.18);
   --cricket-on: #FFFFFF;
 
   /* Cricket league-stats accent tokens (light mode) — one color per
@@ -256,14 +275,14 @@
   --done-glow: #16A34A;
 
   /* Leaderboard-specific tokens */
-  --row-alt: #F3F4F7;
+  --row-alt: #F9F9FB;
   --table-header-bg: color-mix(in srgb, var(--cricket) 6%, var(--surface));
   --highlight-bg: color-mix(in srgb, var(--cricket) 10%, var(--surface));
 
   /* Filter buttons */
-  --filter-bg: #EFF1F4;
-  --filter-border: #E2E5EA;
-  --filter-active: #C2410C;
+  --filter-bg: #F2F2F7;
+  --filter-border: #E5E5EA;
+  --filter-active: #0066D6;
 }
 
 /* ── Base ── */

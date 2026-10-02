@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import type { CricketPlayer } from '@/types/cricket';
 import { Mail, Badge as BadgeIcon, Copy, Pencil, Camera, X, Crown, ShieldCheck, Shirt } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
-import { GiTennisBall, GiGloves } from 'react-icons/gi';
+import { GiTennisBall } from 'react-icons/gi';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import { cn } from '@/lib/utils';
 import { Text } from '@/components/ui';
@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
 import { seasonRoster } from '../lib/season-roster';
+import { ROLE_META, colorAlpha } from '../lib/player-roles';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   return (
@@ -34,17 +35,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  batsman: { icon: <MdSportsCricket size={16} />, label: 'Batsman', color: 'var(--cricket)' },
-  bowler: { icon: <GiTennisBall size={15} />, label: 'Bowler', color: '#3B82F6' },
-  'all-rounder': { icon: <><MdSportsCricket size={15} /><GiTennisBall size={13} /></>, label: 'All-Rounder', color: 'var(--cricket-accent)' },
-  keeper: { icon: <GiGloves size={16} />, label: 'Keeper', color: '#16A34A' },
-};
-
-function colorAlpha(color: string, pct: number): string {
-  return `color-mix(in srgb, ${color} ${pct}%, transparent)`;
-}
-
 type Props = {
   player: CricketPlayer;
   open: boolean;
@@ -54,7 +44,7 @@ type Props = {
 export default function PlayerProfile({ player, open, onOpenChange }: Props) {
   const { gallery, galleryTags, fees, seasons, selectedSeasonId, players, seasonPlayers, updatePlayer } = useCricketStore();
   const { user } = useAuthStore();
-  const rc = roleConfig[player.player_role ?? ''];
+  const rc = ROLE_META[player.player_role ?? ''];
   const roleColor = rc?.color ?? 'var(--cricket)';
   // The armband chips show the SELECTED SEASON's designation, not the record's.
   const seasonDesignation = seasonRoster(players, seasonPlayers, selectedSeasonId).designationOf(player.id);
@@ -273,7 +263,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Role</label>
               <div className="grid grid-cols-2 gap-2">
                 {PLAYER_ROLES.map((r) => {
-                  const rConf = roleConfig[r.key];
+                  const rConf = ROLE_META[r.key];
                   const isSelected = editRole === r.key;
                   return (
                     <button key={r.key} type="button" onClick={() => {
@@ -289,7 +279,7 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                       }}>
                       <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center"
                         style={{ backgroundColor: colorAlpha(rConf?.color ?? 'var(--cricket)', isSelected ? 16 : 8), color: rConf?.color ?? 'var(--cricket)' }}>
-                        {rConf?.icon}
+                        {rConf?.icon(16)}
                       </div>
                       <Text size="xs" weight={isSelected ? 'bold' : 'medium'}>{r.label}</Text>
                     </button>
@@ -395,16 +385,16 @@ export default function PlayerProfile({ player, open, onOpenChange }: Props) {
                 className="inline-flex items-center gap-1"
                 style={{ color: roleColor, background: colorAlpha(roleColor, 10) }}
               >
-                {rc.icon} {rc.label}
+                {rc.icon(15)} {rc.label}
               </Badge>
             )}
             {seasonDesignation === 'captain' && (
-              <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 10%, transparent)' }}>
+              <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: 'var(--text)', background: 'var(--fill)' }}>
                 <Crown size={9} /> Captain
               </Badge>
             )}
             {seasonDesignation === 'vice-captain' && (
-              <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: '#6B7280', background: '#6B728015' }}>
+              <Badge size="sm" className="inline-flex items-center gap-0.5" style={{ color: 'var(--muted)', background: 'var(--fill)' }}>
                 <ShieldCheck size={9} /> Vice Captain
               </Badge>
             )}

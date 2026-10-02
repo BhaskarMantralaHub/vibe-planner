@@ -65,12 +65,14 @@ describe('ActionSheet', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('tints a destructive row with the color it was given', () => {
+  it('keeps destructive rows red and every other row plain (iOS menu rule)', () => {
+    // Step 1: render a sheet with a normal row and a red Delete row
     render(
       <ActionSheet open onOpenChange={vi.fn()} title="Expense actions" items={makeItems()} />,
     );
-    const del = screen.getByRole('button', { name: 'Delete' });
-    expect(del.style.color).toBe('var(--red)');
+    // Step 2: Delete stays red; Edit ignores any accent and uses label ink
+    expect(screen.getByRole('button', { name: 'Delete' }).style.color).toBe('var(--danger-text)');
+    expect(screen.getByRole('button', { name: 'Edit' }).style.color).toBe('var(--text)');
   });
 
   it('renders a divider before an item flagged dividerBefore', () => {

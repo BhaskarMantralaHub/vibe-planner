@@ -34,7 +34,6 @@ function SponsorAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
       style={{
         background: 'var(--cricket)',
         color: 'var(--cricket-on)',
-        boxShadow: '0 2px 8px var(--cricket-glow)',
       }}
     >
       {initials}

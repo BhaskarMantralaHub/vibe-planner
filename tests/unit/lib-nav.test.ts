@@ -153,7 +153,7 @@ describe('lib/nav', () => {
     });
     const names = visibleForCricket.map((t) => t.name);
     expect(names).toContain('Roster');
-    expect(names).toContain('League Schedule');
+    expect(names).toContain('Matches');
     expect(names).toContain('League Stats');
     expect(names).not.toContain('Vibe Planner');
     expect(names).not.toContain('ID Tracker');

@@ -96,32 +96,19 @@ function Avatar({ player, name, size = 32 }: { player?: CricketPlayer | null; na
     return <img src={player.photo_url} alt="" className="rounded-full object-cover" style={{ width: size, height: size }} />;
   }
   return (
-    <div className="rounded-full flex items-center justify-center font-bold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: 'var(--cricket)' }}>
+    <div className="rounded-full flex items-center justify-center font-bold text-[var(--text)]"
+      style={{ width: size, height: size, fontSize: size * 0.38, background: 'var(--fill)' }}>
       {name[0]?.toUpperCase() ?? '?'}
     </div>
   );
 }
 
-/* ── Avatar with gradient ring + jersey badge ── */
+/* ── Avatar + jersey badge (same look as the Roster: no coloured ring) ── */
 function RingedAvatar({ player, name, size = 40 }: { player?: CricketPlayer | null; name: string; size?: number }) {
   const ringSize = size + 10; // 3px ring + 2px gap on each side
   const jersey = player?.jersey_number;
   return (
     <div className="relative" style={{ width: ringSize, height: ringSize }}>
-      {/* Gradient ring */}
-      <div
-        className="absolute inset-0 rounded-full"
-        style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}
-      />
-      {/* White/card gap */}
-      <div
-        className="absolute rounded-full"
-        style={{
-          top: 3, left: 3, right: 3, bottom: 3,
-          background: 'var(--card)',
-        }}
-      />
       {/* Actual avatar */}
       <div className="absolute" style={{ top: 5, left: 5 }}>
         <Avatar player={player} name={name} size={size} />
@@ -129,12 +116,12 @@ function RingedAvatar({ player, name, size = 40 }: { player?: CricketPlayer | nu
       {/* Jersey badge */}
       {jersey != null && (
         <div
-          className="absolute flex items-center justify-center rounded-full text-white font-bold"
+          className="absolute flex items-center justify-center rounded-full font-bold tabular-nums text-[var(--card)]"
           style={{
-            width: 20, height: 20,
+            minWidth: 20, height: 20, padding: '0 3px',
             bottom: -2, right: -2,
             fontSize: 10,
-            background: 'var(--cricket)',
+            background: 'var(--text)',
             border: '2px solid var(--card)',
             lineHeight: 1,
           }}
@@ -793,20 +780,14 @@ export default function GalleryPostCard({
         {isTextOnly && post.caption && (
           <div
             onClick={handleDoubleTap}
-            className="relative mx-4 rounded-2xl overflow-hidden"
-            style={{
-              borderLeft: '4px solid transparent',
-              borderImage: 'linear-gradient(to bottom, var(--cricket), var(--cricket-accent)) 1',
-              background: 'color-mix(in srgb, var(--cricket) 4%, transparent)',
-            }}
+            className="relative mx-4 rounded-2xl overflow-hidden bg-[var(--surface)]"
           >
             <div className="px-4 py-4">
               {/* Type badge */}
               {isWelcome && (
                 <div className="mb-3">
                   <span
-                    className="inline-block rounded-full text-[11px] font-semibold uppercase tracking-wider px-3 py-1 text-white"
-                    style={{ background: 'linear-gradient(135deg, var(--cricket-accent), var(--cricket))' }}
+                    className="inline-block rounded-full text-[11px] font-semibold uppercase tracking-wider px-3 py-1 bg-[var(--fill)] text-[var(--muted)]"
                   >
                     Welcome
                   </span>

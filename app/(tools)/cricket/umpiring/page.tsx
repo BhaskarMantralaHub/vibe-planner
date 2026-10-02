@@ -1,17 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { AuthGate } from '@/components/AuthGate';
 import { RoleGate } from '@/components/RoleGate';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
-import { createPortal } from 'react-dom';
 import UmpiringBoard from '../components/UmpiringBoard';
 import SeasonSelector from '../components/SeasonSelector';
-import CricketSectionNav from '../components/CricketSectionNav';
-import { CRICKET_GLOBAL_NAV } from '../components/cricket-global-nav';
 
 function UmpiringContent() {
   const { user } = useAuthStore();
@@ -49,17 +46,8 @@ function UmpiringContent() {
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--dim)] border-t-transparent" />
         </div>
       ) : (
-        <UmpiringBoard />
+        <Suspense fallback={null}><UmpiringBoard /></Suspense>
       )}
-
-      {/* Portalled to body: the nav is position:fixed, and a transformed
-          ancestor would otherwise become its containing block on iOS Safari.
-          Same approach as MatchSchedule. */}
-      {typeof document !== 'undefined' &&
-        createPortal(
-          <CricketSectionNav items={CRICKET_GLOBAL_NAV} activeKey="umpiring" />,
-          document.body,
-        )}
     </div>
   );
 }

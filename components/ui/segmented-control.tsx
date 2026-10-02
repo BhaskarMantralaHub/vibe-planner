@@ -7,64 +7,23 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { haptic } from '@/lib/haptics';
 
 /**
- * The brand accent, taken straight from `--cricket` — the SAME token as the
- * Add Expense button (`<Button brand="cricket">`) and the active bottom-nav
- * item (CricketSectionNav).
- *
- * DO NOT route this through `useBrand()`. That was tried and shipped a bug:
- * `BrandContext` defaults to `BRANDS.toolkit` and `BrandProvider` is mounted
- * NOWHERE in this app (grep it), so `useBrand()` always resolves to toolkit —
- * and `--toolkit` is BLUE (#4DBBEB dark / #1A75A8 light). The active tab came
- * out looking like an informational link, clashing with the blue this app
- * already uses semantically for Tournament/percentage badges.
- *
- * Every component that needs the orange passes `brand="cricket"` explicitly
- * for exactly this reason; this constant is that convention for a component
- * with no brand prop. Toolkit is retired (see CLAUDE.md), so there is no
- * second brand to serve.
+ * The brand accent — used here ONLY for the keyboard focus ring. Taken
+ * straight from `--cricket`, never via `useBrand()`: `BrandProvider` is
+ * mounted nowhere, so `useBrand()` always resolves to the retired toolkit.
  */
 const ACCENT = 'var(--cricket)';
 
-/* ── Segmented Control — tonal rail with a travelling active surface ──
+/* ── Segmented Control — Apple-style track with a travelling thumb ──
  *
- * The active state is a single BRAND-TINTED surface that physically SLIDES
- * between segments (spring-ish ease, transform-only so it stays on the GPU) —
- * the user reads "the selection moved", not "the component changed".
+ * A gray track (`--fill`) with a white thumb (`--segment-selected`; Apple's
+ * #636366 in dark) carrying a soft shadow, exactly like iOS. Neutral by rule
+ * (2026-10, user feedback "too much blue"): picking a view is navigation
+ * state, and in this app colour is reserved for actions.
  *
- * Cells are equal-width flex-1, so the indicator needs no measurement:
- * width = 1/n of the rail, position = translateX(activeIndex × 100%) of its
- * own width. The rail is a tonal inset (text mixed at 7%), not a bordered
- * box — it reads as carved into the page in both themes without an outline.
- *
- * ── WHY THE ACTIVE SURFACE IS BRAND-TINTED AND NOT JUST `--elevated` ──
- *
- * It used to be flat `--elevated` with a `rgba(16,24,40,…)` shadow, and in
- * dark mode that was nearly invisible. Measured:
- *
- *   dark rail  = 7% of --text over --bg  ≈ #1B1C1F
- *   dark --elevated                      =  #22242C   ← delta of ~7-13/channel
- *   light rail                           ≈ #DFE1E4
- *   light --elevated                     =  #FFFFFF   ← delta of ~30/channel
- *
- * Two things follow. First, dark had almost no surface delta, so "Expenses"
- * did not read as selected. Second, the shadow is a DARK shadow — it does
- * nothing on a dark ground, so dark mode had no elevation cue either and the
- * whole burden fell on a 7-level lightness difference.
- *
- * Mixing the brand into --elevated fixes both themes with one expression,
- * because both tokens already flip per theme:
- *
- *   light: 11% #C2410C over #FFFFFF → warm cream, clearly raised
- *   dark:  11% #FB923C over #22242C → warm, clearly lighter than the rail
- *
- * Restrained on purpose: 11% is a tint, not a fill. This is a finance screen,
- * so the active tab must be obvious at a glance without becoming a CTA — and
- * it must stay SUBORDINATE to the Pool Balance card and the Add Expense
- * button, which is why there is no shadow, no ring and no outline.
- *
- * 11% is not an arbitrary number: it is the exact tint strength the active
- * bottom-nav item already uses, so "selected" looks the same at both levels
- * of the finance flow.
+ * The old version tinted the thumb with 11% of the accent, because a flat
+ * `--elevated` thumb was nearly invisible on the previous charcoal theme
+ * (a ~7-level lightness delta). Apple's dark palette fixes that at the
+ * source: a #636366 thumb on a 24% gray track is a large, hue-free delta.
  *
  * ── SELECTION IS NOT SIGNALLED BY COLOUR ALONE ──
  * Three independent cues: the raised surface (lightness, not hue), the label
@@ -128,6 +87,9 @@ const railEdge = (cells: number, before: number) =>
 interface SegmentOption {
   key: string;
   label: string;
+  /** Optional tally after the label ("Upcoming 6"), so a tab says something
+   *  before it is tapped. Omit, rather than pass 0, when "none" is not news. */
+  count?: number;
 }
 
 interface SegmentedControlProps {
@@ -186,19 +148,12 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
     left,
     right,
     transition: edgeTransition,
-    /* 11% of --cricket is the EXACT tint the active bottom-nav item uses
-       (CricketSectionNav), so the two selected states in the finance flow are
-       the same colour at the same strength. Mixed over --elevated rather than
-       transparent because this surface sits inside a tonal rail and has to
-       read as raised within it. */
-    background: `color-mix(in srgb, ${ACCENT} 11%, var(--elevated))`,
-    /* NO drop shadow and NO ring on the SURFACE, deliberately. Both were tried
-       and made the active segment read as a separate button sitting ON TOP of
-       the control rather than a segment selected INSIDE it — and a floating,
-       outlined pill competed with the Pool Balance card and the Add Expense
-       CTA for attention. The glow below is the exception that proves it: it
-       exists only while the selection is in flight and is gone at rest, so the
-       resting state is still the flat tint. */
+    // Apple's segmented-control thumb: white (dark: #636366) with UIKit's own
+    // two-part shadow plus a 0.5px hairline, so it reads as a raised chip
+    // inside the gray track. Neutral on purpose — selection is navigation
+    // state, and the accent is reserved for actions.
+    background: 'var(--segment-selected)',
+    boxShadow: '0 3px 8px rgba(0,0,0,0.12), 0 3px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.04)',
     willChange: 'left, right',
   };
 
@@ -206,8 +161,8 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={cn('relative flex rounded-2xl p-1', className)}
-      style={{ background: 'color-mix(in srgb, var(--text) 7%, transparent)' }}
+      className={cn('relative flex rounded-[14px] p-1', className)}
+      style={{ background: 'var(--fill)' }}
     >
       {/* The trail. BOTH its edges use the tail timing, so the whole glow lags
           behind the surface and smears out of the tab you just left. Rendered
@@ -222,12 +177,12 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
       {activeIdx >= 0 && !reducedMotion && (
         <div
           aria-hidden
-          className="absolute top-1 bottom-1 rounded-xl pointer-events-none"
+          className="absolute top-1 bottom-1 rounded-[10px] pointer-events-none"
           style={{
             left,
             right,
             opacity: surging ? 1 : 0,
-            boxShadow: `0 0 14px 2px color-mix(in srgb, ${ACCENT} 55%, transparent)`,
+            boxShadow: '0 0 14px 2px color-mix(in srgb, var(--text) 18%, transparent)',
             transition: `left ${EDGE_TAIL}, right ${EDGE_TAIL}, opacity var(--duration-slow) var(--ease-out)`,
             willChange: 'left, right, opacity',
           }}
@@ -237,10 +192,28 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
       {activeIdx >= 0 && (
         <div
           aria-hidden
-          className="absolute top-1 bottom-1 rounded-xl pointer-events-none"
+          className="absolute top-1 bottom-1 rounded-[10px] pointer-events-none"
           style={surfaceStyle}
         />
       )}
+      {/* iOS's thin dividers between segments, hidden either side of the
+          selected one so the white chip never sits on a line. */}
+      {options.slice(1).map((o, i) => {
+        const hidden = i === activeIdx || i + 1 === activeIdx;
+        return (
+          <span
+            key={`sep-${o.key}`}
+            role="presentation"
+            className="pointer-events-none absolute top-1/2 h-4 w-px -translate-y-1/2"
+            style={{
+              left: railEdge(options.length, i + 1),
+              background: 'color-mix(in srgb, var(--text) 14%, transparent)',
+              opacity: hidden ? 0 : 1,
+              transition: 'opacity var(--duration-normal) var(--ease-out)',
+            }}
+          />
+        );
+      })}
       {options.map((o) => {
         const isActive = active === o.key;
         return (
@@ -273,13 +246,15 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
              * A press, not a bounce: the SELECTION itself is animated by the
              * sliding indicator above, never by the tab moving. */
             className={cn(
-              'pressable-selection relative z-10 flex-1 min-h-11 px-1 rounded-xl text-[13px] cursor-pointer select-none',
+              // 48px tall, 15px text — native iOS proportions. Text only: no
+              // icons (user decision, 2026-10).
+              'pressable-selection relative z-10 flex min-w-0 flex-1 min-h-12 items-center justify-center gap-1.5 px-2 rounded-[10px] text-[15px] cursor-pointer select-none',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
               // Weight is the non-colour half of the selected cue.
-              isActive ? 'font-bold' : 'font-semibold',
+              isActive ? 'font-semibold' : 'font-medium',
             )}
             style={{
-              color: isActive ? ACCENT : 'var(--muted)',
+              color: isActive ? 'var(--text)' : 'var(--muted)',
               // Tailwind's ring-offset needs a concrete colour to sit on, and
               // the rail is translucent — name it so focus is visible in both
               // themes rather than ringing against transparent.
@@ -287,7 +262,15 @@ function SegmentedControl({ options, active, onChange, className, ariaLabel }: S
               ['--tw-ring-offset-color' as string]: 'var(--bg)',
             }}
           >
-            {o.label}
+            <span className="truncate">{o.label}</span>
+            {o.count !== undefined && (
+              <span
+                className="shrink-0 rounded-full px-1.5 text-[12px] font-semibold leading-[18px] tabular-nums"
+                style={{ background: isActive ? 'var(--fill)' : 'color-mix(in srgb, var(--text) 6%, transparent)', color: 'var(--muted)' }}
+              >
+                {o.count}
+              </span>
+            )}
           </button>
         );
       })}

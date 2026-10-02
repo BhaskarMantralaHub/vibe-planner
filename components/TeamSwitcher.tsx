@@ -54,8 +54,7 @@ function TeamWordmark({ name }: { name: string }) {
   const [first, ...rest] = name.split(' ');
   return (
     <Text size="sm" weight="semibold" className="max-w-[140px] sm:max-w-[200px] truncate">
-      <span className="text-[var(--cricket)]">{first}</span>
-      {rest.length > 0 && <span className="text-[var(--text)]"> {rest.join(' ')}</span>}
+      {first}{rest.length > 0 && ` ${rest.join(' ')}`}
     </Text>
   );
 }
