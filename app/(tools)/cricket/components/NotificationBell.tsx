@@ -96,12 +96,14 @@ export default function NotificationBell() {
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className="relative p-2 rounded-xl hover:bg-[var(--hover-bg)] cursor-pointer transition-colors"
+        className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         title="Notifications"
       >
-        <Bell size={20} style={{ color: unreadCount > 0 ? 'var(--cricket)' : 'var(--muted)' }} />
+        {/* Unread is carried by the red badge alone; the bell stays ink */}
+        <Bell size={21} aria-hidden />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold text-white px-0.5" style={{ background: 'var(--red)' }}>
+          <span className="absolute top-1.5 right-1.5 min-w-[17px] h-[17px] flex items-center justify-center rounded-full text-[10px] font-semibold text-white px-1 tabular-nums" style={{ background: 'var(--danger-fill)', boxShadow: '0 0 0 2px var(--bg)' }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

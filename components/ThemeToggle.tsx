@@ -1,24 +1,23 @@
 'use client';
 
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
+import { Moon, Sun } from 'lucide-react';
+
+/** Same 44px round, line-icon treatment as the other app-bar controls. */
+const HEADER_ICON_BUTTON =
+  'flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]';
+
+const noopSubscribe = () => () => {};
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  // false on the server and during hydration, true after — without a
+  // setState-in-effect re-render.
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
 
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) {
-    return (
-      <button
-        className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--card)] p-1.5 text-base"
-        aria-label="Toggle theme"
-      >
-        <span className="opacity-0">--</span>
-      </button>
-    );
-  }
+  // Reserve the slot before hydration so the bar doesn't shift.
+  if (!mounted) return <span className="h-11 w-11" aria-hidden />;
 
   // `theme` can be the literal string 'system' — a visitor who never set an
   // explicit preference has a resolved (rendered) theme that follows their
@@ -31,10 +30,11 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--card)] p-1.5 text-base transition-colors hover:border-[var(--muted)]"
-      aria-label="Toggle theme"
+      className={HEADER_ICON_BUTTON}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title="Toggle theme"
     >
-      {isDark ? '\u2600\uFE0F' : '\uD83C\uDF19'}
+      {isDark ? <Sun size={21} aria-hidden /> : <Moon size={20} aria-hidden />}
     </button>
   );
 }

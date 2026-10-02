@@ -151,28 +151,31 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
       aria-hidden={!isOpen}
       inert={!isOpen}
     >
-      {/* Header — same height and logo position as the app bar it covers */}
+      {/* Header — the app bar it covers, re-drawn: same height, the team
+          centred, and the X exactly where the hamburger was, so closing is
+          the same tap as opening. */}
       <div
-        className="flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2"
+        className="grid flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 pb-2"
         style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))' }}
       >
-        <div className="flex min-w-0 items-center gap-2.5">
-          {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
-          <Text as="h2" size="md" weight="semibold" truncate>{title}</Text>
-        </div>
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full cursor-pointer text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
+          className="-ml-2.5 flex h-11 w-11 items-center justify-center justify-self-start rounded-full cursor-pointer text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
           aria-label="Close menu"
         >
           <X size={22} />
         </button>
+        <div className="flex min-w-0 items-center gap-2">
+          {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
+          <Text as="h2" size="md" weight="semibold" truncate>{title}</Text>
+        </div>
+        <span aria-hidden />
       </div>
 
       <nav className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-4 pb-6">
         {/* Main sections — large type is the design */}
-        <ul className="mt-2">
+        <ul className="-mx-3 mt-3">
           {primary.map((tool) => (
             <SectionRow
               key={tool.name}
@@ -187,8 +190,8 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
         {secondary.length > 0 && (
           <>
-            <Text as="p" size="sm" weight="medium" color="muted" className="mt-8 mb-1 px-3">More</Text>
-            <ul>
+            <Text as="p" size="sm" weight="medium" color="muted" className="mt-8 mb-1">More</Text>
+            <ul className="-mx-3">
               {secondary.map((tool) => (
                 <li key={tool.name}>
                   <Link

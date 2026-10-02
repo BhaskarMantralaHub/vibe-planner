@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HamburgerMenu } from '@/components/HamburgerMenu';
-import { Menu } from 'lucide-react';
+import { Menu, UserPlus } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
@@ -124,16 +124,11 @@ function PendingApprovals() {
     <div className="relative">
       <button
         onClick={() => setShowPopup(!showPopup)}
-        className="relative cursor-pointer rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+        className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
+        aria-label={`${pending.length} pending join ${pending.length === 1 ? 'request' : 'requests'}`}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <line x1="19" y1="8" x2="19" y2="14" />
-          <line x1="22" y1="11" x2="16" y2="11" />
-        </svg>
-        {/* Badge */}
-        <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--red)] text-[9px] font-bold text-white">
+        <UserPlus size={21} aria-hidden />
+        <span className="absolute top-1.5 right-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white tabular-nums" style={{ background: 'var(--danger-fill)', boxShadow: '0 0 0 2px var(--bg)' }}>
           {pending.length}
         </span>
       </button>
@@ -304,17 +299,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* safe-area-inset-top is 0 in browser Safari portrait; it only bites in
           the installed (black-translucent) PWA, where the header would
           otherwise sit under the status-bar clock. */}
+      {/* iOS nav-bar material: the PAGE colour, translucent, over a hairline —
+          not a gray band. Three columns so the team name is truly centred
+          even though the right side carries more icons than the left. */}
       <header
-        className="sticky top-0 z-40 border-b border-[var(--border)]/50 bg-[var(--surface)]/85 backdrop-blur-md"
+        className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl backdrop-saturate-150"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-4 py-2 lg:px-8">
           {showNav ? (
             <button
               onClick={() => setMenuOpen(true)}
               // The ONLY navigation since the bottom bar went, so full-strength
               // ink, not --muted.
-              className="-ml-2.5 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
+              className="-ml-2.5 flex h-11 w-11 cursor-pointer items-center justify-center justify-self-start rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
               aria-label="Open menu"
               aria-haspopup="dialog"
               aria-expanded={menuOpen}
@@ -331,7 +329,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               second brand in the header was just confusing. */}
           <TeamSwitcher />
 
-          <div className="flex items-center gap-1">
+          <div className="-mr-2.5 flex items-center justify-self-end">
             <NotificationBell />
             <PendingApprovals />
             <ThemeToggle />
