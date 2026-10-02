@@ -201,6 +201,7 @@ describe('SegmentedControl surge — the trail', () => {
     // Surface only — the glow's opacity is timer-driven, so unlike the edge
     // durations it cannot be zeroed by the tokens in globals.css.
     expect(decorations()).toHaveLength(1);
-    expect(surface().style.background).toContain('color-mix');
+    // The one remaining decoration is the neutral selected thumb.
+    expect(surface().style.background).toBe('var(--segment-selected)');
   });
 });

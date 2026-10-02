@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HamburgerMenu } from '@/components/HamburgerMenu';
+import { Menu } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import NotificationBell from '@/app/(tools)/cricket/components/NotificationBell';
@@ -311,10 +312,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {showNav ? (
             <button
               onClick={() => setMenuOpen(true)}
-              className="cursor-pointer rounded-lg p-2.5 -m-1 min-h-11 min-w-11 text-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)]"
+              // The ONLY navigation since the bottom bar went, so full-strength
+              // ink, not --muted.
+              className="-ml-2.5 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
               aria-label="Open menu"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
             >
-              &#9776;
+              <Menu size={22} aria-hidden />
             </button>
           ) : (
             <div className="w-8" />

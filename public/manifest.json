@@ -6,8 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0F0F1A",
-  "theme_color": "#4DBBEB",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "orientation": "portrait-primary",
   "categories": ["productivity", "sports"],
   "icons": [

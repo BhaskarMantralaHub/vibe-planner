@@ -8,9 +8,8 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { isCloudMode } from '@/lib/supabase/client';
 import { seasonRoster, billableRoster } from './lib/season-roster';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, Receipt, Wallet, Banknote, PiggyBank, CalendarDays, Camera, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
+import { Users, Receipt, Banknote, PiggyBank, ArrowDownToLine, Lock, LockOpen } from 'lucide-react';
 import { toast } from 'sonner';
-import UmpireIcon from '@/components/icons/UmpireIcon';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -185,7 +184,8 @@ export function SummaryStats({
       label: 'Roster',
       value: String(animPlayers),
       exactValue: String(playerCount),
-      color: 'var(--cricket)',
+      // Neutral: the accent is reserved for actions, and this is a count.
+      color: 'var(--text)',
       icon: <Users size={16} />,
       target: 'players',
       destination: 'the roster',
@@ -362,17 +362,8 @@ function viewToTab(view: View): Tab {
   return 'finances';
 }
 
-// Default sub-view for each tab
-function tabToView(tab: Tab): View {
-  if (tab === 'players') return 'players';
-  return 'expenses';
-}
-
 
 import { SegmentedControl } from '@/components/ui';
-import CricketSectionNav, {
-  type CricketSectionNavItem,
-} from './components/CricketSectionNav';
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
@@ -560,21 +551,6 @@ function CricketDashboard() {
 
   return (
     <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-hidden">
-      {/* Ambient depth — two near-imperceptible washes, not blobs: a faint
-          brand warmth bleeding down from the header, and a neutral tonal
-          shift toward the bottom so the floating nav has ground to sit on.
-          Static gradients, no blur filters — free to composite. */}
-      <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
-        <div
-          className="absolute inset-x-0 top-0 h-[45vh]"
-          style={{ background: 'radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--cricket) 5%, transparent), transparent 70%)' }}
-        />
-        <div
-          className="absolute inset-x-0 bottom-0 h-[30vh]"
-          style={{ background: 'linear-gradient(to top, color-mix(in srgb, var(--text) 3%, transparent), transparent)' }}
-        />
-      </div>
-
       {/* Header — greeting + pulse */}
       {(() => {
         const hour = new Date().getHours();
@@ -638,27 +614,6 @@ function CricketDashboard() {
         </div>
       ) : (
         <>
-          {/* Bottom tab bar — Players (view) · Finances (view) · Matches (route) · Moments (route) */}
-          {(() => {
-            const navItems: CricketSectionNavItem[] = [
-              // "Roster" + Users icon, key 'players' — matches CRICKET_GLOBAL_NAV
-              { kind: 'view', key: 'players', label: 'Roster', icon: Users },
-              { kind: 'view', key: 'finances', label: 'Finances', icon: Wallet },
-              { kind: 'route', key: 'matches', label: 'Matches', icon: CalendarDays, href: '/cricket/schedule' },
-              { kind: 'route', key: 'umpiring', label: 'Umpiring', icon: UmpireIcon, href: '/cricket/umpiring' },
-              { kind: 'route', key: 'moments', label: 'Moments', icon: Camera, href: '/cricket/moments' },
-            ];
-            return (
-              <CricketSectionNav
-                items={navItems}
-                activeKey={activeTab}
-                onViewChange={(key) => {
-                  if (key === 'players') handleViewChange(tabToView('players'));
-                  else if (key === 'finances') handleViewChange(tabToView('finances'));
-                }}
-              />
-            );
-          })()}
 
           {/* Share — extracted from the pill into a standalone FAB. Hidden on
               the Fees view only: that screen already carries its meaningful
@@ -693,7 +648,12 @@ function CricketDashboard() {
               redundant here anyway. */}
           {activeTab === 'finances' && (
             <SegmentedControl
-              options={[{ key: 'expenses', label: 'Expenses' }, { key: 'fees', label: 'Fees' }, { key: 'splits', label: 'Splits' }, { key: 'sponsors', label: 'Sponsors' }]}
+              options={[
+                { key: 'expenses', label: 'Expenses' },
+                { key: 'fees', label: 'Fees' },
+                { key: 'splits', label: 'Splits' },
+                { key: 'sponsors', label: 'Sponsors' },
+              ]}
               active={activeView}
               onChange={(key) => handleViewChange(key as View)}
               className="mb-4"

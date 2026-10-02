@@ -2,12 +2,12 @@
 
 import { useMemo } from 'react';
 import { Drawer, DrawerHeader, DrawerTitle, DrawerBody, Text, Badge, Button } from '@/components/ui';
-import { Clock, MapPin, CircleCheck, UserX, ChevronRight, Copy, Crown, ShieldCheck } from 'lucide-react';
+import { Clock, MapPin, ChevronRight, Copy, Crown, ShieldCheck } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import PlayerAvatar from './PlayerAvatar';
 import { PLAYER_ROLES } from '../lib/constants';
-import { buildPlayerMessageText, whatsappShareUrl } from '@/lib/duty-share';
+import { buildPlayerMessageText, whatsappShareUrl, addressName } from '@/lib/duty-share';
 import { dutyStatFor } from '@/stores/umpiring-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { seasonRoster } from '../lib/season-roster';
@@ -115,74 +115,74 @@ function SheetBody({
     };
   }, [player, duties, today]);
 
+  const teamPlayers = useCricketStore((st) => st.players);
+  const rosterNames = useMemo(
+    () => teamPlayers.filter((p) => p.is_active).map((p) => p.name),
+    [teamPlayers],
+  );
+
   const message = useMemo(() => {
     return buildPlayerMessageText(
-      // First name only: this is a message TO them, and "Hi Venkat Gudala
-      // (Kittu)" reads like a form letter.
-      player.name.replace(/\([^)]*\)/g, ' ').trim().split(' ')[0] ?? player.name,
+      // First name — "Hi Venkat Gudala (Kittu)" reads like a form letter — but
+      // spelled out when another player shares it, since the group sees this.
+      addressName(player.name, rosterNames),
       duties.filter((d) => d.assigned_player_id === player.id),
       { today, openSlots, seasonName },
     );
-  }, [player, duties, today, openSlots, seasonName]);
+  }, [player, duties, today, openSlots, seasonName, rosterNames]);
 
   const role = PLAYER_ROLES.find((r) => r.key === player.player_role);
   // The C/VC badge is the SELECTED SEASON's armband — the umpiring board is
   // already scoped by the same season pill.
   const { players, seasonPlayers, selectedSeasonId } = useCricketStore();
   const seasonDesignation = seasonRoster(players, seasonPlayers, selectedSeasonId).designationOf(player.id);
+  // Neutral text: the numbers above already say it; colour is for the dots.
   const standing = stat.completed >= target
-    ? { label: 'Target met', color: 'var(--green)' }
+    ? 'Target met'
     : stat.booked > 0
-      ? { label: 'Signed up — not stood yet', color: 'var(--blue)' }
-      : { label: 'Yet to umpire this season', color: 'var(--orange)' };
+      ? 'Signed up, not stood yet'
+      : 'Yet to umpire this season';
 
   return (
     <>
       {/* ── Who this is ── */}
-      <div
-        className="flex items-center gap-3 rounded-2xl p-3"
-        style={{
-          background: `color-mix(in srgb, ${standing.color} 8%, transparent)`,
-          border: `1px solid color-mix(in srgb, ${standing.color} 25%, transparent)`,
-        }}
-      >
-        <PlayerAvatar player={player} name={player.name} ringColor={standing.color} size={56} />
+      <div className="flex items-center gap-3 py-1">
+        <PlayerAvatar player={player} name={player.name} size={56} />
         <div className="min-w-0 flex-1">
           {/* The FULL stored name, nickname and all — the grid could only show
               one word of it, and this is the tap that pays that back. */}
-          <Text as="p" size="md" weight="bold" className="leading-snug">
+          <Text as="p" size="xl" weight="bold" tracking="tight" className="leading-snug">
             {player.name}
           </Text>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {player.jersey_number !== null && (
               <Badge variant="muted" size="sm">#{player.jersey_number}</Badge>
             )}
-            {role && <Badge variant="muted" size="sm">{role.icon} {role.label}</Badge>}
+            {/* No role emoji — the label says it. All badges neutral. */}
+            {role && <Badge variant="muted" size="sm">{role.label}</Badge>}
             {seasonDesignation === 'captain' && (
-              <Badge variant="orange" size="sm" className="gap-1">
-                <Crown size={9} /> Captain
+              <Badge variant="muted" size="sm" className="gap-1">
+                <Crown size={10} aria-hidden /> Captain
               </Badge>
             )}
             {seasonDesignation === 'vice-captain' && (
-              <Badge variant="blue" size="sm" className="gap-1">
-                <ShieldCheck size={9} /> Vice-captain
+              <Badge variant="muted" size="sm" className="gap-1">
+                <ShieldCheck size={10} aria-hidden /> Vice-captain
               </Badge>
             )}
-            {player.is_guest && <Badge variant="purple" size="sm">Guest</Badge>}
+            {player.is_guest && <Badge variant="muted" size="sm">Guest</Badge>}
           </div>
         </div>
       </div>
 
       {/* ── Where they stand ── */}
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <Stat n={stat.completed} label="Stood" color="var(--green)" />
-        <Stat n={stat.booked} label="Signed up" color="var(--blue)" />
-        <Stat n={target} label="Target" color="var(--muted)" />
+        <Stat n={stat.completed} label="Stood" />
+        <Stat n={stat.booked} label="Signed up" />
+        <Stat n={target} label="Target" />
       </div>
-      <Text as="p" size="2xs" weight="semibold" align="center" className="mt-2"
-        style={{ color: standing.color }}
-      >
-        {standing.label}
+      <Text as="p" size="xs" color="muted" align="center" className="mt-2">
+        {standing}
         {player.is_guest && ' · guests are not counted toward the target'}
       </Text>
 
@@ -194,15 +194,15 @@ function SheetBody({
           </Text>
         ) : (
           <>
-            <DutySection title="Coming up" tone="var(--blue)" duties={groups.comingUp} icon={<Clock size={11} />} />
+            <DutySection title="Coming up" tone="var(--blue)" duties={groups.comingUp} />
             <DutySection
               title="Played — not marked yet"
               tone="var(--orange)"
               duties={groups.unmarked}
               note={isAdmin ? 'Mark these done on the Upcoming tab so they count.' : undefined}
             />
-            <DutySection title="Stood" tone="var(--green)" duties={groups.stood} icon={<CircleCheck size={11} />} />
-            <DutySection title="Missed" tone="var(--red)" duties={groups.missed} icon={<UserX size={11} />} />
+            <DutySection title="Stood" tone="var(--green)" duties={groups.stood} />
+            <DutySection title="Missed" tone="var(--red)" duties={groups.missed} />
             <DutySection title="Handed over" tone="var(--muted)" duties={groups.handedOver} dim />
           </>
         )}
@@ -255,34 +255,31 @@ function SheetBody({
   );
 }
 
-function Stat({ n, label, color }: { n: number; label: string; color: string }) {
+function Stat({ n, label }: { n: number; label: string }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 text-center">
-      <span className="block text-[20px] font-black leading-none tabular-nums" style={{ color }}>
-        {n}
-      </span>
-      <Text as="p" size="2xs" color="muted" className="mt-0.5">{label}</Text>
+    <div className="rounded-xl bg-[var(--surface)] px-2 py-2.5 text-center">
+      <span className="block text-[22px] font-bold leading-none tabular-nums text-[var(--text)]">{n}</span>
+      <Text as="p" size="xs" color="muted" align="center" className="mt-1">{label}</Text>
     </div>
   );
 }
 
 /** Renders nothing at all when the group is empty, so the sheet stays short. */
-function DutySection({ title, tone, duties, icon, note, dim }: {
+/** Same header pattern as the Roster tab: a status dot, a plain title, a count. */
+function DutySection({ title, tone, duties, note, dim }: {
   title: string;
   tone: string;
   duties: CricketUmpiringDuty[];
-  icon?: React.ReactNode;
   note?: string | undefined;
   dim?: boolean;
 }) {
   if (duties.length === 0) return null;
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="flex items-center" style={{ color: tone }}>{icon}</span>
-        <Text size="2xs" weight="bold" uppercase tracking="wider" style={{ color: tone }}>
-          {title} ({duties.length})
-        </Text>
+      <div className="mb-1.5 flex items-center gap-2 px-1">
+        <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone }} />
+        <Text size="sm" weight="semibold">{title}</Text>
+        <Text size="sm" color="muted" className="tabular-nums">{duties.length}</Text>
       </div>
       {note && (
         <Text as="p" size="2xs" color="muted" className="mb-1.5">{note}</Text>
@@ -291,32 +288,32 @@ function DutySection({ title, tone, duties, icon, note, dim }: {
         {duties.map((d) => (
           <div
             key={d.id}
-            className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5"
+            className="rounded-xl bg-[var(--surface)] p-3"
             style={dim ? { opacity: 0.6 } : undefined}
           >
             <div className="flex items-baseline gap-2">
-              <Text size="2xs" weight="bold" className="shrink-0 tabular-nums" style={{ color: tone }}>
+              <Text size="xs" weight="semibold" className="shrink-0 tabular-nums">
                 {formatDate(d.match_date)}
               </Text>
-              <Text as="p" size="xs" weight="semibold" className="min-w-0 flex-1 truncate">
+              <Text as="p" size="sm" weight="medium" className="min-w-0 flex-1 truncate">
                 {shortTeam(d.team_a)} v {shortTeam(d.team_b)}
               </Text>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
               {d.match_time && (
-                <span className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
-                  <Clock size={9} /> {formatTime(d.match_time)}
+                <span className="flex items-center gap-1 text-[12px] text-[var(--muted)]">
+                  <Clock size={12} aria-hidden /> {formatTime(d.match_time)}
                 </span>
               )}
               {d.venue && (
-                <span className="flex min-w-0 items-center gap-1 text-[10px] text-[var(--muted)]">
-                  <MapPin size={9} className="shrink-0" />
+                <span className="flex min-w-0 items-center gap-1 text-[12px] text-[var(--muted)]">
+                  <MapPin size={12} aria-hidden className="shrink-0" />
                   <span className="truncate">{d.venue}</span>
                 </span>
               )}
-              <span className="text-[10px] text-[var(--dim)]">Umpire {d.role_slot}</span>
+              <span className="text-[12px] text-[var(--muted)]">Umpire {d.role_slot}</span>
               {d.status === 'cancelled' && d.swap_team && (
-                <span className="text-[10px] text-[var(--dim)]">
+                <span className="text-[12px] text-[var(--muted)]">
                   → {shortTeam(d.swap_team)}
                 </span>
               )}

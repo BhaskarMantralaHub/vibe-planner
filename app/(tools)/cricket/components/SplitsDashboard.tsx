@@ -611,10 +611,10 @@ export default function SplitsDashboard() {
       <SegmentedControl
         ariaLabel="Splits views"
         options={[
-          { key: 'activity', label: activityFeed.length > 0 ? `Activity · ${activityFeed.length}` : 'Activity' },
-          { key: 'balances', label: (myDebtsIOwe.length + myDebtsOwedToMe.length) > 0 ? `Balances · ${myDebtsIOwe.length + myDebtsOwedToMe.length}` : 'Balances' },
-          { key: 'settlements', label: seasonSettlements.length > 0 ? `Settled · ${seasonSettlements.length}` : 'Settled' },
-          ...(deletedSplits.length > 0 && isAdmin ? [{ key: 'deleted', label: `Deleted · ${deletedSplits.length}` }] : []),
+          { key: 'activity', label: 'Activity', count: activityFeed.length || undefined },
+          { key: 'balances', label: 'Balances', count: (myDebtsIOwe.length + myDebtsOwedToMe.length) || undefined },
+          { key: 'settlements', label: 'Settled', count: seasonSettlements.length || undefined },
+          ...(deletedSplits.length > 0 && isAdmin ? [{ key: 'deleted', label: 'Deleted', count: deletedSplits.length }] : []),
         ]}
         active={subTab}
         onChange={(key) => { setSubTab(key as SplitSubTab); setActivityPage(0); setSettlementPage(0); }}
@@ -709,7 +709,7 @@ export default function SplitsDashboard() {
                             <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
                               aria-label={`Settle ${formatCurrency(d.amount)} owed to ${d.name}`}
                               className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
-                              style={{ background: 'var(--cricket)', color: 'var(--cricket-on)', boxShadow: '0 2px 12px var(--cricket-glow)' }}>
+                              style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
                               <Handshake size={16} />
                               Settle {formatCurrency(d.amount)}
                             </button>
@@ -803,7 +803,7 @@ export default function SplitsDashboard() {
                             <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
                               aria-label={`Record ${d.name} settling ${formatCurrency(d.amount)} with you`}
                               className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
-                              style={{ background: 'var(--cricket)', color: 'var(--cricket-on)', boxShadow: '0 2px 12px var(--cricket-glow)' }}>
+                              style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
                               <Handshake size={16} />
                               Settle {formatCurrency(d.amount)}
                             </button>

@@ -10,10 +10,10 @@ function Toaster() {
     <SonnerToaster
       theme={(resolvedTheme as 'light' | 'dark') ?? 'light'}
       position="bottom-right"
-      // On phones (<600px, where sonner applies mobileOffset) toasts must
-      // clear the cricket nav pill + safe area; the tokens are :root-scoped
-      // so this is valid on non-cricket pages too (slight overshoot is fine).
-      mobileOffset={{ bottom: 'calc(var(--cricket-nav-inset) + var(--cricket-nav-height) + 12px)' }}
+      // On phones (<600px, where sonner applies mobileOffset) toasts sit just
+      // above the 56px floating + button so they never cover it. The token is
+      // :root-scoped, so this is valid on non-cricket pages too.
+      mobileOffset={{ bottom: 'calc(var(--cricket-fab-bottom) + 56px + 12px)' }}
       richColors
       duration={2000}
       toastOptions={{

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import {
   buildAssignedReminderText, buildDutyShareText, buildPlayerMessageText,
-  buildRosterSummaryText, buildThanksText, whatsappShareUrl,
+  buildRosterSummaryText, buildThanksText, buildDayThanksText, whatsappShareUrl, addressName,
 } from '@/lib/duty-share';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
@@ -597,6 +597,68 @@ describe('buildAssignedReminderText', () => {
     expect(text).not.toContain('Gudala');
   });
 
+  // Two Venkats on the team: "Hi Venkat" in the group chat points at nobody.
+  const ROSTER = ['Venkat Subbu', 'Venkat Gudala (Kittu)', 'Madhu G', 'Mani V'];
+
+  it('spells out both Venkats when they share a fixture', () => {
+    // Step 1: both slots on one match go to the two Venkats
+    const text = buildAssignedReminderText([
+      claimed({ role_slot: 1, assigned_player_name: 'Venkat Subbu', cricclubs_fixture_id: 7001 }),
+      claimed({ role_slot: 2, assigned_player_name: 'Venkat Gudala (Kittu)', cricclubs_fixture_id: 7001 }),
+    ], { today: TODAY, roster: ROSTER })!;
+    // Step 2: the greeting names each one fully — never one merged "Venkat"
+    expect(greeting(text)).toBe('Hi Venkat Subbu and Venkat Gudala');
+  });
+
+  it('spells out a Venkat even when the other one is not on duty', () => {
+    // Step 1: only one Venkat is assigned, but the other is on the team
+    const text = buildAssignedReminderText([
+      claimed({ assigned_player_name: 'Venkat Subbu' }),
+    ], { today: TODAY, roster: ROSTER })!;
+    // Step 2: still disambiguated — the other Venkat reads the group too
+    expect(greeting(text)).toBe('Hi Venkat Subbu');
+  });
+
+  it('one message for a whole day greets every umpire and lists each match', () => {
+    // Step 1: two fixtures on the same Sunday, two umpires each
+    const text = buildAssignedReminderText([
+      claimed({ assigned_player_name: 'Bhaskar Baachi', cricclubs_fixture_id: 8001, match_date: '2026-10-04', match_time: '07:30', team_a: 'MTCA Sapphires', team_b: 'MTCA Golden Eagles' }),
+      claimed({ role_slot: 2, assigned_player_name: 'Adi Jesta', cricclubs_fixture_id: 8001, match_date: '2026-10-04', match_time: '07:30', team_a: 'MTCA Sapphires', team_b: 'MTCA Golden Eagles' }),
+      claimed({ assigned_player_name: 'Venkat Subbu', cricclubs_fixture_id: 8002, match_date: '2026-10-04', match_time: '10:45', team_a: 'MTCA StanTerra Thunders', team_b: 'MTCA Sunheaven Leopards' }),
+      claimed({ role_slot: 2, assigned_player_name: 'Venkat Gudala (Kittu)', cricclubs_fixture_id: 8002, match_date: '2026-10-04', match_time: '10:45', team_a: 'MTCA StanTerra Thunders', team_b: 'MTCA Sunheaven Leopards' }),
+    ], { today: '2026-10-01', roster: [...ROSTER, 'Bhaskar Baachi', 'Adi Jesta'] })!;
+    // Step 2: everyone on that day is greeted once, in duty order
+    expect(greeting(text)).toBe('Hi Bhaskar, Adi, Venkat Subbu and Venkat Gudala');
+    // Step 3: both matches appear as their own block
+    expect(text).toContain('Sapphires v Golden Eagles');
+    expect(text).toContain('StanTerra Thunders v Sunheaven Leopards');
+    // Step 4: one day → the date is said once, in the heading, and each block
+    // leads with its time
+    expect(text.split('\n')[0]).toBe('*Umpiring reminder for Sunday, Oct 4*');
+    expect(text).toContain('7:30 AM: Sapphires v Golden Eagles');
+    expect(text).toContain('Umpires: Venkat Subbu and Venkat Gudala');
+    expect(text.match(/Sunday, Oct 4/g)).toHaveLength(1);
+  });
+
+  it('puts each date on its own line when duties span several days', () => {
+    // Step 1: one duty on each of two days
+    const text = buildAssignedReminderText([
+      claimed({ assigned_player_name: 'Madhu G', cricclubs_fixture_id: 8101, match_date: '2026-10-04' }),
+      claimed({ assigned_player_name: 'Mani V', cricclubs_fixture_id: 8102, match_date: '2026-10-11' }),
+    ], { today: '2026-10-01', roster: ROSTER })!;
+    // Step 2: generic heading, then one bold line per date
+    const lines = text.split('\n');
+    expect(lines[0]).toBe('*Umpiring coming up*');
+    expect(lines).toContain('*Sunday, Oct 4*');
+    expect(lines).toContain('*Sunday, Oct 11*');
+  });
+
+  it('keeps unique first names short', () => {
+    // Step 1/2: Madhu has no namesake, so it stays "Madhu"
+    const text = buildAssignedReminderText([claimed()], { today: TODAY, roster: ROSTER })!;
+    expect(greeting(text)).toBe('Hi Madhu');
+  });
+
   it('groups two umpires on ONE fixture into a single block', () => {
     // Two slots on one match is one commitment — printing the match twice
     // reads as two separate duties.
@@ -606,7 +668,7 @@ describe('buildAssignedReminderText', () => {
     ], { today: TODAY })!;
     const occurrences = text.split('California Super Kings v Oakwood Mavericks').length - 1;
     expect(occurrences).toBe(1);
-    expect(text.split('\n')).toContain('Umpire: Madhu and Mani');
+    expect(text.split('\n')).toContain('Umpires: Madhu and Mani');
   });
 
   it('lists each match separately across a weekend', () => {
@@ -815,4 +877,55 @@ describe('house voice', () => {
   // would fail more often for being right than for being wrong, and a test
   // people learn to edit around is worse than no test. Sentence case is stated
   // as a rule in lib/duty-share.ts and left to review.
+});
+
+describe('addressName', () => {
+  const ROSTER = ['Venkat Subbu', 'Venkat Gudala (Kittu)', 'Madhu G'];
+
+  it('uses the first name when nobody else has it', () => {
+    expect(addressName('Madhu G', ROSTER)).toBe('Madhu');
+  });
+
+  it('uses first name + surname, nickname stripped, when the first name is shared', () => {
+    expect(addressName('Venkat Gudala (Kittu)', ROSTER)).toBe('Venkat Gudala');
+    expect(addressName('Venkat Subbu', ROSTER)).toBe('Venkat Subbu');
+  });
+
+  it('is case-insensitive about the clash', () => {
+    expect(addressName('venkat subbu', ['Venkat Gudala'])).toBe('venkat subbu');
+  });
+
+  it('falls back to the first name with no roster', () => {
+    expect(addressName('Venkat Subbu')).toBe('Venkat');
+  });
+});
+
+describe('buildDayThanksText', () => {
+  const m = (names: string[], teamA: string, teamB: string, venue: string) =>
+    ({ names, date: '2026-04-26', time: '07:15', teamA, teamB, venue });
+
+  it('thanks everyone who stood across all matches that day', () => {
+    // Step 1: three fixtures on one Sunday, two umpires each
+    const text = buildDayThanksText([
+      m(['Adi', 'Sai'], 'MTCA Valley Risers', 'MTCA All-Rounders', 'Altamont Park - BaseBall'),
+      m(['Fayaz', 'Vemalababu'], 'MTCA Mumbai Indians', 'MTCA Falcons', 'Cordes Park'),
+      m(['Madhu', 'Venkat'], 'MTCA Power Stars', 'MTCA Centurions', 'Hansen School - BaseBall 1'),
+    ], { teamName: 'Sunrisers Manteca' })!;
+    // Step 2: all six are named once in the heading
+    expect(text.split('\n')[0]).toBe('*Thanks Adi, Sai, Fayaz, Vemalababu, Madhu and Venkat*');
+    // Step 3: every match is listed with its own umpires
+    expect(text).toContain('7:15 AM: Valley Risers v All-Rounders');
+    expect(text).toContain('Umpires: Fayaz and Vemalababu');
+    expect(text).toContain('7:15 AM: Power Stars v Centurions');
+  });
+
+  it('keeps the single-match wording when only one match was stood', () => {
+    // Step 1/2: one match → identical to buildThanksText
+    const one = buildDayThanksText([m(['Adi', 'Sai'], 'MTCA Valley Risers', 'MTCA All-Rounders', 'Altamont Park')]);
+    expect(one).toBe(buildThanksText(['Adi', 'Sai'], { date: '2026-04-26', teamA: 'MTCA Valley Risers', teamB: 'MTCA All-Rounders', venue: 'Altamont Park' }));
+  });
+
+  it('returns null when nobody stood', () => {
+    expect(buildDayThanksText([m([], 'A', 'B', 'C')])).toBeNull();
+  });
 });

@@ -1,12 +1,13 @@
 'use client';
 
-import { nameToGradient } from '@/lib/avatar';
 import type { CricketPlayer } from '@/types/cricket';
 
 /**
- * Player avatar: their photo when we have one, otherwise initials on the
- * deterministic per-name gradient the rest of the app uses, so the same person
- * is the same colour everywhere.
+ * Player avatar: their photo when we have one, otherwise initials on a neutral
+ * gray disc — the same treatment as the Roster, so a person looks the same on
+ * every tab. (Per-name rainbow gradients were dropped 2026-10: colour in this
+ * app is reserved for actions and status, and a wall of pink/green/purple
+ * bubbles read as decoration.)
  *
  * Shared between the umpiring roster grid and the per-player duty sheet, which
  * sit one tap apart — the same person MUST look identical across that tap or
@@ -23,7 +24,6 @@ export default function PlayerAvatar({
   size?: number;
 }) {
   const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const [from, to] = nameToGradient(name);
   return (
     <div
       className="relative shrink-0 rounded-full"
@@ -43,8 +43,8 @@ export default function PlayerAvatar({
         />
       ) : (
         <div
-          className="flex h-full w-full items-center justify-center rounded-full font-extrabold text-white"
-          style={{ fontSize: size * 0.34, background: `linear-gradient(135deg, ${from}, ${to})` }}
+          className="flex h-full w-full items-center justify-center rounded-full font-semibold text-[var(--text)]"
+          style={{ fontSize: size * 0.36, background: 'var(--fill)' }}
         >
           {initials}
         </div>

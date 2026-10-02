@@ -15,17 +15,13 @@ import type { ReactNode } from 'react';
  * Three rules this component exists to hold:
  *
  * 1. **Vertical position comes from --cricket-fab-bottom, never a local
- *    guess.** That token is derived from the nav pill's real geometry in
- *    globals.css. The old hand-computed `60px + safe + 16px` cleared the pill
- *    by 2px on an iPhone — visually touching it.
+ *    guess.** That token owns the safe-area maths in globals.css.
  *
- * 2. **z-30, deliberately below every overlay.** Dialog, Drawer and
- *    ComposerModal all sit at z-40+, so a FAB can never float on top of an
- *    open modal. It does not need to out-rank the nav (z-40) because correct
- *    geometry already keeps them apart; racing the nav on z-index would only
- *    hide the bug of them overlapping.
+ * 2. **z-30, deliberately below every overlay.** Dialog, Drawer,
+ *    ComposerModal and the menu all sit at z-40+, so a FAB can never float
+ *    on top of an open modal.
  *
- * 3. **One colour.** The cricket gradient, always — Moments used to render a
+ * 3. **One colour.** The solid brand fill, always — Moments used to render a
  *    near-black button from var(--text), which read as a different app.
  */
 interface CricketFabProps {
@@ -46,15 +42,14 @@ export default function CricketFab({ onClick, label, children }: CricketFabProps
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95"
+      className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full transition-transform active:scale-95"
       style={{
         bottom: 'var(--cricket-fab-bottom)',
-        // Solid brand fill; --cricket-on keeps the glyph readable in both
-        // themes (dark mode uses a luminous orange that needs dark ink).
+        // Solid brand fill; --cricket-on is the glyph colour on it.
         background: 'var(--cricket)',
         color: 'var(--cricket-on)',
-        boxShadow:
-          '0 8px 24px color-mix(in srgb, var(--cricket) 35%, transparent), 0 3px 8px rgba(0,0,0,0.12)',
+        // Neutral lift, not a coloured glow: the fill already says "brand".
+        boxShadow: '0 6px 18px rgba(0,0,0,0.16), 0 2px 6px rgba(0,0,0,0.10)',
       }}
     >
       {children}

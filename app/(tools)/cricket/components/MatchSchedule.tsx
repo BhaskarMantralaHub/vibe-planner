@@ -1,23 +1,21 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, Share2, ExternalLink, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, Share2, ExternalLink, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
 import CricketFab from './CricketFab';
+import { MATCH_TABS } from '../lib/match-tabs';
 import { getTeamName, getTeamCode, getTeamLogoUrl } from '../lib/constants';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { CRICKET_GLOBAL_NAV } from './cricket-global-nav';
-import CricketSectionNav from './CricketSectionNav';
 
 /* ── Types ── */
 interface Performer {
@@ -479,21 +477,19 @@ function SeasonRecord({ completed }: { completed: Match[] }) {
 /* ── Countdown Block for Hero ── */
 function CountdownBlock({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col items-center">
-      <span
-        className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums"
-        style={{ color: 'white', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
-      >
+    <div className="flex flex-col items-start">
+      <span className="text-[34px] font-semibold leading-none tabular-nums tracking-tight text-[var(--text)]">
         {value}
       </span>
-      <span className="text-[9px] font-bold uppercase tracking-[0.15em] mt-1 text-white/50">
-        {label}
-      </span>
+      <Text size="2xs" weight="medium" color="muted" className="mt-1.5">{label}</Text>
     </div>
   );
 }
 
-/* ── Next Match Hero Card (redesigned) ── */
+/* ── Next Match Hero Card ──
+   A plain card, like every other card on the page. It leads by type size —
+   the countdown is the biggest thing on screen — not by a coloured slab.
+   Blue in this app means "tap to do something", and nothing here is that. */
 function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   match: Match;
   isAdmin: boolean;
@@ -501,9 +497,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   openMenuId: string | null;
   menuBtnRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
   const { dayName, dayNum, month } = parseDateParts(match.match_date);
-  const countdown = getCountdown(match.match_date, match.match_time);
 
   // Live countdown tick
   const [, setTick] = useState(0);
@@ -515,112 +509,68 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
   const freshCountdown = getCountdown(match.match_date, match.match_time);
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden relative"
-      style={{
-        background: `linear-gradient(145deg, var(--cricket-deep) 0%, color-mix(in srgb, var(--cricket-deep) 70%, var(--cricket)) 50%, var(--cricket-deep) 100%)`,
-      }}
-    >
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-[0.07]"
-          style={{ background: 'white' }} />
-        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-[0.04]"
-          style={{ background: 'white' }} />
-        {/* Subtle cricket stump lines */}
-        <div className="absolute right-8 top-0 bottom-0 flex gap-1.5 opacity-[0.04]">
-          <div className="w-0.5 h-full bg-white" />
-          <div className="w-0.5 h-full bg-white" />
-          <div className="w-0.5 h-full bg-white" />
-        </div>
-      </div>
-
+    <div className="rounded-2xl relative" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
       {isAdmin && (
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-3 right-3 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-full cursor-pointer text-white/80 hover:text-white transition-colors z-20"
-          style={{ background: 'rgba(255,255,255,0.15)' }}
+          aria-label="Next match actions"
+          className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] active:bg-[var(--hover-bg)] transition-colors z-20"
         >
-          <EllipsisVertical size={12} />
+          <EllipsisVertical size={16} />
         </button>
       )}
 
-      <div className="relative z-10 p-4 sm:p-5 pr-10">
-        {/* Top: label + pulsing dot */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
-          </span>
-          <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-white/60">Next Match</Text>
-        </div>
+      <div className="p-4 sm:p-5">
+        <Text as="p" size="xs" weight="semibold" color="muted" className="mb-1">Next match</Text>
 
-        {/* Team names — prominent, opponent secondary + home/away */}
-        <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <Text as="h2" size="xl" weight="bold" color="white" tracking="tight" className="sm:text-[22px] leading-tight">
-              {getTeamName()}
-            </Text>
-            {match.is_home != null && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
-                style={match.is_home
-                  ? { background: 'rgba(74,222,128,0.2)', color: '#4ADE80' }
-                  : { background: 'rgba(96,165,250,0.2)', color: '#60A5FA' }
-                }>
-                {match.is_home ? 'Home' : 'Away'}
-              </span>
-            )}
-          </div>
-          <Text size="md" weight="medium" className="text-white/60 mt-0.5">
+        <div className="flex items-center gap-2 flex-wrap pr-8">
+          <Text as="h2" size="xl" weight="bold" tracking="tight" className="leading-tight">
             vs {match.opponent}
           </Text>
+          {match.is_home != null && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide"
+              style={match.is_home
+                ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--credit-text)' }
+                : { background: 'var(--fill)', color: 'var(--muted)' }}>
+              {match.is_home ? 'Home' : 'Away'}
+            </span>
+          )}
         </div>
 
         {/* Countdown — show "Date TBD" when no date */}
-        {freshCountdown.isTbd ? (
-          <div className="mb-4">
-            <span
-              className="text-[28px] sm:text-[32px] font-black leading-none"
-              style={{ color: 'white', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}
-            >
-              Date TBD
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-4 mb-4">
-            {freshCountdown.days > 0 && (
-              <>
-                <CountdownBlock label="Days" value={freshCountdown.days} />
-                <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
-              </>
-            )}
-            <CountdownBlock label="Hours" value={freshCountdown.hours} />
-            <span className="text-white/20 text-[20px] font-light mt-[-8px]">:</span>
-            <CountdownBlock label="Mins" value={freshCountdown.mins} />
-          </div>
-        )}
+        <div className="mt-4 mb-4">
+          {freshCountdown.isTbd ? (
+            <span className="text-[28px] font-semibold leading-none tracking-tight text-[var(--text)]">Date TBD</span>
+          ) : (
+            <div className="flex items-start gap-6">
+              {freshCountdown.days > 0 && <CountdownBlock label="Days" value={freshCountdown.days} />}
+              <CountdownBlock label="Hours" value={freshCountdown.hours} />
+              <CountdownBlock label="Mins" value={freshCountdown.mins} />
+            </div>
+          )}
+        </div>
 
-        {/* Date / Time / Venue */}
-        <div className="flex flex-col gap-1.5 text-[12px] text-white/70">
-          <div className="flex items-center gap-1.5">
-            <Clock size={14} className="opacity-50 flex-shrink-0" />
+        {/* Date / Time / Venue / Umpires — one grouped list under a hairline */}
+        <div className="flex flex-col gap-1.5 pt-3 text-[13px] text-[var(--muted)]" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2">
+            <Clock size={14} aria-hidden className="flex-shrink-0" />
             <span>{match.match_date ? `${dayName} ${dayNum} ${month} · ${formatMatchTime(match.match_time)}` : 'Date and time to be confirmed'}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <MapPin size={14} className="opacity-50 flex-shrink-0" />
+          <div className="flex items-start gap-2">
+            <MapPin size={14} aria-hidden className="flex-shrink-0 mt-[3px]" />
             <span>{match.venue}</span>
           </div>
           {match.umpire && (
-            <div className="flex items-center gap-1.5">
-              <UmpireIcon size={14} />
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 mt-[2px]" aria-hidden><UmpireIcon size={14} /></span>
               <span>Umpires: {match.umpire}</span>
             </div>
           )}
         </div>
 
         {match.notes && (
-          <Text size="2xs" className="mt-2 text-white/40">{match.notes}</Text>
+          <Text as="p" size="xs" color="muted" className="mt-2">{match.notes}</Text>
         )}
       </div>
     </div>
@@ -646,16 +596,16 @@ function DateBlock({ dateStr, isFirst }: { dateStr: string | null; isFirst?: boo
 
   return (
     <div className="flex flex-col items-center w-[52px] flex-shrink-0">
-      <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[9px]" style={{ color: 'var(--cricket)' }}>
+      <Text size="2xs" weight="semibold" uppercase tracking="wider" color="muted">
         {dayName}
       </Text>
       <span
-        className="text-[22px] font-black leading-none mt-0.5 tabular-nums"
+        className="text-[22px] font-bold leading-none mt-0.5 tabular-nums"
         style={{ color: 'var(--text)' }}
       >
         {dayNum}
       </span>
-      <Text size="2xs" weight="semibold" uppercase tracking="wide" color="muted" className="text-[9px] mt-0.5">
+      <Text size="2xs" weight="semibold" uppercase tracking="wide" color="muted" className="mt-0.5">
         {month}
       </Text>
     </div>
@@ -701,17 +651,23 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
             vs {match.opponent}
           </Text>
 
-          <div className="flex items-center gap-2 text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
-            <Clock size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
-            <span>{match.match_date ? formatMatchTime(match.match_time) : 'Time TBD'}</span>
-            <span style={{ color: 'var(--border)' }}>|</span>
-            <MapPin size={14} style={{ color: 'var(--dim)', flexShrink: 0 }} />
-            <span>{match.venue}</span>
+          {/* Time and venue wrap as two whole units: never "7:30 / AM", and
+              never a truncated venue — the field number at the end
+              ("BaseBall 2") is the part players need. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium" style={{ color: 'var(--muted)' }}>
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <Clock size={14} aria-hidden className="flex-shrink-0" />
+              {match.match_date ? formatMatchTime(match.match_time) : 'Time TBD'}
+            </span>
+            <span className="inline-flex items-start gap-1.5 min-w-0">
+              <MapPin size={14} aria-hidden className="flex-shrink-0 mt-[3px]" />
+              <span>{match.venue}</span>
+            </span>
           </div>
 
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             {match.is_home != null && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide"
                 style={match.is_home
                   ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }
                   // Neutral, not blue — Away is ordinary metadata, and blue
@@ -721,16 +677,16 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
                 {match.is_home ? 'Home' : 'Away'}
               </span>
             )}
-            <span className="text-[11px] font-semibold" style={{ color: 'var(--cricket)' }}>
+            <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--muted)' }}>
               {getCountdownSimple(match.match_date, match.match_time)}
             </span>
           </div>
 
           {match.umpire && (
-            <Text as="p" size="xs" color="dim" weight="medium" className="mt-1.5">Umpires: {match.umpire}</Text>
+            <Text as="p" size="xs" color="muted" className="mt-1.5">Umpires: {match.umpire}</Text>
           )}
           {match.notes && (
-            <Text as="p" size="2xs" color="dim" className="mt-1">{match.notes}</Text>
+            <Text as="p" size="2xs" color="muted" className="mt-1">{match.notes}</Text>
           )}
         </div>
       </div>
@@ -1092,10 +1048,10 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
 function MonthHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pb-2">
-      <Text size="2xs" weight="bold" uppercase tracking="wider" className="text-[10px]" style={{ color: 'var(--cricket)' }}>
+      <Text size="2xs" weight="semibold" uppercase tracking="wider" color="muted">
         {label}
       </Text>
-      <div className="flex-1 h-px" style={{ background: 'color-mix(in srgb, var(--cricket) 20%, transparent)' }} />
+      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
     </div>
   );
 }
@@ -1134,28 +1090,32 @@ export default function MatchSchedule() {
   // Populated from cricclubs_matches so completed schedule cards can link to
   // the canonical scorecard. Empty Map until the lookup query resolves.
   const [cricclubsLookup, setCricclubsLookup] = useState<Map<string, CricclubsMeta>>(new Map());
-  // Tab state is hash-driven so external links (e.g. League Stats summary
-  // tiles → `/cricket/schedule#completed`) can deep-link a specific tab.
-  // Mirrors the pattern used in app/(tools)/cricket/page.tsx.
   const router = useRouter();
+  // ?tab= is the deep link (the menu's Matches › Upcoming / Completed); the
+  // #hash is still read for older links (League Stats tiles → #completed).
+  const urlTab = useSearchParams().get('tab');
+  const linkedTab = urlTab === 'upcoming' || urlTab === 'completed' ? urlTab : null;
   const [activeTab, _setActiveTab] = useState<ScheduleTab>(() => {
+    if (linkedTab) return linkedTab;
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as ScheduleTab;
       if (['upcoming', 'completed'].includes(hash)) return hash;
     }
     return 'upcoming';
   });
+  const [seenLinkedTab, setSeenLinkedTab] = useState(linkedTab);
+  if (linkedTab !== seenLinkedTab) {
+    setSeenLinkedTab(linkedTab);
+    if (linkedTab) _setActiveTab(linkedTab);
+  }
   const setActiveTab = (tab: ScheduleTab) => {
     _setActiveTab(tab);
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#${tab}`);
+      window.history.replaceState(null, '', `?tab=${tab}`);
     }
   };
 
-  // Listen for cross-route hash changes (e.g. user is on this page and taps
-  // an "Upcoming" link in CricketSectionNav from /cricket/league-stats which
-  // routes to /cricket/schedule#upcoming). Without this, Next.js' soft-nav
-  // updates the URL but the local tab state goes stale.
+  // Legacy #hash links can still arrive by back/forward or a typed URL.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const sync = () => {
@@ -1497,30 +1457,6 @@ export default function MatchSchedule() {
     ];
   };
 
-  /**
-   * GLOBAL bottom dock — floating pill, portaled to body (workaround for iOS
-   * Safari fixed-positioning bugs inside transformed/filtered ancestors).
-   *
-   * Carries the app-wide five (Players/Finances/Matches/Umpiring/Moments) —
-   * see cricket-global-nav.ts. The Upcoming/Completed/Stats switching that
-   * used to live down here is CONTEXTUAL navigation and now renders at the
-   * top of the page content (scheduleTabs below), so the dock never changes
-   * vocabulary between sections.
-   *
-   * Declared HERE, above the early returns, and rendered by all three
-   * branches, so a loading or empty season never strands the user without
-   * navigation. That is exactly the state a brand-new season starts in.
-   */
-  const bottomNav = typeof document !== 'undefined'
-    ? createPortal(
-        <CricketSectionNav
-          items={CRICKET_GLOBAL_NAV}
-          activeKey="matches"
-          onActiveTap={() => setOpenMenu(null)}
-        />,
-        document.body,
-      )
-    : null;
 
   /* Contextual navigation — belongs to the League Schedule content, directly
      under the section header. Stats is a sibling view that lives on its own
@@ -1528,11 +1464,7 @@ export default function MatchSchedule() {
   const scheduleTabs = (
     <SegmentedControl
       ariaLabel="Schedule view"
-      options={[
-        { key: 'upcoming', label: 'Upcoming' },
-        { key: 'completed', label: 'Completed' },
-        { key: 'stats', label: 'Stats' },
-      ]}
+      options={MATCH_TABS}
       active={activeTab}
       onChange={(key) => {
         if (key === 'stats') {
@@ -1552,7 +1484,6 @@ export default function MatchSchedule() {
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--dim)] border-t-transparent" />
         </div>
-        {bottomNav}
       </>
     );
   }
@@ -1573,7 +1504,6 @@ export default function MatchSchedule() {
           onClose={() => { setShowForm(false); setEditingMatch(null); }}
           onSubmit={handleAdd}
         />
-        {bottomNav}
       </div>
     );
   }
@@ -1601,39 +1531,27 @@ export default function MatchSchedule() {
 
       {/* Upcoming: action bar + season record */}
       {activeTab === 'upcoming' && upcoming.length > 0 && (
-        <div className="flex items-center justify-between px-1 pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
           {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => addAllToCalendar(upcoming)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
-              style={{
-                background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
-                color: 'var(--cricket)',
-                border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-              }}
-            >
-              <Calendar size={13} />
-              Cal
-            </button>
-            <button
-              onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
-              style={{
-                background: 'color-mix(in srgb, var(--cricket) 12%, transparent)',
-                color: 'var(--cricket)',
-                border: '1px solid color-mix(in srgb, var(--cricket) 25%, transparent)',
-              }}
-            >
-              <Share2 size={13} />
+          {/* Page-wide actions (every upcoming match), so they sit under the
+              hero rather than inside it. Gray, not blue: the FAB is this
+              screen's one primary action. */}
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+              onClick={() => addAllToCalendar(upcoming)}>
+              <CalendarPlus size={16} aria-hidden />
+              Add to Calendar
+            </Button>
+            <Button variant="secondary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+              aria-label="Share schedule as PDF"
+              onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}>
+              <Share size={16} aria-hidden />
               Share
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Declared above the early returns so every branch shows it. */}
-      {bottomNav}
 
       {/* Tab content */}
       <div className="min-h-[200px]">

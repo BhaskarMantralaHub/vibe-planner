@@ -1,23 +1,25 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { PLAYER_ROLES, BATTING_STYLES, BOWLING_STYLES, SHIRT_SIZES } from '../lib/constants';
 import type { CricketPlayer, PlayerRole, BattingStyle, BowlingStyle } from '@/types/cricket';
-import { GiTennisBall, GiGloves } from 'react-icons/gi';
-import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badge as BadgeIcon, Copy, Check, ChevronRight, Camera, X, UserPlus, UserX, CalendarPlus, CalendarMinus } from 'lucide-react';
+import { GiTennisBall } from 'react-icons/gi';
+import { Crown, ShieldCheck, EllipsisVertical, Shirt, Pencil, Trash2, Mail, Badge as BadgeIcon, Copy, Check, ChevronRight, Camera, X, UserPlus, UserX, CalendarPlus, CalendarMinus, Users } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressPlayerImage } from '../lib/image';
 import { seasonRoster } from '../lib/season-roster';
+import { ROLE_META, colorAlpha } from '../lib/player-roles';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { EmptyState, Text, ActionSheet, Badge, ComposerModal } from '@/components/ui';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import PlayerProfile from './PlayerProfile';
 
 /* ── Sorting: logged-in user first, then alphabetical by name ── */
@@ -37,7 +39,7 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
     <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
       <DialogContent className="max-w-xs" showClose={false}>
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(248,113,113,0.1)' }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: colorAlpha('var(--red)', 12) }}>
             <Trash2 size={20} style={{ color: 'var(--red)' }} />
           </div>
           <div className="min-w-0">
@@ -58,26 +60,6 @@ function DeleteConfirm({ player, onConfirm, onCancel }: { player: CricketPlayer;
   );
 }
 
-/* ── Role config ── */
-const roleConfig: Record<string, { icon: React.ReactNode; label: string; color: string; desc: string }> = {
-  batsman: { icon: <MdSportsCricket size={15} />, label: 'Batsman', color: 'var(--cricket)', desc: 'Run scorer' },
-  bowler: { icon: <GiTennisBall size={14} />, label: 'Bowler', color: '#3B82F6', desc: 'Wicket taker' },
-  'all-rounder': { icon: <><MdSportsCricket size={14} /><GiTennisBall size={12} /></>, label: 'All-Rounder', color: 'var(--cricket-accent)', desc: 'Bat & ball' },
-  keeper: { icon: <GiGloves size={15} />, label: 'Keeper', color: '#16A34A', desc: 'Behind stumps' },
-};
-
-const JERSEY_COLORS = ['var(--cricket)', '#3B82F6', '#16A34A', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#F97316'];
-
-function getJerseyColor(jerseyNumber: number | null, index: number): string {
-  if (jerseyNumber) return JERSEY_COLORS[jerseyNumber % JERSEY_COLORS.length];
-  return JERSEY_COLORS[index % JERSEY_COLORS.length];
-}
-
-/// Mix a color with transparent at a given percentage (works with CSS variables and hex)
-function colorAlpha(color: string, pct: number): string {
-  return `color-mix(in srgb, ${color} ${pct}%, transparent)`;
-}
-
 const battingIcon = () => <MdSportsCricket size={14} />;
 const bowlingIcon = () => <GiTennisBall size={13} />;
 
@@ -95,6 +77,50 @@ async function uploadPlayerPhoto(file: File, userId: string, playerId: string): 
   const { data } = supabase.storage.from('player-photos').getPublicUrl(path);
   // Append timestamp to bust cache after re-upload
   return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+/* ── Secondary sections (Not in season / Guests / Past) ──
+   One header and one row style for all three, so they read as a single
+   quieter tier under the Squad. */
+const QUIET_ACTION = 'flex-shrink-0 min-h-11 px-3 rounded-lg text-[13px] font-semibold text-[var(--cricket)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer';
+
+function RosterSection({ title, count, open, onToggle, children }: {
+  title: string; count: number; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={id}
+        className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
+        <Text size="sm" weight="semibold" color="muted">{title} <span className="tabular-nums">({count})</span></Text>
+        <ChevronRight size={16} aria-hidden className="text-[var(--muted)] transition-transform duration-200" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />
+      </button>
+      {open && <div id={id} className="pt-1 space-y-1.5">{children}</div>}
+    </section>
+  );
+}
+
+function QuietRow({ player, caption, action, onName, initialOnly }: {
+  player: CricketPlayer; caption: string; action?: React.ReactNode; onName?: () => void; initialOnly?: boolean;
+}) {
+  const accent = ROLE_META[player.player_role ?? '']?.color ?? 'var(--cricket)';
+  const mark = !initialOnly && player.jersey_number != null ? `#${player.jersey_number}` : player.name.charAt(0).toUpperCase();
+  const nameClass = 'block max-w-full truncate text-left text-[13px] leading-[1.125rem] font-semibold text-[var(--muted)]';
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] py-1.5 pl-2.5 pr-1">
+      <div aria-hidden className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold tabular-nums text-[var(--muted)]"
+        style={{ backgroundColor: colorAlpha(accent, 10) }}>
+        {mark}
+      </div>
+      <div className="flex-1 min-w-0 py-1">
+        {onName
+          ? <button type="button" onClick={onName} className={cn(nameClass, 'cursor-pointer active:opacity-70 transition-opacity')}>{player.name}</button>
+          : <span className={nameClass}>{player.name}</span>}
+        <Text as="p" size="2xs" color="muted" truncate>{caption}</Text>
+      </div>
+      {action}
+    </div>
+  );
 }
 
 /* ── Main Component ── */
@@ -610,7 +636,7 @@ export default function PlayerManager() {
                   const allPlayers = useCricketStore.getState().players;
                   const sourcePlayer = linkedUserId ? allPlayers.find(p => p.user_id === linkedUserId) : null;
                   const photoUrl = sourcePlayer?.photo_url ?? null;
-                  const rc = roleConfig[playerRole ?? ''];
+                  const rc = ROLE_META[playerRole ?? ''];
                   const roleColor = rc?.color ?? 'var(--cricket)';
                   const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
 
@@ -634,7 +660,7 @@ export default function PlayerManager() {
                           {rc && (
                             <Badge size="sm" className="inline-flex items-center gap-1"
                               style={{ color: roleColor, background: colorAlpha(roleColor, 10) }}>
-                              {rc.icon} {rc.label}
+                              {rc.icon(14)} {rc.label}
                             </Badge>
                           )}
                         </div>
@@ -935,7 +961,7 @@ export default function PlayerManager() {
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Role *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {PLAYER_ROLES.map((r) => {
-                    const rc = roleConfig[r.key];
+                    const rc = ROLE_META[r.key];
                     const isSelected = playerRole === r.key;
                     return (
                       <button key={r.key} type="button" onClick={() => { if (!isLinkedProfile) handleRoleChange(r.key); }}
@@ -950,7 +976,7 @@ export default function PlayerManager() {
                             backgroundColor: isSelected ? 'var(--cricket)' : colorAlpha(rc?.color ?? 'var(--cricket)', 8),
                             color: isSelected ? 'var(--cricket-on)' : rc?.color,
                           }}>
-                          {rc?.icon}
+                          {rc?.icon(15)}
                         </div>
                         <div className="min-w-0">
                           <p className="text-[13px] font-bold leading-tight" style={{ color: isSelected ? 'var(--cricket)' : 'var(--text)' }}>{r.label}</p>
@@ -1072,11 +1098,11 @@ export default function PlayerManager() {
       {/* ── Player List ── */}
       {rosterPlayers.length === 0 ? (
         <EmptyState
-          icon="🏏"
+          icon={<Users size={36} strokeWidth={1.75} className="text-[var(--cricket)]" />}
           title="No players yet"
           description="Build your squad by adding team members"
           brand="cricket"
-          action={isAdmin ? { label: '+ Add Player', onClick: () => setShowPlayerForm(true) } : undefined}
+          action={isAdmin ? { label: 'Add Player', onClick: () => { resetForm(); setShowPlayerForm(true); } } : undefined}
         />
       ) : (
         // ONE continuous roster surface — rows separated by hairlines, not a
@@ -1084,13 +1110,16 @@ export default function PlayerManager() {
         // chips and metadata TEXT, not by border-color coding an outline.
         <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}>
           {rosterPlayers.map((p, idx) => {
-            const rc = roleConfig[p.player_role ?? ''];
+            const rc = ROLE_META[p.player_role ?? ''];
             // Armbands are the SELECTED SEASON's, so the Spring pill shows
             // Spring's captain even after Fall appoints a new one.
             const isCaptain = selectedRoster.designationOf(p.id) === 'captain';
             const isVC = selectedRoster.designationOf(p.id) === 'vice-captain';
             const isPlayerAdmin = p.email ? adminEmails.has(p.email.toLowerCase()) : false;
             const isSignedUp = isAdmin && !!p.email && signedUpEmails.has(p.email.toLowerCase());
+            // Only admins know who has signed up. Everyone else sees every
+            // avatar solid — not the faded "pending" treatment for the whole team.
+            const isPending = isAdmin && !isSignedUp;
             const isSelf = !isAdmin && p.id === myPlayer?.id;
 
             const isExpanded = expandedPlayer === p.id;
@@ -1106,9 +1135,11 @@ export default function PlayerManager() {
                   borderTop: idx > 0 ? '1px solid color-mix(in srgb, var(--border) 55%, transparent)' : 'none',
                   background: isExpanded ? 'var(--surface)' : 'transparent',
                 }}>
-                {/* Clickable header area */}
+                {/* Whole row toggles details on tap; the chevron below is the
+                    same toggle as a real button for VoiceOver. */}
                 <div
-                  className="relative px-3 py-3 sm:px-4 cursor-pointer transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]"
+                  data-roster-row
+                  className={cn('relative px-3 py-3 sm:px-4 transition-colors', hasDetails && 'cursor-pointer active:bg-[var(--hover-bg)]')}
                   onClick={() => hasDetails && setExpandedPlayer(isExpanded ? null : p.id)}
                 >
                   {/* Three-dot menu trigger (admin only) — opens the shared
@@ -1121,9 +1152,9 @@ export default function PlayerManager() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenMenu(p.id); }}
                         aria-label={`Actions for ${p.name}`}
-                        className="absolute top-1/2 -translate-y-1/2 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--dim)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-10"
+                        className="absolute top-1/2 -translate-y-1/2 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] active:bg-[var(--hover-bg)] active:text-[var(--text)] transition-colors z-10"
                       >
-                        <EllipsisVertical size={14} />
+                        <EllipsisVertical size={16} />
                       </button>
 
                       <ActionSheet
@@ -1178,38 +1209,46 @@ export default function PlayerManager() {
                   )}
 
                   <div className="flex items-center gap-3 pr-10">
-                    {/* Jersey badge or photo */}
+                    {/* Jersey number or photo. Admins also see sign-up status:
+                        a dashed ring + green/grey dot. */}
                     <div className="relative flex-shrink-0">
                       {p.photo_url ? (
                         <>
-                          <img
-                            src={p.photo_url}
-                            alt={p.name}
-                            className="h-12 w-12 sm:h-13 sm:w-13 rounded-full object-cover transition-all duration-300 cursor-pointer"
-                            style={{
-                              border: `2.5px solid ${colorAlpha(roleColor, isSignedUp ? 30 : 20)}`,
-                              boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 6)}` : 'none',
-                            }}
+                          <button
+                            type="button"
+                            aria-label={`View photo of ${p.name}`}
+                            className="block rounded-full cursor-pointer"
                             onClick={(e) => { e.stopPropagation(); setLightboxPhoto({ name: p.name, url: p.photo_url! }); }}
-                          />
-                          {p.jersey_number && (
+                          >
+                            <img
+                              src={p.photo_url}
+                              alt=""
+                              className="h-12 w-12 rounded-full object-cover transition-shadow duration-300"
+                              style={{
+                                border: `2.5px solid ${colorAlpha(roleColor, isPending ? 20 : 30)}`,
+                                boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 10)}` : 'none',
+                              }}
+                            />
+                          </button>
+                          {p.jersey_number != null && (
                             <span
-                              className="absolute -bottom-1 -left-1 flex items-center justify-center rounded-full text-[9px] font-bold text-white"
-                              style={{ width: 22, height: 22, background: roleColor, border: '2px solid var(--card)' }}
+                              aria-hidden
+                              className="pointer-events-none absolute -bottom-1 -left-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-[11px] font-bold tabular-nums text-[var(--card)]"
+                              style={{ background: 'var(--text)', border: '2px solid var(--card)' }}
                             >
-                              #{p.jersey_number}
+                              {p.jersey_number}
                             </span>
                           )}
                         </>
                       ) : (
-                        <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full font-extrabold text-[14px] sm:text-[15px] transition-all duration-300"
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full font-extrabold text-[14px] tabular-nums transition-shadow duration-300"
                           style={{
-                            backgroundColor: colorAlpha(roleColor, isSignedUp ? 10 : 5),
-                            color: isSignedUp ? roleColor : colorAlpha(roleColor, 55),
-                            border: `2.5px ${isSignedUp ? 'solid' : 'dashed'} ${colorAlpha(roleColor, isSignedUp ? 30 : 20)}`,
-                            boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 6)}` : 'none',
+                            backgroundColor: colorAlpha(roleColor, isPending ? 5 : 10),
+                            color: isPending ? 'var(--muted)' : 'var(--text)',
+                            border: `2.5px ${isPending ? 'dashed' : 'solid'} ${colorAlpha(roleColor, isPending ? 25 : 30)}`,
+                            boxShadow: isExpanded ? `0 0 0 3px ${colorAlpha(roleColor, 10)}` : 'none',
                           }}>
-                          {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
+                          {p.jersey_number != null ? `#${p.jersey_number}` : p.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       {/* No ping on the signed-up dot: a roster of continuously
@@ -1219,51 +1258,59 @@ export default function PlayerManager() {
                         <span
                           className="absolute -bottom-0.5 -right-0.5 block h-3 w-3 rounded-full border-2 border-[var(--card)]"
                           style={{ background: isSignedUp ? 'var(--green)' : 'var(--dim)' }}
-                          title={isSignedUp ? 'Signed up' : 'Not yet signed up'}
-                        />
+                        >
+                          <span className="sr-only">{isSignedUp ? 'Signed up' : 'Not signed up yet'}</span>
+                        </span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <Text
-                          size="md" weight="bold" truncate
-                          className="text-[15px] sm:text-[16px] hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
+                        {/* Name opens the profile; the rest of the row expands. */}
+                        <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); setProfilePlayer(p); }}
-                        >{p.name}</Text>
+                          className="min-w-0 truncate text-left text-[15px] leading-[1.25rem] font-bold text-[var(--text)] cursor-pointer active:opacity-70 transition-opacity"
+                        >
+                          {p.name}
+                        </button>
                         {isCaptain && (
-                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--cricket-accent)', background: 'color-mix(in srgb, var(--cricket-accent) 7%, transparent)' }}>
-                            <Crown size={8} /> C
+                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-none font-bold"
+                            style={{ color: 'var(--text)', background: 'var(--fill)' }}>
+                            <Crown size={11} aria-hidden /><span aria-hidden>C</span>
+                            <span className="sr-only">Captain</span>
                           </span>
                         )}
                         {isVC && (
-                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider" style={{ color: '#6B7280', background: '#6B728012' }}>
-                            <ShieldCheck size={8} /> VC
+                          <span className="flex-shrink-0 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] leading-none font-bold"
+                            style={{ color: 'var(--muted)', background: 'var(--fill)' }}>
+                            <ShieldCheck size={11} aria-hidden /><span aria-hidden>VC</span>
+                            <span className="sr-only">Vice-captain</span>
                           </span>
                         )}
                       </div>
-                      {/* ONE quiet metadata line — role (its color, no pill),
-                          then handedness and admin as muted text. The old
-                          role PILL competed with the player's name. */}
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {rc && (
-                          <span className="text-[12px] font-medium" style={{ color: roleColor }}>
-                            {rc.label}
-                          </span>
-                        )}
-                        {p.batting_style && (
-                          <span className="text-[12px] text-[var(--muted)]">· {p.batting_style === 'right' ? 'Right' : 'Left'} Hand</span>
-                        )}
-                        {isPlayerAdmin && (
-                          <span className="text-[12px] text-[var(--muted)]">· Admin</span>
-                        )}
-                        {/* Chevron — tertiary "this row expands" hint; dim so
-                            it never competes with the ⋮ beside it. */}
+                      {/* ONE quiet metadata line — role in its colour, then
+                          handedness and admin as muted text. */}
+                      <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                        <Text size="xs" color="muted" truncate className="min-w-0">
+                          {rc && <span className="font-medium" style={{ color: roleColor }}>{rc.label}</span>}
+                          {p.batting_style && <>{rc ? ' · ' : ''}{p.batting_style === 'right' ? 'Right' : 'Left'} Hand</>}
+                          {isPlayerAdmin && <>{rc || p.batting_style ? ' · ' : ''}Admin</>}
+                        </Text>
                         {hasDetails && (
-                          <ChevronRight
-                            size={15}
-                            className="flex-shrink-0 text-[var(--dim)] transition-transform duration-300 ml-auto"
-                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                          />
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-controls={`roster-details-${p.id}`}
+                            aria-label={`${isExpanded ? 'Hide' : 'Show'} details for ${p.name}`}
+                            onClick={(e) => { e.stopPropagation(); setExpandedPlayer(isExpanded ? null : p.id); }}
+                            className="ml-auto -my-3 flex h-11 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[var(--dim)] cursor-pointer"
+                          >
+                            <ChevronRight
+                              size={15}
+                              className="transition-transform duration-300"
+                              style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                            />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1271,12 +1318,17 @@ export default function PlayerManager() {
                 </div>
 
                 {/* ── Expanded Details ── */}
+                {/* grid-rows 0fr→1fr animates to the content's real height,
+                    so nothing is clipped by a guessed max-height. `inert`
+                    keeps the hidden copy buttons out of VoiceOver's swipe
+                    order while collapsed. */}
                 <div
-                  className="overflow-hidden transition-all duration-300 ease-out"
-                  // 480px, not 300 — email + cricclub + three skill chips can
-                  // exceed 300px on a narrow screen and silently clipped.
-                  style={{ maxHeight: isExpanded ? '480px' : '0px', opacity: isExpanded ? 1 : 0 }}
+                  id={`roster-details-${p.id}`}
+                  inert={!isExpanded}
+                  className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+                  style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr', opacity: isExpanded ? 1 : 0 }}
                 >
+                  <div className="min-h-0 overflow-hidden">
                   <div className="px-3 sm:px-4 pb-3.5">
                     {/* Divider with role-colored accent */}
                     <div className="relative h-px mb-3">
@@ -1320,7 +1372,8 @@ export default function PlayerManager() {
                         {p.email && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCopy(p.email!, `email-${p.id}`); }}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
+                            aria-label={`Copy email ${p.email}`}
+                            className="pressable-selection w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer"
                             style={{
                               background: copiedField === `email-${p.id}`
                                 ? 'color-mix(in srgb, var(--green) 10%, transparent)'
@@ -1332,13 +1385,13 @@ export default function PlayerManager() {
                               <Mail size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
-                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Email</span>
+                              <Text size="2xs" weight="semibold" color="muted" uppercase className="block">Email</Text>
                               <span className="block text-[13px] font-medium text-[var(--text)] truncate">{p.email}</span>
                             </div>
-                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center">
                               {copiedField === `email-${p.id}`
-                                ? <Check size={16} style={{ color: 'var(--green)' }} />
-                                : <Copy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                                ? <Check size={16} className="animate-tactile-check" style={{ color: 'var(--green)' }} />
+                                : <Copy size={15} className="text-[var(--muted)]" />
                               }
                             </div>
                           </button>
@@ -1346,7 +1399,8 @@ export default function PlayerManager() {
                         {p.cricclub_id && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCopy(p.cricclub_id!, `cc-${p.id}`); }}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all group active:scale-[0.98]"
+                            aria-label={`Copy CricClub ID ${p.cricclub_id}`}
+                            className="pressable-selection w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer"
                             style={{
                               background: copiedField === `cc-${p.id}`
                                 ? 'color-mix(in srgb, var(--green) 10%, transparent)'
@@ -1358,19 +1412,20 @@ export default function PlayerManager() {
                               <BadgeIcon size={16} style={{ color: roleColor }} />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
-                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">CricClub ID</span>
+                              <Text size="2xs" weight="semibold" color="muted" uppercase className="block">CricClub ID</Text>
                               <span className="block text-[13px] font-semibold text-[var(--text)] tracking-wide">{p.cricclub_id}</span>
                             </div>
-                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-[var(--hover-bg)]">
+                            <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center">
                               {copiedField === `cc-${p.id}`
-                                ? <Check size={16} style={{ color: 'var(--green)' }} />
-                                : <Copy size={15} className="text-[var(--muted)] group-hover:text-[var(--text)] transition-colors" />
+                                ? <Check size={16} className="animate-tactile-check" style={{ color: 'var(--green)' }} />
+                                : <Copy size={15} className="text-[var(--muted)]" />
                               }
                             </div>
                           </button>
                         )}
                       </div>
                     )}
+                  </div>
                   </div>
                 </div>
               </div>
@@ -1384,125 +1439,65 @@ export default function PlayerManager() {
           sitting this season out, so they leave the Squad list instead of
           padding its counts. Never rendered in fallback mode. */}
       {offSeasonPlayers.length > 0 && seasonLabel && (
-        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
-          <button onClick={() => setShowOffSeason(!showOffSeason)}
-            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
-            <Text size="sm" weight="semibold" color="muted">Not in {seasonLabel} ({offSeasonPlayers.length})</Text>
-            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showOffSeason ? 'rotate(90deg)' : 'none' }} />
-          </button>
-          {showOffSeason && (
-            <div className="pt-1 space-y-1.5">
-              {offSeasonPlayers.map((p) => {
-                const rc = roleConfig[p.player_role ?? ''];
-                return (
-                  <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5">
-                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 8), color: colorAlpha(rc?.color ?? 'var(--cricket)', 45) }}>
-                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <Text as="p" size="sm" weight="semibold" color="muted" truncate>{p.name}</Text>
-                      <Text as="p" size="2xs" color="dim">Sitting out this season</Text>
-                    </div>
-                    {isAdmin && (
-                      <button
-                        onClick={() => toggleSeasonMembership(p)}
-                        aria-label={`Add ${p.name} to ${seasonLabel}`}
-                        className="flex-shrink-0 min-h-11 px-3 rounded-lg text-[13px] font-semibold text-[var(--cricket)] hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-                      >
-                        Add back
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <RosterSection title={`Not in ${seasonLabel}`} count={offSeasonPlayers.length} open={showOffSeason} onToggle={() => setShowOffSeason(!showOffSeason)}>
+          {offSeasonPlayers.map((p) => (
+            <QuietRow key={p.id} player={p} caption="Sitting out this season"
+              action={isAdmin && (
+                <button type="button" onClick={() => toggleSeasonMembership(p)}
+                  aria-label={`Add ${p.name} to ${seasonLabel}`} className={QUIET_ACTION}>
+                  Add back
+                </button>
+              )}
+            />
+          ))}
+        </RosterSection>
       )}
 
-      {/* Guest Players (Net Players — from practice matches) — a collapsible
-          SECTION under a hairline, not another bordered box. */}
+      {/* Guest players (net players from practice matches). */}
       {isAdmin && guestPlayers.length > 0 && (
-        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
-          <button onClick={() => setShowGuests(!showGuests)}
-            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
-            <Text size="sm" weight="semibold" color="muted">Guest Players ({guestPlayers.length})</Text>
-            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showGuests ? 'rotate(90deg)' : 'none' }} />
-          </button>
-          {showGuests && (
-            <div className="pt-1 space-y-1.5">
-              {guestPlayers.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5 relative">
-                  <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                    style={{ backgroundColor: 'color-mix(in srgb, var(--cricket) 8%, transparent)', color: 'color-mix(in srgb, var(--cricket) 55%, transparent)' }}>
-                    {p.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <Text as="p" size="sm" weight="semibold" color="muted" truncate>{p.name}</Text>
-                    <Text as="p" size="2xs" color="dim">Guest player</Text>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setOpenGuestMenu(p.id); }}
-                    aria-label={`Actions for ${p.name}`}
-                    className="flex-shrink-0 h-11 w-11 -my-1 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
-                  >
-                    <EllipsisVertical size={15} />
-                  </button>
-                  <ActionSheet
-                    open={openGuestMenu === p.id}
-                    onOpenChange={(o) => setOpenGuestMenu(o ? p.id : null)}
-                    title={`Actions for ${p.name}`}
-                    items={[
-                      { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: () => handleEdit(p) },
-                      { label: 'Add to Squad', icon: <UserPlus size={17} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
-                      { label: 'Delete', icon: <Trash2 size={17} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
-                    ]}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <RosterSection title="Guest Players" count={guestPlayers.length} open={showGuests} onToggle={() => setShowGuests(!showGuests)}>
+          {guestPlayers.map((p) => (
+            <QuietRow key={p.id} player={p} caption="Guest player" initialOnly
+              action={<>
+                <button type="button"
+                  onClick={() => setOpenGuestMenu(p.id)}
+                  aria-label={`Actions for ${p.name}`}
+                  className="flex-shrink-0 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] active:bg-[var(--hover-bg)] active:text-[var(--text)] transition-colors"
+                >
+                  <EllipsisVertical size={16} />
+                </button>
+                <ActionSheet
+                  open={openGuestMenu === p.id}
+                  onOpenChange={(o) => setOpenGuestMenu(o ? p.id : null)}
+                  title={`Actions for ${p.name}`}
+                  items={[
+                    { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
+                    { label: 'Add to Squad', icon: <UserPlus size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },
+                    { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingGuest(p), dividerBefore: true },
+                  ]}
+                />
+              </>}
+            />
+          ))}
+        </RosterSection>
       )}
 
-      {/* Past Players — collapsible section under a hairline */}
+      {/* Past players — deactivated; one tap restores them. */}
       {isAdmin && removedPlayers.length > 0 && (
-        <div className="mt-4 pt-1" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }}>
-          <button onClick={() => setShowRemoved(!showRemoved)}
-            className="w-full flex min-h-11 items-center justify-between py-2 cursor-pointer hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] rounded-lg px-1 transition-colors">
-            <Text size="sm" weight="semibold" color="muted">Past Players ({removedPlayers.length})</Text>
-            <ChevronRight size={16} className="text-[var(--muted)] transition-transform duration-200" style={{ transform: showRemoved ? 'rotate(90deg)' : 'none' }} />
-          </button>
-          {showRemoved && (
-            <div className="pt-1 space-y-1.5">
-              {removedPlayers.map((p) => {
-                const rc = roleConfig[p.player_role ?? ''];
-                return (
-                  <div key={p.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface)] p-2.5">
-                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold"
-                      style={{ backgroundColor: colorAlpha(rc?.color ?? 'var(--cricket)', 8), color: colorAlpha(rc?.color ?? 'var(--cricket)', 45) }}>
-                      {p.jersey_number ? `#${p.jersey_number}` : p.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <Text as="p" size="sm" weight="semibold" color="muted" truncate
-                        className="hover:underline decoration-[var(--cricket)]/40 underline-offset-2 cursor-pointer"
-                        onClick={() => setProfilePlayer(p)}>{p.name}</Text>
-                      {rc && (
-                        <span className="text-[10px] text-[var(--dim)]">{rc.label}</span>
-                      )}
-                    </div>
-                    <button onClick={() => restorePlayer(p.id)}
-                      className="flex-shrink-0 min-h-9 rounded-lg px-3.5 py-2 text-[12px] font-semibold cursor-pointer active:scale-95 transition-all"
-                      style={{ background: 'color-mix(in srgb, var(--green) 10%, transparent)', color: 'var(--green)' }}>
-                      Restore
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <RosterSection title="Past Players" count={removedPlayers.length} open={showRemoved} onToggle={() => setShowRemoved(!showRemoved)}>
+          {removedPlayers.map((p) => (
+            <QuietRow key={p.id} player={p}
+              caption={ROLE_META[p.player_role ?? '']?.label ?? 'Former player'}
+              onName={() => setProfilePlayer(p)}
+              action={
+                <button type="button" onClick={() => restorePlayer(p.id)}
+                  aria-label={`Restore ${p.name}`} className={QUIET_ACTION}>
+                  Restore
+                </button>
+              }
+            />
+          ))}
+        </RosterSection>
       )}
 
       {/* Promote Guest confirmation dialog */}
@@ -1649,7 +1644,7 @@ export default function PlayerManager() {
               return (
                 <>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.15)' }}>
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colorAlpha('var(--red)', 12) }}>
                       <UserX size={20} style={{ color: 'var(--red)' }} />
                     </div>
                     <div>
@@ -1737,12 +1732,14 @@ export default function PlayerManager() {
         </Dialog>
       )}
 
-      {/* Admin access modal */}
       {/* Photo lightbox */}
       {lightboxPhoto && createPortal(
         <div
           className="fixed inset-0 z-50 flex flex-col items-center justify-center animate-fade-in"
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo of ${lightboxPhoto.name}`}
           onClick={() => setLightboxPhoto(null)}
         >
           <button
@@ -1764,6 +1761,7 @@ export default function PlayerManager() {
         document.body,
       )}
 
+      {/* Admin access modal */}
       {adminModal && (
         <Dialog open onOpenChange={(o) => { if (!o) setAdminModal(null); }}>
           <DialogContent className="max-w-sm" showClose={false}>
@@ -1774,8 +1772,8 @@ export default function PlayerManager() {
                 <Crown size={18} style={{ color: 'var(--cricket)' }} />
               </div>
               <div>
-                <p className="text-[15px] font-semibold text-[var(--text)]">Admin Access</p>
-                <p className="text-[13px] text-[var(--muted)]">{adminModal.player.name}</p>
+                <DialogTitle className="text-[15px]">Admin Access</DialogTitle>
+                <Text as="p" size="sm" color="muted">{adminModal.player.name}</Text>
               </div>
             </div>
 
@@ -1787,20 +1785,20 @@ export default function PlayerManager() {
 
             {adminModal.status === 'no-email' && (
               <div className="rounded-xl bg-[var(--cricket)]/10 border border-[var(--cricket)]/20 p-3 mb-4">
-                <p className="text-[13px] text-[var(--text)]">This player doesn&apos;t have an email address. Add their email first to link them to an account.</p>
+                <Text as="p" size="sm">This player doesn&apos;t have an email address. Add their email first to link them to an account.</Text>
               </div>
             )}
 
             {adminModal.status === 'no-account' && (
               <div className="rounded-xl bg-[var(--cricket)]/10 border border-[var(--cricket)]/20 p-3 mb-4">
-                <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.email}</b> is not registered with the cricket tool. Ask them to sign up first at <b>/cricket</b>.</p>
+                <Text as="p" size="sm"><b>{adminModal.player.email}</b> is not registered with the cricket tool. Ask them to sign up first at <b>/cricket</b>.</Text>
               </div>
             )}
 
             {adminModal.status === 'has-admin' && (
               <>
                 <Alert variant="success" className="mb-4">
-                  <p className="text-[13px] text-[var(--text)]"><b>{adminModal.player.name}</b> already has admin access.</p>
+                  <Text as="p" size="sm"><b>{adminModal.player.name}</b> already has admin access.</Text>
                 </Alert>
                 <div className="flex gap-2 justify-end">
                   <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">
@@ -1816,7 +1814,7 @@ export default function PlayerManager() {
             {adminModal.status === 'can-grant' && (
               <>
                 <Alert variant="info" className="mb-4">
-                  <p className="text-[13px] text-[var(--text)]">Grant admin access to <b>{adminModal.player.name}</b>? They will be able to manage players, expenses, and seasons.</p>
+                  <Text as="p" size="sm">Grant admin access to <b>{adminModal.player.name}</b>? They will be able to manage players, expenses, and seasons.</Text>
                 </Alert>
                 <div className="flex gap-2 justify-end">
                   <Button onClick={() => setAdminModal(null)} variant="secondary" brand="cricket" size="md">

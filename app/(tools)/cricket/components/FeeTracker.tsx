@@ -430,7 +430,6 @@ export default function FeeTracker() {
             style={{
               background: 'var(--cricket)',
               color: 'var(--cricket-on)',
-              boxShadow: '0 2px 10px var(--cricket-glow)',
             }}
           >
             <Send size={15} /> Post a fees reminder to the group
@@ -894,7 +893,6 @@ export function FeeRow({
             style={{
               background: 'var(--cricket)',
               color: 'var(--cricket-on)',
-              boxShadow: '0 1px 6px var(--cricket-glow)',
             }}
           >
             Mark paid

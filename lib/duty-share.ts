@@ -218,10 +218,32 @@ function firstName(full: string): string {
   return full.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/)[0] ?? full;
 }
 
+/**
+ * How to address someone in a message the whole group reads.
+ *
+ * The first name — unless anyone ELSE on the team shares it, then first name +
+ * surname ("Venkat Subbu", "Venkat Gudala"). "Hi Venkat" in a group with two
+ * Venkats points at nobody, and the one who isn't on duty may think he is.
+ *
+ * The clash is counted over the whole `roster`, never just the people in this
+ * message — the same lesson as player-labels.ts: one Venkat on duty is still
+ * ambiguous when the other is reading. Nicknames are stripped, not used, so a
+ * reminder never depends on knowing who "Kittu" is.
+ */
+export function addressName(full: string, roster: readonly string[] = []): string {
+  const base = full.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim() || full;
+  const first = firstName(full).toLowerCase();
+  const clash = roster.some((other) => other.trim() !== full.trim() && firstName(other).toLowerCase() === first);
+  return clash ? base : firstName(full);
+}
+
 export interface AssignedReminderOptions {
   /** Today in Pacific, YYYY-MM-DD. Duties before this are excluded. */
   today: string;
   teamName?: string;
+  /** Every active player's full name, so shared first names are spelled out.
+   *  See `addressName`. */
+  roster?: readonly string[];
 }
 
 /**
@@ -243,7 +265,8 @@ export function buildAssignedReminderText(
   duties: CricketUmpiringDuty[],
   opts: AssignedReminderOptions,
 ): string | null {
-  const { today, teamName = 'Sunrisers' } = opts;
+  const { today, teamName = 'Sunrisers', roster = [] } = opts;
+  const nameOf = (full: string) => addressName(full, roster);
 
   const upcoming = duties
     .filter((d) => d.deleted_at === null)
@@ -273,37 +296,49 @@ export function buildAssignedReminderText(
   // Everyone named once, in the order their duty falls.
   const everyone: string[] = [];
   for (const d of upcoming) {
-    const n = firstName(d.assigned_player_name!);
+    const n = nameOf(d.assigned_player_name!);
     if (!everyone.includes(n)) everyone.push(n);
   }
 
-  const single = matches.size === 1;
+  // Grouped by DATE, then match. The date is said ONCE — in the heading when
+  // every duty is on one day, else as a line above that day's matches.
+  // Repeating "Sunday, Oct 4" on every match made one morning read as two
+  // separate days.
+  const byDate = new Map<string, CricketUmpiringDuty[][]>();
+  for (const slots of matches.values()) {
+    const d = slots[0]!.match_date;
+    byDate.set(d, [...(byDate.get(d) ?? []), slots]);
+  }
+  const oneDay = byDate.size === 1;
+  const onlyDate = upcoming[0]!.match_date;
+
   const lines: string[] = [
-    single ? '*Umpiring reminder*' : '*Umpiring coming up*',
+    oneDay
+      ? `*Umpiring reminder for ${formatDateHeading(onlyDate)}*`
+      : '*Umpiring coming up*',
     '',
     `Hi ${joinNames(everyone)}`,
   ];
 
-  for (const slots of matches.values()) {
-    const head = slots[0]!;
-    const who = joinNames(
-      slots.map((d) => firstName(d.assigned_player_name!))
-        .filter((n, i, all) => all.indexOf(n) === i),
-    );
-    lines.push('');
-    lines.push(`*${formatDateHeading(head.match_date)}, ${formatTime(head.match_time)}*`);
-    lines.push(`${shortTeam(head.team_a)} v ${shortTeam(head.team_b)}`);
-    if (head.venue) lines.push(`At ${head.venue}`);
-    // Repeated per match even when there is only one, so a weekend with two
-    // fixtures never leaves anyone guessing which one is theirs. "Umpire:"
-    // rather than a cap emoji — the label says what the name means, which the
-    // picture only implied.
-    lines.push(`Umpire: ${who}`);
+  for (const [date, dayMatches] of byDate) {
+    if (!oneDay) lines.push('', `*${formatDateHeading(date)}*`);
+    for (const slots of dayMatches) {
+      const head = slots[0]!;
+      const names = slots.map((d) => nameOf(d.assigned_player_name!))
+        .filter((n, i, all) => all.indexOf(n) === i);
+      lines.push('');
+      // Time leads each block, so a reader finds their match by when it is.
+      lines.push(`${formatTime(head.match_time)}: ${shortTeam(head.team_a)} v ${shortTeam(head.team_b)}`);
+      if (head.venue) lines.push(`At ${head.venue}`);
+      // Repeated per match, so a day with two fixtures never leaves anyone
+      // guessing which one is theirs. Plural when two people share it.
+      lines.push(`${names.length > 1 ? 'Umpires' : 'Umpire'}: ${joinNames(names)}`);
+    }
   }
 
   lines.push(
     '',
-    'Please try to get there a few minutes early. Thanks for standing.',
+    'Please get there a few minutes early. Thanks for standing.',
     '',
     teamName,
   );
@@ -361,6 +396,61 @@ export function buildThanksText(
     opts.teamName ?? 'Sunrisers',
   );
 
+  return lines.join('\n');
+}
+
+export interface ThanksMatch {
+  /** Who stood on THIS match, already shortened by the caller (addressName). */
+  names: string[];
+  date: string;
+  time?: string | null;
+  teamA: string;
+  teamB: string;
+  venue?: string | null;
+}
+
+/**
+ * One thank-you for a whole DAY of umpiring — MTCA regularly gives us three
+ * fixtures on one Sunday, and thanking only the match whose menu you opened
+ * left four of six people out. A single match falls through to
+ * `buildThanksText`, so its wording does not change.
+ *
+ * Names everyone once in the heading, then each match as its own block led by
+ * its time, the same shape as the reminder.
+ */
+export function buildDayThanksText(
+  matches: ThanksMatch[],
+  opts: { teamName?: string } = {},
+): string | null {
+  const withNames = matches
+    .map((m) => ({ ...m, names: m.names.map((n) => n.trim()).filter(Boolean) }))
+    .filter((m) => m.names.length > 0);
+  if (withNames.length === 0) return null;
+  if (withNames.length === 1) {
+    const m = withNames[0]!;
+    return buildThanksText(m.names, { date: m.date, teamA: m.teamA, teamB: m.teamB, venue: m.venue }, opts);
+  }
+
+  const everyone = withNames.flatMap((m) => m.names).filter((n, i, all) => all.indexOf(n) === i);
+  const lines = [
+    `*Thanks ${joinNames(everyone)}*`,
+    '',
+    `You all stood as umpires for us on ${formatDateHeading(withNames[0]!.date)}.`,
+  ];
+  for (const m of withNames) {
+    lines.push('');
+    lines.push(`${m.time ? `${formatTime(m.time)}: ` : ''}${shortTeam(m.teamA)} v ${shortTeam(m.teamB)}`);
+    if (m.venue) lines.push(`At ${m.venue}`);
+    lines.push(`${m.names.length > 1 ? 'Umpires' : 'Umpire'}: ${joinNames(m.names)}`);
+  }
+  lines.push(
+    '',
+    // Same framing as the single-match thank-you: a shared responsibility,
+    // never a favour, and nothing implying the team was playing.
+    'Covering our umpiring duty is a responsibility we all share. Thanks for taking it on.',
+    '',
+    opts.teamName ?? 'Sunrisers',
+  );
   return lines.join('\n');
 }
 

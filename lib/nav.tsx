@@ -10,12 +10,16 @@ export type Tool = {
   description: string;
   roles?: string[];
   feature?: string;
-  /** Presentation-only grouping for the hamburger drawer — the drawer is the
-   *  GLOBAL toolkit (the bottom dock stays primary navigation), so it reads
-   *  as sections, not one long list. No routing/permission meaning.
+  /** Presentation-only grouping (no routing/permission meaning).
    *  team = roster + competition info · team-management = financial/team
    *  admin · game-day = match-day tools · management = system administration. */
   group: 'personal' | 'team' | 'team-management' | 'game-day' | 'management';
+  /** One of the five main sections. The menu lists these first, large — it
+   *  is the app's ONLY navigation since the bottom bar was removed (2026-10). */
+  primary?: true;
+  /** Pages inside this section. When present the menu row EXPANDS to show
+   *  them instead of navigating — the section's own page is the first child. */
+  children?: { name: string; href: string }[];
 };
 
 export const tools: Tool[] = [
@@ -77,6 +81,7 @@ export const tools: Tool[] = [
     href: '/cricket?view=players',
     icon: <Users size={22} />,
     description: 'Players, roles & team details.',
+    primary: true,
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
@@ -93,6 +98,13 @@ export const tools: Tool[] = [
     // splits, sponsors) — a receipt reads as expense tracking only.
     icon: <Wallet size={22} />,
     description: 'Expenses, dues, splits & sponsors.',
+    primary: true,
+    children: [
+      { name: 'Expenses', href: '/cricket?view=expenses' },
+      { name: 'Fees', href: '/cricket?view=fees' },
+      { name: 'Splits', href: '/cricket?view=splits' },
+      { name: 'Sponsors', href: '/cricket?view=sponsors' },
+    ],
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
@@ -115,15 +127,21 @@ export const tools: Tool[] = [
   //   roles: ['cricket', 'admin'],
   //   feature: 'cricket',
   // },
-  // League Schedule + League Stats sit adjacently — the council's
-  // compromise: keep separate routes (avoids MatchSchedule's bottom-tab-bar
-  // collision) but group them visually so users see them as one league hub.
+  // Matches + League Stats sit adjacently so they read as one league hub.
   {
-    name: 'League Schedule',
+    // "Matches" — the page's own title, and the word the team uses.
+    name: 'Matches',
     group: 'team',
     href: '/cricket/schedule',
     icon: <CalendarRange size={22} />,
-    description: 'Upcoming matches & fixtures.',
+    description: 'Fixtures, results & stats.',
+    primary: true,
+    // ?tab=, not #hash, for the same reason as the dashboard's ?view= above.
+    children: [
+      { name: 'Upcoming', href: '/cricket/schedule?tab=upcoming' },
+      { name: 'Completed', href: '/cricket/schedule?tab=completed' },
+      { name: 'Stats', href: '/cricket/league-stats' },
+    ],
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
@@ -142,6 +160,12 @@ export const tools: Tool[] = [
     href: '/cricket/umpiring',
     icon: <UmpireIcon size={22} />,
     description: 'Claim duties & see who has stood.',
+    primary: true,
+    children: [
+      { name: 'Upcoming', href: '/cricket/umpiring?tab=upcoming' },
+      { name: 'Done', href: '/cricket/umpiring?tab=completed' },
+      { name: 'Roster', href: '/cricket/umpiring?tab=roster' },
+    ],
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },
@@ -151,6 +175,7 @@ export const tools: Tool[] = [
     href: '/cricket/moments',
     icon: <Images size={22} />,
     description: 'Team photos & highlights.',
+    primary: true,
     roles: ['cricket', 'admin'],
     feature: 'cricket',
   },

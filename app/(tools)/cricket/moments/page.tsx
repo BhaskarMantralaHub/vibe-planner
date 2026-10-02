@@ -9,8 +9,6 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { PageFooter } from '@/components/PageFooter';
 import Gallery from '../components/Gallery';
 import { Camera } from 'lucide-react';
-import CricketSectionNav from '../components/CricketSectionNav';
-import { CRICKET_GLOBAL_NAV } from '../components/cricket-global-nav';
 
 function MomentsPage() {
   const { user } = useAuthStore();
@@ -70,7 +68,6 @@ function MomentsPage() {
 
       <PageFooter className="mt-16 mb-8 px-4" />
 
-      <CricketSectionNav items={CRICKET_GLOBAL_NAV} activeKey="moments" />
     </div>
   );
 }

@@ -1,32 +1,67 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { X, LogOut } from 'lucide-react';
+import { X, LogOut, ChevronRight } from 'lucide-react';
 import { tools, type Tool } from '@/lib/nav';
 import { useAuthStore } from '@/stores/auth-store';
 import { Text } from '@/components/ui';
+import { TeamLogo } from '@/components/TeamSwitcher';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-/**
- * Global toolkit drawer. The bottom dock is the PRIMARY navigation (Players /
- * Finances / Matches / Umpiring / Moments); this is everything else — the
- * command center — so it reads as grouped sections, not a second dock.
- */
-const GROUP_LABELS: Record<Tool['group'], string> = {
-  personal: 'Personal',
-  team: 'Team',
-  'team-management': 'Team management',
-  'game-day': 'Game day',
-  management: 'Administration',
-};
-const GROUP_ORDER: Tool['group'][] = ['team', 'team-management', 'game-day', 'personal', 'management'];
+type Child = NonNullable<Tool['children']>[number];
 
+/** The static export serves /cricket/umpiring/; the nav config has no slash. */
+const strip = (p: string) => (p.length > 1 ? p.replace(/\/+$/, '') : p);
+
+/**
+ * Which section — and which page inside it — the current URL is.
+ *
+ * 1. An exact child match on its query param (`?view=fees`, `?tab=roster`),
+ *    falling back to the hash, which the dashboard and Matches still write.
+ * 2. Else a tool with NO children on this path (Roster owns a bare /cricket).
+ * 3. Else the first child on this path — a section page with no tab in the
+ *    URL is showing its default tab.
+ */
+export function resolveCurrent(
+  list: Tool[], pathname: string, search: string, hash: string,
+): { section: string | null; child: string | null } {
+  const path = strip(pathname);
+  const params = new URLSearchParams(search);
+  const hashValue = hash.replace(/^#/, '') || null;
+  for (const t of list) {
+    for (const c of t.children ?? []) {
+      const [cPath, cQuery] = c.href.split('?');
+      if (strip(cPath!) !== path) continue;
+      if (!cQuery) return { section: t.name, child: c.href };
+      const [k, v] = cQuery.split('=');
+      if ((params.get(k!) ?? hashValue) === v) return { section: t.name, child: c.href };
+    }
+  }
+  const leaf = list.find((t) => !t.children && strip(t.href.split('?')[0]!) === path);
+  if (leaf) return { section: leaf.name, child: null };
+  for (const t of list) {
+    const first = t.children?.find((c) => strip(c.href.split('?')[0]!) === path);
+    if (first) return { section: t.name, child: first.href };
+  }
+  return { section: null, child: null };
+}
+
+/**
+ * The app's only navigation (the bottom bar was removed 2026-10, user
+ * decision). Full-screen, meta.com-style: the five main sections as large
+ * rows, the occasional tools smaller beneath, the account at the foot.
+ * A section with pages (Finances, Matches, Umpiring) EXPANDS in place to list
+ * them; the one you are in opens already expanded.
+ *
+ * Neutral by rule — the current section is marked with a gray fill, not the
+ * accent, because selection is navigation state and blue means "act".
+ */
 export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   const { userAccess, userFeatures, userTeams, currentTeamId } = useAuthStore();
   const pathname = usePathname();
@@ -57,158 +92,214 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   }, [isOpen, onClose]);
 
   const access = userAccess.length > 0 ? userAccess : ['toolkit'];
-  // userFeatures is derived from access in auth-store when empty/null (backward compat)
-  // No separate fallback here — auth-store handles the derivation
   // A TEAM admin (owner/admin on a team) is not a platform admin, but they
   // still need the Admin entry — it is the only route to the Teams tab, where
-  // the team's invite link is generated. Without this a captain could be made
-  // a team admin and still have no way to invite anyone.
+  // the team's invite link is generated.
   const isTeamAdmin = userTeams.some((t) => t.approved && (t.role === 'owner' || t.role === 'admin'));
 
   const visibleTools = tools.filter((t) => {
-    // Tools with a feature key: check features array (no admin override)
     if (t.feature) return userFeatures.includes(t.feature);
-    // Tools without a feature key (e.g., Admin): fall back to role check
     if (!t.roles) return true;
     if (t.roles.includes('admin') && isTeamAdmin) return true;
     return t.roles.some((r) => access.includes(r));
   });
+  const primary = visibleTools.filter((t) => t.primary);
+  // A tool that is already a section's page (League Stats = Matches › Stats)
+  // is listed there, not again under More.
+  const childHrefs = new Set(primary.flatMap((t) => t.children?.map((c) => c.href) ?? []));
+  const secondary = visibleTools.filter((t) => !t.primary && !childHrefs.has(t.href));
 
-  // Active = the FIRST visible tool whose path matches the current route.
-  // Matching ignores query strings deliberately: "Cricket" and "Finances"
-  // share /cricket, and reading the query would drag useSearchParams (and a
-  // Suspense boundary) into the shell just to break a tie.
-  const activeName = visibleTools.find((t) => t.href.split('?')[0] === pathname)?.name ?? null;
+  // Read from the URL only while open, so the closed first render can never
+  // disagree with the server HTML.
+  const current = isOpen && typeof window !== 'undefined'
+    ? resolveCurrent(visibleTools, pathname ?? '', window.location.search, window.location.hash)
+    : { section: null, child: null };
 
-  const groups = GROUP_ORDER
-    .map((g) => ({ key: g, label: GROUP_LABELS[g], items: visibleTools.filter((t) => t.group === g) }))
-    .filter((g) => g.items.length > 0);
+  // Accordion: one section open at a time. Each time the menu opens, the
+  // section you are in starts expanded — set during render ("adjusting state
+  // when a prop changes"), not in an effect, so the first painted frame is
+  // already right.
+  const expandableCurrent = () => {
+    const sec = primary.find((t) => t.name === current.section);
+    return sec?.children ? sec.name : null;
+  };
+  const [expanded, setExpanded] = useState<string | null>(() => (isOpen ? expandableCurrent() : null));
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setExpanded(expandableCurrent());
+  }
 
-  // Always the team's name. The "Viber's Toolkit" title (and the access-array
-  // test that chose it) belonged to the personal tools retired 2026-09-02.
-  const title = userTeams.find((t) => t.team_id === currentTeamId)?.team_name
-    ?? userTeams[0]?.team_name
-    ?? 'Cricket';
+  const currentTeam = userTeams.find((t) => t.team_id === currentTeamId) ?? userTeams[0];
+  const title = currentTeam?.team_name ?? 'Cricket';
 
   return (
-    <>
-      {/* Backdrop — plain scrim, no blur (mobile Safari perf); fades on its
-          own timing, independent of the panel slide. touch-action:none
-          prevents iOS scroll-through. */}
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)] overscroll-contain"
+      style={{
+        opacity: isOpen ? 1 : 0,
+        transform: isOpen ? 'none' : 'translateY(-8px)',
+        visibility: isOpen ? 'visible' : 'hidden',
+        transition: isOpen
+          ? 'opacity var(--duration-normal) var(--ease-out), transform var(--duration-slow) var(--ease-out), visibility 0s'
+          : 'opacity var(--duration-fast) var(--ease-in), transform var(--duration-fast) var(--ease-in), visibility 0s var(--duration-fast)',
+        touchAction: 'pan-y',
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      aria-hidden={!isOpen}
+      inert={!isOpen}
+    >
+      {/* Header — same height and logo position as the app bar it covers */}
       <div
-        className={`fixed inset-0 z-50 bg-black/50 transition-opacity ${
-          isOpen ? 'opacity-100 duration-300' : 'pointer-events-none opacity-0 duration-200'
-        }`}
-        style={{ touchAction: 'none' }}
-        onClick={onClose}
-      />
-
-      {/* Panel — solid elevated surface (the old translucent backdrop-blur-xl
-          read as dated glassmorphism and cost compositing on Safari).
-          Slide: 300ms ease-out in, 200ms ease-in out. */}
-      <div
-        className={`fixed top-0 left-0 z-50 h-full w-[300px] max-w-[85vw] rounded-r-2xl bg-[var(--card)] shadow-2xl border-r border-[var(--border)]/50 transition-transform flex flex-col overscroll-contain ${
-          isOpen ? 'translate-x-0 duration-300 ease-out' : '-translate-x-full duration-200 ease-in'
-        }`}
-        style={{ touchAction: 'pan-y' }}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Toolkit menu"
+        className="flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2"
+        style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))' }}
       >
-        {/* Header */}
-        <div
-          className="px-5 pb-3"
-          style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <Text as="h2" size="lg" weight="bold" tracking="tight" truncate>
-                {title}
-              </Text>
-              <Text as="p" size="xs" color="muted" className="mt-0.5">
-                Team tools & management
-              </Text>
-            </div>
-            <button
-              onClick={onClose}
-              className="-mr-2 -mt-1.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] transition-colors hover:text-[var(--text)] active:bg-[var(--hover-bg)]"
-              aria-label="Close menu"
-            >
-              <X size={18} />
-            </button>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
+          <Text as="h2" size="md" weight="semibold" truncate>{title}</Text>
         </div>
-
-        {/* Sections — scrollable middle; the account footer stays anchored.
-            Keyed on isOpen so the row entrance animations replay per open. */}
-        <nav
-          key={String(isOpen)}
-          className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-3 pb-3"
+        <button
+          type="button"
+          onClick={onClose}
+          className="-mr-1.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full cursor-pointer text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
+          aria-label="Close menu"
         >
-          {groups.map((group, gIdx) => {
-            // Running index across groups drives the subtle stagger (~18ms/row)
-            const offset = groups.slice(0, gIdx).reduce((n, g) => n + g.items.length, 0);
+          <X size={22} />
+        </button>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-4 pb-6">
+        {/* Main sections — large type is the design */}
+        <ul className="mt-2">
+          {primary.map((tool) => (
+            <SectionRow
+              key={tool.name}
+              tool={tool}
+              current={current}
+              expanded={expanded === tool.name}
+              onToggle={() => setExpanded(expanded === tool.name ? null : tool.name)}
+              onClose={onClose}
+            />
+          ))}
+        </ul>
+
+        {secondary.length > 0 && (
+          <>
+            <Text as="p" size="sm" weight="medium" color="muted" className="mt-8 mb-1 px-3">More</Text>
+            <ul>
+              {secondary.map((tool) => (
+                <li key={tool.name}>
+                  <Link
+                    href={tool.href}
+                    onClick={onClose}
+                    aria-current={current.section === tool.name ? 'page' : undefined}
+                    className="flex min-h-12 flex-col justify-center rounded-xl px-3 py-1.5 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
+                    style={current.section === tool.name ? { background: 'var(--fill)' } : undefined}
+                  >
+                    <span className="text-[17px] leading-snug font-medium text-[var(--text)]">{tool.name}</span>
+                    <Text as="span" size="xs" color="muted">{tool.description}</Text>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </nav>
+
+      <UserSection onClose={onClose} />
+    </div>
+  );
+}
+
+const SECTION_TEXT = 'block text-[26px] leading-[1.15] font-semibold tracking-tight text-[var(--text)]';
+const SECTION_ROW = 'flex min-h-[60px] w-full items-center justify-between gap-3 rounded-xl px-3 text-left cursor-pointer transition-colors active:bg-[var(--hover-bg)]';
+
+/**
+ * A main section. Without pages it is a plain link (no chevron — a chevron
+ * promises more inside). With pages it is a disclosure button whose chevron
+ * turns down, and its pages slide open beneath it.
+ */
+function SectionRow({ tool, current, expanded, onToggle, onClose }: {
+  tool: Tool;
+  current: { section: string | null; child: string | null };
+  expanded: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const isCurrent = current.section === tool.name;
+  if (!tool.children) {
+    return (
+      <li>
+        <Link
+          href={tool.href}
+          onClick={onClose}
+          aria-current={isCurrent ? 'page' : undefined}
+          className={SECTION_ROW}
+          style={isCurrent ? { background: 'var(--fill)' } : undefined}
+        >
+          <span className={SECTION_TEXT}>{tool.name}</span>
+        </Link>
+      </li>
+    );
+  }
+  const listId = `menu-${tool.name.toLowerCase()}`;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={listId}
+        className={SECTION_ROW}
+        // Collapsed, the section itself carries the "you are here" fill;
+        // expanded, the current page inside it does.
+        style={isCurrent && !expanded ? { background: 'var(--fill)' } : undefined}
+      >
+        <span className={SECTION_TEXT}>{tool.name}</span>
+        <ChevronRight
+          size={22}
+          aria-hidden
+          className="flex-shrink-0 text-[var(--dim)]"
+          style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform var(--duration-normal) var(--ease-out)' }}
+        />
+      </button>
+      {/* grid-rows 0fr→1fr opens to the list's real height; inert keeps the
+          collapsed links out of VoiceOver's swipe order. */}
+      <div
+        id={listId}
+        inert={!expanded}
+        className="grid"
+        style={{
+          gridTemplateRows: expanded ? '1fr' : '0fr',
+          opacity: expanded ? 1 : 0,
+          transition: 'grid-template-rows var(--duration-slow) var(--ease-out), opacity var(--duration-normal) var(--ease-out)',
+        }}
+      >
+        <ul className="min-h-0 overflow-hidden">
+          {tool.children.map((c: Child) => {
+            const here = current.child === c.href;
             return (
-              <div key={group.key} className={gIdx > 0 ? 'mt-4' : 'mt-1'}>
-                <Text
-                  as="p"
-                  size="2xs"
-                  weight="bold"
-                  color="dim"
-                  uppercase
-                  tracking="wider"
-                  className="px-3 pb-1"
+              <li key={c.href}>
+                <Link
+                  href={c.href}
+                  onClick={onClose}
+                  aria-current={here ? 'page' : undefined}
+                  className="ml-3 flex min-h-12 items-center rounded-xl px-3 cursor-pointer transition-colors active:bg-[var(--hover-bg)]"
+                  style={here ? { background: 'var(--fill)' } : undefined}
                 >
-                  {group.label}
-                </Text>
-                <div className="flex flex-col gap-0.5">
-                  {group.items.map((tool, idx) => {
-                    const isActive = tool.name === activeName;
-                    return (
-                      <Link key={tool.name} href={tool.href} onClick={onClose} aria-current={isActive ? 'page' : undefined}>
-                        <div
-                          className="animate-view-in flex min-h-11 items-start gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]"
-                          style={{
-                            animationDelay: isOpen ? `${(offset + idx) * 18}ms` : undefined,
-                            animationFillMode: 'backwards',
-                            background: isActive ? 'color-mix(in srgb, var(--cricket) 8%, transparent)' : undefined,
-                          }}
-                        >
-                          {/* Neutral when inactive; brand orange only on the
-                              current destination — never a wall of orange. */}
-                          <span
-                            className="mt-0.5 flex-shrink-0"
-                            style={{ color: isActive ? 'var(--cricket)' : 'var(--muted)' }}
-                          >
-                            {tool.icon}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <Text
-                              size="md"
-                              weight={isActive ? 'semibold' : 'medium'}
-                              className="text-[15px]"
-                              style={isActive ? { color: 'var(--cricket)' } : undefined}
-                            >
-                              {tool.name}
-                            </Text>
-                            <Text as="p" size="xs" color="muted" className="mt-0.5">
-                              {tool.description}
-                            </Text>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+                  <span className={'text-[19px] leading-snug text-[var(--text)] ' + (here ? 'font-semibold' : 'font-normal')}>
+                    {c.name}
+                  </span>
+                </Link>
+              </li>
             );
           })}
-        </nav>
-
-        {/* Account footer — anchored, safe-area aware */}
-        <UserSection onClose={onClose} />
+          <li aria-hidden className="h-2" />
+        </ul>
       </div>
-    </>
+    </li>
   );
 }
 
@@ -228,28 +319,27 @@ function UserSection({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="flex-shrink-0 border-t border-[var(--border)]/60 px-4 pt-3"
-      style={{ paddingBottom: 'calc(0.875rem + env(safe-area-inset-bottom, 0px))' }}
+      className="flex flex-shrink-0 items-center gap-3 px-4 pt-3"
+      style={{
+        borderTop: '1px solid var(--border)',
+        paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+      }}
     >
-      <div className="flex items-center gap-3 px-1 pb-3">
-        <span
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
-          style={{
-            background: 'color-mix(in srgb, var(--cricket) 11%, transparent)',
-            color: 'var(--cricket)',
-          }}
-          aria-hidden
-        >
-          {initials}
-        </span>
-        <div className="min-w-0 flex-1">
-          {name && <Text as="p" size="sm" weight="semibold" truncate>{name}</Text>}
-          {email && <Text as="p" size="xs" color="muted" truncate>{email}</Text>}
-        </div>
+      <span
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-semibold text-[var(--text)]"
+        style={{ background: 'var(--fill)' }}
+        aria-hidden
+      >
+        {initials}
+      </span>
+      <div className="min-w-0 flex-1">
+        {name && <Text as="p" size="sm" weight="semibold" truncate>{name}</Text>}
+        {email && <Text as="p" size="xs" color="muted" truncate>{email}</Text>}
       </div>
       <button
+        type="button"
         onClick={() => { logout(); onClose(); }}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--surface)] px-4 text-[14px] font-medium text-[var(--red)] transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)] cursor-pointer"
+        className="flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-xl px-3 text-[14px] font-medium text-[var(--danger-text)] transition-colors active:bg-[var(--hover-bg)] cursor-pointer"
       >
         <LogOut size={15} aria-hidden /> Sign out
       </button>
