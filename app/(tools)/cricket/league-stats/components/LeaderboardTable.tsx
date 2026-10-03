@@ -7,9 +7,9 @@ import PlayerAvatar from './PlayerAvatar';
 
 /* ── LeaderboardTable ──────────────────────────────────────────────────────
  *
- * The dense counterpart to <LeaderboardCard>. Cards answer "how is this one
- * player doing?"; this answers "who is actually best?" — many players in one
- * glance, every stat in a comparable column.
+ * The dense counterpart to <LeaderboardList>. The list ranks the squad on one
+ * figure; this puts every stat in a sortable column so any of them can be
+ * compared.
  *
  * Layout contract on a phone: the player column is frozen (`sticky left-0`)
  * and the stat columns scroll horizontally underneath it, so you never lose
@@ -28,7 +28,7 @@ export type TableColumn<Row> = {
   /* Cell content. Kept separate from sortValue so "3/18" or "—" can display
      while the column still sorts numerically. */
   render: (row: Row) => ReactNode;
-  /* The tab's headline stat (Runs / Wkts / Score / Ct) — tinted + bolder. */
+  /* The tab's headline stat (Runs / Wkts / Score / Ct) — bolder, in ink. */
   primary?: boolean;
   /* Econ, bowling Avg: first tap should sort ascending, because low is good. */
   lowerIsBetter?: boolean;
@@ -42,16 +42,27 @@ export type LeaderboardTableProps<Row> = {
   /* Identity accessor — keeps the table generic across the four tab shapes. */
   getPlayer: (row: Row) => { id: string | null; name: string; photoUrl?: string | null };
   defaultSortKey: string;
-  accentColor: string;
   onPlayerTap: (playerId: string) => void;
 };
+
+/**
+ * "Sai Krishna Nimmala" → "Sai K.". The frozen column fits ~9 characters, and
+ * a first name plus initial survives that where a truncated full name became
+ * "Sai Kris…". The roster's two Venkats stay apart by their initials; the
+ * sheet a row opens carries the full name. A "(Kittu)"-style nickname is
+ * dropped before the initial is taken.
+ */
+export function shortName(name: string): string {
+  const parts = name.replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return parts[0] ?? name;
+  return `${parts[0]} ${parts[parts.length - 1]![0]!.toUpperCase()}.`;
+}
 
 export default function LeaderboardTable<Row>({
   rows,
   columns,
   getPlayer,
   defaultSortKey,
-  accentColor,
   onPlayerTap,
 }: LeaderboardTableProps<Row>): JSX.Element {
   const initial = columns.find((c) => c.key === defaultSortKey) ?? columns[0];
@@ -146,11 +157,9 @@ export default function LeaderboardTable<Row>({
 
   // Stat columns are fixed-width so the numbers form clean vertical rules.
   // Sized for data density on a phone: the old 148px player column + 56px
-  // stat columns left room for only TWO stat columns on a 390px viewport —
-  // the table read as "names with numbers cut off". 122 + 46 shows five.
-  // Names truncate harder, but every first name on the roster is unique, and
-  // tapping a row opens the full-name detail sheet.
-  const PLAYER_COL = 122;
+  // stat columns left room for only TWO stat columns on a 390px viewport.
+  // 140 + 46 shows five, and fits a first name plus initial (shortName).
+  const PLAYER_COL = 140;
   const STAT_COL = 46;
   // The last column gets extra right padding so its values never press
   // against the table edge (full-bleed on phones = the screen edge).
@@ -173,11 +182,11 @@ export default function LeaderboardTable<Row>({
                   width: PLAYER_COL,
                   minWidth: PLAYER_COL,
                   maxWidth: PLAYER_COL,
-                  background: 'var(--surface)',
+                  background: 'var(--bg)',
                   borderBottom: '1px solid var(--border)',
                 }}
               >
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">
+                <span className="text-[12px] font-semibold text-[var(--muted)]">
                   Player
                 </span>
               </th>
@@ -193,7 +202,7 @@ export default function LeaderboardTable<Row>({
                     style={{
                       width: colWidth,
                       minWidth: colWidth,
-                      background: 'var(--surface)',
+                      background: 'var(--bg)',
                       borderBottom: '1px solid var(--border)',
                     }}
                   >
@@ -206,9 +215,9 @@ export default function LeaderboardTable<Row>({
                         'w-full h-11 pl-1 flex items-center justify-end gap-0.5 cursor-pointer select-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cricket)]/60 rounded ' +
                         (isLast ? 'pr-3' : 'pr-1')
                       }
-                      style={{ color: active ? accentColor : 'var(--muted)' }}
+                      style={{ color: active ? 'var(--text)' : 'var(--muted)' }}
                     >
-                      <span className="text-[9px] font-bold uppercase tracking-[0.08em] leading-none">
+                      <span className="text-[12px] font-semibold leading-none">
                         {col.label}
                       </span>
                       {active && (
@@ -216,9 +225,9 @@ export default function LeaderboardTable<Row>({
                         // and replays the pop — a tiny "the sort heard you".
                         <span key={sortDir} className="inline-flex animate-sort-arrow-pop">
                           {sortDir === 'asc' ? (
-                            <ArrowUp size={9} strokeWidth={3.5} />
+                            <ArrowUp size={11} strokeWidth={3} />
                           ) : (
-                            <ArrowDown size={9} strokeWidth={3.5} />
+                            <ArrowDown size={11} strokeWidth={3} />
                           )}
                         </span>
                       )}
@@ -236,13 +245,10 @@ export default function LeaderboardTable<Row>({
               // "2, 1, 4, 3" down the column and look like a bug.
               const rank = i + 1;
               const tappable = Boolean(player.id);
-              // Zebra striping must be painted per-cell, not per-row: the
-              // frozen cell needs its own opaque fill to hide what scrolls
-              // beneath it, and a transparent stripe would show through.
-              const rowBg =
-                i % 2 === 1
-                  ? 'color-mix(in srgb, var(--muted) 4%, var(--card))'
-                  : 'var(--card)';
+              // Painted per-cell, not per-row: the frozen cell needs its own
+              // opaque fill to hide what scrolls beneath it. Hairlines only, no
+              // zebra — the page ground, like a native grouped list.
+              const rowBg = 'var(--bg)';
               const rowKey = player.id ?? player.name;
               return (
                 <tr
@@ -302,19 +308,16 @@ export default function LeaderboardTable<Row>({
                       style={{ width: PLAYER_COL - 16 }}
                     >
                       <span
-                        className="flex-shrink-0 w-3.5 text-[10px] font-bold tabular-nums text-right"
-                        style={{ color: rank <= 3 ? accentColor : 'var(--dim)' }}
+                        className={
+                          'flex-shrink-0 w-4 text-[12px] tabular-nums text-right '
+                          + (rank <= 3 ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--dim)]')
+                        }
                       >
                         {rank}
                       </span>
-                      <PlayerAvatar
-                        name={player.name}
-                        photoUrl={player.photoUrl}
-                        size={24}
-                        ringColor={rank <= 3 ? accentColor : undefined}
-                      />
-                      <span className="text-[12px] font-semibold truncate min-w-0 text-[var(--text)]">
-                        {player.name}
+                      <PlayerAvatar name={player.name} photoUrl={player.photoUrl} size={24} />
+                      <span className="text-[13px] font-medium truncate min-w-0 text-[var(--text)]">
+                        {shortName(player.name)}
                       </span>
                     </div>
                   </td>
@@ -340,18 +343,12 @@ export default function LeaderboardTable<Row>({
                         <span
                           className={
                             col.primary
-                              ? 'text-[13px] font-extrabold'
+                              ? 'text-[15px] font-bold'
                               : active
-                                ? 'text-[12px] font-bold'
-                                : 'text-[12px] font-medium'
+                                ? 'text-[14px] font-semibold'
+                                : 'text-[14px]'
                           }
-                          style={{
-                            color: col.primary
-                              ? accentColor
-                              : active
-                                ? 'var(--text)'
-                                : 'var(--muted)',
-                          }}
+                          style={{ color: col.primary || active ? 'var(--text)' : 'var(--muted)' }}
                         >
                           {col.render(row)}
                         </span>
@@ -406,9 +403,9 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
     // side padding becomes visible stat columns (≈¾ of a column). Corners
     // and side borders come back from sm: up, where width isn't scarce.
     <div
-      className="lb-scroll relative overflow-hidden -mx-4 rounded-none border-y sm:mx-0 sm:rounded-2xl sm:border"
+      className="lb-scroll relative overflow-hidden -mx-4 rounded-none border-b sm:mx-0 sm:rounded-2xl sm:border"
       data-scrolled={scrolled || undefined}
-      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+      style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
     >
       <div
         ref={ref}
@@ -426,7 +423,7 @@ function ScrollArea({ children, minWidth }: { children: ReactNode; minWidth: num
           aria-hidden
           className="absolute top-0 right-0 bottom-0 w-8 pointer-events-none transition-opacity"
           style={{
-            background: 'linear-gradient(to right, transparent, var(--card))',
+            background: 'linear-gradient(to right, transparent, var(--bg))',
           }}
         />
       )}

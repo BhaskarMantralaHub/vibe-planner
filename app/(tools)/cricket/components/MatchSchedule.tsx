@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, Share2, ExternalLink, Trophy, ArrowDown, Shield, Plus } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -70,13 +70,6 @@ const MATCH_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   // Playoffs get their own colours so a knockout never reads as a league game.
   semi_final: { label: 'Semi Final', color: '#8B5CF6' },
   final: { label: 'Final', color: '#F59E0B' },
-};
-
-/* ── Performer Type Config ── */
-const PERFORMER_ICONS: Record<string, { emoji: string; color: string }> = {
-  batting: { emoji: '\uD83C\uDFCF', color: '#3B82F6' },
-  bowling: { emoji: '\uD83E\uDD3E', color: '#EF4444' },
-  fielding: { emoji: '\uD83E\uDD1E', color: '#22C55E' },
 };
 
 /* ── Helpers ── */
@@ -418,58 +411,26 @@ function groupByMonth(matches: Match[]): { label: string; matches: Match[] }[] {
 
 /* ── Season Record Summary ── */
 function SeasonRecord({ completed }: { completed: Match[] }) {
+  if (completed.length === 0) return null;
   const wins = completed.filter((m) => m.result === 'won').length;
   const losses = completed.filter((m) => m.result === 'lost').length;
   const draws = completed.filter((m) => m.result === 'draw').length;
   const noResult = completed.filter((m) => !m.result).length;
-
-  if (completed.length === 0) return null;
+  const parts: Array<[number, string]> = [[wins, 'won'], [losses, 'lost']];
+  if (draws > 0) parts.push([draws, 'tied']);
+  if (noResult > 0) parts.push([noResult, 'no result']);
 
   return (
-    <div className="flex items-center gap-3 px-1">
-      <div className="flex items-center gap-1.5">
-        <span
-          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
-          style={{ background: 'rgba(74,222,128,0.15)', color: 'var(--green)' }}
-        >
-          {wins}
-        </span>
-        <Text size="2xs" color="muted" weight="semibold" uppercase>W</Text>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span
-          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
-          style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--red)' }}
-        >
-          {losses}
-        </span>
-        <Text size="2xs" color="muted" weight="semibold" uppercase>L</Text>
-      </div>
-      {draws > 0 && (
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
-            style={{ background: 'rgba(156,163,175,0.15)', color: 'var(--muted)' }}
-          >
-            {draws}
+    <div className="flex items-baseline gap-3 px-1">
+      <Text size="sm" color="muted">
+        {parts.map(([n, word], i) => (
+          <span key={word}>
+            {i > 0 && ' · '}
+            <span className="font-semibold tabular-nums text-[var(--text)]">{n}</span> {word}
           </span>
-          <Text size="2xs" color="muted" weight="semibold" uppercase>D</Text>
-        </div>
-      )}
-      {noResult > 0 && (
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[13px] font-bold"
-            style={{ background: 'rgba(156,163,175,0.08)', color: 'var(--dim)' }}
-          >
-            {noResult}
-          </span>
-          <Text size="2xs" color="dim" weight="semibold" uppercase>NR</Text>
-        </div>
-      )}
-      <span className="ml-auto">
-        <Text size="2xs" color="dim">{completed.length} played</Text>
-      </span>
+        ))}
+      </Text>
+      <Text size="sm" color="muted" tabular className="ml-auto">{completed.length} played</Text>
     </div>
   );
 }
@@ -694,17 +655,7 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
   );
 }
 
-/* ── Team avatar (small circular monogram or logo) ──
-   Used in the completed-match scoreboard to give each opponent a stable
-   visual identity at a glance, similar to how Cricbuzz / Cricinfo show team
-   crests. Our team uses the real team logo via getTeamLogoUrl(); opponents
-   render a hash-tinted monogram circle so every opponent gets a unique but
-   stable color without us having to maintain a manual logo table. */
-function hashHue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
-  return Math.abs(h) % 360;
-}
+/* ── Team avatar: our logo, or a neutral monogram for opponents ── */
 function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
   const logoUrl = isOurTeam ? getTeamLogoUrl() : null;
   if (logoUrl) {
@@ -712,7 +663,7 @@ function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
       <img
         src={logoUrl}
         alt=""
-        className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+        className="h-7 w-7 rounded-full object-cover flex-shrink-0"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       />
     );
@@ -725,11 +676,10 @@ function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
     .slice(0, 2)
     .join('')
     .toUpperCase() || '?';
-  const hue = hashHue(name);
+  // Neutral monogram — one colour per opponent read as a rainbow down the list.
   return (
     <div
-      className="flex h-9 w-9 items-center justify-center rounded-full flex-shrink-0 text-[11px] font-black text-white tracking-tight"
-      style={{ background: `hsl(${hue}, 55%, 42%)` }}
+      className="flex h-7 w-7 items-center justify-center rounded-full flex-shrink-0 bg-[var(--fill)] text-[10px] font-semibold text-[var(--text)]"
       aria-hidden
     >
       {initials}
@@ -737,7 +687,16 @@ function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
   );
 }
 
-/* ── Completed Match Card ── */
+/* ── Completed Match Card ──
+ *
+ * The result comes FIRST: a Won/Lost badge and the margin head the card, so
+ * the outcome is read before anything else. Then when and where, then the two
+ * innings in batting order. Both teams stay in full ink — greying the loser
+ * read as a disabled row — and the winner is marked by weight and a pointer
+ * beside its score, the way a scoreboard does it. Win/loss is the one place
+ * colour is used, because there it carries the meaning. The scorecard link is
+ * the card's one action, so it is the one thing in blue.
+ */
 function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl, tossWinner, tossDecision }: {
   match: Match;
   isAdmin: boolean;
@@ -749,260 +708,151 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
   tossDecision?: 'bat' | 'bowl' | null;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
-
-  // ── Result data ──
   const isWin = match.result === 'won';
   const isLoss = match.result === 'lost';
   const isDraw = match.result === 'draw';
-  const resultPillLabel = isWin ? 'WON' : isLoss ? 'LOST' : isDraw ? 'DRAW' : 'NO RESULT';
 
-  // Extract margin from result_summary ("MTCA Sunrisers Manteca won by 8 Wickets" → "8 wickets")
+  // "MTCA Sunrisers Manteca won by 8 Wickets" → "8 wickets"
   let margin = '';
   if (match.result_summary) {
     const m = match.result_summary.match(/(?:won|lost) by\s+(.+?)\s*$/i);
-    if (m && m[1]) {
-      margin = m[1].trim().replace(/\b(wickets?|runs?)\b/gi, (s) => s.toLowerCase());
-    }
+    if (m && m[1]) margin = m[1].trim().replace(/\b(wickets?|runs?)\b/gi, (w) => w.toLowerCase());
   }
-  if (!margin) {
-    margin = isWin ? 'Win' : isLoss ? 'Loss' : isDraw ? 'Tie' : '—';
-  }
+  const verdict = isWin ? 'Won' : isLoss ? 'Lost' : isDraw ? 'Tied' : 'No result';
+  const verdictColor = isWin ? 'var(--credit-text)' : isLoss ? 'var(--danger-text)' : 'var(--muted)';
+  const verdictBg = isWin || isLoss
+    ? `color-mix(in srgb, ${verdictColor} 14%, transparent)`
+    : 'var(--fill)';
+  const opponent = match.opponent.replace(/^MTCA\s+/i, '');
 
-  // ── Color discipline ──
-  // STATUS colors (green/red/gray) = semantic win/loss signal. Used on the
-  // left accent bar, the WON/LOST pill, the trophy, and the chased/defended
-  // pill. Carries the "did we win?" question.
-  // BRAND color (cricket-blue/navy) = typography identity. Used for the
-  // margin headline, our team's name, scores, and action buttons. Carries
-  // the "this is our team's data" identity.
-  const statusColor = isWin ? 'var(--green)' : isLoss ? 'var(--red)' : 'var(--muted)';
-  const statusTint = isWin
-    ? 'color-mix(in srgb, var(--green) 16%, transparent)'
-    : isLoss
-      ? 'color-mix(in srgb, var(--red) 16%, transparent)'
-      : 'color-mix(in srgb, var(--muted) 16%, transparent)';
+  type ScoreRow = { name: string; score?: string; overs?: string; isOurTeam: boolean; won: boolean };
+  const ourRow: ScoreRow = { name: getTeamName(), score: match.team_score, overs: match.team_overs, isOurTeam: true, won: isWin };
+  const oppRow: ScoreRow = { name: opponent, score: match.opponent_score, overs: match.opponent_overs, isOurTeam: false, won: isLoss };
+  const rows = getBattedFirst(match) === 'opponent' ? [oppRow, ourRow] : [ourRow, oppRow];
+  const hasScores = Boolean(match.team_score && match.opponent_score);
+
+  const share = async () => {
+    if (!scorecardUrl) return;
+    const title = `${getTeamName()} vs ${match.opponent}`;
+    const scoreLine = hasScores ? `${getTeamName()} ${match.team_score} · ${match.opponent} ${match.opponent_score}` : '';
+    const text = [match.result_summary, scoreLine].filter(Boolean).join('\n');
+    try {
+      if (navigator.share) {
+        await navigator.share({ url: scorecardUrl, title, text });
+      } else {
+        await navigator.clipboard.writeText(scorecardUrl);
+        toast.success('Scorecard link copied');
+      }
+    } catch (err) {
+      // Cancelling the share sheet throws AbortError — not an error.
+      if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
+    }
+  };
 
   return (
-    <div
-      className="relative rounded-2xl overflow-hidden"
-      style={{
-        background: 'var(--card)',
-        boxShadow: 'var(--card-shadow)',
-      }}
+    <article
+      className="relative rounded-2xl px-4 pt-3.5 pb-3.5"
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+      aria-label={`${verdict}${margin ? ` by ${margin}` : ''} against ${opponent}, ${formatMatchDate(match.match_date)}`}
     >
-      {/* ── Left accent bar (status color) ── */}
-      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: statusColor }} aria-hidden />
-
-      {/* ── Admin menu ── */}
       {isAdmin && (
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-1.5 right-1.5 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors z-20"
-          aria-label="Match actions"
+          className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-full cursor-pointer text-[var(--muted)] active:bg-[var(--hover-bg)] transition-colors"
+          aria-label={`Actions for the match against ${opponent}`}
         >
-          <EllipsisVertical size={15} />
+          <EllipsisVertical size={16} />
         </button>
       )}
 
-      {/* ── Header zone (status pill + margin + opponent) ── */}
-      <div className="pl-5 pr-12 pt-4 pb-3.5">
-        <div className="flex items-center gap-1.5 mb-2">
-          <span
-            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider"
-            style={{ background: statusTint, color: statusColor }}
-          >
-            {resultPillLabel}
-          </span>
-          {isWin && <Trophy size={14} style={{ color: statusColor }} aria-hidden />}
-        </div>
-        {/* Margin headline is neutral ink — the semantic story is already told
-            by the status pill and accent bar, and a brand-orange "5 wickets"
-            would read the same for a win and a loss. */}
-        <div className="text-[30px] sm:text-[32px] font-black leading-[1.05] tracking-tight tabular-nums" style={{ color: 'var(--text)' }}>
-          {margin}
-        </div>
-        <div className="text-[14px] font-semibold mt-1" style={{ color: 'var(--muted)' }}>
-          vs {match.opponent}
-        </div>
+      <div className={'flex items-center gap-2 ' + (isAdmin ? 'pr-9' : '')}>
+        <span
+          className="inline-flex h-6 flex-shrink-0 items-center rounded-full px-2.5 text-[13px] font-semibold"
+          style={{ background: verdictBg, color: verdictColor }}
+        >
+          {verdict}
+        </span>
+        {margin && (
+          <span className="truncate text-[16px] font-semibold text-[var(--text)]">by {margin}</span>
+        )}
       </div>
+      <Text as="p" size="xs" color="muted" truncate className="mt-1.5">
+        {formatMatchDate(match.match_date)}
+        {match.venue ? ` · ${match.venue}` : ''}
+        {match.match_type !== 'league' && typeConfig ? ` · ${typeConfig.label}` : ''}
+      </Text>
 
-      {/* ── Meta (date + venue, then toss line) ── divider above ── */}
-      <div className="mx-5 mr-4 pt-2.5 pb-3 space-y-1" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-1.5">
-          <Calendar size={12} style={{ color: 'var(--dim)' }} />
-          <Text size="2xs" color="muted" weight="medium">
-            {formatMatchDate(match.match_date)} · {match.venue}
-          </Text>
-        </div>
-        {tossWinner && tossDecision && (() => {
-          // Render the toss line as a sibling caption to date/venue. Strip the
-          // "MTCA " prefix to match how schedule entries display opponent names.
-          const displayWinner = tossWinner.replace(/^MTCA\s+/i, '');
-          return (
-            <div className="flex items-center gap-1.5">
-              {/* Inline coin glyph — circle with diagonal "T" — kept as text-only
-                  so it inherits color and avoids importing another icon. */}
-              <span
-                className="inline-flex h-3 w-3 items-center justify-center rounded-full text-[8px] font-black flex-shrink-0"
-                style={{ background: 'color-mix(in srgb, var(--cricket) 12%, transparent)', color: 'var(--cricket)' }}
-                aria-hidden
-              >
-                T
-              </span>
-              <Text size="2xs" color="muted" weight="medium">
-                {displayWinner} won toss · chose to {tossDecision}
-              </Text>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── Scoreboard (with team avatars + innings labels + chased/defended pill) ── */}
-      {match.team_score && match.opponent_score && (() => {
-        const battedFirst = getBattedFirst(match);
-        type ScoreRow = { name: string; score: string; overs: string; isOurTeam: boolean };
-        const ourRow: ScoreRow = { name: getTeamName(), score: match.team_score!, overs: match.team_overs ?? '', isOurTeam: true };
-        const oppRow: ScoreRow = { name: match.opponent, score: match.opponent_score!, overs: match.opponent_overs ?? '', isOurTeam: false };
-        const [topRow, bottomRow]: [ScoreRow, ScoreRow] =
-          battedFirst === 'opponent' ? [oppRow, ourRow] : [ourRow, oppRow];
-        const showOrdinals = battedFirst !== null;
-
-        // "chased" = 2nd-innings team won; "defended" = 1st-innings team won.
-        let chaseDescriptor: 'chased' | 'defended' | null = null;
-        if (battedFirst && (isWin || isLoss)) {
-          const teamBattedFirst = battedFirst === 'team';
-          const innings1Won = (teamBattedFirst && isWin) || (!teamBattedFirst && isLoss);
-          chaseDescriptor = innings1Won ? 'defended' : 'chased';
-        }
-
-        const renderRow = (row: ScoreRow, ordinal: '1st' | '2nd' | null) => (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
+      {hasScores ? (
+        <div className="mt-3 flex flex-col gap-2.5">
+          {rows.map((row) => (
+            <div key={row.isOurTeam ? 'us' : 'them'} className="flex items-center gap-2.5">
               <TeamAvatar name={row.name} isOurTeam={row.isOurTeam} />
-              <div className="min-w-0">
-                <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <Text
-                    size="sm"
-                    weight="bold"
-                    className="truncate"
-                    style={{ color: row.isOurTeam ? 'var(--cricket)' : 'var(--text)' }}
-                  >
-                    {row.name}
-                  </Text>
-                  {ordinal && (
-                    <span className="text-[9px] font-bold uppercase tracking-[0.1em] flex-shrink-0" style={{ color: 'var(--dim)' }}>
-                      {ordinal === '1st' ? '1ST INNINGS' : '2ND INNINGS'}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-1.5 flex-shrink-0">
-              <span className="text-[20px] font-black tabular-nums leading-none" style={{ color: 'var(--text)' }}>{row.score}</span>
-              <Text size="2xs" color="muted" tabular>({row.overs} ov)</Text>
-            </div>
-          </div>
-        );
-
-        return (
-          <div className="mx-3 mb-3 rounded-xl p-3" style={{ background: 'var(--surface)' }}>
-            {renderRow(topRow, showOrdinals ? '1st' : null)}
-
-            {/* Innings connector — divider with chased/defended pill */}
-            <div className="my-2 flex items-center gap-2">
-              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              {chaseDescriptor && (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex-shrink-0"
-                  style={{ background: statusTint, color: statusColor }}
-                >
-                  {chaseDescriptor === 'chased'
-                    ? <ArrowDown size={10} strokeWidth={3} />
-                    : <Shield size={10} strokeWidth={2.5} />}
-                  {chaseDescriptor}
-                </span>
+              <span className={'min-w-0 flex-1 truncate text-[15px] text-[var(--text)] ' + (row.won ? 'font-semibold' : 'font-normal')}>
+                {row.name}
+              </span>
+              <span className={'text-[17px] tabular-nums text-[var(--text)] ' + (row.won ? 'font-bold' : 'font-normal')}>
+                {row.score}
+              </span>
+              {/* Winner pointer — a scoreboard's mark, not a colour. Reserves
+                  its width on both rows so the scores stay aligned. */}
+              <span aria-hidden className="w-2 flex-shrink-0 text-[var(--text)]">
+                {row.won && (
+                  <svg width="7" height="9" viewBox="0 0 7 9"><path d="M7 0v9L0 4.5z" fill="currentColor" /></svg>
+                )}
+              </span>
+              {row.overs && (
+                <span className="w-11 flex-shrink-0 text-right text-[12px] tabular-nums text-[var(--muted)]">{row.overs} ov</span>
               )}
-              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
             </div>
+          ))}
+        </div>
+      ) : (
+        <Text as="p" size="md" weight="semibold" className="mt-2">vs {opponent}</Text>
+      )}
 
-            {renderRow(bottomRow, showOrdinals ? '2nd' : null)}
-          </div>
-        );
-      })()}
+      {tossWinner && tossDecision && (
+        <Text as="p" size="xs" color="muted" className="mt-3">
+          {tossWinner.replace(/^MTCA\s+/i, '')} won the toss and chose to {tossDecision}
+        </Text>
+      )}
 
-      {/* Performers */}
       {match.performers && match.performers.length > 0 && (
-        <div className="px-3 pb-3 space-y-1.5">
-          <Text as="p" size="2xs" weight="bold" color="muted" uppercase tracking="wider" className="text-[10px] mb-1">Top Performers</Text>
-          {match.performers.map((p) => {
-            const pConfig = PERFORMER_ICONS[p.type];
-            return (
-              <div key={p.rank} className="flex items-center gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                  style={{ background: `${pConfig.color}15`, color: pConfig.color }}>
-                  {p.rank}
-                </span>
-                <Text size="xs">{pConfig.emoji}</Text>
-                <Text size="xs" weight="semibold">{p.name}</Text>
-                <Text size="2xs" color="muted" tabular className="ml-auto">{p.stat}</Text>
-              </div>
-            );
-          })}
+        <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+          <Text as="p" size="xs" weight="semibold" color="muted" className="mb-1">Top performers</Text>
+          <ul className="flex flex-col gap-1">
+            {match.performers.map((p) => (
+              <li key={p.rank} className="flex items-baseline gap-2 text-[13px]">
+                <span className="font-medium text-[var(--text)]">{p.name}</span>
+                <span className="ml-auto tabular-nums text-[var(--muted)]">{p.stat}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
-      {/* Cricclubs scorecard link — shown when this match has been matched
-          (by date + opponent) to a cricclubs_matches row. */}
       {scorecardUrl && (
-        <div className="grid grid-cols-2 gap-2 mx-3 mb-3">
-          {/* Primary contextual action — tonal brand fill; Share stays quiet */}
+        <div className="-mb-1.5 mt-2.5 flex items-center justify-between border-t border-[var(--border)] pt-1">
           <a
             href={scorecardUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors"
-            style={{ background: 'color-mix(in srgb, var(--cricket) 11%, transparent)' }}
+            className="-ml-1 flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-[15px] font-medium text-[var(--cricket)] active:opacity-60 transition-opacity"
           >
-            <ExternalLink size={14} className="flex-shrink-0" style={{ color: 'var(--cricket)' }} />
-            <Text size="sm" weight="semibold" color="cricket">
-              View Scorecard
-            </Text>
+            View scorecard
+            <ExternalLink size={14} aria-hidden />
           </a>
           <button
             type="button"
-            onClick={async () => {
-              const title = `${getTeamName()} vs ${match.opponent}`;
-              const scoreLine = match.team_score && match.opponent_score
-                ? `${getTeamName()} ${match.team_score} · ${match.opponent} ${match.opponent_score}`
-                : '';
-              const text = [match.result_summary, scoreLine].filter(Boolean).join('\n');
-              try {
-                if (navigator.share) {
-                  await navigator.share({ url: scorecardUrl, title, text });
-                } else {
-                  await navigator.clipboard.writeText(scorecardUrl);
-                  toast.success('Scorecard link copied');
-                }
-              } catch (err) {
-                // User cancelling the share sheet throws AbortError — not an error condition.
-                if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
-              }
-            }}
-            /* Background as a CLASS, not an inline style: an inline style
-               outranks any class rule, so `active:bg-…` below could never
-               apply and this button has never shown its pressed colour. */
-            className="pressable flex items-center justify-center gap-1.5 px-3 py-3 min-h-11 rounded-xl transition-colors bg-[var(--surface)] active:bg-[var(--hover-bg)]"
+            onClick={share}
+            className="-mr-2.5 flex h-11 w-11 items-center justify-center rounded-full text-[var(--cricket)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
             aria-label="Share scorecard link"
           >
-            <Share2 size={14} className="flex-shrink-0" style={{ color: 'var(--muted)' }} />
-            <Text size="sm" weight="semibold" color="muted">
-              Share
-            </Text>
+            <Share size={19} aria-hidden />
           </button>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -1048,8 +898,8 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
 function MonthHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pb-2">
-      <Text size="2xs" weight="semibold" uppercase tracking="wider" color="muted">
-        {label}
+      <Text size="sm" weight="semibold" color="muted">
+        {label === 'DATE TBD' ? 'Date to be confirmed' : label.charAt(0) + label.slice(1).toLowerCase()}
       </Text>
       <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
     </div>
@@ -1590,23 +1440,30 @@ export default function MatchSchedule() {
         {activeTab === 'completed' && (
           <>
             {completed.length > 0 ? (
-              <div className="space-y-2">
-                {completed.map((m) => {
-                  const meta = getCricclubsMeta(m);
-                  return (
-                    <CompletedMatchCard
-                      key={m.id}
-                      match={m}
-                      isAdmin={isAdmin}
-                      onMenuOpen={setOpenMenu}
-                      openMenuId={openMenu}
-                      menuBtnRef={menuBtnRef}
-                      scorecardUrl={meta?.scorecard_url}
-                      tossWinner={meta?.toss_winner ?? null}
-                      tossDecision={meta?.toss_decision ?? null}
-                    />
-                  );
-                })}
+              <div className="space-y-5">
+                {groupByMonth(completed).map((group) => (
+                  <section key={group.label}>
+                    <MonthHeader label={group.label} />
+                    <div className="space-y-2.5">
+                      {group.matches.map((m) => {
+                        const meta = getCricclubsMeta(m);
+                        return (
+                          <CompletedMatchCard
+                            key={m.id}
+                            match={m}
+                            isAdmin={isAdmin}
+                            onMenuOpen={setOpenMenu}
+                            openMenuId={openMenu}
+                            menuBtnRef={menuBtnRef}
+                            scorecardUrl={meta?.scorecard_url}
+                            tossWinner={meta?.toss_winner ?? null}
+                            tossDecision={meta?.toss_decision ?? null}
+                          />
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
               <EmptyState
@@ -1625,6 +1482,15 @@ export default function MatchSchedule() {
         open={openMenu !== null}
         onOpenChange={(o) => { if (!o) setOpenMenu(null); }}
         title="Match actions"
+        {...(() => {
+          const m = openMenu ? matches.find((x) => x.id === openMenu) : undefined;
+          if (!m) return {};
+          const result = m.result === 'won' ? 'Won' : m.result === 'lost' ? 'Lost' : m.result === 'draw' ? 'Draw' : null;
+          return {
+            heading: `vs ${m.opponent.replace(/^MTCA\s+/i, '')}`,
+            detail: [formatMatchDate(m.match_date), result, m.venue || null].filter(Boolean).join(' · '),
+          };
+        })()}
         items={openMenu ? getMenuItems(openMenu) : []}
       />
 

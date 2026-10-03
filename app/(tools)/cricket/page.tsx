@@ -228,8 +228,7 @@ export function SummaryStats({
               'bg-[var(--card)] shadow-[var(--card-shadow)]',
               'transition-all duration-150 ease-out',
               // 0.98, not the 0.95 used on pills: at 171x70 a 5% shrink is 8.5px
-              // of travel and reads as a lurch. Same value as the tappable stat
-              // cards in TopPerformersCarousel.
+              // of travel and reads as a lurch.
               'active:scale-[0.98]',
               // Copied from SplitsDashboard's SummaryCard — the closest twin in
               // the repo (a tappable summary card that jumps to another view).

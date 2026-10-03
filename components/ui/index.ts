@@ -58,6 +58,8 @@ export { ActionSheet } from './action-sheet';
 export type { ActionSheetProps } from './action-sheet';
 
 export { RefreshButton } from './refresh-button';
+
+export { RollingNumber } from './rolling-number';
 export type { RefreshButtonProps } from './refresh-button';
 
 export { Toaster } from './toast';

@@ -12,7 +12,7 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
 };
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { cn } from '@/lib/utils';
-import { EmptyState, Text, Badge, Spinner, ActionSheet, ComposerModal, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
+import { EmptyState, RollingNumber, Text, Badge, Spinner, ActionSheet, ComposerModal, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, ArrowDownRight, ReceiptText, Plus } from 'lucide-react';
@@ -129,7 +129,7 @@ function PoolFundHero({
               color: isLow ? 'var(--split-owe)' : 'var(--text)',
               fontFeatureSettings: '"tnum"',
             }}>
-            {isLow ? '−' : ''}{formatCurrency(Math.abs(poolBalance))}
+            <RollingNumber value={`${isLow ? '−' : ''}${formatCurrency(Math.abs(poolBalance))}`} />
           </span>
         </div>
         {totalCollected > 0 && (
@@ -425,6 +425,13 @@ function ExpenseRow({
               open={openMenu}
               onOpenChange={setOpenMenu}
               title={`Actions for ${expense.description || config.label}`}
+              heading={expense.description || config.label}
+              detail={`${formatCurrency(Number(expense.amount))} · ${formatDate(expense.expense_date)} · ${config.label}`}
+              leading={Icon && (
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${config.color}16` }}>
+                  <Icon size={18} style={{ color: config.color }} />
+                </span>
+              )}
               items={[
                 { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: onEdit },
                 { label: 'Details', icon: <Info size={17} />, color: 'var(--muted)', onClick: onDetails },

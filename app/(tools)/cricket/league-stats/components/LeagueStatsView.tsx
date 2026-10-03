@@ -8,19 +8,16 @@ import {
   Text,
   Skeleton,
   EmptyState,
+  SegmentedControl,
 } from '@/components/ui';
-import { NumberTicker } from '@/components/ui/number-ticker';
-import { ChartColumnBig, Star, Hand, ChevronRight, LayoutGrid, Rows3 } from 'lucide-react';
+import { ChartColumnBig, Star, Hand, ListOrdered, Table2 } from 'lucide-react';
 import { MdSportsCricket } from 'react-icons/md';
 import { GiTennisBall } from 'react-icons/gi';
 import SeasonSelector from '../../components/SeasonSelector';
-// ── New mobile-redesign components (parallel agent build, integrated here) ──
-import StickyPillTabs, { type StickyTabKey } from './StickyPillTabs';
-import LeaderboardCard from './LeaderboardCard';
+import LeaderboardList from './LeaderboardList';
 import LeaderboardTable, { type TableColumn } from './LeaderboardTable';
-import TopPerformersCarousel from './TopPerformersCarousel';
 import PlayerDetailSheet from './PlayerDetailSheet';
-import { AllRoundFormulaCard, CatchesRulesCard, BestSpellChip, getHeatColor } from './TabIntroCards';
+import { AllRoundFormulaCard, CatchesRulesCard } from './TabIntroCards';
 import {
   aggregateBatting,
   aggregateBowling,
@@ -28,18 +25,12 @@ import {
   matchIdsForLeague,
 } from '../lib/seasonAggregates';
 import {
-  computeTopPerformers,
-  type TopPerformerCard,
   computeBestBowlingFigures,
   computeMatchesPlayed,
   extractRunOutFielders,
-  recentBattingDetailedForPlayer,
-  recentBowlingDetailedForPlayer,
   compareBattingRows,
   compareBowlingRows,
   compareCatchesRows,
-  type RecentBattingEntry,
-  type RecentBowlingEntry,
 } from '../lib/computeStats';
 
 // ── Types matching the Supabase views & raw tables ────────────────────────
@@ -128,20 +119,28 @@ type RosterRow = {
   photo_url?: string | null;
 };
 
-type Tab = StickyTabKey; // 'batting' | 'bowling' | 'allround' | 'catches'
+// `catches` is the Fielding tab — the key predates the label.
+type Tab = 'batting' | 'bowling' | 'allround' | 'catches';
 
-// Visual order of the pill tabs — the tab-body transition slides in from the
-// direction of travel (moving right in this list enters from the right),
-// so the page reads like a native pager rather than a stateless fade.
+// Visual order of the discipline switch — the tab-body transition slides in
+// from the direction of travel (moving right in this list enters from the
+// right), so the page reads like a native pager rather than a stateless fade.
 const TAB_ORDER: readonly Tab[] = ['batting', 'bowling', 'allround', 'catches'];
+const TAB_OPTIONS = [
+  { key: 'batting', label: 'Batting' },
+  { key: 'bowling', label: 'Bowling' },
+  { key: 'allround', label: 'All-round' },
+  { key: 'catches', label: 'Fielding' },
+];
 
-// Table = whole squad, comparable — the default, because the question people
-// actually open this page with is "who is best at X?". Cards = one player at
-// a time, rich and scannable. Persisted per device so the choice survives a
-// reload.
+// Ranked list = one figure per player with a bar showing the gap to the
+// leader — the default, because the question people open this page with is
+// "who is best at X?". Table = every stat in a sortable column. Persisted per
+// device so the choice survives a reload. The stored value for the list is
+// still 'cards' (what it was called before), so a saved choice carries over.
 type ViewMode = 'cards' | 'table';
 const VIEW_MODE_KEY = 'league-stats:view-mode';
-const DEFAULT_VIEW_MODE: ViewMode = 'table';
+const DEFAULT_VIEW_MODE: ViewMode = 'cards';
 
 // localStorage is an external store, so it is read through
 // useSyncExternalStore rather than a useState + useEffect pair. This page is
@@ -341,123 +340,58 @@ const computeAllRound = (
 
 
 /**
- * ── Hero: ONE row ────────────────────────────────────────────────────────
+ * Season header: the season pill, and on the right the season's record with
+ * the last five results under it (oldest to newest, newest on the right, the
+ * way a scorebook reads). Win/loss is the one place this page uses colour,
+ * because there it carries meaning.
  *
- * Season · record · streak-or-form · view toggle, on a single 48px line.
- *
- * This was a 187px card with three stacked rows, sitting above a 222px
- * carousel and a 54px view toggle. Total page chrome came to 635px of an
- * 844px phone — 75% — leaving room for TWO leaderboard rows out of eighteen
- * players. The leaderboard is the entire reason for the page.
- *
- * What was removed, and why each was affordable:
- *   • "LEAGUE PERFORMANCE" eyebrow — decoration above a title that also went.
- *   • "Season Stats" <h1> — the bottom nav already labels this destination
- *     "Stats" and the app header names the team. It was also FALSE: hardcoded
- *     over career-wide data.
- *   • The 54% / 31% / 15% under W/L/UND — percentages of thirteen matches are
- *     noise, and "7-4-2" states the same fact exactly. Cost three lines of
- *     vertical space to say less.
- *   • "newest first" caption — the pills read left-to-right newest already.
- *   • The brand gradient wash and the card itself — a full-bleed row needs no
- *     container to be legible.
- *
- * Streak and form now SHARE one slot rather than both rendering: a streak IS
- * the form summary, so showing "🔥 3W" beside W-W-L-W-W says it twice and
- * costs the width that made the row overflow.
- *
- * Deliberately NOT sticky. The old `sticky top-0 z-20` could not work: the
- * app Shell header is `sticky top-0 z-40` and 59px tall, so this pinned
- * BEHIND it. (And `main { overflow-x: hidden }` in globals.css makes `main` a
- * scroll container, which neutralises descendant sticky altogether.) With
- * chrome down to ~256px, scroll-to-top is one flick away.
+ * Deliberately NOT sticky: `main { overflow-x: hidden }` in globals.css makes
+ * `main` a scroll container, which neutralises descendant sticky altogether.
  */
 type FormOutcome = 'won' | 'lost' | 'draw';
-function CompactHero({
-  won, lost, undecided, total, formDescending, streak,
-  seasonSelector, viewToggle,
+function SeasonHeader({
+  won, lost, undecided, total, formDescending, seasonSelector,
 }: {
   won: number;
   lost: number;
   undecided: number;
   total: number;
   formDescending: FormOutcome[];
-  streak: { type: FormOutcome; count: number } | null;
   seasonSelector: React.ReactNode;
-  /** Table/Cards control, folded in here to reclaim its own 54px row. */
-  viewToggle?: React.ReactNode;
 }) {
-  const showStreak = streak !== null && streak.count >= 2;
-  // Only when there is no streak worth showing — otherwise the streak chip
-  // already summarises exactly this.
-  const recent = showStreak ? [] : formDescending.slice(0, 5);
-
+  const recent = formDescending.slice(0, 5).reverse();
+  const word = (o: FormOutcome) => (o === 'won' ? 'won' : o === 'lost' ? 'lost' : 'drawn');
   return (
-    <div className="flex items-center gap-2 pt-3 pb-1 min-h-[48px]">
-      <div className="flex-shrink-0">{seasonSelector}</div>
-
+    <div className="flex items-center justify-between gap-3 pt-3">
+      <div className="min-w-0">{seasonSelector}</div>
       {total > 0 && (
-        <span
-          className="text-[15px] font-extrabold tabular-nums tracking-tight flex-shrink-0"
-          aria-label={`${won} won, ${lost} lost, ${undecided} undecided`}
-        >
-          <span style={{ color: 'var(--green)' }}>{won}</span>
-          <span style={{ color: 'var(--dim)' }}>–</span>
-          <span style={{ color: 'var(--red)' }}>{lost}</span>
-          <span style={{ color: 'var(--dim)' }}>–</span>
-          <span style={{ color: 'var(--muted)' }}>{undecided}</span>
-        </span>
-      )}
-
-      {showStreak && (() => {
-        const tone = streak.type === 'won' ? 'var(--green)' : streak.type === 'lost' ? 'var(--red)' : 'var(--muted)';
-        const glyph = streak.type === 'won' ? '🔥' : streak.type === 'lost' ? '❄️' : '⚖️';
-        const letter = streak.type === 'won' ? 'W' : streak.type === 'lost' ? 'L' : 'D';
-        return (
+        <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
           <span
-            className={
-              'inline-flex items-center gap-1 h-7 px-2.5 rounded-full flex-shrink-0 '
-              + (streak.count >= 3 ? 'animate-streak-glow' : '')
-            }
-            style={{
-              background: `color-mix(in srgb, ${tone} 14%, transparent)`,
-              border: `1px solid color-mix(in srgb, ${tone} 30%, transparent)`,
-              ...(streak.count >= 3 ? ({ ['--glow-color' as string]: tone }) : {}),
-            }}
-            aria-label={`${streak.count} match ${streak.type} streak`}
+            className="text-[17px] font-semibold leading-none tabular-nums text-[var(--text)]"
+            aria-label={`${won} won, ${lost} lost${undecided > 0 ? `, ${undecided} undecided` : ''}`}
           >
-            <span aria-hidden className="text-[12px] leading-none">{glyph}</span>
-            <span className="text-[12px] font-bold tabular-nums leading-none" style={{ color: tone }}>
-              {streak.count}{letter}
-            </span>
+            {won}<span className="text-[13px] font-medium text-[var(--muted)]"> W</span>
+            <span className="ml-2">{lost}</span><span className="text-[13px] font-medium text-[var(--muted)]"> L</span>
           </span>
-        );
-      })()}
-
-      {recent.length > 0 && (
-        <span className="flex items-center gap-1 flex-shrink-0">
-          {recent.map((outcome, i) => {
-            const tone = outcome === 'won' ? 'var(--green)' : outcome === 'lost' ? 'var(--red)' : 'var(--muted)';
-            const letter = outcome === 'won' ? 'W' : outcome === 'lost' ? 'L' : 'D';
-            const label = outcome === 'won' ? 'Won' : outcome === 'lost' ? 'Lost' : 'Draw';
-            return (
-              <span
-                key={i}
-                className={
-                  'inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-extrabold '
-                  + (i === 0 ? 'animate-form-pulse' : '')
-                }
-                style={{ background: `color-mix(in srgb, ${tone} 22%, transparent)`, color: tone }}
-                aria-label={label}
-              >
-                {letter}
-              </span>
-            );
-          })}
-        </span>
+          {recent.length > 0 && (
+            <span
+              className="flex items-center gap-1 text-[12px] font-semibold leading-none"
+              aria-label={`Last ${recent.length}, newest last: ${recent.map(word).join(', ')}`}
+            >
+              {recent.map((o, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className="w-3 text-center"
+                  style={{ color: o === 'won' ? 'var(--credit-text)' : o === 'lost' ? 'var(--danger-text)' : 'var(--muted)' }}
+                >
+                  {o === 'won' ? 'W' : o === 'lost' ? 'L' : 'D'}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       )}
-
-      {viewToggle && <div className="ml-auto flex-shrink-0">{viewToggle}</div>}
     </div>
   );
 }
@@ -796,33 +730,6 @@ export default function LeagueStatsView() {
   }, [matches, cricclubsTeamName]);
   const summary = seasonOutcomes;
 
-  // ── New redesign derived data ──────────────────────────────────────────────
-  // Top performers carousel (Summary Layer per spec): 5 season-highlight cards.
-  const topPerformers = useMemo(
-    () => computeTopPerformers(batting, bowling, catchesTotals, battingMatches, bowlingMatches, matches),
-    [batting, bowling, catchesTotals, battingMatches, bowlingMatches, matches],
-  );
-
-  /**
-   * One-line stand-in for the collapsed carousel, e.g. "Sai Krishna, 278 runs".
-   *
-   * Prefers the card matching the ACTIVE tab, so the strip answers the question
-   * the current leaderboard is about rather than always naming the run-scorer.
-   * Falls back to the first card. A collapsed section that carries its headline
-   * is information; one that just says "Top performers" is a closed door.
-   */
-  const leadHeadline = useMemo(() => {
-    if (topPerformers.length === 0) return null;
-    const wanted: Record<Tab, TopPerformerCard['category'][]> = {
-      batting: ['runs'],
-      bowling: ['wickets', 'economy'],
-      catches: ['catches'],
-      allround: ['mvp'],
-    };
-    const card = topPerformers.find((c) => wanted[tab].includes(c.category)) ?? topPerformers[0]!;
-    return `${card.player_name}, ${card.metric} ${card.unit}`.trim();
-  }, [topPerformers, tab]);
-
   // Best bowling figures per player ("4/18" display strings). Used in the
   // Bowling tab footer to surface the season-best spell per player.
   const bestBowlingByPlayer = useMemo(
@@ -951,101 +858,61 @@ export default function LeagueStatsView() {
     );
   }
 
+  const tabCount = {
+    batting: batting.length,
+    bowling: bowling.length,
+    allround: allRound.length,
+    catches: catchesTotals.length,
+  }[tab];
+
   return (
     <>
-    <div className="space-y-3">
-      {/* One 48px row: season · record · streak-or-form · view toggle. */}
-      <CompactHero
+    <div className="space-y-4">
+      <SeasonHeader
         won={summary.won}
         lost={summary.lost}
         undecided={summary.undecided}
         total={summary.total}
         formDescending={summary.formDescending}
-        streak={summary.streak}
         seasonSelector={<SeasonSelector />}
-        viewToggle={
-          /* A 44px icon button, not a 176px segmented control on its own row.
-             This is a set-once-per-device preference — it is already remembered
-             in localStorage — so it was charging 54px of permanent chrome on
-             every single visit to save one tap, once. */
+      />
+
+      <SegmentedControl
+        ariaLabel="Discipline"
+        options={TAB_OPTIONS}
+        active={tab}
+        onChange={(key) => setTab(key as Tab)}
+      />
+
+      {/* List header: how many are ranked, and the list/table switch. The
+          switch is a set-once-per-device preference, so it is a quiet icon
+          here rather than a control of its own. */}
+      {tabCount > 0 && (
+        <div className="-mb-2 flex items-center justify-between pl-1">
+          <Text size="sm" color="muted" tabular>
+            {tabCount} {tabCount === 1 ? 'player' : 'players'}
+          </Text>
           <button
             type="button"
             onClick={() => writeViewMode(viewMode === 'table' ? 'cards' : 'table')}
-            aria-label={viewMode === 'table' ? 'Switch to card view' : 'Switch to table view'}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition-transform active:scale-95"
+            aria-label={viewMode === 'table' ? 'Show as ranked list' : 'Show as table'}
+            className="-mr-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
           >
-            {viewMode === 'table' ? <LayoutGrid size={17} /> : <Rows3 size={17} />}
+            {viewMode === 'table' ? <ListOrdered size={20} aria-hidden /> : <Table2 size={19} aria-hidden />}
           </button>
-        }
-      />
-
-      {/* Tab bar. `stickyTop` is 0 because nothing above it is sticky any
-          more — see the note on CompactHero about why the old sticky hero
-          could never have worked behind a z-40 app header. */}
-      <StickyPillTabs
-        active={tab}
-        onChange={setTab}
-        stickyTop="0"
-      />
-
-      {/* Top performers — collapsed to a one-line strip.
-          As a carousel this was 222px, a quarter of the phone, summarising the
-          leaderboard immediately beneath it. Collapsed by default because the
-          full answer is already on screen; expandable for the discipline
-          leaders you cannot see from the batting tab alone. */}
-      {topPerformers.length > 0 && (
-        <details className="group rounded-xl border border-[var(--border)] bg-[var(--card)]">
-          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 py-2.5">
-            <ChevronRight
-              size={14}
-              className="flex-shrink-0 text-[var(--muted)] transition-transform group-open:rotate-90"
-              aria-hidden
-            />
-            <Text size="2xs" color="muted" weight="semibold" uppercase tracking="wider" className="flex-shrink-0">
-              Top performers
-            </Text>
-            {leadHeadline && (
-              <Text as="p" size="xs" weight="semibold" truncate className="min-w-0 flex-1">
-                {leadHeadline}
-              </Text>
-            )}
-          </summary>
-          <div className="pb-1">
-            <TopPerformersCarousel
-              cards={topPerformers}
-              photoUrlByPlayer={photoUrlByPlayer}
-              onCardTap={(playerId) => {
-                // Map the carousel card's discipline to the right sheet context
-                const card = topPerformers.find((c) => c.player_id === playerId);
-                const ctx: Tab = card?.category === 'wickets' || card?.category === 'economy'
-                  ? 'bowling'
-                  : card?.category === 'catches'
-                    ? 'catches'
-                    : card?.category === 'mvp'
-                      ? 'allround'
-                      : 'batting';
-                openPlayerSheet(playerId, ctx);
-              }}
-            />
-          </div>
-        </details>
+        </div>
       )}
 
-      {/* Tab bodies — card-first per spec. Each tab maps its rows to
-          <LeaderboardCard>s; tapping a card opens the PlayerDetailSheet.
-          Wrapper is keyed on tab + viewMode so every change remounts it and
+      {/* Wrapper is keyed on tab + viewMode so every change remounts it and
           replays the transition; WHICH transition (directional slide vs
           refocus) was resolved above from what actually changed. */}
-      <div key={`${tab}-${viewMode}`} className={`${bodyAnimRef.current} space-y-3`}>
+      <div key={`${tab}-${viewMode}`} className={`${bodyAnimRef.current} space-y-5`}>
         {tab === 'batting' && (
           <BattingTabBody
             rows={batting}
             viewMode={viewMode}
             photoUrlByPlayer={photoUrlByPlayer}
             matchesPlayedByPlayer={matchesPlayedByPlayer}
-            battingMatches={battingMatches}
-            bowlingMatches={bowlingMatches}
-            matches={matches}
             onPlayerTap={(id) => openPlayerSheet(id, 'batting')}
           />
         )}
@@ -1057,8 +924,6 @@ export default function LeagueStatsView() {
             photoUrlByPlayer={photoUrlByPlayer}
             matchesPlayedByPlayer={matchesPlayedByPlayer}
             bestBowlingByPlayer={bestBowlingByPlayer}
-            bowlingMatches={bowlingMatches}
-            matches={matches}
             onPlayerTap={(id) => openPlayerSheet(id, 'bowling')}
           />
         )}
@@ -1072,10 +937,7 @@ export default function LeagueStatsView() {
               matchesPlayedByPlayer={matchesPlayedByPlayer}
               onPlayerTap={(id) => openPlayerSheet(id, 'allround')}
             />
-            {/* Formula explainer moved to bottom — leaders/cards are the
-                primary content; the algorithm reference sits as a footer
-                so it doesn't push the leaderboard below the fold. */}
-            <AllRoundFormulaCard />
+            {allRound.length > 0 && <AllRoundFormulaCard />}
           </>
         )}
 
@@ -1089,7 +951,6 @@ export default function LeagueStatsView() {
               catchesByPlayer={catchesByPlayer}
               onPlayerTap={(id) => openPlayerSheet(id, 'catches')}
             />
-            {/* Catch-type explainer moved to bottom (was above the leaders). */}
             <CatchesRulesCard />
           </>
         )}
@@ -1119,38 +980,24 @@ export default function LeagueStatsView() {
   );
 }
 
-/* Cricket-themed empty state per tab — discipline icon inside a soft halo
-   ring + optimistic copy. Replaces the generic ChartColumnBig fallback.
-   Avoids feeling "broken" when a season starts with no data yet. */
+/* Empty tab — the discipline's icon on a neutral well, and what will fill
+   the space. Neutral like the rest of the page. */
 function TabEmptyState({
-  accent,
   icon,
   title,
   description,
 }: {
-  accent: string;
   icon: React.ReactNode;
   title: string;
   description: string;
 }) {
   return (
-    <div className="flex flex-col items-center text-center py-10 px-6 relative overflow-hidden rounded-2xl"
-      style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-      }}
-    >
-      <div
-        className="relative h-16 w-16 rounded-full flex items-center justify-center mb-3"
-        style={{
-          background: `color-mix(in srgb, ${accent} 10%, transparent)`,
-          color: accent,
-        }}
-      >
+    <div className="flex flex-col items-center px-6 py-12 text-center">
+      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fill)] text-[var(--muted)]">
         {icon}
       </div>
-      <Text as="h3" size="md" weight="bold" className="relative mb-1">{title}</Text>
-      <Text as="p" size="sm" color="muted" className="relative max-w-[260px] leading-relaxed">
+      <Text as="h3" size="md" weight="semibold" className="mb-1">{title}</Text>
+      <Text as="p" size="sm" color="muted" className="max-w-[260px] leading-relaxed">
         {description}
       </Text>
     </div>
@@ -1159,38 +1006,41 @@ function TabEmptyState({
 
 // ── Layout-mimicking loading skeleton ─────────────────────────────────────
 //
-// Mirrors the final shape (hero card, top-performers row, sticky tab bar,
-// view toggle, leaderboard body) so the page doesn't visually "jump" when
-// data lands. It takes `viewMode` for exactly that reason: skeleton cards
-// resolving into a table would be the same disorienting shape-shift this
-// component exists to prevent.
+// Mirrors the final shape (season header, discipline switch, list header,
+// leaderboard body) so the page doesn't jump when data lands. It takes
+// `viewMode` for exactly that reason: list rows resolving into a table would
+// be the same disorienting shape-shift this exists to prevent.
 // All blocks use the shared `<Skeleton>` shimmer so reduced-motion is honored.
 
 function LeagueStatsSkeleton({ viewMode }: { viewMode: ViewMode }) {
   return (
-    <div className="space-y-3.5">
-      {/* Hero placeholder — one row: season pill, record, streak, view toggle.
-          Must mirror the real heights, or the content jumps when it lands. */}
-      <div className="flex items-center gap-2 pt-3 pb-1">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 pt-3">
         <Skeleton className="h-[38px] w-[150px] rounded-full" />
-        <Skeleton className="h-[18px] w-[46px] rounded-md" />
-        <Skeleton className="ml-auto h-11 w-11 rounded-xl" />
+        <div className="flex flex-col items-end gap-1.5">
+          <Skeleton className="h-[17px] w-16 rounded-md" />
+          <Skeleton className="h-3 w-[72px] rounded-md" />
+        </div>
       </div>
-
-      {/* Sticky pill tabs placeholder. */}
-      <Skeleton className="h-11 rounded-full" />
-
-      {/* Collapsed top-performers strip. The carousel behind it is closed by
-          default, so its cards are deliberately NOT part of the skeleton —
-          showing them would promise a taller layout than what arrives. */}
-      <Skeleton className="h-11 rounded-xl" />
-
+      <Skeleton className="h-12 rounded-[14px]" />
+      <div className="-mb-2 flex items-center justify-between pl-1">
+        <Skeleton className="h-3.5 w-20 rounded-md" />
+        <Skeleton className="h-11 w-11 rounded-full" />
+      </div>
       {viewMode === 'table' ? (
         <LeaderboardTableSkeleton />
       ) : (
-        <div className="space-y-3.5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <LeaderboardCardSkeleton key={i} podium={i < 3} />
+        <div className="flex flex-col gap-1">
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="flex min-h-[64px] items-center gap-3 py-2 pl-1 pr-3">
+              <Skeleton className="h-3.5 w-6 rounded-md flex-shrink-0" />
+              <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Skeleton className="h-4 w-32 rounded-md" />
+                <Skeleton className="h-3 w-44 rounded-md" />
+              </div>
+              <Skeleton className="h-6 w-10 rounded-md" />
+            </div>
           ))}
         </div>
       )}
@@ -1198,24 +1048,22 @@ function LeagueStatsSkeleton({ viewMode }: { viewMode: ViewMode }) {
   );
 }
 
-/* Table placeholder — one header strip plus 8 rows, matching the real
-   table's 44px header / 48px row rhythm and its frozen-player-column split. */
+/* Table placeholder — header strip plus 8 rows, matching the real table's
+   44px rhythm and its frozen-player-column split. */
 function LeaderboardTableSkeleton() {
-  // Mirrors the real table's density pass: full-bleed on phones, 24px
-  // avatars, 44px rows, five visible stat columns.
   return (
     <div
-      className="overflow-hidden -mx-4 rounded-none border-y sm:mx-0 sm:rounded-2xl sm:border"
-      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+      className="overflow-hidden -mx-4 rounded-none border-b sm:mx-0 sm:rounded-2xl sm:border"
+      style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
     >
       <div
         className="flex items-center gap-2 px-2.5 h-11"
-        style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+        style={{ borderBottom: '1px solid var(--border)' }}
       >
-        <Skeleton className="h-2.5 w-14 rounded-md" />
+        <Skeleton className="h-3 w-14 rounded-md" />
         <div className="flex-1" />
         {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-2.5 w-6 rounded-md" />
+          <Skeleton key={i} className="h-3 w-6 rounded-md" />
         ))}
       </div>
       {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
@@ -1224,60 +1072,18 @@ function LeaderboardTableSkeleton() {
           className="flex items-center gap-1.5 px-2.5 h-11"
           style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' }}
         >
-          <Skeleton className="h-2.5 w-3 rounded-md flex-shrink-0" />
+          <Skeleton className="h-3 w-3 rounded-md flex-shrink-0" />
           <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
-          <Skeleton className="h-3 w-20 rounded-md" />
+          <Skeleton className="h-3.5 w-16 rounded-md" />
           <div className="flex-1" />
           {[0, 1, 2, 3, 4].map((j) => (
-            <Skeleton key={j} className="h-3 w-6 rounded-md" />
+            <Skeleton key={j} className="h-3.5 w-6 rounded-md" />
           ))}
         </div>
       ))}
     </div>
   );
 }
-
-function LeaderboardCardSkeleton({ podium }: { podium: boolean }) {
-  return (
-    <div
-      className={`relative rounded-[20px] overflow-hidden border border-[var(--border)]/30 ${
-        podium ? 'px-4 py-4' : 'px-4 py-3'
-      }`}
-      style={{ background: 'var(--card)' }}
-    >
-      <div className="flex items-start gap-3 min-w-0">
-        {/* Avatar circle. */}
-        <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
-        <div className="flex-1 min-w-0 flex flex-col gap-2.5">
-          {/* Header row — rank dot + name line. */}
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
-            <Skeleton className="h-4 w-32 rounded-md" />
-          </div>
-          {/* Hero numeral + label. */}
-          <div className="flex items-baseline gap-2">
-            <Skeleton className="h-9 w-16 rounded-md" />
-            <Skeleton className="h-3 w-10 rounded-md" />
-          </div>
-          {/* Stat chip row. */}
-          <div className="flex items-center gap-1.5">
-            <Skeleton className="h-5 w-14 rounded-full" />
-            <Skeleton className="h-5 w-14 rounded-full" />
-            <Skeleton className="h-5 w-14 rounded-full" />
-          </div>
-          {/* Footer line. */}
-          <Skeleton className="h-3 w-40 rounded-md" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Card-based tab body components ────────────────────────────────────────
-//
-// Each tab body is a vertical stack of LeaderboardCards. The card primary/
-// footer/rightInline slots differ per discipline; the wrappers below hold
-// each tab's stat-cell shape so the main render stays readable.
 
 // ── Table column definitions ──────────────────────────────────────────────
 //
@@ -1397,71 +1203,36 @@ const catchesColumns = (
   },
 ];
 
-function StatCell({
-  label, value, accent, primary,
-}: { label: string; value: string | number; accent?: string; primary?: boolean }) {
-  // Apply count-up animation only to integer sport counts on the primary stat
-  // (runs / wickets / catches). Avoids running the ticker on decimals (Avg, SR,
-  // Econ) where the partial frames look noisy, and on already-formatted strings
-  // like "4.5" overs. Memory `feedback_number_ticker_currency` explicitly
-  // limits the ticker to sport counts, never currency — that's why we don't use
-  // it elsewhere on the page.
-  const useTicker =
-    primary && typeof value === 'number' && Number.isInteger(value);
-  // Strong size hierarchy: the primary stat dominates (22px), secondary stats
-  // sit smaller (14px). Without this, adjacent values like "43.33" and "49.4"
-  // collide visually in a grid since the eye reads them as a single string.
-  return (
-    <div className="flex flex-col items-start leading-none min-w-0">
-      <span
-        className={
-          primary
-            ? 'text-[22px] font-bold tabular-nums'
-            : 'text-[14px] font-bold tabular-nums text-[var(--text)]'
-        }
-        style={primary && accent ? { color: accent } : undefined}
-      >
-        {useTicker ? <NumberTicker value={value as number} /> : value}
-      </span>
-      <span className="text-[9px] font-semibold mt-1 uppercase tracking-wider text-[var(--muted)]">
-        {label}
-      </span>
-    </div>
-  );
-}
+/** "1 run-out", "3 run-outs". */
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const detail = (...parts: Array<string | null>) => parts.filter(Boolean).join(' · ');
 
 function BattingTabBody({
-  rows, viewMode, photoUrlByPlayer, matchesPlayedByPlayer, battingMatches,
-  bowlingMatches: _bowlingMatches, matches, onPlayerTap,
+  rows, viewMode, photoUrlByPlayer, matchesPlayedByPlayer, onPlayerTap,
 }: {
   rows: BattingSeasonRow[];
   viewMode: ViewMode;
   photoUrlByPlayer: Map<string, string | null>;
   matchesPlayedByPlayer: Map<string, number>;
-  battingMatches: BattingMatchRow[];
-  bowlingMatches: BowlingMatchRow[];
-  matches: MatchRow[];
   onPlayerTap: (playerId: string) => void;
 }) {
   if (rows.length === 0) {
     return (
       <TabEmptyState
-        accent="var(--stat-batting)"
-        icon={<MdSportsCricket size={32} />}
+        icon={<MdSportsCricket size={28} />}
         title="First innings coming soon"
         description="Batting stats land as soon as the first scorecard publishes for this season."
       />
     );
   }
-  // Sort using the shared comparator so the carousel "Top Run Scorer" and
-  // the leaderboard rank #1 never disagree on a tie.
+  // Shared comparator, so rank #1 here is the same player everywhere a
+  // "top run scorer" is named.
   const sorted = [...rows].sort(compareBattingRows);
 
   if (viewMode === 'table') {
     return (
       <LeaderboardTable
         rows={sorted}
-        accentColor="var(--stat-batting)"
         defaultSortKey="runs"
         getPlayer={(r) => ({
           id: r.player_id,
@@ -1475,255 +1246,51 @@ function BattingTabBody({
   }
 
   return (
-    <div className="space-y-3.5">
-      {sorted.map((row, i) => {
-        const rank = i + 1;
-        const recent: Array<RecentBattingEntry | null> = row.player_id
-          ? recentBattingDetailedForPlayer(row.player_id, battingMatches, matches)
-          : [];
-        return (
-          <LeaderboardCard
-            key={row.player_id ?? row.player_name}
-            rank={rank}
-            playerName={row.player_name}
-            playerPhotoUrl={row.player_id ? photoUrlByPlayer.get(row.player_id) : null}
-            accentColor="var(--stat-batting)"
-            revealIndex={i}
-            primaryRow={
-              <BattingHeroStats
-                runs={row.runs}
-                matchesPlayed={row.player_id ? matchesPlayedByPlayer.get(row.player_id) : undefined}
-                innings={row.innings}
-                average={row.batting_average}
-                strikeRate={row.strike_rate}
-              />
-            }
-            footer={
-              <BattingFooter
-                highest={row.highest_score}
-                fours={row.fours}
-                sixes={row.sixes}
-                recent={recent}
-              />
-            }
-            onTap={row.player_id ? () => onPlayerTap(row.player_id!) : undefined}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-/* Cinematic batting hero — large primary numeral + supporting stat chips.
-   The eye lands on RUNS first, then scans Avg/SR/Inn as discrete pill chips
-   (faster than text-with-dots, and the pill shape suggests "interactive
-   data" rather than "prose"). */
-function BattingHeroStats({
-  runs, matchesPlayed, innings, average, strikeRate,
-}: {
-  runs: number; matchesPlayed: number | undefined; innings: number;
-  average: number | null; strikeRate: number | null;
-}) {
-  return (
-    <div className="flex flex-col gap-2 leading-none">
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="text-[28px] font-bold tabular-nums leading-none"
-          style={{
-            color: 'var(--stat-batting)',
-          }}
-        >
-          <NumberTicker value={runs} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)] mb-0.5">
-          Runs
-        </span>
-      </div>
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-        <MatchesChip matchesPlayed={matchesPlayed} />
-        <StatChip label="Inn" value={innings} title="Innings batted (excludes did-not-bat)" />
-        <StatChip label="Avg" value={average == null ? '—' : average.toFixed(1)} />
-        <StatChip label="SR" value={strikeRate == null ? '—' : strikeRate.toFixed(1)} />
-      </div>
-    </div>
-  );
-}
-
-function DotSeparator() {
-  return <span aria-hidden className="text-[var(--dim)]">·</span>;
-}
-
-/* Supporting stat as quiet metadata TEXT — label muted, value strong.
-   These were tinted, bordered pills; four of them per card read as a row of
-   dashboard tags competing with the primary numeral (Phase 3.3B). Typography
-   alone carries the pair now. */
-function StatChip({
-  label, value, dotColor, title,
-}: {
-  label: string;
-  value: string | number;
-  /* When set, a small colour swatch precedes the value (used by Econ to carry
-     the heat tier that previously lived in a separate footer badge). */
-  dotColor?: string;
-  title?: string;
-}) {
-  return (
-    <span title={title} className="inline-flex items-baseline gap-1 text-[11px] tabular-nums">
-      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--dim)]">
-        {label}
-      </span>
-      {dotColor && (
-        <span
-          aria-hidden
-          className="inline-block h-[6px] w-[6px] rounded-full self-center"
-          style={{ background: dotColor }}
-        />
-      )}
-      <span className="font-semibold text-[var(--muted)]">{value}</span>
-    </span>
-  );
-}
-
-/* Matches played — the same chip on every tab so "how many games has this
-   player actually turned up for?" reads identically wherever you are.
-   `undefined` means the per-innings tables haven't loaded yet (they arrive
-   in the page's slow tier), so we show a dash rather than a false 0. */
-function MatchesChip({ matchesPlayed }: { matchesPlayed: number | undefined }) {
-  return (
-    <StatChip
-      label="Mat"
-      value={matchesPlayed ?? '—'}
-      // No longer claims "this season" — the count now genuinely follows the
-      // selected season, but it falls back to career when no season is chosen,
-      // so the neutral wording is the one that is always true.
-      title="Matches played (appeared on the scorecard, batting or bowling)"
+    <LeaderboardList
+      unit={['run', 'runs']}
+      onPlayerTap={onPlayerTap}
+      entries={sorted.map((r) => ({
+        id: r.player_id,
+        name: r.player_name,
+        photoUrl: r.player_id ? photoUrlByPlayer.get(r.player_id) : null,
+        value: r.runs,
+        display: String(r.runs),
+        detail: detail(
+          `${r.innings} inns`,
+          r.batting_average == null ? null : `Avg ${fmt1(r.batting_average)}`,
+          r.strike_rate == null ? null : `SR ${fmt1(r.strike_rate)}`,
+        ),
+      }))}
     />
   );
 }
 
-/* Batting footer — highlights line + color-coded recent chips with the
-   not-out asterisk preserved (e.g. "62*"). Threshold colour rules:
-     50+ runs   → gold gradient
-     30+ runs   → batting-green
-     0 (duck)   → red
-     1-29       → neutral muted
-     DNB (null) → outlined dash
-     not_out    → outlined ring on top of the perf colour
-*/
-function BattingFooter({
-  highest, fours, sixes, recent,
-}: { highest: number; fours: number; sixes: number; recent: Array<RecentBattingEntry | null> }) {
-  return (
-    <div className="flex flex-col gap-2 min-w-0">
-      <div className="flex items-center gap-2 text-[11px] text-[var(--muted)] flex-wrap">
-        <span className="inline-flex items-center gap-1 font-semibold">
-          <span aria-hidden style={{ color: 'var(--stat-allround)' }}>★</span>
-          <span>HS</span>
-          <span className="font-bold tabular-nums text-[var(--text)]">{highest}</span>
-        </span>
-        <DotSeparator />
-        <span className="font-semibold">
-          <span className="tabular-nums font-bold text-[var(--text)]">{fours}</span>×4
-        </span>
-        <DotSeparator />
-        <span className="font-semibold">
-          <span className="tabular-nums font-bold text-[var(--text)]">{sixes}</span>×6
-        </span>
-      </div>
-      {recent.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-[var(--dim)] flex-shrink-0">
-            Recent
-          </span>
-          <div className="flex items-center gap-1.5">
-            {recent.map((entry, idx) => (
-              <BattingRecentChip key={idx} entry={entry} idx={idx} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BattingRecentChip({ entry, idx = 0 }: { entry: RecentBattingEntry | null; idx?: number }) {
-  // Cap stagger at 5 chips so we never animate longer than ~0.4s total.
-  const delay = `${Math.min(idx, 5) * 60}ms`;
-  if (entry === null) {
-    // DNB — slim outlined dash
-    return (
-      <span
-        className="inline-flex items-center justify-center min-w-[30px] h-[22px] rounded-full text-[10px] font-bold tabular-nums px-1.5 border animate-chip-pop"
-        style={{
-          color: 'var(--dim)',
-          borderColor: 'color-mix(in srgb, var(--dim) 40%, transparent)',
-          background: 'transparent',
-          animationDelay: delay,
-        }}
-        title="Did not bat"
-      >
-        DNB
-      </span>
-    );
-  }
-  const { runs, not_out } = entry;
-  const tier = runs >= 50 ? 'gold' : runs >= 30 ? 'green' : runs === 0 ? 'duck' : 'neutral';
-  const palette = {
-    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
-    green: { fill: 'color-mix(in srgb, var(--stat-batting) 22%, transparent)', text: 'var(--stat-batting)', glow: 'none' },
-    duck: { fill: 'color-mix(in srgb, var(--red) 22%, transparent)', text: 'var(--red)', glow: 'none' },
-    neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
-  }[tier];
-  return (
-    <span
-      className="inline-flex items-center justify-center min-w-[30px] h-[22px] rounded-full text-[11px] font-extrabold tabular-nums px-2 animate-chip-pop"
-      style={{
-        background: palette.fill,
-        color: palette.text,
-        boxShadow: palette.glow,
-        border: not_out ? `1.5px solid ${palette.text}` : 'none',
-        animationDelay: delay,
-      }}
-      title={`${runs}${not_out ? ' not out' : ''}`}
-    >
-      {runs}{not_out ? '*' : ''}
-    </span>
-  );
-}
-
 function BowlingTabBody({
-  rows, viewMode, photoUrlByPlayer, matchesPlayedByPlayer, bestBowlingByPlayer,
-  bowlingMatches, matches, onPlayerTap,
+  rows, viewMode, photoUrlByPlayer, matchesPlayedByPlayer, bestBowlingByPlayer, onPlayerTap,
 }: {
   rows: BowlingSeasonRow[];
   viewMode: ViewMode;
   photoUrlByPlayer: Map<string, string | null>;
   matchesPlayedByPlayer: Map<string, number>;
   bestBowlingByPlayer: Map<string, { wickets: number; runs: number; display: string }>;
-  bowlingMatches: BowlingMatchRow[];
-  matches: MatchRow[];
   onPlayerTap: (playerId: string) => void;
 }) {
   if (rows.length === 0) {
     return (
       <TabEmptyState
-        accent="var(--stat-bowling)"
-        icon={<GiTennisBall size={32} />}
+        icon={<GiTennisBall size={28} />}
         title="No spells bowled yet"
-        description="Watch this space — wickets, economy and best figures show up after the first scorecard."
+        description="Wickets, economy and best figures show up after the first scorecard."
       />
     );
   }
-  // Shared comparator → same tiebreaker chain as carousel "Top Wicket Taker".
-  // Wickets DESC, then runs ASC (fewer runs conceded breaks the tie), then
-  // economy, then alphabetical.
+  // Wickets DESC, then fewer runs conceded, then economy, then alphabetical.
   const sorted = [...rows].sort(compareBowlingRows);
 
   if (viewMode === 'table') {
     return (
       <LeaderboardTable
         rows={sorted}
-        accentColor="var(--stat-bowling)"
         defaultSortKey="wkts"
         getPlayer={(r) => ({
           id: r.player_id,
@@ -1737,129 +1304,26 @@ function BowlingTabBody({
   }
 
   return (
-    <div className="space-y-3.5">
-      {sorted.map((row, i) => {
-        const rank = i + 1;
-        const overs = `${Math.floor(row.balls / 6)}.${row.balls % 6}`;
-        const best = (row.player_id ? bestBowlingByPlayer.get(row.player_id) : null) ?? null;
-        const recent: RecentBowlingEntry[] = row.player_id
-          ? recentBowlingDetailedForPlayer(row.player_id, bowlingMatches, matches)
-          : [];
-        return (
-          <LeaderboardCard
-            key={row.player_id ?? row.player_name}
-            rank={rank}
-            playerName={row.player_name}
-            playerPhotoUrl={row.player_id ? photoUrlByPlayer.get(row.player_id) : null}
-            accentColor="var(--stat-bowling)"
-            revealIndex={i}
-            primaryRow={
-              <BowlingHeroStats
-                wickets={row.wickets}
-                matchesPlayed={row.player_id ? matchesPlayedByPlayer.get(row.player_id) : undefined}
-                overs={overs}
-                economy={row.economy}
-                average={row.bowling_average}
-              />
-            }
-            footer={<BowlingFooter best={best} recent={recent} />}
-            onTap={row.player_id ? () => onPlayerTap(row.player_id!) : undefined}
-          />
-        );
+    <LeaderboardList
+      unit={['wicket', 'wickets']}
+      onPlayerTap={onPlayerTap}
+      entries={sorted.map((r) => {
+        const best = r.player_id ? bestBowlingByPlayer.get(r.player_id) : undefined;
+        return {
+          id: r.player_id,
+          name: r.player_name,
+          photoUrl: r.player_id ? photoUrlByPlayer.get(r.player_id) : null,
+          value: r.wickets,
+          display: String(r.wickets),
+          // Least important last, so a narrow screen truncates the overs.
+          detail: detail(
+            r.economy == null ? null : `Econ ${fmt2(r.economy)}`,
+            best ? `Best ${best.display}` : null,
+            `${Math.floor(r.balls / 6)}.${r.balls % 6} ov`,
+          ),
+        };
       })}
-    </div>
-  );
-}
-
-function BowlingHeroStats({
-  wickets, matchesPlayed, overs, economy, average,
-}: {
-  wickets: number; matchesPlayed: number | undefined; overs: string;
-  economy: number | null; average: number | null;
-}) {
-  return (
-    <div className="flex flex-col gap-2 leading-none">
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="text-[28px] font-bold tabular-nums leading-none"
-          style={{
-            color: 'var(--stat-bowling)',
-          }}
-        >
-          <NumberTicker value={wickets} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)] mb-0.5">
-          Wickets
-        </span>
-      </div>
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-        <MatchesChip matchesPlayed={matchesPlayed} />
-        <StatChip label="Overs" value={overs} />
-        {/* Econ carries its heat-tier swatch here — it used to be repeated as a
-            second "Econ ● 3.67" badge in the footer. One reading, not two. */}
-        <StatChip
-          label="Econ"
-          value={economy == null ? '—' : economy.toFixed(2)}
-          dotColor={economy == null ? undefined : getHeatColor(economy)}
-          title="Runs conceded per over"
-        />
-        <StatChip label="Avg" value={average == null ? '—' : average.toFixed(1)} />
-      </div>
-    </div>
-  );
-}
-
-function BowlingFooter({
-  best, recent,
-}: { best: { wickets: number; runs: number; display: string } | null; recent: RecentBowlingEntry[] }) {
-  return (
-    <div className="flex flex-col gap-2 min-w-0">
-      {best && (
-        <div className="flex items-center gap-2 flex-wrap text-[11px]">
-          <BestSpellChip wickets={best.wickets} runs={best.runs} />
-        </div>
-      )}
-      {recent.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-[var(--dim)] flex-shrink-0">
-            Recent
-          </span>
-          <div className="flex items-center gap-1.5">
-            {recent.map((entry, idx) => (
-              <BowlingRecentChip key={idx} entry={entry} idx={idx} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* Bowling recent chip — tiered by wickets (5+ gold, 3+ blue, 1-2 neutral,
-   0 red). Mirrors the batting chip language but with bowling-specific
-   thresholds (5-fer is the gold standard, not 50). */
-function BowlingRecentChip({ entry, idx = 0 }: { entry: RecentBowlingEntry; idx?: number }) {
-  const { wickets, runs } = entry;
-  const tier = wickets >= 5 ? 'gold' : wickets >= 3 ? 'blue' : wickets === 0 ? 'duck' : 'neutral';
-  const palette = {
-    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
-    blue: { fill: 'color-mix(in srgb, var(--stat-bowling) 22%, transparent)', text: 'var(--stat-bowling)', glow: 'none' },
-    duck: { fill: 'color-mix(in srgb, var(--red) 18%, transparent)', text: 'var(--red)', glow: 'none' },
-    neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
-  }[tier];
-  return (
-    <span
-      className="inline-flex items-center justify-center min-w-[30px] h-[22px] rounded-full text-[11px] font-extrabold tabular-nums px-2 animate-chip-pop"
-      style={{
-        background: palette.fill,
-        color: palette.text,
-        boxShadow: palette.glow,
-        animationDelay: `${Math.min(idx, 5) * 60}ms`,
-      }}
-      title={`${wickets}/${runs}`}
-    >
-      {wickets}W
-    </span>
+    />
   );
 }
 
@@ -1875,10 +1339,9 @@ function AllRoundTabBody({
   if (rows.length === 0) {
     return (
       <TabEmptyState
-        accent="var(--stat-allround)"
-        icon={<Star size={32} strokeWidth={2.2} />}
+        icon={<Star size={28} strokeWidth={2} />}
         title="No all-rounders yet"
-        description="Players need contributions in 2+ disciplines to appear here. They'll start showing up after a couple of matches."
+        description="Players need runs, wickets or catches in at least two disciplines to appear here."
       />
     );
   }
@@ -1886,7 +1349,6 @@ function AllRoundTabBody({
     return (
       <LeaderboardTable
         rows={rows}
-        accentColor="var(--stat-allround)"
         defaultSortKey="score"
         getPlayer={(r) => ({
           id: r.player_id,
@@ -1899,146 +1361,19 @@ function AllRoundTabBody({
     );
   }
 
-  // Compute the leader's contributions so we can size each player's
-  // discipline bar relative to the top. Avoids each player's bars being
-  // self-normalized (which would make everyone's strongest discipline look
-  // identical) — instead we show actual relative strength across the team.
-  const maxRuns = Math.max(...rows.map((r) => r.runs), 1);
-  const maxWickets = Math.max(...rows.map((r) => r.wickets), 1);
-  const maxCatches = Math.max(...rows.map((r) => r.catches), 1);
   return (
-    <div className="space-y-3.5">
-      {rows.map((row, i) => {
-        const rank = i + 1;
-        return (
-          <LeaderboardCard
-            key={row.player_id}
-            rank={rank}
-            playerName={row.player_name}
-            playerPhotoUrl={photoUrlByPlayer.get(row.player_id)}
-            accentColor="var(--stat-allround)"
-            revealIndex={i}
-            primaryRow={
-              <AllRoundHeroStats
-                score={row.score}
-                matchesPlayed={matchesPlayedByPlayer.get(row.player_id)}
-                runs={row.runs}
-                wickets={row.wickets}
-                catches={row.catches}
-              />
-            }
-            footer={
-              <AllRoundFooter
-                runs={row.runs}
-                wickets={row.wickets}
-                catches={row.catches}
-                maxRuns={maxRuns}
-                maxWickets={maxWickets}
-                maxCatches={maxCatches}
-              />
-            }
-            onTap={() => onPlayerTap(row.player_id)}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function AllRoundHeroStats({
-  score, matchesPlayed, runs, wickets, catches,
-}: {
-  score: number; matchesPlayed: number | undefined;
-  runs: number; wickets: number; catches: number;
-}) {
-  return (
-    <div className="flex flex-col gap-2 leading-none">
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="text-[28px] font-bold tabular-nums leading-none"
-          style={{
-            color: 'var(--stat-allround)',
-          }}
-        >
-          {score.toFixed(1)}
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)] mb-0.5">
-          Score
-        </span>
-      </div>
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-        <MatchesChip matchesPlayed={matchesPlayed} />
-        <StatChip label="Runs" value={runs} />
-        <StatChip label="W" value={wickets} />
-        <StatChip label="C" value={catches} />
-      </div>
-    </div>
-  );
-}
-
-/* All-round footer — three mini contribution bars (Bat / Bowl / Field)
-   sized relative to the team leader in that discipline. Visualizes
-   *balance* — a true all-rounder lights up all three bars; a specialist
-   lights only one. Bigger emotional payoff than "Multi-discipline" text. */
-function AllRoundFooter({
-  runs, wickets, catches, maxRuns, maxWickets, maxCatches,
-}: {
-  runs: number; wickets: number; catches: number;
-  maxRuns: number; maxWickets: number; maxCatches: number;
-}) {
-  return (
-    <div className="flex flex-col gap-2 min-w-0">
-      <div className="grid grid-cols-3 gap-2">
-        <ContributionBar label="BAT" value={runs} max={maxRuns} color="var(--stat-batting)" />
-        <ContributionBar label="BOWL" value={wickets} max={maxWickets} color="var(--stat-bowling)" />
-        <ContributionBar label="FIELD" value={catches} max={maxCatches} color="var(--stat-catches)" />
-      </div>
-      {/* The appearance count lives in the Mat chip above — repeating an
-          approximate "innings" here only invited "which one is right?". */}
-      <div className="text-[11px] text-[var(--muted)]">All-round contributor</div>
-    </div>
-  );
-}
-
-function ContributionBar({
-  label, value, max, color,
-}: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
-  // Grow the bar from 0 to its final width on mount. We start at 0, then in
-  // a layout effect bump it to the real value — the CSS transition handles
-  // the visible "fill" animation. Feels like a competitive meter filling
-  // up rather than static data.
-  const [renderedPct, setRenderedPct] = useState(0);
-  useEffect(() => {
-    // Defer by one frame so the initial 0 width paints before transitioning.
-    const id = requestAnimationFrame(() => setRenderedPct(pct));
-    return () => cancelAnimationFrame(id);
-  }, [pct]);
-  return (
-    <div className="flex flex-col gap-1 min-w-0">
-      <div className="flex items-baseline justify-between gap-1">
-        <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--muted)]">
-          {label}
-        </span>
-        <span className="text-[10px] font-extrabold tabular-nums" style={{ color }}>
-          {value}
-        </span>
-      </div>
-      <div
-        className="h-[4px] rounded-full overflow-hidden"
-        style={{ background: 'color-mix(in srgb, var(--muted) 12%, transparent)' }}
-      >
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${renderedPct}%`,
-            background: `linear-gradient(90deg, ${color}, color-mix(in srgb, ${color} 75%, white))`,
-            boxShadow: `0 0 8px color-mix(in srgb, ${color} 35%, transparent)`,
-            transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-        />
-      </div>
-    </div>
+    <LeaderboardList
+      unit={['point', 'points']}
+      onPlayerTap={onPlayerTap}
+      entries={rows.map((r) => ({
+        id: r.player_id,
+        name: r.player_name,
+        photoUrl: photoUrlByPlayer.get(r.player_id),
+        value: r.score,
+        display: r.score.toFixed(1),
+        detail: detail(count(r.runs, 'run'), count(r.wickets, 'wkt'), count(r.catches, 'catch', 'catches')),
+      }))}
+    />
   );
 }
 
@@ -2055,21 +1390,18 @@ function CatchesTabBody({
   if (rows.length === 0) {
     return (
       <TabEmptyState
-        accent="var(--stat-catches)"
-        icon={<Hand size={32} strokeWidth={2.2} />}
-        title="Hands not yet on the ball"
-        description="Catches and run-outs surface from scorecard dismissals — the first c X b Y or run out (X) entry fills this in."
+        icon={<Hand size={28} strokeWidth={2} />}
+        title="No catches yet"
+        description="Catches and run-outs are read from the scorecards' dismissals, so they appear after the first match."
       />
     );
   }
-  // Shared comparator → matches carousel "Most Catches" tiebreaker.
   const sorted = [...rows].sort(compareCatchesRows);
 
   if (viewMode === 'table') {
     return (
       <LeaderboardTable
         rows={sorted}
-        accentColor="var(--stat-catches)"
         defaultSortKey="ct"
         getPlayer={(r) => ({
           id: r.player_id,
@@ -2083,126 +1415,26 @@ function CatchesTabBody({
   }
 
   return (
-    <div className="space-y-3.5">
-      {sorted.map((row, i) => {
-        const rank = i + 1;
-        const matchMap = catchesByPlayer.get(row.player_id);
-        const bestMatch = matchMap ? Math.max(...matchMap.values()) : 0;
-        // Rate is per match PLAYED, not per match-with-a-catch — the old
-        // denominator ignored every blank game and inflated everyone to ~1.0+.
-        // Falls back to matches-with-catches if the appearance data hasn't
-        // landed, so the number stays defined rather than dividing by zero.
-        const matchesPlayed = matchesPlayedByPlayer.get(row.player_id);
-        const rateDenominator = matchesPlayed ?? (matchMap ? matchMap.size : 0);
-        const ctPerGame = rateDenominator > 0 ? row.catches / rateDenominator : 0;
-        // Recent catches series — last 5 matches with catches, chronological.
-        const recent: number[] = matchMap
-          ? [...matchMap.entries()].slice(-5).map(([, n]) => n)
-          : [];
-        return (
-          <LeaderboardCard
-            key={row.player_id}
-            rank={rank}
-            playerName={row.player_name}
-            playerPhotoUrl={photoUrlByPlayer.get(row.player_id)}
-            accentColor="var(--stat-catches)"
-            revealIndex={i}
-            primaryRow={
-              <CatchesHeroStats
-                catches={row.catches}
-                runouts={row.runouts}
-                matchesPlayed={matchesPlayed}
-                best={bestMatch}
-              />
-            }
-            footer={
-              <CatchesFooter ctPerGame={ctPerGame} recent={recent} />
-            }
-            onTap={() => onPlayerTap(row.player_id)}
-          />
-        );
+    <LeaderboardList
+      unit={['catch', 'catches']}
+      onPlayerTap={onPlayerTap}
+      entries={sorted.map((r) => {
+        const perMatch = catchesByPlayer.get(r.player_id);
+        const best = perMatch && perMatch.size > 0 ? Math.max(...perMatch.values()) : 0;
+        const played = matchesPlayedByPlayer.get(r.player_id);
+        return {
+          id: r.player_id,
+          name: r.player_name,
+          photoUrl: photoUrlByPlayer.get(r.player_id),
+          value: r.catches,
+          display: String(r.catches),
+          detail: detail(
+            played ? count(played, 'match', 'matches') : null,
+            r.runouts > 0 ? count(r.runouts, 'run-out') : null,
+            best > 1 ? `Best ${best}` : null,
+          ),
+        };
       })}
-    </div>
+    />
   );
 }
-
-function CatchesHeroStats({
-  catches, runouts, matchesPlayed, best,
-}: { catches: number; runouts: number; matchesPlayed: number | undefined; best: number }) {
-  return (
-    <div className="flex flex-col gap-2 leading-none">
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className="text-[28px] font-bold tabular-nums leading-none"
-          style={{
-            color: 'var(--stat-catches)',
-          }}
-        >
-          <NumberTicker value={catches} />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)] mb-0.5">
-          Catches
-        </span>
-      </div>
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-        <MatchesChip matchesPlayed={matchesPlayed} />
-        <StatChip
-          label="RO"
-          value={runouts}
-          title="Run-outs (direct, or combined — both fielders credited)"
-        />
-        <StatChip label="Best" value={best} title="Most catches in a single match" />
-      </div>
-    </div>
-  );
-}
-
-function CatchesFooter({
-  ctPerGame, recent,
-}: { ctPerGame: number; recent: number[] }) {
-  return (
-    <div className="flex flex-col gap-2 min-w-0">
-      <div className="flex items-center gap-2 text-[11px] text-[var(--muted)]">
-        <span aria-hidden style={{ color: 'var(--stat-catches)' }}>🧤</span>
-        <span className="font-bold tabular-nums text-[var(--text)]">{ctPerGame.toFixed(2)}</span>
-        <span>per match</span>
-      </div>
-      {recent.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-[var(--dim)] flex-shrink-0">
-            Recent
-          </span>
-          <div className="flex items-center gap-1.5">
-            {recent.map((n, idx) => (
-              <CatchesRecentChip key={idx} count={n} idx={idx} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CatchesRecentChip({ count, idx = 0 }: { count: number; idx?: number }) {
-  // 3+ catches in one match = elite (gold). 2 = strong (purple). 1 = present.
-  const tier = count >= 3 ? 'gold' : count >= 2 ? 'purple' : 'neutral';
-  const palette = {
-    gold: { fill: 'var(--cricket)', text: '#fff', glow: 'none' },
-    purple: { fill: 'color-mix(in srgb, var(--stat-catches) 22%, transparent)', text: 'var(--stat-catches)', glow: 'none' },
-    neutral: { fill: 'color-mix(in srgb, var(--muted) 14%, transparent)', text: 'var(--muted)', glow: 'none' },
-  }[tier];
-  return (
-    <span
-      className="inline-flex items-center justify-center min-w-[26px] h-[22px] rounded-full text-[11px] font-extrabold tabular-nums px-2 animate-chip-pop"
-      style={{
-        background: palette.fill,
-        color: palette.text,
-        boxShadow: palette.glow,
-        animationDelay: `${Math.min(idx, 5) * 60}ms`,
-      }}
-    >
-      {count}
-    </span>
-  );
-}
-

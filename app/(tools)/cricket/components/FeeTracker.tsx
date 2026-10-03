@@ -914,6 +914,15 @@ export function FeeRow({
             open={menuOpen}
             onOpenChange={(o) => { if (!o) onMenuClose(); }}
             title={`Actions for ${player.name}`}
+            heading={player.name}
+            detail={[
+              player.jersey_number != null ? `#${player.jersey_number}` : null,
+              status === 'paid'
+                ? `Paid ${formatCurrency(paid)}`
+                : status === 'partial'
+                  ? `Owes ${formatCurrency(feeAmount - paid)}, ${formatCurrency(paid)} paid`
+                  : `Owes ${formatCurrency(feeAmount)}`,
+            ].filter(Boolean).join(' · ')}
             items={menuItems}
           />
         </>
