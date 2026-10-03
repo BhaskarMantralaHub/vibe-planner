@@ -238,7 +238,7 @@ function MobileActivityMenu({ people, allCount, personValue, onPerson, sort, onS
         <SlidersHorizontal size={17} className="text-[var(--text)]" />
         {personActive && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--card)] bg-[var(--text)]" />}
       </button>
-      <ActionSheet open={open} onOpenChange={setOpen} title="Filter and sort activity" items={items} />
+      <ActionSheet open={open} onOpenChange={setOpen} title="Filter and sort activity" heading="Filter and sort" items={items} />
     </div>
   );
 }
@@ -1109,6 +1109,9 @@ export default function SplitsDashboard() {
                           open={openMenu === a.id}
                           onOpenChange={(o) => setOpenMenu(o ? a.id : null)}
                           title={`Actions for ${a.description}`}
+                          heading={a.description}
+                          detail={`${formatCurrency(a.amount)} · paid by ${a.paidByName} · ${formatDate(a.date)}`}
+                          leading={<PlayerAvatar name={a.paidByName} photoUrl={a.paidByPhoto} />}
                           items={[
                               ...(a.type === 'split' ? (() => {
                                 const thisShareHolders = new Set(splitShares.map((sh) => sh.player_id));
@@ -1345,7 +1348,7 @@ export default function SplitsDashboard() {
                             className="h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors">
                             <EllipsisVertical size={14} />
                           </button>
-                          <ActionSheet open={openMenu === st.id} onOpenChange={(o) => setOpenMenu(o ? st.id : null)} title="Settlement actions" items={[
+                          <ActionSheet open={openMenu === st.id} onOpenChange={(o) => setOpenMenu(o ? st.id : null)} title="Settlement actions" heading={`${from.name} paid ${to.name}`} detail={`${formatCurrency(Number(st.amount))} · ${formatDate(st.settled_date)}`} items={[
                             { label: 'Undo Settlement', icon: <Trash2 size={15} />, color: 'var(--split-owe)', onClick: () => setDeletingItem({ id: st.id, type: 'settlement', desc: `${from.name.split(' ')[0]} paid ${to.name.split(' ')[0]}`, paidBy: from.name, date: st.settled_date, amount: formatCurrency(Number(st.amount)) }) },
                           ]} />
                         </div>

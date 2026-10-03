@@ -73,13 +73,14 @@ function renderSheet(context: 'batting' | 'bowling' | 'allround') {
 }
 
 /**
- * A stat tile renders <div>VALUE</div><div class="uppercase">LABEL</div>, so
+ * A stat tile renders <div>VALUE</div><div data-stat-label>LABEL</div>, so
  * the value is the label's PREVIOUS sibling. (`closest('div')` returns the
  * label's own element — the label is itself a div.)
  */
 function tileValue(label: string): string {
   for (const node of screen.getAllByText(label, { selector: 'div' })) {
-    if (!node.className.includes('uppercase')) continue;
+    // Only a stat tile's label; the same word can appear elsewhere in the sheet.
+    if (!node.hasAttribute('data-stat-label')) continue;
     const value = node.previousElementSibling;
     if (value) return value.textContent?.trim() ?? '';
   }

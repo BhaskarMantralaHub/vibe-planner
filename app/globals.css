@@ -436,6 +436,95 @@ code, pre, .font-mono {
   .animate-view-in { animation: none; }
 }
 
+/* Scoreboard digits — RollingNumber's 0-9 strips. Transform only, and nothing
+   else ever sits on .roll-strip, so the shorthand cannot shadow a Tailwind
+   transition (see .pressable). Token duration, so reduced motion snaps. */
+.roll-strip {
+  transition: transform var(--duration-slower) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Menu cascade — the sections arrive top to bottom each time the menu opens
+   (the nav is re-keyed per open, so it replays). Capped by row count: the
+   last of five rows lands ~360ms after the tap. */
+@keyframes menu-row-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-menu-row-in {
+  animation: menu-row-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 32ms + 40ms);
+}
+/* The close X turns in from the hamburger's angle, so it reads as the same
+   control changing shape rather than a new one appearing. */
+@keyframes menu-x-in {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-menu-x-in {
+  animation: menu-x-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* A section's pages slide out from under its title as it expands, one after
+   another; collapsing pulls them back together, no stagger. */
+.menu-child {
+  opacity: 0;
+  transform: translateX(-10px);
+  transition:
+    opacity var(--duration-fast) var(--ease-in),
+    transform var(--duration-fast) var(--ease-in);
+}
+[data-expanded] > ul > .menu-child {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-slow) cubic-bezier(0.16, 1, 0.3, 1),
+    transform var(--duration-slow) cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 40ms + 60ms);
+}
+
+/* Theme switch — the new theme pours out of the toggle as a growing circle
+   (View Transitions; ThemeToggle drives the clip-path). Default cross-fade
+   off, and every CSS transition frozen while the snapshot is taken, or the
+   body's own 300ms colour fade would play inside the circle. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
+}
+@keyframes theme-icon-in {
+  from { opacity: 0; transform: rotate(-120deg) scale(0.4); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-theme-icon-in {
+  animation: theme-icon-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-menu-row-in,
+  .animate-menu-x-in,
+  .animate-theme-icon-in { animation: none; }
+  .menu-child,
+  [data-expanded] > ul > .menu-child { transform: none; transition-delay: 0ms; }
+}
+
+/* League-stats ranked rows — each bar draws out from the left, top row first.
+   clip-path, not scaleX: scaling would squash the bar's rounded corners. */
+@keyframes lb-bar-draw {
+  from { clip-path: inset(0 100% 0 0 round 12px); }
+  to   { clip-path: inset(0 0 0 0 round 12px); }
+}
+.lb-bar {
+  animation: lb-bar-draw 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 35ms + 60ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-bar { animation: none; }
+}
+
 /* Page-bottom clearance for cricket pages — see --cricket-content-bottom. */
 .pb-cricket-nav {
   padding-bottom: var(--cricket-content-bottom);
@@ -604,27 +693,17 @@ code, pre, .font-mono {
 /* Sort arrow pop — replays on every direction flip via a keyed remount. */
 @keyframes sort-arrow-pop {
   from { opacity: 0; transform: scale(0.4) translateY(2px); }
-  60%  { opacity: 1; transform: scale(1.25) translateY(0); }
+  60%  { opacity: 1; transform: scale(1.1) translateY(0); }
   to   { opacity: 1; transform: scale(1); }
 }
-.animate-sort-arrow-pop { animation: sort-arrow-pop 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-
-/* Tab icon pop — replays when a pill tab becomes active. Ends at scale(1.05)
-   to match the active tab's resting icon scale. */
-@keyframes tab-icon-pop {
-  from { transform: scale(0.85); }
-  45%  { transform: scale(1.28); }
-  to   { transform: scale(1.05); }
-}
-.animate-tab-icon-pop { animation: tab-icon-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-sort-arrow-pop { animation: sort-arrow-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-tab-forward,
   .animate-tab-back,
   .animate-view-morph,
   .animate-table-row-in,
-  .animate-sort-arrow-pop,
-  .animate-tab-icon-pop { animation: none; }
+  .animate-sort-arrow-pop { animation: none; }
 }
 
 /* League-stats frozen player column divider. The hairline mixes in --muted

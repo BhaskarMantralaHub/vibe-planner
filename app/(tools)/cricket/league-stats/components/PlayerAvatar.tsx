@@ -3,23 +3,15 @@ import type { JSX } from 'react';
 export type PlayerAvatarProps = {
   name: string;
   photoUrl?: string | null;
-  size?: 24 | 32 | 48 | 64 | 80;
+  size?: 24 | 32 | 40 | 48 | 64 | 80;
   className?: string;
   ringColor?: string;
 };
 
-/* Mirrors hashHue() in app/(tools)/cricket/components/MatchSchedule.tsx so player
-   monograms share the same hash-to-hue visual language as opponent team avatars.
-   Replicated inline (not imported) to keep this component decoupled. */
-function hashHue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
-  return Math.abs(h) % 360;
-}
-
 const SIZE_CLASS: Record<NonNullable<PlayerAvatarProps['size']>, string> = {
   24: 'h-6 w-6',
   32: 'h-8 w-8',
+  40: 'h-10 w-10',
   48: 'h-12 w-12',
   64: 'h-16 w-16',
   80: 'h-20 w-20',
@@ -28,6 +20,7 @@ const SIZE_CLASS: Record<NonNullable<PlayerAvatarProps['size']>, string> = {
 const FONT_PX: Record<NonNullable<PlayerAvatarProps['size']>, number> = {
   24: 9,
   32: 11,
+  40: 13,
   48: 14,
   64: 18,
   80: 22,
@@ -65,14 +58,14 @@ export default function PlayerAvatar({
       .slice(0, 2)
       .join('')
       .toUpperCase() || '?';
-  const hue = hashHue(name);
-
+  // Neutral monogram, like every other avatar in the app — a colour per name
+  // read as a rainbow and implied meaning that wasn't there.
   return (
     <div
       aria-hidden="true"
-      className={`${rootClass} flex items-center justify-center font-bold text-white tracking-tight`}
+      className={`${rootClass} flex items-center justify-center font-semibold text-[var(--text)] tracking-tight`}
       style={{
-        background: `hsl(${hue}, 55%, 42%)`,
+        background: 'var(--fill)',
         fontSize: `${FONT_PX[size]}px`,
         ...ringStyle,
       }}

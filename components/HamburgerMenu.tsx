@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { X, LogOut, ChevronRight } from 'lucide-react';
@@ -125,9 +125,14 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
   };
   const [expanded, setExpanded] = useState<string | null>(() => (isOpen ? expandableCurrent() : null));
   const [wasOpen, setWasOpen] = useState(isOpen);
+  // Bumped per open; keys the nav so its entrance cascade replays every time.
+  const [openSeq, setOpenSeq] = useState(0);
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (isOpen) setExpanded(expandableCurrent());
+    if (isOpen) {
+      setExpanded(expandableCurrent());
+      setOpenSeq((n) => n + 1);
+    }
   }
 
   const currentTeam = userTeams.find((t) => t.team_id === currentTeamId) ?? userTeams[0];
@@ -164,7 +169,7 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
           className="-ml-2.5 flex h-11 w-11 items-center justify-center justify-self-start rounded-full cursor-pointer text-[var(--text)] transition-colors active:bg-[var(--hover-bg)]"
           aria-label="Close menu"
         >
-          <X size={22} />
+          <X key={openSeq} size={22} className="animate-menu-x-in" />
         </button>
         <div className="flex min-w-0 items-center gap-2">
           {currentTeam && <TeamLogo team={currentTeam} size="sm" />}
@@ -173,12 +178,13 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
         <span aria-hidden />
       </div>
 
-      <nav className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-4 pb-6">
+      <nav key={openSeq} className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide px-4 pb-6">
         {/* Main sections — large type is the design */}
         <ul className="-mx-3 mt-3">
-          {primary.map((tool) => (
+          {primary.map((tool, i) => (
             <SectionRow
               key={tool.name}
+              index={i}
               tool={tool}
               current={current}
               expanded={expanded === tool.name}
@@ -190,10 +196,17 @@ export function HamburgerMenu({ isOpen, onClose }: HamburgerMenuProps) {
 
         {secondary.length > 0 && (
           <>
-            <Text as="p" size="sm" weight="medium" color="muted" className="mt-8 mb-1">More</Text>
+            <Text
+              as="p" size="sm" weight="medium" color="muted" className="mt-8 mb-1 animate-menu-row-in"
+              style={{ '--i': primary.length } as CSSProperties}
+            >More</Text>
             <ul className="-mx-3">
-              {secondary.map((tool) => (
-                <li key={tool.name}>
+              {secondary.map((tool, i) => (
+                <li
+                  key={tool.name}
+                  className="animate-menu-row-in"
+                  style={{ '--i': Math.min(primary.length + 1 + i, 9) } as CSSProperties}
+                >
                   <Link
                     href={tool.href}
                     onClick={onClose}
@@ -224,17 +237,19 @@ const SECTION_ROW = 'flex min-h-[60px] w-full items-center justify-between gap-3
  * promises more inside). With pages it is a disclosure button whose chevron
  * turns down, and its pages slide open beneath it.
  */
-function SectionRow({ tool, current, expanded, onToggle, onClose }: {
+function SectionRow({ tool, index, current, expanded, onToggle, onClose }: {
   tool: Tool;
+  index: number;
   current: { section: string | null; child: string | null };
   expanded: boolean;
   onToggle: () => void;
   onClose: () => void;
 }) {
   const isCurrent = current.section === tool.name;
+  const cascade = { className: 'animate-menu-row-in', style: { '--i': index } as CSSProperties };
   if (!tool.children) {
     return (
-      <li>
+      <li {...cascade}>
         <Link
           href={tool.href}
           onClick={onClose}
@@ -249,7 +264,7 @@ function SectionRow({ tool, current, expanded, onToggle, onClose }: {
   }
   const listId = `menu-${tool.name.toLowerCase()}`;
   return (
-    <li>
+    <li {...cascade}>
       <button
         type="button"
         onClick={onToggle}
@@ -273,6 +288,7 @@ function SectionRow({ tool, current, expanded, onToggle, onClose }: {
       <div
         id={listId}
         inert={!expanded}
+        data-expanded={expanded || undefined}
         className="grid"
         style={{
           gridTemplateRows: expanded ? '1fr' : '0fr',
@@ -281,10 +297,10 @@ function SectionRow({ tool, current, expanded, onToggle, onClose }: {
         }}
       >
         <ul className="min-h-0 overflow-hidden">
-          {tool.children.map((c: Child) => {
+          {tool.children.map((c: Child, i) => {
             const here = current.child === c.href;
             return (
-              <li key={c.href}>
+              <li key={c.href} className="menu-child" style={{ '--i': i } as CSSProperties}>
                 <Link
                   href={c.href}
                   onClick={onClose}

@@ -77,12 +77,14 @@ export type PlayerDetailSheetProps = {
   scopeLabel?: string | null;
 };
 
+// Ink for every discipline: the sheet follows the page's neutral rule, where
+// colour is reserved for actions and for win/loss.
 const ACCENT: Record<Context, string> = {
-  batting: 'var(--stat-batting)', bowling: 'var(--stat-bowling)',
-  allround: 'var(--stat-allround)', catches: 'var(--stat-catches)',
+  batting: 'var(--text)', bowling: 'var(--text)',
+  allround: 'var(--text)', catches: 'var(--text)',
 };
 const LABEL: Record<Context, string> = {
-  batting: 'Batting view', bowling: 'Bowling view', allround: 'All-Round view', catches: 'Fielding view',
+  batting: 'Batting', bowling: 'Bowling', allround: 'All-round', catches: 'Fielding',
 };
 
 const formatMatchDate = (iso: string | null): string => {
@@ -170,15 +172,10 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
 
       <DrawerHeader className="sticky top-0 z-10 relative overflow-hidden">
         <div className="relative flex items-center gap-3">
-          <PlayerAvatar name={player.name} photoUrl={player.photo_url} size={64} ringColor={accent} />
+          <PlayerAvatar name={player.name} photoUrl={player.photo_url} size={64} />
           <div className="flex-1 min-w-0">
             <Text as="div" size="lg" weight="bold" truncate>{player.name}</Text>
-            <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{
-                background: `color-mix(in srgb, ${accent} 22%, transparent)`,
-                color: accent,
-                border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)`,
-              }}>
+            <span className="mt-1 inline-flex items-center rounded-full bg-[var(--fill)] px-2 py-0.5 text-[12px] font-medium text-[var(--muted)]">
               {LABEL[context]}
             </span>
           </div>
@@ -198,7 +195,7 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
           {/* Which period the big numbers describe. Without this the tiles are
               ambiguous the moment more than one season exists. */}
           {scopeLabel && (
-            <Text as="p" size="2xs" color="muted" weight="bold" uppercase tracking="wider" className="mb-1.5">
+            <Text as="p" size="sm" color="muted" weight="medium" className="mb-1.5">
               {scopeLabel}
             </Text>
           )}
@@ -221,10 +218,10 @@ export default function PlayerDetailSheet(props: PlayerDetailSheetProps): JSX.El
           <div className="animate-card-rise" style={{ animationDelay: '240ms' }}>
             <Section icon={<Award className="h-4 w-4" style={{ color: accent }} />} title="Achievements">
               <div className="flex flex-wrap gap-1.5">
-                {fifties.map((b) => <Pill key={`50-${b.match_row_id}`} accent="var(--stat-batting)">{b.runs}{b.not_out ? '*' : ''}</Pill>)}
-                {fivers.map((b) => <Pill key={`5w-${b.match_row_id}`} accent="var(--stat-bowling)">{b.wickets}/{b.runs}</Pill>)}
-                {bestBowling && bestBowling.w > 0 && <Pill accent="var(--stat-bowling)">Best: {bestBowling.w}/{bestBowling.r}</Pill>}
-                {bestCatchHaul >= 2 && <Pill accent="var(--stat-catches)">{bestCatchHaul} catches in 1 match</Pill>}
+                {fifties.map((b) => <Pill key={`50-${b.match_row_id}`}>{b.runs}{b.not_out ? '*' : ''}</Pill>)}
+                {fivers.map((b) => <Pill key={`5w-${b.match_row_id}`}>{b.wickets}/{b.runs}</Pill>)}
+                {bestBowling && bestBowling.w > 0 && <Pill>Best: {bestBowling.w}/{bestBowling.r}</Pill>}
+                {bestCatchHaul >= 2 && <Pill>{bestCatchHaul} catches in 1 match</Pill>}
               </div>
             </Section>
           </div>
@@ -269,7 +266,7 @@ function Section({ icon, title, children }: { icon: ReactNode; title: string; ch
     <section>
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <Text as="span" size="xs" weight="semibold" uppercase color="muted">{title}</Text>
+        <Text as="span" size="sm" weight="semibold">{title}</Text>
       </div>
       {children}
     </section>
@@ -328,7 +325,7 @@ function SummaryStrip({ context, summary, accent }:
           >
             {stat.value}
           </div>
-          <div className="text-[10px] uppercase tracking-wider font-bold mt-1" style={{ color: 'var(--muted)' }}>{stat.label}</div>
+          <div data-stat-label className="text-[12px] font-medium mt-1" style={{ color: 'var(--muted)' }}>{stat.label}</div>
         </div>
       ))}
     </div>
@@ -347,9 +344,9 @@ function Trends({ context, accent, runs, wickets, economy, catches }:
   if (context === 'catches') return <TrendRow label="Catches / match" latest={catches.at(-1)} data={catches} color={accent} />;
   return (
     <div className="grid grid-cols-3 gap-2">
-      <TrendRow compact label="Runs" latest={runs.at(-1)} data={runs} color="var(--stat-batting)" />
-      <TrendRow compact label="Wkts" latest={wickets.at(-1)} data={wickets} color="var(--stat-bowling)" />
-      <TrendRow compact label="Catches" latest={catches.at(-1)} data={catches} color="var(--stat-catches)" />
+      <TrendRow compact label="Runs" latest={runs.at(-1)} data={runs} color="var(--text)" />
+      <TrendRow compact label="Wkts" latest={wickets.at(-1)} data={wickets} color="var(--text)" />
+      <TrendRow compact label="Catches" latest={catches.at(-1)} data={catches} color="var(--text)" />
     </div>
   );
 }
@@ -366,7 +363,7 @@ function TrendRow({ label, latest, data, color, compact, digits = 0 }:
       }}
     >
       <div className={compact ? '' : 'flex-1 min-w-0'}>
-        <div className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'var(--muted)' }}>{label}</div>
+        <div className="text-[12px] font-medium" style={{ color: 'var(--muted)' }}>{label}</div>
         <div className="text-sm font-extrabold tabular-nums mt-0.5" style={{ color }}>{latestStr}</div>
       </div>
       <div className={compact ? 'mt-1' : ''} style={{ color }}>
@@ -477,7 +474,7 @@ function SeasonHistoryTable({ history, context, accent }:
         style={{ border: `1px solid color-mix(in srgb, ${accent} 14%, var(--border))` }}
       >
         <div
-          className={`${grid} text-[9px] uppercase tracking-wider font-bold`}
+          className={`${grid} text-[11px] font-semibold`}
           style={{ ...template, color: 'var(--muted)', background: `color-mix(in srgb, ${accent} 8%, var(--surface))` }}
         >
           <span>Season</span>
@@ -560,7 +557,7 @@ function TimelineRow({ entry, context }: { entry: Entry; context: Context }): JS
           {ro > 0 && (
             <span>
               🎯 × {ro}{' '}
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+              <span className="text-[12px] font-medium" style={{ color: 'var(--muted)' }}>
                 run-out{ro > 1 ? 's' : ''}
               </span>
             </span>
@@ -578,14 +575,14 @@ function TimelineRow({ entry, context }: { entry: Entry; context: Context }): JS
     <div className="px-3 py-2 space-y-0.5">{header}
       {showBat && (
         <div className="text-sm">
-          <span className="text-[10px] mr-1 uppercase tracking-wide" style={{ color: 'var(--stat-batting)' }}>Bat</span>
+          <span className="text-[11px] mr-1" style={{ color: 'var(--muted)' }}>Bat</span>
           <span className="font-bold tabular-nums">{b!.runs}{b!.not_out ? '*' : ''}</span>
           <span style={{ color: 'var(--muted)' }}> ({b!.balls})</span>
         </div>
       )}
       {bw && (
         <div className="text-sm">
-          <span className="text-[10px] mr-1 uppercase tracking-wide" style={{ color: 'var(--stat-bowling)' }}>Bowl</span>
+          <span className="text-[11px] mr-1" style={{ color: 'var(--muted)' }}>Bowl</span>
           <span className="font-bold tabular-nums">{formatFigures(bw.overs, bw.maidens, bw.runs, bw.wickets)}</span>
         </div>
       )}
@@ -593,17 +590,10 @@ function TimelineRow({ entry, context }: { entry: Entry; context: Context }): JS
   );
 }
 
-function Pill({ children, accent }: { children: ReactNode; accent: string }): JSX.Element {
+/** Achievement chip. Neutral, like every chip in the app. */
+function Pill({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <span
-      className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums animate-chip-pop"
-      style={{
-        background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 24%, var(--card)) 0%, color-mix(in srgb, ${accent} 12%, var(--card)) 100%)`,
-        color: accent,
-        border: `1px solid color-mix(in srgb, ${accent} 38%, transparent)`,
-        boxShadow: `0 2px 8px color-mix(in srgb, ${accent} 18%, transparent), inset 0 1px 0 color-mix(in srgb, var(--card) 60%, transparent)`,
-      }}
-    >
+    <span className="inline-flex items-center rounded-full bg-[var(--fill)] px-2.5 py-1 text-[12px] font-semibold tabular-nums text-[var(--text)] animate-chip-pop">
       {children}
     </span>
   );

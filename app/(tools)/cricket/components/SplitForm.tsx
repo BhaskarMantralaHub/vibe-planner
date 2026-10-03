@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { ComposerModal } from '@/components/ui';
-import { Button, Text } from '@/components/ui';
+import { Button, RollingNumber, Text } from '@/components/ui';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Input } from '@/components/ui/input';
 import { useCricketStore } from '@/stores/cricket-store';
@@ -328,7 +328,12 @@ export default function SplitForm() {
             </Text>
           )}
           <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="lg" fullWidth>
-            {compressing ? 'Compressing…' : `${editingSplitId ? 'Update' : 'Split'}${numAmount > 0 ? ` $${numAmount.toFixed(2)}` : ''}`}
+            {compressing ? 'Compressing…' : (
+              <span>
+                {editingSplitId ? 'Update' : 'Split'}
+                {numAmount > 0 && <> <RollingNumber value={`$${numAmount.toFixed(2)}`} /></>}
+              </span>
+            )}
           </Button>
         </div>
       }
@@ -496,7 +501,7 @@ export default function SplitForm() {
                   <span className="relative">
                     <PlayerAvatar player={p} name={p.name} size={40} />
                     {selected && (
-                      <span className="absolute -bottom-0.5 -right-0.5 h-[18px] w-[18px] rounded-full flex items-center justify-center bg-[var(--text)]"
+                      <span className="animate-tactile-check absolute -bottom-0.5 -right-0.5 h-[18px] w-[18px] rounded-full flex items-center justify-center bg-[var(--text)]"
                         style={{ boxShadow: '0 0 0 2px var(--card)' }}>
                         <Check size={11} strokeWidth={3} className="text-[var(--card)]" />
                       </span>
@@ -524,7 +529,7 @@ export default function SplitForm() {
         {splitType === 'equal' && selectedCount > 0 && numAmount > 0 && (
           <div className="rounded-xl bg-[var(--surface)] px-4 py-3 flex items-baseline justify-between gap-2">
             <Text size="md" color="muted">{selectedCount} {selectedCount === 1 ? 'person' : 'people'}</Text>
-            <Text size="md"><Text weight="bold" tabular>${perPerson.toFixed(2)}</Text> each</Text>
+            <Text size="md"><Text weight="bold" tabular><RollingNumber value={`$${perPerson.toFixed(2)}`} /></Text> each</Text>
           </div>
         )}
 

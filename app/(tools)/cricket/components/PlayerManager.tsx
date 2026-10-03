@@ -1161,6 +1161,17 @@ export default function PlayerManager() {
                         open={openMenu === p.id}
                         onOpenChange={(o) => setOpenMenu(o ? p.id : null)}
                         title={`Actions for ${p.name}`}
+                        heading={p.name}
+                        detail={[
+                          p.jersey_number != null ? `#${p.jersey_number}` : null,
+                          isCaptain ? 'Captain' : isVC ? 'Vice-captain' : null,
+                          rc?.label,
+                        ].filter(Boolean).join(' · ')}
+                        leading={p.photo_url
+                          ? <img src={p.photo_url} alt="" className="h-10 w-10 rounded-full object-cover bg-[var(--fill)]" />
+                          : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--fill)] text-[13px] font-semibold tabular-nums text-[var(--text)]">
+                              {p.jersey_number != null ? `#${p.jersey_number}` : p.name.charAt(0).toUpperCase()}
+                            </span>}
                         items={(() => {
                             const isMe = p.id === myPlayer?.id;
                             const items = [
@@ -1470,6 +1481,8 @@ export default function PlayerManager() {
                   open={openGuestMenu === p.id}
                   onOpenChange={(o) => setOpenGuestMenu(o ? p.id : null)}
                   title={`Actions for ${p.name}`}
+                  heading={p.name}
+                  detail="Guest player"
                   items={[
                     { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => handleEdit(p) },
                     { label: 'Add to Squad', icon: <UserPlus size={15} />, color: 'var(--cricket)', onClick: () => setPromotingGuest(p) },

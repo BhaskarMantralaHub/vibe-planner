@@ -141,6 +141,9 @@ function SponsorCard({
                   open={openMenu}
                   onOpenChange={setOpenMenu}
                   title={`Actions for ${sponsor.sponsor_name}`}
+                  heading={sponsor.sponsor_name}
+                  detail={[formatCurrency(Number(sponsor.amount)), formatDate(sponsor.sponsored_date), sponsor.notes].filter(Boolean).join(' · ')}
+                  leading={<SponsorAvatar name={sponsor.sponsor_name} />}
                   items={[
                     { label: 'Edit', icon: <Pencil size={17} />, color: 'var(--text)', onClick: () => onEdit(sponsor) },
                     { label: 'Delete', icon: <Trash2 size={17} />, color: 'var(--red)', onClick: () => onDelete(sponsor), dividerBefore: true },
