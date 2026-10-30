@@ -18,6 +18,7 @@ import {
   buildDayThanksText, whatsappShareUrl, addressName,
 } from '@/lib/duty-share';
 import { getTeamName } from '../lib/constants';
+import { seasonRoster } from '../lib/season-roster';
 import PlayerAvatar from './PlayerAvatar';
 import DutyAssignSheet from './DutyAssignSheet';
 import DutyPlayerSheet from './DutyPlayerSheet';
@@ -122,7 +123,7 @@ function groupByDay(groups: DutyGroup[]): DutyGroup[][] {
 
 export default function UmpiringBoard() {
   const { user, userAccess } = useAuthStore();
-  const { players, seasons, selectedSeasonId, adminUserIds } = useCricketStore();
+  const { players, seasons, seasonPlayers, selectedSeasonId, adminUserIds } = useCricketStore();
   const {
     duties, settings, loading, pendingId,
     loadDuties, claimDuty, releaseDuty,
@@ -233,7 +234,15 @@ export default function UmpiringBoard() {
     [upcomingGroups],
   );
 
-  const stats = useMemo(() => computeDutyStats(duties, players, target), [duties, players, target]);
+  // Only this season's roster, with the season-level guest flag applied.
+  const seasonPlayersList = useMemo(() => {
+    const roster = seasonRoster(players, seasonPlayers, selectedSeasonId);
+    return roster.players.map((p) => ({ ...p, is_guest: roster.isGuest(p.id) }));
+  }, [players, seasonPlayers, selectedSeasonId]);
+  const stats = useMemo(
+    () => computeDutyStats(duties, seasonPlayersList, target),
+    [duties, seasonPlayersList, target],
+  );
 
   /** Each player's soonest claimed duty, for the "Signed up" rows. */
   const nextDutyDate = useMemo(() => {
