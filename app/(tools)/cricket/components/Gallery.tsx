@@ -5,6 +5,7 @@ import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCricketStore } from '@/stores/cricket-store';
 import GalleryPostCard from './GalleryPost';
 import GalleryUpload from './GalleryUpload';
+import { hasGalleryDraft } from '../lib/gallery-draft';
 import CricketFab from './CricketFab';
 import { Camera, CircleCheck, LoaderCircle, Plus } from 'lucide-react';
 
@@ -28,7 +29,7 @@ function EmptyState({ onUpload }: { onUpload: () => void }) {
 
 export default function Gallery({ allSeasons }: { allSeasons?: boolean } = {}) {
   const { selectedSeasonId, gallery, galleryTags, galleryComments, galleryLikes, commentReactions, players, hasMoreGallery, loadingMoreGallery, loadMoreGallery } = useCricketStore();
-  const [showUpload, setShowUpload] = useState(false);
+  const [showUpload, setShowUpload] = useState(hasGalleryDraft);
   const [feedParent] = useAutoAnimate();
 
   const posts = gallery

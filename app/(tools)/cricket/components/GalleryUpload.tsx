@@ -11,6 +11,10 @@ import { toast } from 'sonner';
 import { compressGalleryImage } from '../lib/image';
 import { extractTaggedIds } from '../lib/mentions';
 
+import {
+  readDraftCaption, saveDraftCaption, saveDraftPhotos, loadDraftPhotos, clearGalleryDraft,
+} from '../lib/gallery-draft';
+
 const MAX_PHOTOS = 10;
 
 /* ── @Mention Autocomplete ── */
@@ -79,8 +83,24 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
 
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [caption, setCaption] = useState('');
+  const [caption, setCaption] = useState(readDraftCaption);
   const [uploading, setUploading] = useState(false);
+
+  // iOS Safari can discard the page when the user switches tabs/apps; keep the caption
+  useEffect(() => {
+    if (open) saveDraftCaption(caption);
+  }, [open, caption]);
+
+  // Bring back photos picked before the discard
+  useEffect(() => {
+    let cancelled = false;
+    loadDraftPhotos().then((saved) => {
+      if (cancelled || saved.length === 0) return;
+      setFiles(saved);
+      setPreviews(saved.map((f) => URL.createObjectURL(f)));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // @mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -94,6 +114,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
     setCaption('');
     setUploading(false);
     setMentionQuery(null);
+    clearGalleryDraft();
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -104,6 +125,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
     const remaining = MAX_PHOTOS - files.length;
     const toAdd = selected.slice(0, remaining);
     const newPreviews = toAdd.map((f) => URL.createObjectURL(f));
+    void saveDraftPhotos([...files, ...toAdd]);
     setFiles((prev) => [...prev, ...toAdd]);
     setPreviews((prev) => [...prev, ...newPreviews]);
     if (fileRef.current) fileRef.current.value = '';
@@ -111,6 +133,7 @@ export default function GalleryUpload({ open, onClose }: { open: boolean; onClos
 
   const removeFile = (index: number) => {
     URL.revokeObjectURL(previews[index]);
+    void saveDraftPhotos(files.filter((_, i) => i !== index));
     setFiles((prev) => prev.filter((_, i) => i !== index));
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
