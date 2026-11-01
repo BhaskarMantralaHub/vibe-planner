@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
+import { useSeasonEditable } from '../lib/use-season-editable';
 import {
   EmptyState, Text, ActionSheet, Input,
   Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose,
@@ -180,7 +181,9 @@ function DeletedSponsorRow({ sponsor, onRestore }: { sponsor: CricketSponsorship
 // ── Main component ──
 export default function SponsorshipSection() {
   const {  user, isTeamAdmin } = useAuthStore();
-  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Write access: team admin AND the season is still current. Past seasons are view-only for everyone.
+  const isAdmin = isTeamAdmin() && seasonEditable;
   const adminName = (user?.user_metadata?.full_name as string) || user?.email || '';
   const { sponsorships, selectedSeasonId, addSponsorship, updateSponsorship, deleteSponsorship, restoreSponsorship } = useCricketStore();
 

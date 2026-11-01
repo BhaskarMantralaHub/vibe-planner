@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode, RefObject, ChangeEvent } from 'react';
-import { Camera, FileText, X } from 'lucide-react';
+import { Camera, FileText, RotateCw, X } from 'lucide-react';
 import { Button, Spinner, Text } from '@/components/ui';
 
 /**
@@ -10,11 +10,13 @@ import { Button, Spinner, Text } from '@/components/ui';
  * file state (Split also carries already-uploaded URLs); this owns only the look.
  */
 export function ReceiptAttach({
-  inputRef, onChange, compressing, count, pendingLabel, onCancelRemove, onConfirmRemove, children,
+  inputRef, onChange, compressing, busyLabel = 'Compressing…', count, pendingLabel, onCancelRemove, onConfirmRemove, children,
 }: {
   inputRef: RefObject<HTMLInputElement | null>;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   compressing: boolean;
+  /** Button text while `compressing` is true. */
+  busyLabel?: string;
   count: number;
   /** "Receipt 2" while a remove is awaiting confirmation, else null. */
   pendingLabel: string | null;
@@ -59,17 +61,20 @@ export function ReceiptAttach({
         className="gap-2"
       >
         {!compressing && <Camera size={18} />}
-        {compressing ? 'Compressing…' : count > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
+        {compressing ? busyLabel : count > 0 ? 'Add more receipts' : 'Attach receipts or invoices'}
       </Button>
     </div>
   );
 }
 
 /** One 80px receipt tile. `src` null = PDF (no preview). */
-export function ReceiptThumb({ src, name, busy = false, onRemove, removeLabel }: {
+export function ReceiptThumb({ src, name, busy = false, failed = false, onRetry, onRemove, removeLabel }: {
   src: string | null;
   name: string;
   busy?: boolean;
+  /** Upload failed: shows a tap-to-retry overlay. */
+  failed?: boolean;
+  onRetry?: () => void;
   onRemove: () => void;
   removeLabel: string;
 }) {
@@ -91,12 +96,22 @@ export function ReceiptThumb({ src, name, busy = false, onRemove, removeLabel }:
       <button
         onClick={onRemove}
         aria-label={removeLabel}
-        className="absolute -top-2.5 -right-2.5 h-9 w-9 flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
+        className="absolute -top-2.5 -right-2.5 z-10 h-9 w-9 flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
       >
         <span className="h-6 w-6 rounded-full bg-[var(--text)] flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
           <X size={13} strokeWidth={2.5} className="text-[var(--card)]" />
         </span>
       </button>
+      {failed && (
+        <button
+          onClick={onRetry}
+          aria-label={`Retry upload of ${name}`}
+          className="absolute inset-0 rounded-xl bg-black/55 flex flex-col items-center justify-center gap-1 cursor-pointer"
+        >
+          <RotateCw size={18} className="text-white" />
+          <span className="text-[11px] font-semibold text-white">Retry</span>
+        </button>
+      )}
       {busy && (
         <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
           <Spinner size="sm" />

@@ -13,11 +13,13 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
 import { formatCurrency, formatDate, computeSeasonPool } from '../lib/utils';
 import { cn } from '@/lib/utils';
 import { EmptyState, RollingNumber, Text, Badge, Spinner, ActionSheet, ComposerModal, Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui';
+import { Drawer, DrawerHandle, DrawerTitle, DrawerHeader, DrawerBody } from '@/components/ui/drawer';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Pencil, Trash2, ChevronDown, Camera, X, Receipt, ExternalLink, FileText, Info, ArrowDownRight, ReceiptText, Plus } from 'lucide-react';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressReceiptImage } from '../lib/image';
+import { useSeasonEditable } from '../lib/use-season-editable';
 import { toast } from 'sonner';
 import type { CricketExpense } from '@/types/cricket';
 import type { CategoryConfig } from '../lib/constants';
@@ -342,7 +344,14 @@ function ExpenseRow({
 
   return (
     <div>
-      <div className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`View details for ${expense.description || config.label}`}
+        onClick={onDetails}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onDetails(); } }}
+        className="group relative flex items-start sm:items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors hover:bg-[var(--hover-bg)] active:bg-[var(--hover-bg)]"
+      >
         {/* Category icon — tonal tint only, no outline */}
         <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
           style={{ background: `${config.color}16` }}
@@ -411,7 +420,7 @@ function ExpenseRow({
 
         {/* Menu — 44px hit area, -my-1 so the row height doesn't grow */}
         {isAdmin && (
-          <div className="flex-shrink-0 self-center">
+          <div className="flex-shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setOpenMenu(true)}
               className="h-11 w-11 -my-1 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] active:bg-[var(--surface)] transition-colors"
@@ -443,6 +452,100 @@ function ExpenseRow({
       </div>
       {!isLast && <div className="mx-3 sm:mx-4" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 50%, transparent)' }} />}
     </div>
+  );
+}
+
+/* ── Expense detail sheet — full text, audit trail, receipts, admin actions ── */
+function ExpenseDetailDrawer({ expense, open, onClose, isAdmin, onEdit, onDelete }: {
+  /** Kept after close so the sheet doesn't blank while it animates out. */
+  expense: CricketExpense | null;
+  open: boolean;
+  onClose: () => void;
+  isAdmin: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const e = expense;
+  if (!e) return null;
+
+  const config = getCategoryConfig(e.category);
+  const Icon = CATEGORY_ICONS[config.iconName];
+  const title = e.description || config.label;
+  const receipts = e.receipt_urls ?? [];
+  const updated = !!e.updated_by && e.updated_at !== e.created_at;
+
+  const rows: { label: string; value: string }[] = [
+    { label: 'Date', value: formatDate(e.expense_date) },
+    { label: 'Category', value: config.label },
+    ...(e.created_by ? [{ label: 'Added by', value: `${e.created_by} · ${formatDate(e.created_at?.split('T')[0] || e.expense_date)}` }] : []),
+    ...(updated ? [{ label: 'Updated by', value: `${e.updated_by} · ${formatDate(e.updated_at.split('T')[0])}` }] : []),
+  ];
+
+  return (
+    <Drawer open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DrawerHandle />
+      <DrawerTitle>{`Details for ${title}`}</DrawerTitle>
+      <DrawerHeader>
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: `${config.color}16` }}>
+            {Icon && <Icon size={18} style={{ color: config.color }} />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <Text as="p" size="md" weight="semibold" className="break-words leading-snug">{title}</Text>
+            <Text as="p" size="xl" weight="bold" tabular className="mt-0.5">{formatCurrency(Number(e.amount))}</Text>
+          </div>
+        </div>
+      </DrawerHeader>
+      <DrawerBody>
+        <dl className="divide-y divide-[var(--border)]">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-baseline justify-between gap-4 py-2.5">
+              <dt><Text size="sm" color="muted">{r.label}</Text></dt>
+              <dd className="min-w-0 text-right"><Text size="sm" weight="medium" className="break-words">{r.value}</Text></dd>
+            </div>
+          ))}
+        </dl>
+
+        {receipts.length > 0 && (
+          <div>
+            <Text as="p" size="sm" weight="medium" color="muted" className="mb-2">
+              Receipt{receipts.length > 1 ? 's' : ''}
+            </Text>
+            <div className="flex flex-wrap gap-2">
+              {receipts.map((url, i) => {
+                const pdf = isUrlPdf(url);
+                return (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open receipt ${i + 1}`}
+                    className="h-20 w-20 overflow-hidden rounded-xl bg-[var(--fill)] flex items-center justify-center active:scale-95 transition-transform"
+                  >
+                    {pdf
+                      ? <FileText size={24} className="text-[var(--muted)]" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      : <img src={url} alt={`Receipt ${i + 1}`} className="h-full w-full object-cover" />}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="flex gap-2 pt-1">
+            <Button variant="secondary" size="lg" fullWidth className="gap-2" onClick={onEdit}>
+              <Pencil size={16} /> Edit
+            </Button>
+            <Button variant="danger" size="lg" fullWidth className="gap-2" onClick={onDelete}>
+              <Trash2 size={16} /> Delete
+            </Button>
+          </div>
+        )}
+      </DrawerBody>
+    </Drawer>
   );
 }
 
@@ -730,11 +833,15 @@ export default function ExpenseList({ onNavigate, carriedSlot }: {
 } = {}) {
   const listRef = useRef<HTMLDivElement>(null);
   const {  user, isTeamAdmin } = useAuthStore();
-  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Write access: team admin AND the season is still current. Past seasons are view-only for everyone.
+  const isAdmin = isTeamAdmin() && seasonEditable;
   const { expenses, fees, sponsorships, players, seasons, selectedSeasonId, deleteExpense, permanentDeleteExpense, restoreExpense, updateExpense, setShowExpenseForm } = useCricketStore();
 
   const [deletingExpense, setDeletingExpense] = useState<{ id: string; desc: string; permanent?: boolean } | null>(null);
   const [editingExpense, setEditingExpense] = useState<CricketExpense | null>(null);
+  const [detailExpense, setDetailExpense] = useState<CricketExpense | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
 
@@ -939,12 +1046,7 @@ export default function ExpenseList({ onNavigate, carriedSlot }: {
                         isAdmin={isAdmin}
                         isLast={i === group.expenses.length - 1}
                         onEdit={() => setEditingExpense(e)}
-                        onDetails={() => {
-                          const parts: string[] = [];
-                          if (e.created_by) parts.push(`Added by ${e.created_by} on ${formatDate(e.created_at?.split('T')[0] || e.expense_date)}`);
-                          if (e.updated_by && e.updated_at !== e.created_at) parts.push(`Updated by ${e.updated_by} on ${formatDate(e.updated_at.split('T')[0])}`);
-                          toast(parts.join('\n') || 'No details', { duration: 4000 });
-                        }}
+                        onDetails={() => { setDetailExpense(e); setDetailOpen(true); }}
                         onDelete={() => setDeletingExpense({ id: e.id, desc: e.description || cfg.label })}
                       />
                     );
@@ -991,6 +1093,20 @@ export default function ExpenseList({ onNavigate, carriedSlot }: {
           )}
         </div>
       )}
+
+      {/* ── Detail sheet ── */}
+      <ExpenseDetailDrawer
+        expense={detailExpense}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        isAdmin={isAdmin}
+        onEdit={() => { setDetailOpen(false); if (detailExpense) setEditingExpense(detailExpense); }}
+        onDelete={() => {
+          setDetailOpen(false);
+          const e = detailExpense;
+          if (e) setDeletingExpense({ id: e.id, desc: e.description || getCategoryConfig(e.category).label });
+        }}
+      />
 
       {/* ── Edit drawer ── */}
       <EditExpenseDrawer

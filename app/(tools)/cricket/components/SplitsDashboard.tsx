@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
 import { readSplitDraft } from '../lib/split-draft';
+import { useSeasonEditable } from '../lib/use-season-editable';
 import { computeSettlements, personalBalances } from '../lib/settlement';
 import { buildSettlementPdfModel, renderSettlementPdf } from '../lib/settlement-pdf';
 import { getTeamName } from '../lib/constants';
@@ -254,7 +255,9 @@ export default function SplitsDashboard() {
   const { userAccess } = useAuthStore();
   const isGlobalAdmin = userAccess.includes('admin');
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
-  const isAdmin = isGlobalAdmin || isTeamAdmin;
+  const seasonEditable = useSeasonEditable();
+  // Write access: admin AND the season is still current. Past seasons are view-only for everyone.
+  const isAdmin = (isGlobalAdmin || isTeamAdmin) && seasonEditable;
 
   // Track whether the form/settle drawers have ever been opened — if not, we don't mount them
   // (lazy-loaded via next/dynamic above). Once opened, they stay mounted so subsequent opens are instant.
@@ -268,7 +271,8 @@ export default function SplitsDashboard() {
   }, [showSplitForm, editingSplitId]);
   // Reopen a New Split that iOS discarded with the tab (see lib/split-draft)
   useEffect(() => {
-    if (readSplitDraft()) useSplitsStore.setState({ showSplitForm: true, editingSplitId: null });
+    if (seasonEditable && readSplitDraft()) useSplitsStore.setState({ showSplitForm: true, editingSplitId: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (showSettleForm) setSettleDrawerMounted(true);
@@ -490,7 +494,7 @@ export default function SplitsDashboard() {
         <EmptyState icon={<Receipt size={32} />} title="No splits yet"
           description="Track who paid for what and split it fairly. Separate from the team pool fund — splits are just between people involved."
           brand="cricket"
-          action={{ label: '+ Split an Expense', onClick: () => useSplitsStore.setState({ showSplitForm: true }) }} />
+          action={seasonEditable ? { label: '+ Split an Expense', onClick: () => useSplitsStore.setState({ showSplitForm: true }) } : undefined} />
         {splitFormMounted && <SplitForm />}
         {settleDrawerMounted && <SplitSettleDrawer />}
       </>
@@ -707,14 +711,14 @@ export default function SplitsDashboard() {
                                 );
                               })()}
                             </div>
-                            {/* Settle button inside expanded area */}
-                            <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
+                            {/* Settle button inside expanded area — hidden for past seasons */}
+                            {seasonEditable && <button onClick={() => myPlayer && openSettleDrawer(myPlayer.id, d.id, d.amount)}
                               aria-label={`Settle ${formatCurrency(d.amount)} owed to ${d.name}`}
                               className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
                               style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
                               <Handshake size={16} />
                               Settle {formatCurrency(d.amount)}
-                            </button>
+                            </button>}
                           </div>
                         </div>
                       </div>
@@ -801,14 +805,14 @@ export default function SplitsDashboard() {
                                 );
                               })()}
                             </div>
-                            {/* Settle button inside expanded area */}
-                            <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
+                            {/* Settle button inside expanded area — hidden for past seasons */}
+                            {seasonEditable && <button onClick={() => myPlayer && openSettleDrawer(d.id, myPlayer.id, d.amount)}
                               aria-label={`Record ${d.name} settling ${formatCurrency(d.amount)} with you`}
                               className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl py-3 min-h-[48px] text-[14px] font-bold cursor-pointer transition-all active:scale-[0.97]"
                               style={{ background: 'var(--cricket)', color: 'var(--cricket-on)' }}>
                               <Handshake size={16} />
                               Settle {formatCurrency(d.amount)}
-                            </button>
+                            </button>}
                           </div>
                         </div>
                       </div>
@@ -888,6 +892,7 @@ export default function SplitsDashboard() {
                           <Text size="sm" weight="semibold">{d.toName}</Text>
                         </Text>
                         <Text size="sm" weight="bold" tabular className="flex-shrink-0">{formatCurrency(d.amount)}</Text>
+                        {seasonEditable && (
                         <Button
                           onClick={() => openSettleDrawer(d.fromId, d.toId, d.amount)}
                           variant="secondary"
@@ -897,6 +902,7 @@ export default function SplitsDashboard() {
                         >
                           Settle
                         </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1439,7 +1445,7 @@ export default function SplitsDashboard() {
       </div>}
 
       {/* ── Deleted tab ── */}
-      {subTab === 'deleted' && (
+      {subTab === 'deleted' && isAdmin && (
         <div key="deleted" className="tab-enter">
           {deletedSplits.length > 0 ? (
             <div className="rounded-2xl bg-[var(--card)]" style={{ boxShadow: 'var(--card-shadow)' }}>

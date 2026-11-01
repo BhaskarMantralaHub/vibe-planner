@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency } from '../lib/utils';
+import { useSeasonEditable } from '../lib/use-season-editable';
 import { seasonRoster, billableRoster } from '../lib/season-roster';
 import { myCricketPlayer } from '../lib/my-player';
 import { buildFeeReminderText } from '../lib/fee-message';
@@ -41,7 +42,9 @@ type Status = 'paid' | 'partial' | 'unpaid';
 
 export default function FeeTracker() {
   const {  user, isTeamAdmin } = useAuthStore();
-  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Write access: team admin AND the season is still current. Past seasons are view-only for everyone.
+  const isAdmin = isTeamAdmin() && seasonEditable;
   const adminName = (user?.user_metadata?.full_name as string) || user?.email || 'Admin';
   const {
     players, seasonPlayers, fees, selectedSeasonId, seasons,

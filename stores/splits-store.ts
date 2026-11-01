@@ -45,7 +45,7 @@ interface SplitsState {
   addSplit: (
     userId: string,
     seasonId: string,
-    data: { paid_by: string; category: string; description: string; amount: number; split_date: string },
+    data: { paid_by: string; category: string; description: string; amount: number; split_date: string; receipt_urls?: string[] | null },
     playerShares: { player_id: string; share_amount: number }[],
     createdBy?: string,
     receiptFiles?: Blob[],
@@ -133,7 +133,7 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
       id: splitId, team_id: teamId ?? '', season_id: seasonId,
       paid_by: data.paid_by, category: data.category as CricketSplit['category'],
       description: data.description, amount: data.amount,
-      split_date: data.split_date, receipt_urls: null,
+      split_date: data.split_date, receipt_urls: data.receipt_urls?.length ? data.receipt_urls : null,
       created_by: createdBy ?? null,
       deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
     };
@@ -157,7 +157,7 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
       // We use the client-generated splitId in the storage path so the row
       // reference stays consistent.
       (async () => {
-        let urls: string[] | null = null;
+        let urls: string[] | null = data.receipt_urls?.length ? data.receipt_urls : null;
         let uploadFailures = 0;
         if (receiptFiles?.length) {
           const uploadToast = toast.loading(`Uploading ${receiptFiles.length} receipt${receiptFiles.length > 1 ? 's' : ''}...`);
@@ -177,7 +177,7 @@ export const useSplitsStore = create<SplitsState>((set, get) => ({
             }
           }
           toast.dismiss(uploadToast);
-          urls = collected.length > 0 ? collected : null;
+          urls = collected.length > 0 ? [...(urls ?? []), ...collected] : urls;
         }
 
         const { data: row, error } = await supabase.from('cricket_splits')

@@ -8,9 +8,9 @@ import { Text } from './text';
  * ComposerModal — shared shell for forms with text inputs that must work with the
  * iOS Safari keyboard. Used by GalleryUpload, ExpenseForm, SplitForm, etc.
  *
- * Design: full-screen on mobile (100svh — keyboard-stable), centered modal on
- * desktop. Header / scrollable body / sticky footer. The footer is translated up
- * by the keyboard overlap (measured via `window.visualViewport`) so it sticks
+ * Design: full-screen on mobile (100svh), centered modal on desktop.
+ * Header / scrollable body / sticky footer. While the keyboard is up the panel is
+ * resized to the visual viewport; the footer rides above the keyboard (measured via `window.visualViewport`) so it sticks
  * just above the keyboard line.
  *
  * WHY NOT VAUL:
@@ -57,7 +57,7 @@ interface ComposerModalProps {
   /** Optional right-side header action (e.g. Share / Save). Use this for the primary
    *  action if you want it in the header rather than the footer. */
   rightAction?: { label: string; onClick: () => void; disabled?: boolean; color?: string; icon?: ReactNode };
-  /** Sticky footer — translated up by the keyboard overlap so it stays visible while typing. */
+  /** Sticky footer — the panel shrinks to the visual viewport while typing, so the footer sits above the keyboard without covering the body. */
   footer?: ReactNode;
   children: ReactNode;
 }
@@ -72,7 +72,7 @@ export function ComposerModal({
   children,
 }: ComposerModalProps) {
   // Track keyboard overlap so the footer can translate up to stay visible.
-  const [kbOffset, setKbOffset] = useState(0);
+  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -80,7 +80,7 @@ export function ComposerModal({
     if (!vv) return;
     const update = () => {
       const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKbOffset(-overlap);
+      setViewport(overlap > 0 ? { top: vv.offsetTop, height: vv.height } : null);
     };
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
@@ -99,7 +99,7 @@ export function ComposerModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50"
+        className="fixed inset-0 z-40 bg-[var(--card)] sm:bg-black/50"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -111,6 +111,7 @@ export function ComposerModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        style={viewport ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : undefined}
         className={
           'fixed z-50 flex flex-col bg-[var(--card)] outline-none ' +
           'inset-0 h-[100svh] ' +
@@ -152,15 +153,12 @@ export function ComposerModal({
           {children}
         </main>
 
-        {/* Sticky footer — translated by keyboard overlap so it stays visible while typing */}
+        {/* Sticky footer — panel is sized to the visual viewport while the keyboard is up */}
         {footer && (
           <footer
-            className="flex-none px-5 pt-3 border-t border-[var(--border)] bg-[var(--card)] transition-transform duration-150 ease-out"
-            // Bottom padding absorbs the home-indicator inset when the keyboard
-            // is down; while typing the keyboard overlap translate dominates.
+            className="flex-none px-5 pt-3 border-t border-[var(--border)] bg-[var(--card)]"
             style={{
-              transform: `translateY(${kbOffset}px)`,
-              paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+              paddingBottom: viewport ? '0.75rem' : 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
             }}
           >
             {footer}

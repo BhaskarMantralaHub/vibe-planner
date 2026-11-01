@@ -3,10 +3,13 @@
 import { useCricketStore } from '@/stores/cricket-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { calculatePlayerBalances, formatCurrency } from '../lib/utils';
+import { useSeasonEditable } from '../lib/use-season-editable';
 
 export default function DuesSummary() {
   const {  isTeamAdmin } = useAuthStore();
-  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Write access: team admin AND the season is still current. Past seasons are view-only for everyone.
+  const isAdmin = isTeamAdmin() && seasonEditable;
   const { players, expenses, splits, settlements, selectedSeasonId, setShowSettleForm } = useCricketStore();
 
   const seasonExpenses = expenses.filter((e) => e.season_id === selectedSeasonId);

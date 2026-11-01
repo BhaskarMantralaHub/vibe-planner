@@ -19,6 +19,8 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { PageFooter } from '@/components/PageFooter';
 import InviteHandler from '@/components/InviteHandler';
 import { formatCurrency, computeSeasonPool, type CarriedForward } from './lib/utils';
+import { useSeasonEditable } from './lib/use-season-editable';
+import { SEASON_TYPES } from './lib/constants';
 import SeasonSelector from './components/SeasonSelector';
 import PlayerManager from './components/PlayerManager';
 import ExpenseForm from './components/ExpenseForm';
@@ -366,10 +368,12 @@ import { SegmentedControl } from '@/components/ui';
 
 function CricketDashboard() {
   const { user, userAccess, userTeams, currentTeamId } = useAuthStore();
-  const { loadAll, loading, selectedSeasonId, seasons, players, seasonPlayers, expenses, fees, sponsorships, adminUserIds, updateSeason } = useCricketStore();
+  const { loadAll, loading, selectedSeasonId, seasons, players, seasonPlayers, expenses, fees, sponsorships, adminUserIds, updateSeason, setSelectedSeason } = useCricketStore();
   const isGlobalAdmin = userAccess.includes('admin');
   const isTeamAdmin = user ? adminUserIds.includes(user.id) : false;
   const isAdmin = isGlobalAdmin || isTeamAdmin;
+  const seasonEditable = useSeasonEditable();
+  const currentSeason = seasons.find((s) => s.is_active);
   // This season's roster, not the whole team — so the Players stat card counts
   // who is actually playing the selected season, and the greeting's skipper
   // check reads THIS season's armband. Falls back to the team-wide list for a
@@ -661,6 +665,21 @@ function CricketDashboard() {
               className="mb-4"
             />
           )}
+          {activeTab === 'finances' && !seasonEditable && (
+            <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-[var(--fill)] px-3.5 py-2.5">
+              <p className="min-w-0 text-[13px] font-medium text-[var(--muted)]">
+                Past season · view only
+              </p>
+              {currentSeason && (
+                <button
+                  onClick={() => setSelectedSeason(currentSeason.id)}
+                  className="flex-shrink-0 cursor-pointer text-[13px] font-semibold text-[var(--cricket)] active:opacity-60"
+                >
+                  Switch to {SEASON_TYPES.find((t) => t.key === currentSeason.season_type)?.label ?? currentSeason.season_type} {currentSeason.year}
+                </button>
+              )}
+            </div>
+          )}
           {/* Summary Stats — players view only. Deliberately NOT on fees or
               sponsors: Fees is a payment-management screen whose first
               viewport belongs to "who still owes?", and the four generic KPIs
@@ -695,7 +714,7 @@ function CricketDashboard() {
                 carriedSlot={Math.abs(pool.carried.amount) >= 0.01 ? (
                   <CarriedForwardEntry
                     carried={pool.carried}
-                    isAdmin={isAdmin}
+                    isAdmin={isAdmin && seasonEditable}
                     onFreeze={(amount) => {
                       if (!selectedSeasonId) return;
                       updateSeason(selectedSeasonId, { opening_balance: amount });

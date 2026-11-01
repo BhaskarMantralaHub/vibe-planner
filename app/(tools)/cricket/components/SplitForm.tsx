@@ -10,12 +10,11 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
-import { compressReceiptImage } from '../lib/image';
+import { useReceiptUploads } from '../lib/use-receipt-uploads';
 import { cn } from '@/lib/utils';
 import PlayerAvatar from './PlayerAvatar';
 import { ReceiptAttach, ReceiptThumb } from './ReceiptAttach';
 import { SPLIT_FORM_KEY, readSplitDraft, type SplitDraft } from '../lib/split-draft';
-import { toast } from 'sonner';
 import { Check, ChevronRight, Cookie, CupSoda, Utensils, Package, Users, Search, X } from 'lucide-react';
 import type { SplitCategory } from '@/types/cricket';
 
@@ -76,17 +75,10 @@ export default function SplitForm() {
 
   // Receipt state — existing URLs (edit mode) + newly picked files
   const [existingUrls, setExistingUrls] = useState<string[]>([]);
-  const [newFiles, setNewFiles] = useState<{ preview: string; compressed: Blob | null; isPdf: boolean; fileName: string }[]>([]);
-  const [compressingCount, setCompressingCount] = useState(0);
   const [pendingRemove, setPendingRemove] = useState<{ type: 'existing' | 'new'; index: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const compressing = compressingCount > 0;
-
-  // Revoke object URLs on unmount
-  useEffect(() => {
-    return () => { newFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); }); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // New receipts upload as soon as they're attached; submit waits for all of them
+  const receipts = useReceiptUploads('split-receipts', MAX_RECEIPTS, existingUrls.length);
   // No auto-focus — iOS Safari keyboard pushes the drawer and covers the input.
   // Let the user tap the amount field when ready.
 
@@ -99,7 +91,7 @@ export default function SplitForm() {
       setPaidById(editingSplit.paid_by);
       setSelectedPlayerIds(new Set(editingShares.map((s) => s.player_id)));
       setExistingUrls(editingSplit.receipt_urls ?? []);
-      setNewFiles([]);
+      receipts.discard();
       // Detect if all shares are equal
       const amounts = editingShares.map((s) => Number(s.share_amount));
       const allEqual = amounts.length > 0 && amounts.every((a) => Math.abs(a - amounts[0]) < 0.01);
@@ -159,6 +151,7 @@ export default function SplitForm() {
   // In custom mode, if players changed and total doesn't match, auto-switch to equal
   // In equal mode, always valid as long as count + amount are set
   const canSubmit = numAmount > 0 && effectivePaidBy && selectedCount >= 2
+    && !receipts.busy && receipts.failedCount === 0
     && (splitType === 'equal' || Math.abs(remaining) < 0.01);
 
   // When players change in custom mode during edit, reset to equal to avoid stale amounts
@@ -176,49 +169,13 @@ export default function SplitForm() {
     setPaidById(null); setSelectedPlayerIds(new Set());
     setSplitType('equal'); setCustomAmounts({}); setShowPaidByPicker(false);
     setPaidBySearch(''); setPlayerSearch('');
-    newFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
-    setExistingUrls([]); setNewFiles([]); setPendingRemove(null);
-    // Defensive: reset compression counter so a stale increment can't keep the submit button disabled
-    setCompressingCount(0);
+    receipts.reset();
+    setExistingUrls([]); setPendingRemove(null);
     try { sessionStorage.removeItem(SPLIT_FORM_KEY); } catch { /* ignore */ }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files?.length) return;
-
-    const used = existingUrls.length + newFiles.length;
-    const remaining = MAX_RECEIPTS - used;
-    const selected = Array.from(files).slice(0, remaining);
-    if (files.length > remaining) {
-      toast.error(`Max ${MAX_RECEIPTS} receipts. Only adding ${remaining} more.`);
-    }
-
-    for (const file of selected) {
-      const isImg = file.type.startsWith('image/');
-      const isPdf = file.type === 'application/pdf';
-      if (!isImg && !isPdf) { toast.error(`${file.name}: only images and PDFs are supported.`); continue; }
-
-      const preview = isPdf ? '' : URL.createObjectURL(file);
-      if (isPdf) {
-        setNewFiles((prev) => [...prev, { preview, compressed: file, isPdf: true, fileName: file.name }]);
-      } else {
-        setNewFiles((prev) => [...prev, { preview, compressed: null, isPdf: false, fileName: file.name }]);
-        setCompressingCount((c) => c + 1);
-        try {
-          const compressed = await compressReceiptImage(file);
-          setNewFiles((prev) => prev.map((f) => f.preview === preview ? { ...f, compressed } : f));
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : `Failed to compress ${file.name}`);
-          setNewFiles((prev) => {
-            if (preview) URL.revokeObjectURL(preview);
-            return prev.filter((f) => f.preview !== preview);
-          });
-        } finally {
-          setCompressingCount((c) => c - 1);
-        }
-      }
-    }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    receipts.addFiles(e.target.files);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -227,11 +184,16 @@ export default function SplitForm() {
     if (pendingRemove.type === 'existing') {
       setExistingUrls((prev) => prev.filter((_, i) => i !== pendingRemove.index));
     } else {
-      const target = newFiles[pendingRemove.index];
-      if (target?.preview) URL.revokeObjectURL(target.preview);
-      setNewFiles((prev) => prev.filter((_, i) => i !== pendingRemove.index));
+      const target = receipts.items[pendingRemove.index];
+      if (target) receipts.remove(target.id);
     }
     setPendingRemove(null);
+  };
+
+  const closeWithoutSaving = () => {
+    receipts.discard();
+    resetForm();
+    setShowSplitForm(false);
   };
 
   const handleSubmit = () => {
@@ -250,20 +212,18 @@ export default function SplitForm() {
       split_date: editingSplit?.split_date ?? new Date().toISOString().split('T')[0],
     };
 
-    const newBlobs = newFiles.map((f) => f.compressed).filter(Boolean) as Blob[];
+    const allUrls = [...existingUrls, ...receipts.urls];
 
     if (editingSplitId) {
       updateSplit(
         editingSplitId,
-        { ...splitData, receipt_urls: existingUrls.length > 0 ? existingUrls : null },
+        { ...splitData, receipt_urls: allUrls.length > 0 ? allUrls : null },
         newShares,
-        newBlobs.length > 0 ? newBlobs : undefined,
       );
     } else {
       addSplit(
-        user.id, selectedSeasonId, splitData, newShares,
+        user.id, selectedSeasonId, { ...splitData, receipt_urls: allUrls }, newShares,
         myPlayer?.name ?? user.user_metadata?.full_name as string ?? 'Unknown',
-        newBlobs.length > 0 ? newBlobs : undefined,
       );
     }
 
@@ -317,18 +277,18 @@ export default function SplitForm() {
   return (
     <ComposerModal
       open={showSplitForm}
-      onClose={() => { resetForm(); setShowSplitForm(false); }}
+      onClose={closeWithoutSaving}
       title={editingSplitId ? 'Edit Split' : 'New Split'}
       footer={
         <div>
           {/* Explains why the button is disabled */}
-          {(!canSubmit || compressing) && (numAmount > 0 || selectedCount > 0 || compressing) && (
+          {(!canSubmit || receipts.busy) && (numAmount > 0 || selectedCount > 0 || receipts.busy) && (
             <Text as="p" size="sm" color="muted" className="text-center mb-2">
-              {compressing ? 'Compressing receipts…' : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Choose who paid' : selectedCount < 2 ? 'Pick at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
+              {receipts.statusText ? receipts.statusText : numAmount <= 0 ? 'Enter an amount' : !effectivePaidBy ? 'Choose who paid' : selectedCount < 2 ? 'Pick at least 2 people' : splitType === 'custom' && Math.abs(remaining) >= 0.01 ? `Custom amounts must total $${numAmount.toFixed(2)}` : ''}
             </Text>
           )}
-          <Button onClick={handleSubmit} disabled={!canSubmit || compressing} variant="primary" brand="cricket" size="lg" fullWidth>
-            {compressing ? 'Compressing…' : (
+          <Button onClick={handleSubmit} disabled={!canSubmit} variant="primary" brand="cricket" size="lg" fullWidth>
+            {receipts.busy ? 'Uploading receipts…' : (
               <span>
                 {editingSplitId ? 'Update' : 'Split'}
                 {numAmount > 0 && <> <RollingNumber value={`$${numAmount.toFixed(2)}`} /></>}
@@ -567,8 +527,9 @@ export default function SplitForm() {
         <ReceiptAttach
           inputRef={fileInputRef}
           onChange={handleFileSelect}
-          compressing={compressing}
-          count={existingUrls.length + newFiles.length}
+          compressing={receipts.busy}
+          busyLabel="Uploading…"
+          count={existingUrls.length + receipts.items.length}
           pendingLabel={pendingLabel}
           onCancelRemove={() => setPendingRemove(null)}
           onConfirmRemove={confirmRemove}
@@ -582,12 +543,14 @@ export default function SplitForm() {
               removeLabel={`Remove receipt ${i + 1}`}
             />
           ))}
-          {newFiles.map((f, i) => (
+          {receipts.items.map((r, i) => (
             <ReceiptThumb
-              key={`new-${i}`}
-              src={f.isPdf ? null : f.preview}
-              name={f.fileName}
-              busy={!f.compressed}
+              key={r.id}
+              src={r.isPdf ? null : r.preview}
+              name={r.name}
+              busy={r.status === 'compressing' || r.status === 'uploading'}
+              failed={r.status === 'error'}
+              onRetry={() => receipts.retry(r.id)}
               onRemove={() => setPendingRemove({ type: 'new', index: i })}
               removeLabel={`Remove receipt ${existingUrls.length + i + 1}`}
             />

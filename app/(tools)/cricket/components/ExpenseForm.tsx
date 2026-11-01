@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { ComposerModal, Input, Text } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { ReceiptAttach, ReceiptThumb } from './ReceiptAttach';
-import { toast } from 'sonner';
-import { compressReceiptImage } from '../lib/image';
+import { useReceiptUploads } from '../lib/use-receipt-uploads';
+import { useSeasonEditable } from '../lib/use-season-editable';
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
   FaTshirt: Shirt, MdSportsCricket, FaTrophy: Trophy, FaUtensils: Utensils, FaBox: Package,
@@ -36,16 +36,16 @@ export default function ExpenseForm() {
   const [amount, setAmount] = useState(draft?.amount ?? '');
   const [date, setDate] = useState(draft?.date ?? new Date().toISOString().split('T')[0]);
 
-  // Receipt state
-  const [receiptFiles, setReceiptFiles] = useState<{ file: File; preview: string; compressed: Blob | null }[]>([]);
-  const [compressingCount, setCompressingCount] = useState(0);
+  // Receipts upload as soon as they're attached; submit waits for all of them
+  const MAX_RECEIPTS = 10;
+  const seasonEditable = useSeasonEditable();
+  const receipts = useReceiptUploads('expense-receipts', MAX_RECEIPTS);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const MAX_RECEIPTS = 10;
 
   // Restore modal open state after iOS Safari reload
   useEffect(() => {
-    if (draft && (draft.description || draft.amount)) {
+    if (seasonEditable && draft && (draft.description || draft.amount)) {
       setShowExpenseForm(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,66 +58,25 @@ export default function ExpenseForm() {
     }
   }, [category, description, amount, date, showExpenseForm]);
 
-  // Revoke preview URLs on unmount
-  useEffect(() => {
-    return () => { receiptFiles.forEach((r) => URL.revokeObjectURL(r.preview)); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const [formError, setFormError] = useState('');
   // Must be declared above the early return — Rules of Hooks (React error #310).
   const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
 
-  const isPdf = (file: File) => file.type === 'application/pdf';
-  const isValidType = (file: File) => file.type === 'application/pdf' || file.type.startsWith('image/');
-  const compressing = compressingCount > 0;
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files?.length) return;
-
-    const remaining = MAX_RECEIPTS - receiptFiles.length;
-    const selected = Array.from(files).slice(0, remaining);
-    if (files.length > remaining) {
-      toast.error(`Max ${MAX_RECEIPTS} receipts. Only adding ${remaining} more.`);
-    }
-
-    for (const file of selected) {
-      if (!isValidType(file)) {
-        toast.error(`${file.name}: only images and PDFs are supported.`);
-        continue;
-      }
-
-      const preview = isPdf(file) ? '' : URL.createObjectURL(file);
-      if (isPdf(file)) {
-        setReceiptFiles((prev) => [...prev, { file, preview, compressed: file }]);
-      } else {
-        setReceiptFiles((prev) => [...prev, { file, preview, compressed: null }]);
-        setCompressingCount((c) => c + 1);
-        try {
-          const compressed = await compressReceiptImage(file);
-          setReceiptFiles((prev) => prev.map((r) => r.preview === preview ? { ...r, compressed } : r));
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : `Failed to compress ${file.name}`);
-          setReceiptFiles((prev) => {
-            if (preview) URL.revokeObjectURL(preview);
-            return prev.filter((r) => r.preview !== preview);
-          });
-        } finally {
-          setCompressingCount((c) => c - 1);
-        }
-      }
-    }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    receipts.addFiles(e.target.files);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeReceipt = () => {
     if (pendingRemoveIdx === null) return;
-    setReceiptFiles((prev) => {
-      if (prev[pendingRemoveIdx]?.preview) URL.revokeObjectURL(prev[pendingRemoveIdx].preview);
-      return prev.filter((_, i) => i !== pendingRemoveIdx);
-    });
+    const target = receipts.items[pendingRemoveIdx];
+    if (target) receipts.remove(target.id);
     setPendingRemoveIdx(null);
+  };
+
+  const closeWithoutSaving = () => {
+    receipts.discard();
+    resetAndClose();
   };
 
   const resetAndClose = () => {
@@ -126,15 +85,14 @@ export default function ExpenseForm() {
     setAmount('');
     setDate(new Date().toISOString().split('T')[0]);
     setFormError('');
-    receiptFiles.forEach((r) => URL.revokeObjectURL(r.preview));
-    setReceiptFiles([]);
+    receipts.reset();
     setSubmitting(false);
     setShowExpenseForm(false);
     sessionStorage.removeItem(EXPENSE_FORM_KEY);
   };
 
   const handleSubmit = () => {
-    if (!user || !selectedSeasonId || submitting) return;
+    if (!user || !selectedSeasonId || submitting || receipts.busy || receipts.failedCount > 0) return;
 
     const parsed = parseFloat(amount);
     if (!amount || isNaN(parsed) || parsed <= 0) {
@@ -149,13 +107,13 @@ export default function ExpenseForm() {
     setSubmitting(true);
 
     const userName = (user.user_metadata?.full_name as string) || user.email || '';
-    const compressedBlobs = receiptFiles.map((r) => r.compressed).filter(Boolean) as Blob[];
     addExpense(user.id, selectedSeasonId, {
       category,
       description: description.trim(),
       amount: parsed,
       expense_date: date,
-    }, userName, compressedBlobs.length > 0 ? compressedBlobs : undefined);
+      receipt_urls: receipts.urls,
+    }, userName);
 
     resetAndClose();
   };
@@ -163,12 +121,17 @@ export default function ExpenseForm() {
   return (
     <ComposerModal
       open={showExpenseForm}
-      onClose={resetAndClose}
+      onClose={closeWithoutSaving}
       title="Add Expense"
       footer={
         <div>
           {/* In the footer, not the body: the footer rides above the iOS
               keyboard, so the reason the tap failed is always on screen. */}
+          {!formError && receipts.statusText && (
+            <Text as="p" size="sm" weight="medium" role="status" color="muted" className="mb-2 text-center">
+              {receipts.statusText}
+            </Text>
+          )}
           {formError && (
             <Text as="p" size="sm" weight="medium" role="alert" className="mb-2 text-center" style={{ color: 'var(--danger-text)' }}>
               {formError}
@@ -180,9 +143,9 @@ export default function ExpenseForm() {
             brand="cricket"
             size="lg"
             fullWidth
-            disabled={submitting || compressing}
+            disabled={submitting || receipts.busy || receipts.failedCount > 0}
           >
-            {compressing ? 'Compressing…' : submitting ? 'Adding…' : 'Add Expense'}
+            {receipts.busy ? 'Uploading receipts…' : submitting ? 'Adding…' : 'Add Expense'}
           </Button>
         </div>
       }
@@ -197,7 +160,7 @@ export default function ExpenseForm() {
         />
 
         {/* Two fluid columns; a fixed 140px date column cramped the amount at 375px */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Input
             label="Amount ($)"
             type="text"
@@ -214,6 +177,7 @@ export default function ExpenseForm() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             brand="cricket"
+            className="min-w-0 max-w-full appearance-none"
           />
         </div>
 
@@ -249,18 +213,21 @@ export default function ExpenseForm() {
         <ReceiptAttach
           inputRef={fileInputRef}
           onChange={handleFileSelect}
-          compressing={compressing}
-          count={receiptFiles.length}
+          compressing={receipts.busy}
+          busyLabel="Uploading…"
+          count={receipts.items.length}
           pendingLabel={pendingRemoveIdx !== null ? `Receipt ${pendingRemoveIdx + 1}` : null}
           onCancelRemove={() => setPendingRemoveIdx(null)}
           onConfirmRemove={removeReceipt}
         >
-          {receiptFiles.map((r, i) => (
+          {receipts.items.map((r, i) => (
             <ReceiptThumb
-              key={r.preview || `pdf-${i}`}
-              src={isPdf(r.file) ? null : r.preview}
-              name={r.file.name}
-              busy={!r.compressed}
+              key={r.id}
+              src={r.isPdf ? null : r.preview}
+              name={r.name}
+              busy={r.status === 'compressing' || r.status === 'uploading'}
+              failed={r.status === 'error'}
+              onRetry={() => receipts.retry(r.id)}
               onRemove={() => setPendingRemoveIdx(i)}
               removeLabel={`Remove receipt ${i + 1}`}
             />

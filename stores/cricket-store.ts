@@ -187,7 +187,7 @@ interface CricketState {
   addExpense: (
     userId: string,
     seasonId: string,
-    data: { category: string; description: string; amount: number; expense_date: string },
+    data: { category: string; description: string; amount: number; expense_date: string; receipt_urls?: string[] | null },
     createdBy?: string,
     receiptFiles?: Blob[],
   ) => void;
@@ -896,7 +896,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
       id: expenseId, user_id: userId, season_id: seasonId,
       paid_by: userId, category: data.category as CricketExpense['category'],
       description: data.description, amount: data.amount,
-      expense_date: data.expense_date, receipt_urls: null,
+      expense_date: data.expense_date, receipt_urls: data.receipt_urls?.length ? data.receipt_urls : null,
       created_by: createdBy ?? null, updated_by: null,
       deleted_at: null, deleted_by: null, created_at: now, updated_at: now,
     };
@@ -913,6 +913,7 @@ export const useCricketStore = create<CricketState>((set, get) => ({
           user_id: userId, season_id: seasonId,
           category: data.category, description: data.description,
           amount: data.amount, expense_date: data.expense_date,
+          receipt_urls: data.receipt_urls?.length ? data.receipt_urls : null,
           created_by: createdBy ?? null,
           team_id: teamId,
         })
