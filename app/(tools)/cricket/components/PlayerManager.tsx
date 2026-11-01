@@ -1,5 +1,6 @@
 'use client';
 
+import { useSeasonEditable } from '../lib/use-season-editable';
 import { useState, useRef, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useCricketStore } from '@/stores/cricket-store';
@@ -128,6 +129,9 @@ export default function PlayerManager() {
   const { user, isTeamAdmin } = useAuthStore();
   const { userAccess } = useAuthStore();
   const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Roster changes need admin AND a current season; past seasons are view-only for everyone.
+  const canEdit = isAdmin && seasonEditable;
   const { players, addPlayer, updatePlayer, removePlayer, restorePlayer, showPlayerForm, setShowPlayerForm, editingPlayer, setEditingPlayer,
     seasonPlayers, seasons, selectedSeasonId, enrollInSeason, removeFromSeason, setSeasonDesignation } = useCricketStore();
 
@@ -591,7 +595,7 @@ export default function PlayerManager() {
           <Text as="h3" size="lg" weight="bold" truncate>Squad</Text>
           <Text size="sm" color="muted" weight="normal">({rosterPlayers.length})</Text>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button onClick={() => { resetForm(); setShowPlayerForm(true); }}
             variant="primary" brand="cricket" size="md" className="flex-shrink-0 whitespace-nowrap gap-1.5">
             <UserPlus size={16} />
@@ -606,7 +610,7 @@ export default function PlayerManager() {
              because the two branches (linked profile vs full form) have
              different validity rules. ── */}
       <ComposerModal
-        open={(isAdmin || isSelfEditing) && showPlayerForm}
+        open={(canEdit || isSelfEditing) && showPlayerForm}
         onClose={() => { resetForm(); setShowPlayerForm(false); }}
         title={editingPlayer ? 'Edit Player' : 'Add Player'}
       >
@@ -1102,7 +1106,7 @@ export default function PlayerManager() {
           title="No players yet"
           description="Build your squad by adding team members"
           brand="cricket"
-          action={isAdmin ? { label: 'Add Player', onClick: () => { resetForm(); setShowPlayerForm(true); } } : undefined}
+          action={canEdit ? { label: 'Add Player', onClick: () => { resetForm(); setShowPlayerForm(true); } } : undefined}
         />
       ) : (
         // ONE continuous roster surface — rows separated by hairlines, not a
@@ -1144,7 +1148,7 @@ export default function PlayerManager() {
                 >
                   {/* Three-dot menu trigger (admin only) — opens the shared
                       bottom-sheet ActionSheet, same as every other ⋮ */}
-                  {isAdmin && (
+                  {canEdit && (
                     <>
                       {/* Vertically centered and quiet — "more actions" is
                           tertiary; the row itself (expand) and the name
@@ -1453,7 +1457,7 @@ export default function PlayerManager() {
         <RosterSection title={`Not in ${seasonLabel}`} count={offSeasonPlayers.length} open={showOffSeason} onToggle={() => setShowOffSeason(!showOffSeason)}>
           {offSeasonPlayers.map((p) => (
             <QuietRow key={p.id} player={p} caption="Sitting out this season"
-              action={isAdmin && (
+              action={canEdit && (
                 <button type="button" onClick={() => toggleSeasonMembership(p)}
                   aria-label={`Add ${p.name} to ${seasonLabel}`} className={QUIET_ACTION}>
                   Add back
@@ -1465,7 +1469,7 @@ export default function PlayerManager() {
       )}
 
       {/* Guest players (net players from practice matches). */}
-      {isAdmin && guestPlayers.length > 0 && (
+      {canEdit && guestPlayers.length > 0 && (
         <RosterSection title="Guest Players" count={guestPlayers.length} open={showGuests} onToggle={() => setShowGuests(!showGuests)}>
           {guestPlayers.map((p) => (
             <QuietRow key={p.id} player={p} caption="Guest player" initialOnly
@@ -1496,7 +1500,7 @@ export default function PlayerManager() {
       )}
 
       {/* Past players — deactivated; one tap restores them. */}
-      {isAdmin && removedPlayers.length > 0 && (
+      {canEdit && removedPlayers.length > 0 && (
         <RosterSection title="Past Players" count={removedPlayers.length} open={showRemoved} onToggle={() => setShowRemoved(!showRemoved)}>
           {removedPlayers.map((p) => (
             <QuietRow key={p.id} player={p}

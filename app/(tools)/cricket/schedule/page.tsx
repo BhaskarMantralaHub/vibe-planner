@@ -9,6 +9,7 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
 import MatchSchedule from '../components/MatchSchedule';
 import SeasonSelector from '../components/SeasonSelector';
+import PastSeasonNotice from '../components/PastSeasonNotice';
 
 function ScheduleContent() {
   const { user } = useAuthStore();
@@ -42,7 +43,10 @@ function ScheduleContent() {
           <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--dim)] border-t-transparent" />
         </div>
       ) : (
-        <Suspense fallback={null}><MatchSchedule /></Suspense>
+        <>
+          <PastSeasonNotice />
+          <Suspense fallback={null}><MatchSchedule /></Suspense>
+        </>
       )}
     </div>
   );

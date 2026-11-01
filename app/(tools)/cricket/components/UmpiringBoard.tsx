@@ -19,6 +19,7 @@ import {
 } from '@/lib/duty-share';
 import { getTeamName } from '../lib/constants';
 import { seasonRoster } from '../lib/season-roster';
+import { useSeasonEditable } from '../lib/use-season-editable';
 import PlayerAvatar from './PlayerAvatar';
 import DutyAssignSheet from './DutyAssignSheet';
 import DutyPlayerSheet from './DutyPlayerSheet';
@@ -130,7 +131,9 @@ export default function UmpiringBoard() {
     markMatchCompleted, markNoShow, reopenDuty, clearAssignment, deleteDuty, restoreDuty, undoSwap,
   } = useUmpiringStore();
 
-  const isAdmin = userAccess.includes('admin') || (user ? adminUserIds.includes(user.id) : false);
+  const seasonEditable = useSeasonEditable();
+  // Write access: admin AND a current season. Past seasons are view-only for everyone.
+  const isAdmin = (userAccess.includes('admin') || (user ? adminUserIds.includes(user.id) : false)) && seasonEditable;
 
   // ?tab= deep link (the menu's Umpiring › Upcoming / Done / Roster). Synced
   // during render when the param changes — a same-page menu tap changes only
@@ -591,7 +594,7 @@ export default function UmpiringBoard() {
                 playersById={playersById}
                 isAdmin={isAdmin}
                 pendingId={pendingId}
-                canClaim={!!myPlayer}
+                canClaim={!!myPlayer && seasonEditable}
                 onClaim={claimDuty}
                 onRelease={releaseDuty}
                 menuFor={adminMenu}
@@ -1209,6 +1212,7 @@ function DutySlotRow({
   menu?: CardMenuItem[];
   onSelectPlayer: (playerId: string) => void;
 }) {
+  const seasonEditable = useSeasonEditable();
   const name = duty.assigned_player_name;
 
   const isSwappedAway = duty.status === 'cancelled';
@@ -1329,7 +1333,7 @@ function DutySlotRow({
           I&apos;ll do it
         </Button>
       )}
-      {isMine && duty.status === 'claimed' && (
+      {isMine && duty.status === 'claimed' && seasonEditable && (
         <Button variant="secondary" size="md" className="h-11 shrink-0" loading={pending}
           /* Handing a duty back leaves the slot open for someone else —
              'medium', the weight this system gives a consequence. */

@@ -1,5 +1,6 @@
 'use client';
 
+import { useSeasonEditable } from '../lib/use-season-editable';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
@@ -929,7 +930,9 @@ function localSaveMatches(matches: Match[]) {
 /* ── Main Component ── */
 export default function MatchSchedule() {
   const {  currentTeamId, userTeams, isTeamAdmin } = useAuthStore();
-  const isAdmin = isTeamAdmin();  // team admin OR global admin — matches the is_team_admin() gate the database itself uses
+  const seasonEditable = useSeasonEditable();
+  // Write access: team admin AND a current season. Past seasons are view-only for everyone.
+  const isAdmin = isTeamAdmin() && seasonEditable;
   const { selectedSeasonId, seasons } = useCricketStore();
   const selectedSeason = seasons.find((s) => s.id === selectedSeasonId);
   const seasonName = selectedSeason?.name ?? 'League Schedule';

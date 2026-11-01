@@ -9,6 +9,7 @@ import { isCloudMode } from '@/lib/supabase/client';
 import { Text } from '@/components/ui';
 import UmpiringBoard from '../components/UmpiringBoard';
 import SeasonSelector from '../components/SeasonSelector';
+import PastSeasonNotice from '../components/PastSeasonNotice';
 
 function UmpiringContent() {
   const { user } = useAuthStore();
@@ -46,7 +47,10 @@ function UmpiringContent() {
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--dim)] border-t-transparent" />
         </div>
       ) : (
-        <Suspense fallback={null}><UmpiringBoard /></Suspense>
+        <>
+          <PastSeasonNotice />
+          <Suspense fallback={null}><UmpiringBoard /></Suspense>
+        </>
       )}
     </div>
   );
