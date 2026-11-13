@@ -1409,15 +1409,15 @@ export default function MatchSchedule() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
           {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
           {/* Page-wide actions (every upcoming match), so they sit under the
-              hero rather than inside it. Gray, not blue: the FAB is this
-              screen's one primary action. */}
+              hero rather than inside it. Solid brand blue, the same as the
+              page actions on Expenses, Sponsors and Umpiring. */}
           <div className="flex items-center gap-2">
-            <Button variant="secondary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+            <Button variant="primary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
               onClick={() => addAllToCalendar(upcoming)}>
               <CalendarPlus size={16} aria-hidden />
               Add to Calendar
             </Button>
-            <Button variant="secondary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+            <Button variant="primary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
               aria-label="Share schedule as PDF"
               onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}>
               <Share size={16} aria-hidden />
