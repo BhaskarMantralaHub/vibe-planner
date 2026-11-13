@@ -152,6 +152,7 @@ npm run test:coverage # Coverage report
 | Database schema | `docs/DATABASE_SCHEMA.sql`, `docs/cricket-schema.sql`, `docs/scoring-schema.sql`, `docs/schedule-schema.sql`, `docs/umpiring-schema.sql` (feature schema lives in its own file — `cricket_schedule_matches` and the umpiring tables are NOT duplicated into `cricket-schema.sql`) |
 | Umpiring verification | `docs/umpiring-rpc-verification.sql` — run by hand; impersonates a real player, checks every RPC reason code, CHECK constraint and the freeze trigger, then ROLLBACKs |
 | Multi-team design | `docs/MULTI_TEAM_DESIGN.md` |
+| Security audit fixes | `docs/security-audit-fixes-migration.sql` (sections S1–S6: profiles INSERT lockdown, RPC exposure, owner/sync-trigger guards, gallery author binding, team-scoped gallery storage, receipt https CHECK) — apply by hand AFTER the membership/captain migrations; verify with `docs/security-audit-fixes-verification.sql` (ends in ROLLBACK). Supersedes the older `suggest_players`, `prevent_owner_escalation`, sync-trigger and gallery INSERT definitions. The restore workflow no longer prints or uploads the SQL (this repo is public) — it commits `restore-sql/` to the private backups repo |
 | Design system | `docs/DESIGN_SYSTEM.md` |
 | Scoring UI & flows | `docs/SCORING_UI.md` |
 | Signup flows | `docs/SIGNUP_FLOWS.md` |

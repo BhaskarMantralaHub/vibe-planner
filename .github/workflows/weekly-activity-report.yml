@@ -5,6 +5,9 @@ on:
     - cron: '0 14 * * 0' # Every Sunday at 2 PM UTC (7 AM PT)
   workflow_dispatch: # Manual trigger for testing
 
+permissions:
+  contents: read
+
 jobs:
   report:
     runs-on: ubuntu-latest
@@ -109,11 +112,13 @@ jobs:
           LOGINS=$(echo "$REPORT" | jq -r '.login_count')
           VIEWS=$(echo "$REPORT" | jq -r '.page_views')
 
-          USER_ROWS=$(echo "$REPORT" | jq -r '.user_logins[] | "<tr><td style=\"padding:8px 12px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#4DBBEB\">\(.logins)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;color:#888\">\(.last)</td></tr>"')
+          ESC='def esc: tostring | gsub("&";"&amp;") | gsub("<";"&lt;") | gsub(">";"&gt;") | gsub("\"";"&quot;") | gsub("'"'"'";"&#39;");'
 
-          PAGE_ROWS=$(echo "$REPORT" | jq -r '.top_pages[] | "<tr><td style=\"padding:6px 12px;border-bottom:1px solid #eee\">\(.path)</td><td style=\"padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#4DBBEB\">\(.count)</td></tr>"')
+          USER_ROWS=$(echo "$REPORT" | jq -r "$ESC"'.user_logins[] | "<tr><td style=\"padding:8px 12px;border-bottom:1px solid #eee\">\(.name | esc)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#4DBBEB\">\(.logins)</td><td style=\"padding:8px 12px;border-bottom:1px solid #eee;color:#888\">\(.last | esc)</td></tr>"')
 
-          INACTIVE=$(echo "$REPORT" | jq -r '.inactive_names | if length == 0 then "Everyone was active! 🎉" else join(", ") end')
+          PAGE_ROWS=$(echo "$REPORT" | jq -r "$ESC"'.top_pages[] | "<tr><td style=\"padding:6px 12px;border-bottom:1px solid #eee\">\(.path | esc)</td><td style=\"padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#4DBBEB\">\(.count)</td></tr>"')
+
+          INACTIVE=$(echo "$REPORT" | jq -r "$ESC"'.inactive_names | if length == 0 then "Everyone was active! 🎉" else (map(esc) | join(", ")) end')
 
           HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto'>
           <div style='background:linear-gradient(135deg,#14325a,#234e82);padding:20px 24px;border-radius:12px 12px 0 0'>

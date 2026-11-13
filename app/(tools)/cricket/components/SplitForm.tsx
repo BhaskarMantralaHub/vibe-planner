@@ -10,6 +10,7 @@ import { useSplitsStore } from '@/stores/splits-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeSplitAmounts } from '../lib/utils';
 import { playerLabels } from '../lib/player-labels';
+import { myCricketPlayer } from '../lib/my-player';
 import { useReceiptUploads } from '../lib/use-receipt-uploads';
 import { cn } from '@/lib/utils';
 import PlayerAvatar from './PlayerAvatar';
@@ -53,12 +54,8 @@ export default function SplitForm() {
   const gridLabels = useMemo(() => playerLabels(activePlayers), [activePlayers]);
 
   const myPlayer = useMemo(
-    () => {
-      const myEmail = user?.email?.toLowerCase().trim();
-      if (!myEmail) return undefined;
-      return activePlayers.find((p) => p.email?.toLowerCase().trim() === myEmail);
-    },
-    [activePlayers, user?.email],
+    () => myCricketPlayer(activePlayers, user) ?? undefined,
+    [activePlayers, user],
   );
 
   const [draft] = useState(() => (editingSplitId ? null : readSplitDraft()));

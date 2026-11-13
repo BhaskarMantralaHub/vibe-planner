@@ -21,6 +21,7 @@ import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { compressReceiptImage } from '../lib/image';
 import { useSeasonEditable } from '../lib/use-season-editable';
 import { toast } from 'sonner';
+import { openReceipt } from '@/lib/safe-url';
 import type { CricketExpense } from '@/types/cricket';
 import type { CategoryConfig } from '../lib/constants';
 
@@ -400,7 +401,7 @@ function ExpenseRow({
               return (
                 <button
                   key={i}
-                  onClick={(e) => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer'); }}
+                  onClick={(e) => { e.stopPropagation(); openReceipt(url); }}
                   className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer hover:bg-[var(--surface)] transition-colors"
                   style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                   title={`Receipt ${i + 1}${pdf ? '.pdf' : '.jpg'}`}
