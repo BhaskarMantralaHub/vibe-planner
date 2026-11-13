@@ -692,8 +692,6 @@ export function buildDutyShareText(
   return lines.join('\n');
 }
 
-export const DEFAULT_SQUAD_SIZE = 12;
-
 export interface SquadPollMatch {
   opponent: string;
   /** YYYY-MM-DD; null while the date is TBD. */
@@ -703,30 +701,26 @@ export interface SquadPollMatch {
   venue: string | null;
 }
 
-/** Opening line for a match's squad poll, ready to paste into the group chat. */
-export function buildSquadPollText(
-  match: SquadPollMatch,
-  opts: { teamName?: string; squadSize?: number } = {},
-): string {
-  const { teamName = 'Sunrisers', squadSize = DEFAULT_SQUAD_SIZE } = opts;
-  const group = teamName.trim().split(/\s+/)[0] || 'team';
+/** Tidies stored venue names, e.g. "Hansen School - BaseBall 2" -> "Hansen School Baseball 2". */
+function cleanVenue(v: string | null): string | undefined {
+  return v?.replace(/\s+-\s+/g, ' ').replace(/baseball/gi, 'Baseball').trim() || undefined;
+}
 
+/** Availability poll question for one match, ready to paste into the group chat. */
+export function buildSquadPollText(match: SquadPollMatch): string {
   const when: string[] = [];
   if (match.match_date) {
     when.push(
-      new Date(`${match.match_date}T00:00:00`).toLocaleDateString('en-US', {
-        weekday: 'long', month: 'short', day: 'numeric',
-      }),
+      new Date(`${match.match_date}T00:00:00`)
+        .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        .replace(',', ''),
     );
   }
-  if (match.match_time) {
-    const [h, m] = match.match_time.split(':').map(Number);
-    if (!Number.isNaN(h)) when.push(`${h % 12 || 12}:${String(m ?? 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`);
-  }
+  const clock = match.match_time ? formatClock(match.match_time) : null;
+  if (clock) when.push(clock);
 
-  const venue = match.venue?.replace(/\s+-\s+/g, ' ').trim();
-  return `Hello ${group}! Here is our ${squadSize} member squad for ${when.join(', ') || 'the upcoming match'}`
-    + ` vs ${match.opponent}${venue ? ` at ${venue}` : ''}.`;
+  const venue = cleanVenue(match.venue);
+  return `Availability for ${when.join(', ') || 'the upcoming match'} vs ${match.opponent}${venue ? ` at ${venue}` : ''}?`;
 }
 
 function formatClock(t: string): string | null {
@@ -752,7 +746,7 @@ export function buildMatchReminderText(
   }
 
   const start = match.match_time ? formatClock(match.match_time) : null;
-  const venue = match.venue?.replace(/\s+-\s+/g, ' ').trim();
+  const venue = cleanVenue(match.venue);
   let text = `Gentle reminder - game ${when} vs ${match.opponent}`
     + `${start ? `, ${start}` : ''}${venue ? ` at ${venue}` : ''}.`;
 

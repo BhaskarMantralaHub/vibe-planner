@@ -1312,7 +1312,7 @@ export default function MatchSchedule() {
         icon: <Copy size={15} />,
         color: 'var(--text)',
         onClick: () => {
-          navigator.clipboard?.writeText(buildSquadPollText(m, { teamName: getTeamName() }))
+          navigator.clipboard?.writeText(buildSquadPollText(m))
             .then(() => toast.success('Poll text copied'))
             .catch(() => toast.error('Could not copy'));
         },

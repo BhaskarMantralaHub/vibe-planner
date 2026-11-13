@@ -932,21 +932,18 @@ describe('buildDayThanksText', () => {
 });
 
 describe('buildSquadPollText', () => {
-  it('opens the squad poll with date, time, opponent and venue', () => {
-    // Step 1: build the text for a match with a dashed venue name
+  it('asks for availability with date, time, opponent and venue', () => {
+    // Step 1: build the poll for a match with a dashed venue name
     const text = buildSquadPollText(
       { opponent: 'Hillview Eagles', match_date: '2026-11-14', match_time: '11:45:00', venue: 'Hansen School - BaseBall 2' },
-      { teamName: 'Sunrisers Manteca' },
     );
-    // Step 2: it greets the group by its first word and drops the dash
-    expect(text).toBe(
-      'Hello Sunrisers! Here is our 12 member squad for Saturday, Nov 14, 11:45 AM vs Hillview Eagles at Hansen School BaseBall 2.',
-    );
+    // Step 2: short date, tidy venue, ends as a question
+    expect(text).toBe('Availability for Sat Nov 14, 11:45 AM vs Hillview Eagles at Hansen School Baseball 2?');
   });
 
   it('copes with a TBD date and no venue', () => {
-    const text = buildSquadPollText({ opponent: 'Eagles', match_date: null, match_time: null, venue: null });
-    expect(text).toBe('Hello Sunrisers! Here is our 12 member squad for the upcoming match vs Eagles.');
+    expect(buildSquadPollText({ opponent: 'Eagles', match_date: null, match_time: null, venue: null }))
+      .toBe('Availability for the upcoming match vs Eagles?');
   });
 });
 
@@ -963,6 +960,12 @@ describe('buildMatchReminderText', () => {
   it('home game adds ground setup', () => {
     const text = buildMatchReminderText({ ...m, is_home: true }, { today: '2026-11-14' });
     expect(text).toContain('Please arrive by 12:15 for warm-up and ground setup.');
+  });
+
+  it('says today for an afternoon match on the same day, never tomorrow', () => {
+    const text = buildMatchReminderText({ ...m, match_time: '15:30:00', is_home: true }, { today: '2026-11-15' });
+    expect(text).toBe('Gentle reminder - game today vs Dhurandhars, 3:30 PM at Ritter North, Tracy. Please arrive by 3:15 for warm-up and ground setup.');
+    expect(text).not.toContain('tomorrow');
   });
 
   it('uses today / a dated phrase for other days', () => {
