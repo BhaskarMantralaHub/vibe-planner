@@ -1977,6 +1977,7 @@ CREATE TABLE IF NOT EXISTS cricclubs_matches (
   winner_team           TEXT,
   toss_winner           TEXT,                            -- raw cricclubs team name (e.g. 'MTCA Sunrisers Manteca')
   toss_decision         TEXT CHECK (toss_decision IS NULL OR toss_decision IN ('bat', 'bowl')),
+  player_of_match       TEXT,                            -- raw cricclubs name from the info.do tab
   scorecard_url         TEXT,
   fetched_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   parsed_at             TIMESTAMPTZ NOT NULL DEFAULT now(),

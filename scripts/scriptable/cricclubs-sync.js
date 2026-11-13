@@ -183,6 +183,12 @@ function scorecardUrl(matchId) {
     + `?matchId=${matchId}`
     + `&clubId=${CONFIG.club_id}`;
 }
+// Scorecard's "Info" tab — the only page that carries Player of the Match.
+function infoUrl(matchId) {
+  return `${CONFIG.cricclubs_base}/info.do`
+    + `?matchId=${matchId}`
+    + `&clubId=${CONFIG.club_id}`;
+}
 
 // Bounded retry with linear backoff. Used per-scorecard so one cellular hiccup
 // doesn't abort the season's sync.
@@ -521,6 +527,20 @@ const SCORECARD_PARSER = String.raw`
   return JSON.stringify({ team_a, team_b, toss_winner, toss_decision, innings });
 `;
 
+// Info-tab parser — a two-column "Topic | Details" table; we want the
+// "Player of the Match:" row's value. Returns null when cricclubs has none.
+const INFO_PARSER = String.raw`
+  function clean(s) { return (s ?? '').replace(/\s+/g, ' ').trim(); }
+  for (const tr of document.querySelectorAll('tr')) {
+    const tds = tr.querySelectorAll('td, th');
+    if (tds.length < 2) continue;
+    if (!/^(player|man) of the match/i.test(clean(tds[0].textContent))) continue;
+    const name = clean(tds[1].textContent);
+    return JSON.stringify(name || null);
+  }
+  return JSON.stringify(null);
+`;
+
 // ── 5. UPSERT HELPERS ────────────────────────────────────────────────────────
 // Roster lookup so we can resolve player names to cricket_players.id for
 // batting/bowling rows (lets league-stats join correctly).
@@ -552,6 +572,24 @@ async function shouldSkipScorecard(matchId, force) {
     query: `?match_row_id=eq.${rows[0].id}&select=id&limit=1`,
   });
   return Boolean(inn?.length);
+}
+
+// Fills player_of_match from the Info tab while it's still NULL. Runs for
+// skipped matches too, so existing rows backfill and a late cricclubs award
+// is picked up on a later run. Returns the name written, or null.
+async function syncPlayerOfMatch(matchId) {
+  const filter = `?team_id=eq.${CONFIG.team_id}&cricclubs_match_id=eq.${matchId}`;
+  const rows = await supabase('cricclubs_matches', { query: `${filter}&select=player_of_match` });
+  if (!rows?.length || rows[0].player_of_match) return null;
+  const html = await withRetry(() => fetchHtml(infoUrl(matchId)), 1, 2500);
+  const name = JSON.parse(await parseInWebView(html, INFO_PARSER));
+  if (!name) return null;
+  await supabase('cricclubs_matches', {
+    method: 'PATCH',
+    query: filter,
+    body: { player_of_match: name },
+  });
+  return name;
 }
 
 async function upsertScorecard(listEntry, parsed, rawHtml, roster) {
@@ -1349,16 +1387,24 @@ try {
     try {
       if (await shouldSkipScorecard(m.cricclubs_match_id, CONFIG.force_resync)) {
         skipped += 1;
-        continue;
+      } else {
+        const html = await withRetry(() => fetchHtml(scorecardUrl(m.cricclubs_match_id)), 2, 2500);
+        const parsed = JSON.parse(await parseInWebView(html, SCORECARD_PARSER));
+        const counts = await upsertScorecard(m, parsed, html, roster);
+        log.push(`✓ ${tag} (bat:${counts.battingCount} bowl:${counts.bowlingCount})`);
+        ingested += 1;
       }
-      const html = await withRetry(() => fetchHtml(scorecardUrl(m.cricclubs_match_id)), 2, 2500);
-      const parsed = JSON.parse(await parseInWebView(html, SCORECARD_PARSER));
-      const counts = await upsertScorecard(m, parsed, html, roster);
-      log.push(`✓ ${tag} (bat:${counts.battingCount} bowl:${counts.bowlingCount})`);
-      ingested += 1;
     } catch (e) {
       failed += 1;
       log.push(`✗ ${tag}: ${String(e.message ?? e).slice(0, 60)}`);
+      continue;
+    }
+    // Separate try: a missing/slow Info tab must not count the match as failed.
+    try {
+      const potm = await syncPlayerOfMatch(m.cricclubs_match_id);
+      if (potm) log.push(`🏆 ${tag}: ${potm}`);
+    } catch (e) {
+      log.push(`⚠️ POTM ${tag}: ${String(e.message ?? e).slice(0, 60)}`);
     }
   }
 

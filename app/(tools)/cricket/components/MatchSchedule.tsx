@@ -7,7 +7,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { todayPT } from '@/stores/umpiring-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy, Trophy } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -64,6 +64,7 @@ type CricclubsMeta = {
   scorecard_url: string;
   toss_winner: string | null;
   toss_decision: 'bat' | 'bowl' | null;
+  player_of_match: string | null;
 };
 
 /* ── Match Type Badge Config ── */
@@ -700,7 +701,7 @@ function TeamAvatar({ name, isOurTeam }: { name: string; isOurTeam: boolean }) {
  * colour is used, because there it carries the meaning. The scorecard link is
  * the card's one action, so it is the one thing in blue.
  */
-function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl, tossWinner, tossDecision }: {
+function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef, scorecardUrl, tossWinner, tossDecision, playerOfMatch }: {
   match: Match;
   isAdmin: boolean;
   onMenuOpen: (id: string | null) => void;
@@ -709,6 +710,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
   scorecardUrl?: string;
   tossWinner?: string | null;
   tossDecision?: 'bat' | 'bowl' | null;
+  playerOfMatch?: string | null;
 }) {
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
   const isWin = match.result === 'won';
@@ -800,6 +802,14 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         <Text as="p" size="xs" color="muted" className="mt-3">
           {tossWinner.replace(/^MTCA\s+/i, '')} won the toss and chose to {tossDecision}
         </Text>
+      )}
+
+      {playerOfMatch && (
+        <div className="mt-2 flex items-center gap-1.5 text-[13px]">
+          <Trophy size={14} aria-hidden className="flex-shrink-0 text-[var(--muted)]" />
+          <span className="text-[var(--muted)]">Player of the Match</span>
+          <span className="min-w-0 truncate font-semibold text-[var(--text)]">{playerOfMatch}</span>
+        </div>
       )}
 
       {match.performers && match.performers.length > 0 && (
@@ -1020,7 +1030,7 @@ export default function MatchSchedule() {
     (async () => {
       const { data, error } = await supabase
         .from('cricclubs_matches')
-        .select('match_date, team_a, team_b, scorecard_url, toss_winner, toss_decision')
+        .select('match_date, team_a, team_b, scorecard_url, toss_winner, toss_decision, player_of_match')
         .eq('team_id', currentTeamId);
       if (cancelled) return;
       if (error || !data) {
@@ -1036,6 +1046,7 @@ export default function MatchSchedule() {
         scorecard_url: string | null;
         toss_winner: string | null;
         toss_decision: 'bat' | 'bowl' | null;
+        player_of_match: string | null;
       }[]) {
         if (!m.match_date || !m.scorecard_url) continue;
         const opponent = m.team_a === cricclubsMyName ? m.team_b : m.team_a;
@@ -1043,6 +1054,7 @@ export default function MatchSchedule() {
           scorecard_url: m.scorecard_url,
           toss_winner: m.toss_winner,
           toss_decision: m.toss_decision,
+          player_of_match: m.player_of_match,
         });
       }
       setCricclubsLookup(map);
@@ -1457,6 +1469,7 @@ export default function MatchSchedule() {
                             scorecardUrl={meta?.scorecard_url}
                             tossWinner={meta?.toss_winner ?? null}
                             tossDecision={meta?.toss_decision ?? null}
+                            playerOfMatch={meta?.player_of_match ?? null}
                           />
                         );
                       })}
