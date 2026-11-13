@@ -88,7 +88,7 @@ export default function DutyAssignSheet({ duty, players, adminName, onClose }: D
         )}
       </DrawerHeader>
 
-      <DrawerBody>
+      <DrawerBody className="flex flex-col overflow-hidden">
         {/* Search first so it stays above the keyboard on a long roster. */}
         <Input
           value={query}
@@ -101,7 +101,7 @@ export default function DutyAssignSheet({ duty, players, adminName, onClose }: D
         {/* iOS pick list: plain rows, inset hairlines, a checkmark on the
             chosen one. No radio, no tinted row, no colour — choosing is a
             selection, and the blue belongs to the Assign button. */}
-        <ul role="listbox" aria-label="Players" className="max-h-[46vh] overflow-y-auto overscroll-contain">
+        <ul role="listbox" aria-label="Players" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {roster.length === 0 ? (
             <li>
               <Text as="p" size="sm" color="muted" align="center" className="py-6">
@@ -154,7 +154,8 @@ export default function DutyAssignSheet({ duty, players, adminName, onClose }: D
           </Text>
         )}
 
-        <div className="mt-4 space-y-2">
+        {/* Pinned below the scrolling list so it's always reachable. */}
+        <div className="mt-4 shrink-0 space-y-2">
           <Button
             variant="primary" brand="cricket" size="lg" fullWidth
             loading={saving}
