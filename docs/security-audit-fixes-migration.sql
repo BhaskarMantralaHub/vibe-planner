@@ -379,7 +379,11 @@ RETURNS BOOLEAN
 LANGUAGE sql IMMUTABLE
 SET search_path = ''
 AS $$
-  SELECT COALESCE(bool_and(u ~* '^https://'), true) FROM unnest(urls) AS u;
+  SELECT COALESCE(bool_and(
+    u ~* '^https://'
+    OR (u ~ '^/storage/[a-z0-9-]+/' AND u !~ '\.\.')
+  ), true)
+  FROM unnest(urls) AS u;
 $$;
 
 DO $$

@@ -219,6 +219,8 @@ BEGIN
 
   -- ── S6: receipt_urls CHECK ────────────────────────────────────────────
   IF NOT public.all_https_urls(ARRAY['https://x.supabase.co/a.jpg'])
+     OR NOT public.all_https_urls(ARRAY['/storage/split-receipts/team/a.jpg'])
+     OR public.all_https_urls(ARRAY['/storage/split-receipts/../x'])
      OR public.all_https_urls(ARRAY['https://x.supabase.co/a.jpg', 'javascript:alert(1)'])
      OR public.all_https_urls(ARRAY['http://insecure.example/a.jpg'])
      OR NOT public.all_https_urls(ARRAY[]::text[]) THEN

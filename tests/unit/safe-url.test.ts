@@ -8,12 +8,21 @@ describe('safeHttpsUrl', () => {
     );
   });
 
+  it('accepts same-site /storage/ receipt paths', () => {
+    // Step: the app stores receipts as proxy paths, resolved against the current site
+    expect(safeHttpsUrl('/storage/split-receipts/team/a.jpg')).toBe(
+      `${window.location.origin}/storage/split-receipts/team/a.jpg`,
+    );
+  });
+
   it.each([
     'javascript:alert(document.domain)',
     ' JavaScript:alert(1)',
     'data:text/html,<script>alert(1)</script>',
     'http://example.com/a.jpg',
     '/relative/path.jpg',
+    '/storage/split-receipts/../../admin',
+    '//evil.example/storage/x/a.jpg',
     'vbscript:msgbox(1)',
     '',
   ])('rejects %s', (url) => {
