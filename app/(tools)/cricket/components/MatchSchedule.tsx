@@ -734,24 +734,6 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
   const rows = getBattedFirst(match) === 'opponent' ? [oppRow, ourRow] : [ourRow, oppRow];
   const hasScores = Boolean(match.team_score && match.opponent_score);
 
-  const share = async () => {
-    if (!scorecardUrl) return;
-    const title = `${getTeamName()} vs ${match.opponent}`;
-    const scoreLine = hasScores ? `${getTeamName()} ${match.team_score} · ${match.opponent} ${match.opponent_score}` : '';
-    const text = [match.result_summary, scoreLine].filter(Boolean).join('\n');
-    try {
-      if (navigator.share) {
-        await navigator.share({ url: scorecardUrl, title, text });
-      } else {
-        await navigator.clipboard.writeText(scorecardUrl);
-        toast.success('Scorecard link copied');
-      }
-    } catch (err) {
-      // Cancelling the share sheet throws AbortError — not an error.
-      if ((err as Error).name !== 'AbortError') toast.error('Could not share link');
-    }
-  };
-
   return (
     <article
       className="relative rounded-2xl px-4 pt-3.5 pb-3.5"
@@ -845,14 +827,6 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
             View scorecard
             <ExternalLink size={14} aria-hidden />
           </a>
-          <button
-            type="button"
-            onClick={share}
-            className="-mr-2.5 flex h-11 w-11 items-center justify-center rounded-full text-[var(--cricket)] active:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-            aria-label="Share scorecard link"
-          >
-            <Share size={19} aria-hidden />
-          </button>
         </div>
       )}
     </article>
@@ -1406,18 +1380,18 @@ export default function MatchSchedule() {
 
       {/* Upcoming: action bar + season record */}
       {activeTab === 'upcoming' && upcoming.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
-          {completed.length > 0 ? <SeasonRecord completed={completed} /> : <div />}
+        <div className="flex flex-col gap-3 pt-1">
+          {completed.length > 0 && <SeasonRecord completed={completed} />}
           {/* Page-wide actions (every upcoming match), so they sit under the
               hero rather than inside it. Solid brand blue, the same as the
               page actions on Expenses, Sponsors and Umpiring. */}
-          <div className="flex items-center gap-2">
-            <Button variant="primary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+          <div className="flex items-center gap-2 px-1">
+            <Button variant="primary" brand="cricket" size="sm" className="h-9 min-w-[140px] justify-center gap-1.5 px-3 text-[13px]"
               onClick={() => addAllToCalendar(upcoming)}>
               <CalendarPlus size={16} aria-hidden />
               Add to Calendar
             </Button>
-            <Button variant="primary" brand="cricket" size="md" className="h-11 px-3.5 gap-1.5"
+            <Button variant="primary" brand="cricket" size="sm" className="h-9 min-w-[140px] justify-center gap-1.5 px-3 text-[13px]"
               aria-label="Share schedule as PDF"
               onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}>
               <Share size={16} aria-hidden />
