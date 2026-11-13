@@ -446,53 +446,21 @@ export default function UmpiringBoard() {
     return items;
   };
 
-  /** Reminder for everyone with an upcoming duty — one tap, whole weekend. */
-  const reminderText = useMemo(
-    () => buildAssignedReminderText(duties, { today, teamName: getTeamName(), roster: rosterNames }),
-    [duties, today, rosterNames],
-  );
-  /** How everyone with an upcoming duty is addressed, for the button's label. */
-  const assignedNames = useMemo(() => {
-    const out: string[] = [];
-    for (const d of duties) {
-      if (d.deleted_at !== null || d.status !== 'claimed' || d.match_date < today) continue;
-      const n = d.assigned_player_name ? addressName(d.assigned_player_name, rosterNames) : null;
-      if (n && !out.includes(n)) out.push(n);
-    }
-    return out;
-  }, [duties, today, rosterNames]);
-
   const shareText = useMemo(
     () => buildDutyShareText(duties, { teamName: getTeamName(), today }),
     [duties, today],
   );
 
-  /**
-   * The one share the weekend actually needs, with a label that says so.
-   *
-   * Open slots → the ask, which already lists who IS covered, so it reminds
-   * them in the same breath. Everything covered → the reminder, because the
-   * ask would just say "all duties covered" at people who already know.
-   */
+  /** The ask for open slots; it already lists who is covered. Per-match reminders live in each match's menu. */
   const primaryShare = useMemo<{ text: string; label: string } | null>(() => {
-    if (openCount > 0 && shareText) {
-      return {
-        text: shareText,
-        label: openCount === 1
-          ? 'Ask the group to cover 1 open spot'
-          : `Ask the group to cover ${openCount} open spots`,
-      };
-    }
-    if (reminderText && assignedNames.length > 0) {
-      const who = assignedNames.length <= 3
-        ? assignedNames.slice(0, -1).join(', ')
-          + (assignedNames.length > 1 ? ' and ' : '')
-          + assignedNames[assignedNames.length - 1]!
-        : `${assignedNames.length} umpires`;
-      return { text: reminderText, label: `Remind ${who}` };
-    }
-    return null;
-  }, [openCount, shareText, reminderText, assignedNames]);
+    if (openCount === 0 || !shareText) return null;
+    return {
+      text: shareText,
+      label: openCount === 1
+        ? 'Ask the group to cover 1 open spot'
+        : `Ask the group to cover ${openCount} open spots`,
+    };
+  }, [openCount, shareText]);
 
   const summaryText = useMemo(
     () => buildRosterSummaryText(

@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import {
   buildAssignedReminderText, buildDutyShareText, buildPlayerMessageText,
   buildRosterSummaryText, buildThanksText, buildDayThanksText, whatsappShareUrl, addressName,
+  buildSquadPollText, buildMatchReminderText,
 } from '@/lib/duty-share';
 import type { CricketUmpiringDuty } from '@/types/cricket';
 
@@ -927,5 +928,45 @@ describe('buildDayThanksText', () => {
 
   it('returns null when nobody stood', () => {
     expect(buildDayThanksText([m([], 'A', 'B', 'C')])).toBeNull();
+  });
+});
+
+describe('buildSquadPollText', () => {
+  it('opens the squad poll with date, time, opponent and venue', () => {
+    // Step 1: build the text for a match with a dashed venue name
+    const text = buildSquadPollText(
+      { opponent: 'Hillview Eagles', match_date: '2026-11-14', match_time: '11:45:00', venue: 'Hansen School - BaseBall 2' },
+      { teamName: 'Sunrisers Manteca' },
+    );
+    // Step 2: it greets the group by its first word and drops the dash
+    expect(text).toBe(
+      'Hello Sunrisers! Here is our 12 member squad for Saturday, Nov 14, 11:45 AM vs Hillview Eagles at Hansen School BaseBall 2.',
+    );
+  });
+
+  it('copes with a TBD date and no venue', () => {
+    const text = buildSquadPollText({ opponent: 'Eagles', match_date: null, match_time: null, venue: null });
+    expect(text).toBe('Hello Sunrisers! Here is our 12 member squad for the upcoming match vs Eagles.');
+  });
+});
+
+describe('buildMatchReminderText', () => {
+  const m = { opponent: 'Dhurandhars', match_date: '2026-11-15', match_time: '12:30:00', venue: 'Ritter North, Tracy' };
+
+  it('away game: warm-up only, arrive 15 minutes early', () => {
+    // Step 1: day before an away match
+    const text = buildMatchReminderText({ ...m, is_home: false }, { today: '2026-11-14' });
+    // Step 2: says tomorrow and asks only for warm-up
+    expect(text).toBe('Gentle reminder - game tomorrow vs Dhurandhars, 12:30 PM at Ritter North, Tracy. Please arrive by 12:15 for warm-up.');
+  });
+
+  it('home game adds ground setup', () => {
+    const text = buildMatchReminderText({ ...m, is_home: true }, { today: '2026-11-14' });
+    expect(text).toContain('Please arrive by 12:15 for warm-up and ground setup.');
+  });
+
+  it('uses today / a dated phrase for other days', () => {
+    expect(buildMatchReminderText(m, { today: '2026-11-15' })).toContain('game today vs');
+    expect(buildMatchReminderText(m, { today: '2026-11-10' })).toContain('game on Sunday, Nov 15 vs');
   });
 });

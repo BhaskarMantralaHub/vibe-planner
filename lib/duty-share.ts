@@ -691,3 +691,78 @@ export function buildDutyShareText(
 
   return lines.join('\n');
 }
+
+export const DEFAULT_SQUAD_SIZE = 12;
+
+export interface SquadPollMatch {
+  opponent: string;
+  /** YYYY-MM-DD; null while the date is TBD. */
+  match_date: string | null;
+  /** HH:MM or HH:MM:SS. */
+  match_time: string | null;
+  venue: string | null;
+}
+
+/** Opening line for a match's squad poll, ready to paste into the group chat. */
+export function buildSquadPollText(
+  match: SquadPollMatch,
+  opts: { teamName?: string; squadSize?: number } = {},
+): string {
+  const { teamName = 'Sunrisers', squadSize = DEFAULT_SQUAD_SIZE } = opts;
+  const group = teamName.trim().split(/\s+/)[0] || 'team';
+
+  const when: string[] = [];
+  if (match.match_date) {
+    when.push(
+      new Date(`${match.match_date}T00:00:00`).toLocaleDateString('en-US', {
+        weekday: 'long', month: 'short', day: 'numeric',
+      }),
+    );
+  }
+  if (match.match_time) {
+    const [h, m] = match.match_time.split(':').map(Number);
+    if (!Number.isNaN(h)) when.push(`${h % 12 || 12}:${String(m ?? 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`);
+  }
+
+  const venue = match.venue?.replace(/\s+-\s+/g, ' ').trim();
+  return `Hello ${group}! Here is our ${squadSize} member squad for ${when.join(', ') || 'the upcoming match'}`
+    + ` vs ${match.opponent}${venue ? ` at ${venue}` : ''}.`;
+}
+
+function formatClock(t: string): string | null {
+  const [h, m] = t.split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  return `${h % 12 || 12}:${String(m ?? 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+/** Pre-match nudge: arrive 15 minutes early; home games also set up the ground. */
+export function buildMatchReminderText(
+  match: SquadPollMatch & { is_home?: boolean },
+  opts: { today: string },
+): string {
+  const { today } = opts;
+  const day = (iso: string) => new Date(`${iso}T00:00:00`);
+
+  let when = 'soon';
+  if (match.match_date) {
+    const diff = Math.round((day(match.match_date).getTime() - day(today).getTime()) / 86_400_000);
+    when = diff === 0 ? 'today'
+      : diff === 1 ? 'tomorrow'
+      : `on ${day(match.match_date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  }
+
+  const start = match.match_time ? formatClock(match.match_time) : null;
+  const venue = match.venue?.replace(/\s+-\s+/g, ' ').trim();
+  let text = `Gentle reminder - game ${when} vs ${match.opponent}`
+    + `${start ? `, ${start}` : ''}${venue ? ` at ${venue}` : ''}.`;
+
+  if (match.match_time) {
+    const [h, m] = match.match_time.split(':').map(Number);
+    if (!Number.isNaN(h)) {
+      const mins = (h * 60 + (m ?? 0) + 24 * 60 - 15) % (24 * 60);
+      const arrive = formatClock(`${Math.floor(mins / 60)}:${mins % 60}`)!.replace(/ [AP]M$/, '');
+      text += ` Please arrive by ${arrive} for ${match.is_home ? 'warm-up and ground setup' : 'warm-up'}.`;
+    }
+  }
+  return text;
+}

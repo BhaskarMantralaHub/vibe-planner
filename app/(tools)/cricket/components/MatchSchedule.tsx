@@ -4,12 +4,14 @@ import { useSeasonEditable } from '../lib/use-season-editable';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
+import { todayPT } from '@/stores/umpiring-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
+import { buildSquadPollText, buildMatchReminderText } from '@/lib/duty-share';
 import MatchForm from './MatchForm';
 import ResultForm from './ResultForm';
 import CricketFab from './CricketFab';
@@ -1305,6 +1307,26 @@ export default function MatchSchedule() {
     const isUpcoming = m.status === 'upcoming';
     return [
       ...(isUpcoming ? [{ label: 'Add to Calendar', icon: <Calendar size={15} />, color: 'var(--text)', onClick: () => addToCalendar(m) }] : []),
+      ...(isUpcoming ? [{
+        label: 'Copy poll text',
+        icon: <Copy size={15} />,
+        color: 'var(--text)',
+        onClick: () => {
+          navigator.clipboard?.writeText(buildSquadPollText(m, { teamName: getTeamName() }))
+            .then(() => toast.success('Poll text copied'))
+            .catch(() => toast.error('Could not copy'));
+        },
+      }] : []),
+      ...(isUpcoming ? [{
+        label: 'Copy reminder text',
+        icon: <Copy size={15} />,
+        color: 'var(--text)',
+        onClick: () => {
+          navigator.clipboard?.writeText(buildMatchReminderText(m, { today: todayPT() }))
+            .then(() => toast.success('Reminder copied'))
+            .catch(() => toast.error('Could not copy'));
+        },
+      }] : []),
       ...(isPractice ? [{ label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) }] : []),
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
     ];
