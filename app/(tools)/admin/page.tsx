@@ -715,8 +715,11 @@ function AdminContent() {
                                   onClick={async () => {
                                     const supabase = getSupabaseClient();
                                     if (!supabase) return;
-                                    await supabase.from('vibes').delete().eq('user_id', profile.id);
-                                    await supabase.from('profiles').delete().eq('id', profile.id);
+                                    const { error } = await supabase.rpc('reject_user', { target_user_id: profile.id });
+                                    if (error) {
+                                      toast.error(error.message || 'Could not reject user');
+                                      return;
+                                    }
                                     setProfiles(prev => prev.filter(p => p.id !== profile.id));
                                     setStats(prev => prev.filter(s => s.user_id !== profile.id));
                                   }}
