@@ -362,3 +362,36 @@ USING (
     WHERE s.team_id IN (SELECT * FROM public.user_team_ids())
   )
 );
+
+
+-- ============================================================
+-- S6. receipt_urls — https only
+-- ============================================================
+-- Any team member can INSERT a split with arbitrary receipt_urls, and the app
+-- opens those URLs on click. The client now refuses non-https (lib/safe-url.ts);
+-- this CHECK keeps javascript:/data: values out of the database too. NOT VALID
+-- so existing rows can never block the migration; new and updated rows are
+-- checked immediately. Optional, once you have eyeballed the data:
+--   ALTER TABLE <t> VALIDATE CONSTRAINT <name>;
+
+CREATE OR REPLACE FUNCTION public.all_https_urls(urls TEXT[])
+RETURNS BOOLEAN
+LANGUAGE sql IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT COALESCE(bool_and(u ~* '^https://'), true) FROM unnest(urls) AS u;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cricket_splits_receipt_urls_https') THEN
+    ALTER TABLE public.cricket_splits
+      ADD CONSTRAINT cricket_splits_receipt_urls_https
+      CHECK (receipt_urls IS NULL OR public.all_https_urls(receipt_urls)) NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cricket_expenses_receipt_urls_https') THEN
+    ALTER TABLE public.cricket_expenses
+      ADD CONSTRAINT cricket_expenses_receipt_urls_https
+      CHECK (receipt_urls IS NULL OR public.all_https_urls(receipt_urls)) NOT VALID;
+  END IF;
+END $$;
