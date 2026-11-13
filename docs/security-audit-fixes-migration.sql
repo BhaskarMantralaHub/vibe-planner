@@ -312,3 +312,122 @@ CREATE POLICY "Team members can add reactions"
     user_id = auth.uid()
     AND comment_id IN (SELECT id FROM cricket_gallery_comments WHERE is_team_member(team_id))
   );
+
+
+-- ============================================================
+-- S5. Storage — team-scoped gallery-photos and team-logos policies
+-- ============================================================
+-- gallery-photos: the old policies gated on has_cricket_access() (ANY active
+-- membership on ANY team), so an active member of team A could list, upload
+-- to and delete team B's photos. Object names are {season_id}/{post_id}_{i}.jpg
+-- (GalleryUpload.tsx), so the first folder maps to a season, which maps to a
+-- team. Compared as text on purpose: no uuid cast to blow up on odd paths.
+--
+-- team-logos: no policy for this bucket exists anywhere in the repo (it was
+-- configured by hand in the dashboard). Object names are {team_id}/logo.png
+-- (TeamManager.tsx). Any hand-made policy that mentions the bucket is dropped
+-- and replaced: public read stays (the bucket is public and logos render on
+-- the anonymous settlement page), writes need to be the team's owner — the
+-- same rule as cricket_teams "Owner can update team" — or a global admin.
+
+DROP POLICY IF EXISTS "Cricket users can view gallery photos" ON storage.objects;
+DROP POLICY IF EXISTS "Cricket users can upload gallery photos" ON storage.objects;
+DROP POLICY IF EXISTS "Cricket users can delete gallery photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can view gallery photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can upload gallery photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can delete gallery photos" ON storage.objects;
+
+CREATE POLICY "Team members can view gallery photos"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'gallery-photos'
+  AND (
+    is_global_admin()
+    OR (storage.foldername(name))[1] IN (
+      SELECT s.id::text FROM public.cricket_seasons s
+      WHERE s.team_id IN (SELECT * FROM public.user_team_ids())
+    )
+  )
+);
+
+CREATE POLICY "Team members can upload gallery photos"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'gallery-photos'
+  AND (storage.foldername(name))[1] IN (
+    SELECT s.id::text FROM public.cricket_seasons s
+    WHERE s.team_id IN (SELECT * FROM public.user_team_ids())
+  )
+);
+
+CREATE POLICY "Team members can delete gallery photos"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'gallery-photos'
+  AND (storage.foldername(name))[1] IN (
+    SELECT s.id::text FROM public.cricket_seasons s
+    WHERE s.team_id IN (SELECT * FROM public.user_team_ids())
+  )
+);
+
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT policyname FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND (coalesce(qual, '') ILIKE '%team-logos%' OR coalesce(with_check, '') ILIKE '%team-logos%')
+  LOOP
+    EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname);
+  END LOOP;
+END $$;
+
+CREATE POLICY "Anyone can view team logos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'team-logos');
+
+CREATE POLICY "Team owner can upload team logo"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'team-logos'
+  AND (
+    is_global_admin()
+    OR (storage.foldername(name))[1] IN (
+      SELECT t.id::text FROM public.cricket_teams t WHERE t.owner_id = auth.uid()
+    )
+  )
+);
+
+CREATE POLICY "Team owner can update team logo"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'team-logos'
+  AND (
+    is_global_admin()
+    OR (storage.foldername(name))[1] IN (
+      SELECT t.id::text FROM public.cricket_teams t WHERE t.owner_id = auth.uid()
+    )
+  )
+)
+WITH CHECK (
+  bucket_id = 'team-logos'
+  AND (
+    is_global_admin()
+    OR (storage.foldername(name))[1] IN (
+      SELECT t.id::text FROM public.cricket_teams t WHERE t.owner_id = auth.uid()
+    )
+  )
+);
+
+CREATE POLICY "Team owner can delete team logo"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'team-logos'
+  AND (
+    is_global_admin()
+    OR (storage.foldername(name))[1] IN (
+      SELECT t.id::text FROM public.cricket_teams t WHERE t.owner_id = auth.uid()
+    )
+  )
+);
