@@ -50,7 +50,7 @@ When creating a new table, you **MUST** add it to both `.github/workflows/backup
 2. **Restore roles** — run the `roles.sql` file from the backup in Supabase SQL Editor
 3. **Restore schema** — run the `schema.sql` file from the backup in Supabase SQL Editor (this includes tables, RLS policies, functions, triggers, and indexes)
 4. **Generate restore SQL** — Actions → Generate Restore SQL → Run workflow → enter date or "latest"
-5. **Download artifact** — download the `.sql` file from the workflow run
+5. **Fetch the SQL from the private repo** — the workflow commits `restore-sql/restore_<date>.sql` to `vibe-planner-backups`. It is deliberately NOT printed in the log or attached as an artifact: this repo is public.
 6. **Restore data** — paste the SQL into Supabase SQL Editor and execute
 7. **Update credentials** — update `.env.local` with new `SUPABASE_URL` and `SUPABASE_ANON_KEY`
 8. **Update GitHub secrets** — update `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_DB_PASSWORD` in repo settings

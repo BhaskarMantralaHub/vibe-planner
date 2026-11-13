@@ -8,6 +8,9 @@ on:
         required: true
         default: 'latest'
 
+permissions:
+  contents: read
+
 jobs:
   restore:
     runs-on: ubuntu-latest
@@ -15,11 +18,17 @@ jobs:
       - name: Fetch backup and generate SQL
         env:
           BACKUP_TOKEN: ${{ secrets.VIBE_PLANNER_BACKUP }}
+          BACKUP_DATE: ${{ github.event.inputs.backup_date }}
         run: |
+          if ! printf '%s' "$BACKUP_DATE" | grep -Eq '^(latest|[0-9]{4}-[0-9]{2}-[0-9]{2})$'; then
+            echo "❌ backup_date must be 'latest' or YYYY-MM-DD"
+            exit 1
+          fi
+
           git clone "https://x-access-token:${BACKUP_TOKEN}@github.com/${{ github.repository_owner }}/vibe-planner-backups.git" backup-repo
           cd backup-repo
 
-          DATE="${{ github.event.inputs.backup_date }}"
+          DATE="$BACKUP_DATE"
           if [ "$DATE" = "latest" ]; then
             DATE=$(cat latest.txt 2>/dev/null || ls -d 20??-??-?? | sort | tail -1)
           fi
@@ -74,7 +83,12 @@ jobs:
             "cricclubs_bowling"
           )
 
-          OUTPUT="restore_${DATE}.sql"
+          # Random dollar-quote tag: backed-up row text can never contain it, so
+          # no value can close the quote and inject SQL.
+          TAG="json_$(tr -d - < /proc/sys/kernel/random/uuid)"
+
+          mkdir -p restore-sql
+          OUTPUT="restore-sql/restore_${DATE}.sql"
           cat > "$OUTPUT" <<'HEADER'
           -- ============================================
           -- RESTORE SCRIPT — AUTO-GENERATED
@@ -111,10 +125,14 @@ jobs:
             fi
 
             echo "-- $TABLE: $ROW_COUNT rows" >> "$OUTPUT"
-            JSON_CONTENT=$(cat "$FILE" | jq -c '.')
+            JSON_CONTENT=$(jq -c '.' "$FILE")
+            if printf '%s' "$JSON_CONTENT" | grep -qF "$TAG"; then
+              echo "❌ $TABLE: backup data contains the quote tag — aborting"
+              exit 1
+            fi
             cat >> "$OUTPUT" <<EOSQL
           INSERT INTO $TABLE
-          SELECT * FROM json_populate_recordset(null::$TABLE, \$json_data\$${JSON_CONTENT}\$json_data\$::json)
+          SELECT * FROM json_populate_recordset(null::$TABLE, \$${TAG}\$${JSON_CONTENT}\$${TAG}\$::json)
           ON CONFLICT DO NOTHING;
 
           EOSQL
@@ -122,15 +140,15 @@ jobs:
             echo "  ✅ $TABLE: $ROW_COUNT rows"
           done
 
+          # This repo is public: never print the SQL or attach it as an artifact.
+          # It goes to the private backups repo instead (restore-sql/).
+          git config user.name "Backup Bot"
+          git config user.email "backup@noreply.github.com"
+          git add "$OUTPUT"
+          git commit -m "restore SQL for $DATE"
+          git push || { sleep 5 && git push; }
+
           echo ""
           echo "============================================"
-          echo "Restore SQL generated: $OUTPUT"
+          echo "Restore SQL pushed to the private backups repo: $OUTPUT"
           echo "============================================"
-          cat "$OUTPUT"
-
-      - name: Upload SQL as artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: restore-sql
-          path: backup-repo/restore_*.sql
-          retention-days: 7

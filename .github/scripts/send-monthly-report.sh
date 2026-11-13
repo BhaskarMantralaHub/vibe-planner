@@ -6,7 +6,15 @@
 
 set -e
 
+# Bash 5.2 expands & in ${var//pat/repl} replacements; escaped names contain &amp;.
+shopt -u patsub_replacement 2>/dev/null || true
+
 echo "=== Monthly Expense Report ==="
+
+# Every DB string interpolated into the email HTML goes through esc (jq) or
+# escape_html (bash): member-writable text must never become markup.
+JQ_ESC='def esc: tostring | gsub("&";"&amp;") | gsub("<";"&lt;") | gsub(">";"&gt;") | gsub("\"";"&quot;") | gsub("'"'"'";"&#39;");'
+escape_html() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"; }
 
 SB_HEADERS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Accept: application/json")
 
@@ -266,7 +274,7 @@ MATCH_COUNT=$(echo "$MATCHES" | jq length)
 # Match rows for this month
 MATCH_ROWS=""
 if [ "$MATCH_COUNT" -gt 0 ]; then
-  MATCH_ROWS=$(echo "$MATCHES" | jq -r '.[] | (.match_date | split("T")[0]) as $d | (.match_time | split(":") | (.[0] | tonumber) as $h | (.[1]) as $m | (if $h >= 12 then "PM" else "AM" end) as $ap | "\($h % 12 | if . == 0 then 12 else . end):\($m) \($ap)") as $t | (if .is_home == true then "Home" elif .is_home == false then "Away" else "" end) as $ha | (if .is_home == true then "#16a34a" elif .is_home == false then "#2563eb" else "#888" end) as $hc | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;white-space:nowrap;color:#888;font-size:12px\">\($d)<br>\($t)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">vs \(.opponent)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px\"><span style=\"color:\($hc);font-weight:700\">\($ha)</span></td></tr>"')
+  MATCH_ROWS=$(echo "$MATCHES" | jq -r "$JQ_ESC"'.[] | (.match_date | split("T")[0]) as $d | (.match_time | split(":") | (.[0] | tonumber) as $h | (.[1]) as $m | (if $h >= 12 then "PM" else "AM" end) as $ap | "\($h % 12 | if . == 0 then 12 else . end):\($m) \($ap)") as $t | (if .is_home == true then "Home" elif .is_home == false then "Away" else "" end) as $ha | (if .is_home == true then "#16a34a" elif .is_home == false then "#2563eb" else "#888" end) as $hc | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;white-space:nowrap;color:#888;font-size:12px\">\($d)<br>\($t)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">vs \(.opponent // "" | esc)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px\"><span style=\"color:\($hc);font-weight:700\">\($ha)</span></td></tr>"')
 fi
 
 # All expense rows — date, description + category, amount
@@ -274,16 +282,16 @@ fi
 # trailing-zero loss. jq has no native printf; this builds the string manually
 # by multiplying by 100, rounding to int, then re-inserting the decimal point.
 CAT_LABELS='{"ground":"Jerseys","equipment":"Cricket Kit","tournament":"Tournament","food":"Food & Drinks","other":"Other"}'
-EXPENSE_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '
+EXPENSE_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" "$JQ_ESC"'
   def fmt2: . * 100 | round | tostring |
     if length == 1 then "0.0" + .
     elif length == 2 then "0." + .
     else .[:-2] + "." + .[-2:]
     end;
   .recent_all[] |
-  ($L[.category] // .category) as $cat |
+  (($L[.category] // .category) | esc) as $cat |
   (.expense_date | split("T")[0]) as $d |
-  (.description // "") as $desc |
+  ((.description // "") | esc) as $desc |
   (if $desc != "" and $desc != $cat then "\($desc) <span style=\"color:#aaa\">· \($cat)</span>" else $cat end) as $label |
   "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px;white-space:nowrap\">\($d)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\(.amount | tostring | tonumber | fmt2)</td></tr>"
 ' 2>/dev/null || echo "")
@@ -291,21 +299,21 @@ EXPENSE_ROWS=$(echo "$REPORT" | jq -r --argjson L "$CAT_LABELS" '
 # Sponsor rows
 SPONSOR_COUNT=$(echo "$REPORT" | jq '.sponsors | length')
 TOTAL_SPONSORS=$(printf "%.2f" "$(echo "$REPORT" | jq -r '.total_sponsors')")
-SPONSOR_ROWS=$(echo "$REPORT" | jq -r '
+SPONSOR_ROWS=$(echo "$REPORT" | jq -r "$JQ_ESC"'
   def fmt2: . * 100 | round | tostring |
     if length == 1 then "0.0" + .
     elif length == 2 then "0." + .
     else .[:-2] + "." + .[-2:]
     end;
   .sponsors[] |
-  (if .notes != "" then "\(.name) <span style=\"color:#aaa\">· \(.notes)</span>" else .name end) as $label |
-  "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\(.date)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#16a34a\">$\(.amount | fmt2)</td></tr>"
+  (if .notes != "" then "\(.name | esc) <span style=\"color:#aaa\">· \(.notes | esc)</span>" else (.name | esc) end) as $label |
+  "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\($label)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\(.date | esc)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;color:#16a34a\">$\(.amount | fmt2)</td></tr>"
 ' 2>/dev/null || echo "")
 
 # Fee table rows — sorted A-Z, paid first then unpaid
-FEE_ROWS=$(echo "$REPORT" | jq -r '
-  (.paid_players | sort_by(.name)[] | "<tr style=\"background:#f0fdf4\"><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"),
-  (.unpaid_players | sort_by(.name)[] | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>")
+FEE_ROWS=$(echo "$REPORT" | jq -r "$JQ_ESC"'
+  (.paid_players | sort_by(.name)[] | "<tr style=\"background:#f0fdf4\"><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name | esc)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#16a34a;font-weight:700\">Paid</span></td></tr>"),
+  (.unpaid_players | sort_by(.name)[] | "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #eee\">\(.name | esc)</td><td style=\"padding:8px 14px;border-bottom:1px solid #eee;text-align:right\"><span style=\"color:#dc2626;font-weight:700\">Unpaid</span></td></tr>")
 ' 2>/dev/null || echo "")
 
 # Build HTML (matches ShareButton PDF structure)
@@ -315,7 +323,7 @@ HTML="<div style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-wi
 <div style='background:linear-gradient(135deg,#14325a,#234e82);padding:24px 28px;border-radius:16px 16px 0 0'>
   <div style='font-size:11px;color:#c8bea0;text-transform:uppercase;letter-spacing:1px'>Monthly Report</div>
   <div style='font-size:22px;font-weight:800;color:#fff;margin-top:4px'>Sunrisers Manteca</div>
-  <div style='font-size:13px;color:#e8e0c8;margin-top:2px'>$SEASON_NAME &mdash; $MONTH_NAME</div>
+  <div style='font-size:13px;color:#e8e0c8;margin-top:2px'>$(escape_html "$SEASON_NAME") &mdash; $MONTH_NAME</div>
 </div>
 
 <div style='background:#fff;border-left:1px solid #e0e4ef;border-right:1px solid #e0e4ef;padding:16px 28px 0'>
@@ -410,9 +418,6 @@ SENT_COUNT=0
 FAIL_COUNT=0
 FAILED_LIST=""
 
-# HTML-safe name escaping
-escape_html() { echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
-
 # Build the "Your splits" section HTML for a given player_id.
 # Returns empty string when:
 #   (a) player has no splits this month (no participation), OR
@@ -430,7 +435,7 @@ build_splits_section() {
   echo "$SPLITS" | jq -r \
     --arg pid "$PID" \
     --argjson nameMap "$PLAYER_NAME_MAP" \
-    --argjson settlements "$SETTLEMENTS" '
+    --argjson settlements "$SETTLEMENTS" "$JQ_ESC"'
     def fmt2: . * 100 | round | tostring |
       if length == 1 then "0.0" + .
       elif length == 2 then "0." + .
@@ -471,10 +476,10 @@ build_splits_section() {
       ([.[] | select(.paid_by == $pid or any(.cricket_split_shares[]?; .player_id == $pid))]
         | unique_by(.id) | sort_by(.split_date) | reverse | .[:5]
         | map(
-            ($nameMap[.paid_by] // "Someone") as $payerName |
+            (($nameMap[.paid_by] // "Someone") | esc) as $payerName |
             (if .paid_by == $pid then "You paid" else "\($payerName) paid" end) as $paidByLabel |
             ([.cricket_split_shares[]? | select(.player_id == $pid) | .share_amount | tostring | tonumber] | add // 0) as $myShare |
-            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\(.description // .category)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\($paidByLabel) · $\(.amount | tostring | tonumber | fmt2)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\($myShare | fmt2)</td></tr>"
+            "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0\">\((.description // .category) | esc)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">\($paidByLabel) · $\(.amount | tostring | tonumber | fmt2)</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700\">$\($myShare | fmt2)</td></tr>"
           ) | join("")
       ) as $rows |
 
@@ -515,7 +520,7 @@ build_umpiring_section() {
   echo "$DUTIES" | jq -r \
     --arg pid "$PID" \
     --arg today "$TODAY_PT" \
-    --argjson target "$DUTY_TARGET" '
+    --argjson target "$DUTY_TARGET" "$JQ_ESC"'
     # Only the recipient'"'"'s rows.
     (map(select(.assigned_player_id == $pid))) as $mine |
     ([$mine[] | select(.status == "completed")] | length) as $doneCount |
@@ -527,10 +532,10 @@ build_umpiring_section() {
     if ($doneCount == 0 and ($upcoming | length) == 0 and $openSlots == 0) then "" else
       ($upcoming | map(
         "<tr><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;font-weight:600\">"
-          + ((.team_a | sub("^MTCA ";"")) + " v " + (.team_b | sub("^MTCA ";"")))
+          + (((.team_a | sub("^MTCA ";"")) | esc) + " v " + ((.team_b | sub("^MTCA ";"")) | esc))
           + "</td><td style=\"padding:8px 14px;border-bottom:1px solid #f0f0f0;color:#888;font-size:12px\">"
-          + .match_date + (if .match_time then " · " + .match_time else "" end)
-          + (if .venue then "<br>" + .venue else "" end)
+          + (.match_date | esc) + (if .match_time then " · " + (.match_time | esc) else "" end)
+          + (if .venue then "<br>" + (.venue | esc) else "" end)
           + "</td></tr>"
       ) | join("")) as $rows |
 
