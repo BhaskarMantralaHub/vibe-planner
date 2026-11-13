@@ -2,6 +2,10 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  # Report-Only first: Next inline scripts, Sentry and Cloudflare analytics make
+  # an enforcing CSP risky. Watch the browser console for violations, tighten,
+  # then rename to Content-Security-Policy.
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
   # HTML (and anything not overridden below) must be revalidated every load so
   # a redeploy never serves stale HTML that points at deleted JS chunk hashes
   # (the ChunkLoadError / "module factory not available" iOS-Safari bug).
