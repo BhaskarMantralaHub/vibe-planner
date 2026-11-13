@@ -274,3 +274,41 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+
+-- ============================================================
+-- S4. Gallery family — INSERT bound to the caller
+-- ============================================================
+-- The INSERT policies (multi-team-migration.sql:606-680) checked team scope
+-- only, so a member could post, comment, like or react AS another user by
+-- sending someone else's user_id. UPDATE already binds user_id; INSERT now
+-- does too. Every client writer passes the signed-in user's id
+-- (stores/cricket-store.ts). Not changed on purpose: cricket_notifications
+-- INSERT — the client legitimately writes notification rows for OTHER users
+-- (like / comment / tag), so it stays team-scoped only.
+
+DROP POLICY IF EXISTS "Team members can create posts" ON cricket_gallery;
+CREATE POLICY "Team members can create posts"
+  ON cricket_gallery FOR INSERT
+  WITH CHECK (is_team_member(team_id) AND user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Team members can create comments" ON cricket_gallery_comments;
+CREATE POLICY "Team members can create comments"
+  ON cricket_gallery_comments FOR INSERT
+  WITH CHECK (is_team_member(team_id) AND user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Team members can create likes" ON cricket_gallery_likes;
+CREATE POLICY "Team members can create likes"
+  ON cricket_gallery_likes FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND post_id IN (SELECT id FROM cricket_gallery WHERE is_team_member(team_id))
+  );
+
+DROP POLICY IF EXISTS "Team members can add reactions" ON cricket_comment_reactions;
+CREATE POLICY "Team members can add reactions"
+  ON cricket_comment_reactions FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND comment_id IN (SELECT id FROM cricket_gallery_comments WHERE is_team_member(team_id))
+  );
