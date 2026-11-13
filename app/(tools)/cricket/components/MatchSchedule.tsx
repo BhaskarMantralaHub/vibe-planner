@@ -496,7 +496,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
             <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide"
               style={match.is_home
                 ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--credit-text)' }
-                : { background: 'var(--fill)', color: 'var(--muted)' }}>
+                : { background: 'color-mix(in srgb, var(--orange) 18%, transparent)', color: 'var(--orange)' }}>
               {match.is_home ? 'Home' : 'Away'}
             </span>
           )}
@@ -634,9 +634,9 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-wide"
                 style={match.is_home
                   ? { background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--green)' }
-                  // Neutral, not blue — Away is ordinary metadata, and blue
-                  // is reserved for the umpiring "signed up" state.
-                  : { background: 'color-mix(in srgb, var(--text) 8%, transparent)', color: 'var(--muted)' }
+                  // Amber, not blue — blue is reserved for the umpiring
+                  // "signed up" state; grey made Away easy to miss.
+                  : { background: 'color-mix(in srgb, var(--orange) 18%, transparent)', color: 'var(--orange)' }
                 }>
                 {match.is_home ? 'Home' : 'Away'}
               </span>
