@@ -152,3 +152,125 @@ $$;
 
 REVOKE ALL ON FUNCTION public.suggest_players(TEXT, UUID) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.suggest_players(TEXT, UUID) TO authenticated;
+
+
+-- ============================================================
+-- S3a. team_members — owner protection on INSERT / demote / DELETE
+-- ============================================================
+-- prevent_owner_escalation was BEFORE UPDATE only, so a team admin (captains
+-- are auto-admins) could INSERT a role='owner' row, demote the real owner, or
+-- delete them. The legitimate owner writers are all unaffected:
+--   * create_team / the onboarding RPC run as a global admin (or with
+--     auth.uid() NULL in migrations), both allowed below;
+--   * cascades from deleting a team/user fire at trigger depth > 1.
+-- The existing rule (nobody becomes owner by UPDATE) is kept for everyone.
+
+CREATE OR REPLACE FUNCTION public.prevent_owner_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_trusted BOOLEAN := auth.uid() IS NULL OR is_global_admin();
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.role = 'owner' AND NOT v_trusted THEN
+      RAISE EXCEPTION 'Owner role can only be transferred via dedicated RPC';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.role = 'owner' AND OLD.role IS DISTINCT FROM 'owner' THEN
+      RAISE EXCEPTION 'Owner role can only be transferred via dedicated RPC';
+    END IF;
+    IF OLD.role = 'owner' AND NEW.role IS DISTINCT FROM 'owner' AND NOT v_trusted THEN
+      RAISE EXCEPTION 'The team owner cannot be demoted';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- DELETE
+  IF OLD.role = 'owner' AND NOT v_trusted AND pg_trigger_depth() <= 1 THEN
+    RAISE EXCEPTION 'The team owner cannot be removed';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_no_owner_escalation ON team_members;
+CREATE TRIGGER trg_no_owner_escalation
+  BEFORE INSERT OR UPDATE OR DELETE ON team_members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_owner_escalation();
+
+
+-- ============================================================
+-- S3b. Cross-team sync triggers — only for a genuine member of the row's team
+-- ============================================================
+-- Both triggers are SECURITY DEFINER and trusted NEW.user_id to identify "the
+-- same person", but a team admin can set user_id to anything on their own
+-- team's roster rows. They could then edit that row and have the trigger
+-- overwrite the target's rows on OTHER teams (and profiles.full_name).
+-- Now the sync only fires when NEW.user_id is an ACTIVE member of NEW.team_id,
+-- i.e. when the admin is managing a real member of their own team.
+
+CREATE OR REPLACE FUNCTION public.sync_player_profile_across_teams()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NEW; END IF;
+  IF NEW.user_id IS NULL THEN RETURN NEW; END IF;
+  IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN RETURN NEW; END IF;
+
+  IF NEW.name IS NOT DISTINCT FROM OLD.name
+    AND NEW.email IS NOT DISTINCT FROM OLD.email
+    AND NEW.player_role IS NOT DISTINCT FROM OLD.player_role
+    AND NEW.batting_style IS NOT DISTINCT FROM OLD.batting_style
+    AND NEW.bowling_style IS NOT DISTINCT FROM OLD.bowling_style
+    AND NEW.shirt_size IS NOT DISTINCT FROM OLD.shirt_size
+    AND NEW.cricclub_id IS NOT DISTINCT FROM OLD.cricclub_id
+    AND NEW.photo_url IS NOT DISTINCT FROM OLD.photo_url
+    AND NEW.phone IS NOT DISTINCT FROM OLD.phone
+  THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM team_members
+    WHERE user_id = NEW.user_id AND team_id = NEW.team_id AND status = 'active'
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  UPDATE cricket_players
+  SET name = NEW.name,
+      email = NEW.email,
+      player_role = NEW.player_role,
+      batting_style = NEW.batting_style,
+      bowling_style = NEW.bowling_style,
+      shirt_size = NEW.shirt_size,
+      cricclub_id = NEW.cricclub_id,
+      photo_url = NEW.photo_url,
+      phone = NEW.phone,
+      updated_at = now()
+  WHERE user_id = NEW.user_id
+    AND id != NEW.id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.sync_player_name_to_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.name IS DISTINCT FROM OLD.name
+     AND NEW.user_id IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM public.team_members
+       WHERE user_id = NEW.user_id AND team_id = NEW.team_id AND status = 'active'
+     ) THEN
+    UPDATE public.profiles SET full_name = NEW.name WHERE id = NEW.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
