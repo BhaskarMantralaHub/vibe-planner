@@ -16,6 +16,7 @@ import type { CardMenuItem } from '@/components/ui';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { openReceipt } from '@/lib/safe-url';
 import { Plus, Handshake, ArrowRight,Trash2, Pencil, ChevronDown, ChevronRight, EllipsisVertical, PartyPopper, CheckCircle2, Receipt, ArrowDownRight, ArrowUpRight, TrendingUp, Paperclip, FileText, ExternalLink, RotateCcw, Info, Search, ArrowUpDown, SlidersHorizontal, Check } from 'lucide-react';
 
 const isUrlPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
@@ -1216,7 +1217,7 @@ export default function SplitsDashboard() {
                                   return (
                                     <button
                                       key={i}
-                                      onClick={() => window.open(url, '_blank')}
+                                      onClick={() => openReceipt(url)}
                                       className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
                                       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                                     >
@@ -1593,7 +1594,7 @@ export default function SplitsDashboard() {
                                       return (
                                         <button
                                           key={i}
-                                          onClick={() => window.open(url, '_blank')}
+                                          onClick={() => openReceipt(url)}
                                           className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-pointer active:scale-[0.98] transition-all hover:bg-[var(--hover-bg)]"
                                           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                                         >
