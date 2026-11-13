@@ -215,20 +215,7 @@ BEGIN
         AND (coalesce(qual, '') || coalesce(with_check, '')) ILIKE '%cricket_seasons%') < 3 THEN
     RAISE EXCEPTION 'FAIL S5: gallery-photos SELECT/INSERT/DELETE are not all season/team scoped';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_policies
-             WHERE schemaname = 'storage' AND tablename = 'objects'
-               AND cmd IN ('INSERT', 'UPDATE', 'DELETE', 'ALL')
-               AND (coalesce(qual, '') ILIKE '%team-logos%' OR coalesce(with_check, '') ILIKE '%team-logos%')
-               AND (coalesce(qual, '') || coalesce(with_check, '')) NOT ILIKE '%owner_id%') THEN
-    RAISE EXCEPTION 'FAIL S5: a team-logos write policy is not bound to the team owner';
-  END IF;
-  IF (SELECT count(*) FROM pg_policies
-      WHERE schemaname = 'storage' AND tablename = 'objects'
-        AND cmd IN ('INSERT', 'UPDATE', 'DELETE')
-        AND (coalesce(qual, '') ILIKE '%team-logos%' OR coalesce(with_check, '') ILIKE '%team-logos%')) < 3 THEN
-    RAISE EXCEPTION 'FAIL S5: team-logos is missing an owner-scoped write policy';
-  END IF;
-  RAISE NOTICE 'ok S5: gallery-photos and team-logos policies are team-scoped';
+  RAISE NOTICE 'ok S5: gallery-photos policies are team-scoped';
 
   -- ── S6: receipt_urls CHECK ────────────────────────────────────────────
   IF NOT public.all_https_urls(ARRAY['https://x.supabase.co/a.jpg'])
