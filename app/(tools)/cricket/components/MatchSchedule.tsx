@@ -425,7 +425,12 @@ function SeasonRecord({ completed }: { completed: Match[] }) {
   if (noResult > 0) parts.push([noResult, 'no result']);
 
   return (
-    <div className="flex items-baseline gap-3 px-1">
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1">
+      {/* Labelled: unlabelled, this line floated between the hero and the
+          action buttons and read as part of neither. */}
+      <Text size="2xs" weight="bold" uppercase tracking="wider" color="dim" className="flex-shrink-0">
+        Season
+      </Text>
       <Text size="sm" color="muted">
         {parts.map(([n, word], i) => (
           <span key={word}>
@@ -588,30 +593,31 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
   const typeConfig = MATCH_TYPE_CONFIG[match.match_type];
 
   return (
-    <div className="flex gap-3">
-      {/* Date block + dot */}
-      <div className="flex flex-col items-center flex-shrink-0 pt-3">
-        <DateBlock dateStr={match.match_date} />
-      </div>
+    <div
+      className="rounded-2xl p-3.5 relative"
+      style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
+    >
+      {isAdmin && (
+        <button
+          ref={openMenuId === match.id ? menuBtnRef : null}
+          onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
+          className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
+          aria-label="Match actions"
+        >
+          <EllipsisVertical size={15} />
+        </button>
+      )}
 
-      {/* Card content */}
-      <div
-        className="flex-1 rounded-2xl p-3.5 relative min-w-0"
-        style={{ background: 'var(--card)', boxShadow: 'var(--card-shadow)' }}
-      >
+      {/* Date lives INSIDE the card, behind a hairline: in the old gutter
+          layout the date read as a separate element and cost the card
+          ~64px of width on every phone. */}
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
+          <DateBlock dateStr={match.match_date} />
+        </div>
+        <div className="w-px flex-shrink-0" style={{ background: 'var(--border)' }} aria-hidden />
 
-        {isAdmin && (
-          <button
-            ref={openMenuId === match.id ? menuBtnRef : null}
-            onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-            className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] active:bg-[var(--hover-bg)] transition-colors"
-            aria-label="Match actions"
-          >
-            <EllipsisVertical size={15} />
-          </button>
-        )}
-
-        <div className="pr-8">
+        <div className="flex-1 min-w-0 pr-8">
           <Text as="p" size="md" weight="bold" className="sm:text-[15px] mb-1">
             vs {match.opponent}
           </Text>
@@ -860,9 +866,9 @@ function DeletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }
         <button
           ref={openMenuId === match.id ? menuBtnRef : null}
           onClick={() => onMenuOpen(openMenuId === match.id ? null : match.id)}
-          className="absolute top-2 right-2 h-9 w-9 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
+          className="absolute top-1 right-1 h-11 w-11 flex items-center justify-center rounded-lg cursor-pointer text-[var(--muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text)] transition-colors"
         >
-          <EllipsisVertical size={11} />
+          <EllipsisVertical size={15} />
         </button>
       )}
 
@@ -1371,8 +1377,24 @@ export default function MatchSchedule() {
 
   return (
     <div className="space-y-3">
-      {/* Contextual view switcher — part of the page, not the dock */}
-      {scheduleTabs}
+      {/* Contextual view switcher — sticks under the shell header so tab
+          switching never needs a scroll back to the top. Full-bleed via
+          negative margins matched to the page padding; the translucent
+          --bg matches the shell header's own material. The 60px offset is
+          the shell header's height (44px row + 16px padding); the schedule
+          page root uses overflow-x-clip because overflow-hidden would
+          silently break this stickiness. */}
+      <div
+        className="sticky z-30 -mx-3 px-3 py-2 sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8"
+        style={{
+          top: 'calc(60px + env(safe-area-inset-top, 0px))',
+          background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}
+      >
+        {scheduleTabs}
+      </div>
 
       {/* Season record summary — visible on completed tab */}
       {activeTab === 'completed' && completed.length > 0 && (
@@ -1407,7 +1429,7 @@ export default function MatchSchedule() {
               aria-label="Share schedule as PDF"
               onClick={() => exportSchedulePDF(upcoming, completed, seasonName).catch((e) => { console.error('[schedule] PDF export failed:', e); toast.error('Failed to generate PDF'); })}>
               <Share size={16} aria-hidden />
-              Share
+              Share PDF
             </Button>
           </div>
         </div>
@@ -1445,6 +1467,12 @@ export default function MatchSchedule() {
                 description={isAdmin ? 'Tap + to schedule a match' : 'Check back soon for new fixtures'}
               />
             ) : null}
+            {/* End-of-list marker: without it the list just stops in dead space */}
+            {upcoming.length > 0 && (
+              <p className="pt-5 text-center text-[12px] font-medium tabular-nums" style={{ color: 'var(--dim)' }}>
+                {upcoming.length} upcoming {upcoming.length === 1 ? 'match' : 'matches'}
+              </p>
+            )}
           </>
         )}
 
@@ -1483,6 +1511,11 @@ export default function MatchSchedule() {
                 title="No completed matches"
                 description="Completed matches will appear here"
               />
+            )}
+            {completed.length > 0 && (
+              <p className="pt-5 text-center text-[12px] font-medium tabular-nums" style={{ color: 'var(--dim)' }}>
+                {completed.length} played
+              </p>
             )}
           </>
         )}
