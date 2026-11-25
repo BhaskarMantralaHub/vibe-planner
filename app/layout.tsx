@@ -46,9 +46,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${GeistMono.variable} overflow-x-hidden`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${GeistMono.variable} overflow-x-clip`}>
       <head />
-      <body className="font-sans antialiased overflow-x-hidden w-full">
+      <body className="font-sans antialiased overflow-x-clip w-full">
         <Providers>
           <Shell>{children}</Shell>
         </Providers>

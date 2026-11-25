@@ -342,7 +342,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {showNav && <HamburgerMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <main className="overflow-x-hidden">
+      <main className="overflow-x-clip">
         <div className="mx-auto w-full max-w-6xl lg:px-8">
           {needsPasswordReset ? <ResetPasswordForm /> : children}
         </div>
