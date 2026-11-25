@@ -69,7 +69,10 @@ export function SlideToConfirm({ label, onConfirm, tone = 'danger', disabled = f
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (disabled || firedRef.current) return;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // Capture on the button itself (currentTarget), not e.target: the
+    // pointer may land on the icon inside the thumb, and capture must
+    // belong to the element the move/up handlers are attached to.
+    e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { pointerId: e.pointerId, startX: e.clientX - offset, max: maxTravel() };
     setDragging(true);
   };
@@ -115,10 +118,18 @@ export function SlideToConfirm({ label, onConfirm, tone = 'danger', disabled = f
           transition: dragging ? 'none' : 'width 0.25s cubic-bezier(0.2, 0.8, 0.3, 1)',
         }}
       />
-      {/* Track label — fades as the drag progresses so it never fights the thumb */}
+      {/* Track label — centred in the space right of the thumb (the left
+          padding reserves the thumb's home position, so the thumb never
+          covers the first letter at rest), and fades as the drag
+          progresses so it never fights the thumb. */}
       <span
         className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium"
-        style={{ color, opacity: confirmed ? 0 : 1 - progress * 1.4 }}
+        style={{
+          color,
+          opacity: confirmed ? 0 : 1 - progress * 1.4,
+          paddingLeft: THUMB + PAD * 2,
+          paddingRight: PAD * 2,
+        }}
       >
         {label}
       </span>

@@ -60,6 +60,22 @@ describe('SlideToConfirm', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  it('fires from the keyboard with Space, exactly once', () => {
+    const { thumb, onConfirm } = renderControl();
+    fireEvent.keyDown(thumb, { key: ' ' });
+    fireEvent.keyUp(thumb, { key: ' ' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('pointercancel mid-drag fires nothing and springs back', () => {
+    const { thumb, onConfirm } = renderControl();
+    fireEvent.pointerDown(thumb, { pointerId: 1, clientX: 0 });
+    fireEvent.pointerMove(thumb, { pointerId: 1, clientX: 100 }); // ~40% of travel
+    fireEvent.pointerCancel(thumb, { pointerId: 1, clientX: 100 });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(thumb.style.transform).toBe('translateX(0px)');
+  });
+
   it('does not fire when disabled', () => {
     const onConfirm = vi.fn();
     render(<SlideToConfirm label="Slide to delete forever" onConfirm={onConfirm} disabled />);
