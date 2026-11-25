@@ -306,7 +306,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           --shell-header-height in globals.css — sticky in-page bars offset
           by it, so keep the two in sync. */}
       <header
-        className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl backdrop-saturate-150"
+        className="sticky top-0 z-40 transform-gpu border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl backdrop-saturate-150"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center px-4 py-2 lg:px-8">
@@ -342,7 +342,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {showNav && <HamburgerMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />}
 
-      <main className="overflow-x-clip">
+      <main>
         <div className="mx-auto w-full max-w-6xl lg:px-8">
           {needsPasswordReset ? <ResetPasswordForm /> : children}
         </div>
