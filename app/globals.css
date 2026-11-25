@@ -427,6 +427,14 @@ code, pre, .font-mono {
   .animate-tactile-check { animation: none; opacity: 1; transform: none; }
 }
 
+/* SlideToConfirm — the spring-back is feedback, not state, so it goes
+   instant under prefers-reduced-motion. The drag itself is direct
+   manipulation (the thumb follows the finger 1:1) and is not animated
+   in either mode. The !important beats the inline transition style. */
+@media (prefers-reduced-motion: reduce) {
+  .slide-confirm-thumb, .slide-confirm-fill { transition: none !important; }
+}
+
 /* View entrance — subtle opacity + 6px rise when switching in-page views. */
 @keyframes view-in {
   from { opacity: 0; transform: translateY(6px); }
