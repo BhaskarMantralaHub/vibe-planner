@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useCricketStore } from '@/stores/cricket-store';
 import { todayPT } from '@/stores/umpiring-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
-import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui';
+import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, SlideToConfirm } from '@/components/ui';
 import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy, Trophy } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
@@ -1557,7 +1557,10 @@ export default function MatchSchedule() {
         </DialogContent>
       </Dialog>
 
-      {/* Permanent delete confirmation dialog */}
+      {/* Permanent delete confirmation dialog — the one irreversible action
+          in this screen, so a tap is not enough: confirming takes a full
+          slide (SlideToConfirm). The soft delete above stays a plain tap
+          because it is restorable. */}
       <Dialog open={!!permanentDeleting} onOpenChange={(open) => { if (!open) setPermanentDeleting(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -1566,9 +1569,17 @@ export default function MatchSchedule() {
               Match vs {permanentDeleting?.opponent} will be permanently removed. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="items-center">
             <Button variant="secondary" onClick={() => setPermanentDeleting(null)}>Cancel</Button>
-            <Button variant="danger" onClick={() => { if (permanentDeleting) handlePermanentDelete(permanentDeleting.id); }}>Delete Forever</Button>
+            <div className="min-w-0 flex-1">
+              {permanentDeleting && (
+                <SlideToConfirm
+                  key={permanentDeleting.id}
+                  label="Slide to delete forever"
+                  onConfirm={() => handlePermanentDelete(permanentDeleting.id)}
+                />
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

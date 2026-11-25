@@ -56,6 +56,8 @@ export type { CardMenuItem, CardMenuProps } from './card-menu';
 
 export { ActionSheet } from './action-sheet';
 export type { ActionSheetProps } from './action-sheet';
+export { SlideToConfirm } from './slide-to-confirm';
+export type { SlideToConfirmProps } from './slide-to-confirm';
 
 export { RefreshButton } from './refresh-button';
 
