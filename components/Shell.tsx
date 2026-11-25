@@ -301,7 +301,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           otherwise sit under the status-bar clock. */}
       {/* iOS nav-bar material: the PAGE colour, translucent, over a hairline —
           not a gray band. Three columns so the team name is truly centred
-          even though the right side carries more icons than the left. */}
+          even though the right side carries more icons than the left.
+          This header's height (h-11 row + py-2) is published as
+          --shell-header-height in globals.css — sticky in-page bars offset
+          by it, so keep the two in sync. */}
       <header
         className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl backdrop-saturate-150"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}

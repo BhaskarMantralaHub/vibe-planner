@@ -494,7 +494,7 @@ function NextMatchHero({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef }: {
       <div className="p-4 sm:p-5">
         <Text as="p" size="xs" weight="semibold" color="muted" className="mb-1">Next match</Text>
 
-        <div className="flex items-center gap-2 flex-wrap pr-8">
+        <div className="flex items-center gap-2 flex-wrap pr-12">
           <Text as="h2" size="xl" weight="bold" tracking="tight" className="leading-tight">
             vs {match.opponent}
           </Text>
@@ -617,7 +617,7 @@ function TimelineMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef 
         </div>
         <div className="w-px flex-shrink-0" style={{ background: 'var(--border)' }} aria-hidden />
 
-        <div className="flex-1 min-w-0 pr-8">
+        <div className="flex-1 min-w-0 pr-12">
           <Text as="p" size="md" weight="bold" className="sm:text-[15px] mb-1">
             vs {match.opponent}
           </Text>
@@ -759,7 +759,7 @@ function CompletedMatchCard({ match, isAdmin, onMenuOpen, openMenuId, menuBtnRef
         </button>
       )}
 
-      <div className={'flex items-center gap-2 ' + (isAdmin ? 'pr-9' : '')}>
+      <div className={'flex items-center gap-2 ' + (isAdmin ? 'pr-12' : '')}>
         <span
           className="inline-flex h-6 flex-shrink-0 items-center rounded-full px-2.5 text-[13px] font-semibold"
           style={{ background: verdictBg, color: verdictColor }}
@@ -1380,14 +1380,15 @@ export default function MatchSchedule() {
       {/* Contextual view switcher — sticks under the shell header so tab
           switching never needs a scroll back to the top. Full-bleed via
           negative margins matched to the page padding; the translucent
-          --bg matches the shell header's own material. The 60px offset is
-          the shell header's height (44px row + 16px padding); the schedule
-          page root uses overflow-x-clip because overflow-hidden would
-          silently break this stickiness. */}
+          --bg matches the shell header's own material. The offset reads
+          --shell-header-height (globals.css) rather than a hardcoded
+          number; the schedule page root uses overflow-x-clip because
+          overflow-hidden would silently break this stickiness. z-30 sits
+          below the shell header (z-40) and every overlay (z-50). */}
       <div
         className="sticky z-30 -mx-3 px-3 py-2 sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8"
         style={{
-          top: 'calc(60px + env(safe-area-inset-top, 0px))',
+          top: 'calc(var(--shell-header-height) + env(safe-area-inset-top, 0px))',
           background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',

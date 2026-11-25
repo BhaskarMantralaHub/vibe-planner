@@ -509,12 +509,17 @@ export const useCricketStore = create<CricketState>((set, get) => ({
 
     const [{ data }, rosterRes] = await Promise.all([q, rosterQuery]);
     const seasons = (data ?? []) as CricketSeason[];
-    if (rosterRes.error) {
-      console.error('[cricket] season roster load failed:', rosterRes.error);
-    }
-    const seasonPlayers = (rosterRes.data ?? []) as CricketSeasonPlayer[];
     const selectedSeasonId = resolveSeason(seasons, get().selectedSeasonId);
-    set({ seasons, seasonPlayers, selectedSeasonId });
+    if (rosterRes.error) {
+      // Keep whatever roster is already in the store (e.g. from loadAll):
+      // writing [] here would wipe it and the season picker would go back
+      // to showing "No players on this season yet" for every season.
+      console.error('[cricket] season roster load failed:', rosterRes.error);
+      set({ seasons, selectedSeasonId });
+    } else {
+      const seasonPlayers = (rosterRes.data ?? []) as CricketSeasonPlayer[];
+      set({ seasons, seasonPlayers, selectedSeasonId });
+    }
   },
 
   loadMoreGallery: async () => {
