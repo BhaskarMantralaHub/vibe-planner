@@ -1382,11 +1382,12 @@ export default function MatchSchedule() {
           negative margins matched to the page padding; the translucent
           --bg matches the shell header's own material. The offset reads
           --shell-header-height (globals.css) rather than a hardcoded
-          number; the schedule page root uses overflow-x-clip because
-          overflow-hidden would silently break this stickiness. z-30 sits
-          below the shell header (z-40) and every overlay (z-50). */}
+          number. transform-gpu (here and on the shell header) keeps both
+          sticky bars on their own layers, and no ancestor may set overflow-x
+          (hidden breaks sticky, clip made it vibrate on iOS Safari). z-30
+          sits below the shell header (z-40) and every overlay (z-50). */}
       <div
-        className="sticky z-30 -mx-3 px-3 py-2 sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8"
+        className="sticky z-30 transform-gpu -mx-3 px-3 py-2 sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8"
         style={{
           top: 'calc(var(--shell-header-height) + env(safe-area-inset-top, 0px))',
           background: 'color-mix(in srgb, var(--bg) 85%, transparent)',

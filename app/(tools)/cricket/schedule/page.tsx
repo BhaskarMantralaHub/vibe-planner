@@ -24,11 +24,10 @@ function ScheduleContent() {
     }
   }, [user, loadSeasons]);
 
-  // overflow-x-clip, not overflow-hidden: hidden makes this box a scroll
-  // container and silently kills the sticky tab bar in MatchSchedule.
-  // clip keeps the horizontal guard without that side effect.
+  // No overflow-x here (or on html/body/main): hidden kills the sticky tab
+  // bar in MatchSchedule, and clip made it vibrate on iOS Safari.
   return (
-    <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8 overflow-x-clip">
+    <div className="relative min-h-screen w-full px-3 pt-5 pb-cricket-nav sm:px-4 lg:px-8">
       {/* Same editorial header as Umpiring: the title is the dock's label, no
           icon chip. */}
       <div className="mb-4 flex items-end justify-between gap-3">
