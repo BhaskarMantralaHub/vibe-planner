@@ -499,10 +499,27 @@ export const useCricketStore = create<CricketState>((set, get) => ({
     let q = supabase.from('cricket_seasons').select('*').order('year', { ascending: false });
     if (teamId) q = q.eq('team_id', teamId);
 
-    const { data } = await q;
+    // Season rosters ride along: the season picker's per-season player
+    // counts read seasonPlayers, and pages that call only loadSeasons
+    // (Schedule, Umpiring, Stats) otherwise show "No players on this
+    // season yet" for every season. Same parallel pattern as loadAll.
+    const rosterQuery = teamId
+      ? supabase.from('cricket_season_players').select('*').eq('team_id', teamId)
+      : supabase.from('cricket_season_players').select('*');
+
+    const [{ data }, rosterRes] = await Promise.all([q, rosterQuery]);
     const seasons = (data ?? []) as CricketSeason[];
     const selectedSeasonId = resolveSeason(seasons, get().selectedSeasonId);
-    set({ seasons, selectedSeasonId });
+    if (rosterRes.error) {
+      // Keep whatever roster is already in the store (e.g. from loadAll):
+      // writing [] here would wipe it and the season picker would go back
+      // to showing "No players on this season yet" for every season.
+      console.error('[cricket] season roster load failed:', rosterRes.error);
+      set({ seasons, selectedSeasonId });
+    } else {
+      const seasonPlayers = (rosterRes.data ?? []) as CricketSeasonPlayer[];
+      set({ seasons, seasonPlayers, selectedSeasonId });
+    }
   },
 
   loadMoreGallery: async () => {
