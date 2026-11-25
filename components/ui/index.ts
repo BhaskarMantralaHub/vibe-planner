@@ -58,6 +58,8 @@ export { ActionSheet } from './action-sheet';
 export type { ActionSheetProps } from './action-sheet';
 export { SlideToConfirm } from './slide-to-confirm';
 export type { SlideToConfirmProps } from './slide-to-confirm';
+export { AvatarCluster } from './avatar-cluster';
+export type { AvatarClusterProps, AvatarClusterPerson } from './avatar-cluster';
 
 export { RefreshButton } from './refresh-button';
 

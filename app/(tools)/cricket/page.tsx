@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Text } from '@/components/ui';
+import { Text, AvatarCluster } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { PageFooter } from '@/components/PageFooter';
@@ -379,6 +379,16 @@ function CricketDashboard() {
   // season with no roster rows. See ./lib/season-roster.
   const roster = seasonRoster(players, seasonPlayers, selectedSeasonId);
   const activePlayers = billableRoster(roster);
+  // Squad strip order: captain, then vice-captain, then the rest in roster
+  // order — the same lead as a squad announcement. (Array sort is stable,
+  // so roster order survives inside each rank.)
+  const squadOrder = [...roster.players].sort((a, b) => {
+    const rank = (p: { id: string }) => {
+      const d = roster.designationOf(p.id);
+      return d === 'captain' ? 0 : d === 'vice-captain' ? 1 : 2;
+    };
+    return rank(a) - rank(b);
+  });
   const VALID_VIEWS: View[] = ['players', 'expenses', 'fees', 'sponsors', 'splits'];
   const SS_KEY = 'cricket:activeView';
   const [activeView, setActiveView] = useState<View>(() => {
@@ -608,6 +618,24 @@ function CricketDashboard() {
           </div>
         );
       })()}
+
+      {/* Squad strip — this season's roster at a glance, faces first and the
+          count second. It belongs to the page header (like the greeting
+          above), so it shows on every view without taking a view's first
+          viewport; tapping it lands on the roster. */}
+      {selectedSeasonId && roster.players.length > 0 && (
+        <button
+          type="button"
+          onClick={() => handleViewChange('players')}
+          aria-label={`${seasons.find((s) => s.id === selectedSeasonId)?.name ?? 'Season'} squad, ${roster.players.length} ${roster.players.length === 1 ? 'player' : 'players'}. Go to the roster.`}
+          className="mb-3 flex cursor-pointer items-center gap-2.5"
+        >
+          <AvatarCluster people={squadOrder.map((p) => ({ name: p.name, photoUrl: p.photo_url }))} />
+          <Text size="sm" color="muted">
+            {seasons.find((s) => s.id === selectedSeasonId)?.name ?? 'Season'} squad · {roster.players.length} {roster.players.length === 1 ? 'player' : 'players'}
+          </Text>
+        </button>
+      )}
 
       {!selectedSeasonId ? (
         <div className="flex min-h-[40vh] items-center justify-center">
