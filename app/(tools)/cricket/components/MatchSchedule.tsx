@@ -7,7 +7,7 @@ import { useCricketStore } from '@/stores/cricket-store';
 import { todayPT } from '@/stores/umpiring-store';
 import { getSupabaseClient, isCloudMode } from '@/lib/supabase/client';
 import { EmptyState, Text, ActionSheet, Button, Badge, Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, SlideToConfirm } from '@/components/ui';
-import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy, Trophy } from 'lucide-react';
+import { EllipsisVertical, Pencil, Trash2, ArchiveRestore, MapPin, Clock, Calendar, CalendarPlus, Share, ExternalLink, Plus, Copy, Trophy, ChevronDown } from 'lucide-react';
 import { MdSportsCricket, MdScoreboard } from 'react-icons/md';
 import UmpireIcon from '@/components/icons/UmpireIcon';
 import { toast } from 'sonner';
@@ -979,6 +979,8 @@ export default function MatchSchedule() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [deletingMatch, setDeletingMatch] = useState<{ id: string; opponent: string } | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<{ id: string; opponent: string } | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
   const [recordingMatch, setRecordingMatch] = useState<Match | null>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   // NOTE on the removed Sync button: cricclubs.com blocks Apify's residential
@@ -1248,7 +1250,6 @@ export default function MatchSchedule() {
       if (!isCloudMode()) localSaveMatches(next);
       return next;
     });
-    setActiveTab('upcoming');
     toast.success('Trash emptied');
   };
 
@@ -1321,6 +1322,7 @@ export default function MatchSchedule() {
       }] : []),
       ...(isPractice ? [{ label: 'Record Result', icon: <MdScoreboard size={15} />, color: 'var(--cricket)', onClick: () => setRecordingMatch(m) }] : []),
       { label: 'Edit', icon: <Pencil size={15} />, color: 'var(--text)', onClick: () => { setEditingMatch(m); setShowForm(true); } },
+      { label: 'Delete', icon: <Trash2 size={15} />, color: 'var(--red)', onClick: () => setDeletingMatch({ id: m.id, opponent: m.opponent }), dividerBefore: true },
     ];
   };
 
@@ -1522,6 +1524,46 @@ export default function MatchSchedule() {
           </>
         )}
 
+        {/* Recently Deleted — collapsible trash section, same pattern as
+            Expenses. Admin-only: Restore / Delete Forever live in each
+            card's menu, Empty Trash sits under the list. Without this
+            section the trash handlers had no reachable UI at all. */}
+        {isAdmin && trashed.length > 0 && (
+          <div className="mt-4 rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--red) 20%, var(--border))' }}>
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Text size="sm" weight="semibold" color="danger">Deleted</Text>
+                <Badge variant="red" size="sm">{trashed.length}</Badge>
+              </div>
+              <ChevronDown
+                size={16}
+                className="transition-transform duration-200"
+                style={{ color: 'var(--muted)', transform: showDeleted ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+            {showDeleted && (
+              <div className="px-3 pb-3 space-y-2">
+                {trashed.map((m) => (
+                  <DeletedMatchCard
+                    key={m.id}
+                    match={m}
+                    isAdmin={isAdmin}
+                    onMenuOpen={setOpenMenu}
+                    openMenuId={openMenu}
+                    menuBtnRef={menuBtnRef}
+                  />
+                ))}
+                <Button variant="danger" className="w-full" onClick={() => setEmptyingTrash(true)}>
+                  Empty Trash
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* Match context menu — shared bottom-sheet ActionSheet, same items */}
@@ -1580,6 +1622,23 @@ export default function MatchSchedule() {
                 />
               )}
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Empty Trash confirmation — a bulk permanent delete, so the section
+          button asks first instead of firing immediately. */}
+      <Dialog open={emptyingTrash} onOpenChange={(open) => { if (!open) setEmptyingTrash(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Empty Trash?</DialogTitle>
+            <DialogDescription>
+              All {trashed.length} deleted {trashed.length === 1 ? 'match' : 'matches'} will be permanently removed. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEmptyingTrash(false)}>Cancel</Button>
+            <Button variant="danger" onClick={() => { setEmptyingTrash(false); handleEmptyTrash(); }}>Empty Trash</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
